@@ -1,0 +1,224 @@
+// ===== الحالة =====
+let USER=null,ROLE=null,CLIENTS=[],CID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[];
+let SCREEN='portfolio'; // portfolio | project — للطاقم؛ العميل دائمًا project
+
+
+// ===== بدء التطبيق =====
+async function startApp(){
+  $('#login').classList.add('hidden');$('#loader').classList.remove('hidden');
+  await loadClients();
+  $('#app').classList.remove('hidden');$('#loader').classList.add('hidden');
+  $('#uName').textContent=USER._name||USER.email;
+  $('#roleChip').textContent=ROLE_NAMES[ROLE];
+  $('#dataDate').value=DATA_DATE;$('#dataDate').onchange=e=>{DATA_DATE=e.target.value;if(SCREEN==='project')render();else renderPortfolio();};
+  if(!CLIENTS.length){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا توجد مشاريع متاحة لحسابك بعد.</p>';hideChrome();return;}
+  // العميل: دخول مباشر لمشروعه الوحيد. الطاقم: شاشة المحفظة
+  if(ROLE==='client'){
+    SCREEN='project';CID=CLIENTS[0].id;await loadProject(CID);render();
+  }else{
+    SCREEN='portfolio';await renderPortfolio();
+  }
+}
+function hideChrome(){ $('#barClient').style.display='none'; $('#kpisRow').style.display='none'; $('#tabs').style.display='none'; $('#lifeBadge').style.display='none'; }
+function showChrome(){ $('#kpisRow').style.display=''; $('#tabs').style.display=''; $('#lifeBadge').style.display=''; }
+
+
+// ===== شاشة المحفظة (للطاقم) =====
+async function loadSummary(clientId){
+  const {data:projects}=await sb.from('pmo_projects').select('*').eq('client_id',clientId).limit(1);
+  if(!projects||!projects.length) return null;
+  const p=projects[0];
+  const {data:tasks}=await sb.from('pmo_tasks').select('id,ref,type,status,duration,fixed_date,project_id').eq('project_id',p.id);
+  const {data:deps}=await sb.from('pmo_dependencies').select('task_id,depends_on_id').eq('project_id',p.id);
+  return {p,tasks:tasks||[],deps:deps||[]};
+}
+async function renderPortfolio(){
+  SCREEN='portfolio';
+  $('#hProject').textContent='محفظة المشاريع';
+  $('#barClient').style.display='none';hideChrome();
+  $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.</div><div class="pgrid" id="pgrid"></div>';
+  const grid=$('#pgrid');grid.innerHTML='';
+  for(const c of CLIENTS){
+    const sum=await loadSummary(c.id);
+    let body,meta;
+    if(sum && sum.tasks.length){
+      // جدولة سريعة للملخّص
+      const tlist=sum.tasks.map(t=>({id:t.ref,type:t.type,duration:t.duration,fixedDate:t.fixed_date||undefined,
+        deps:sum.deps.filter(d=>d.task_id===t.id).map(d=>{const dt=sum.tasks.find(x=>x.id===d.depends_on_id);return dt?dt.ref:null;}).filter(Boolean)}));
+      const S=scheduleTasks(tlist,sum.p.start_date);
+      const real=sum.tasks.filter(t=>t.type!=='milestone'&&t.type!=='cont');
+      const done=real.filter(t=>t.status==='done').length;
+      const blocked=sum.tasks.filter(t=>t.status==='blocked').length;
+      const pct=real.length?Math.round(done/real.length*100):0;
+      meta=`<div class="pcard-meta"><span>${real.length} بند</span><span>الانتهاء ${fmt(S.pEnd)}</span></div>`;
+      body=`<div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div>
+        <div class="pstats"><span><b>${pct}%</b> إنجاز</span><span><b>${done}</b> منجز</span><span class="${blocked?'red':''}"><b>${blocked}</b> متوقف</span></div>`;
+    }else{
+      meta=`<div class="pcard-meta"><span>لا خطة بعد</span></div>`;
+      body=`<div class="pempty">مشروع فارغ — جاهز لبناء الخطة</div>`;
+    }
+    const life=sum?({proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'}[sum.p.lifecycle]||'—'):'—';
+    const card=document.createElement('div');card.className='pcard';card.style.cssText=`--cc:${c.color}`;
+    card.innerHTML=`<div class="pcard-top"><span class="pdot" style="background:${c.color}"></span><h3>${c.name}</h3><span class="plife">${life}</span></div>${meta}${body}`;
+    card.onclick=async()=>{CID=c.id;await openProject();};
+    grid.appendChild(card);
+  }
+}
+async function openProject(){
+  $('#loader').classList.remove('hidden');
+  await loadProject(CID);
+  $('#loader').classList.add('hidden');
+  SCREEN='project';$('#barClient').style.display='';showChrome();
+  render();
+}
+
+
+// ===== إدارة وصول العميل (PMO) =====
+async function openAccess(){
+  const c=CLIENTS.find(x=>x.id===CID);
+  $('#accTitle').textContent='إدارة وصول: '+c.name;
+  $('#accEmail').value='';
+  await renderAccessList();
+  $('#accessOverlay').style.display='flex';
+}
+async function renderAccessList(){
+  const {data,error}=await sb.from('pmo_client_access').select('*').eq('client_id',CID).order('created_at');
+  const list=$('#accList');
+  if(error){list.innerHTML='<p style="color:var(--crit);font-size:.82rem">تعذّر التحميل: '+esc(error.message)+'</p>';return;}
+  if(!data||!data.length){list.innerHTML='<p class="empty" style="color:var(--muted);font-style:italic;font-size:.85rem">لا إيميلات مضافة بعد.</p>';return;}
+  list.innerHTML=data.map(a=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:7px">
+    <span style="font-size:.86rem">${esc(a.email)}</span>
+    <button class="hbtn" data-rm="${a.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc;padding:4px 10px">إزالة</button></div>`).join('');
+  list.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{
+    await sb.from('pmo_client_access').delete().eq('id',b.dataset.rm);await renderAccessList();
+  });
+}
+$('#accAdd').onclick=async()=>{
+  const email=$('#accEmail').value.trim().toLowerCase();
+  if(!email||!email.includes('@')){alert('أدخل إيميلًا صحيحًا');return;}
+  const {error}=await sb.from('pmo_client_access').insert({client_id:CID,email});
+  if(error){alert(error.message.includes('duplicate')?'هذا الإيميل مُضاف مسبقًا':('تعذّر الإضافة: '+error.message));return;}
+  $('#accEmail').value='';await renderAccessList();
+};
+$('#accClose').onclick=()=>{$('#accessOverlay').style.display='none';};
+$('#accessOverlay').onclick=e=>{if(e.target.id==='accessOverlay')$('#accessOverlay').style.display='none';};
+$('#manageAccess').onclick=openAccess;
+
+// ===== اعتماد العقد + تثبيت الأساس =====
+$('#approveContract').onclick=async()=>{
+  const val=prompt('قيمة العقد (ر.س) — اتركه فارغًا إن لم تتوفر:','571400');
+  if(val===null)return;
+  if(!confirm('اعتماد الخطة كخط أساس؟ بعدها أي تعديل على البنية يتطلب طلب تغيير.'))return;
+  // بناء snapshot من الجدولة الحالية
+  const snap={};PROJECT.tasks.forEach(t=>{const r=SCHED.R[t.id];snap[t.id]={duration:t.duration,ES:fmtY(r.ES),EF:fmtY(r.EF)};});
+  const {error}=await sb.rpc('pmo_approve_contract',{p_project_id:PROJECT._dbId,p_contract_value:val?parseFloat(val):null,p_snapshot:snap});
+  if(error){alert('تعذّر الاعتماد: '+error.message);return;}
+  await loadProject(CID);render();
+  alert('تم اعتماد العقد وتثبيت خط الأساس. المشروع الآن نشط.');
+};
+
+// ===== تبويب طلبات التغيير =====
+function vCR(){
+  const canApprove=PERMS[ROLE].crAction==='approve';
+  const canRequest=!!PERMS[ROLE].crAction;
+  const taskOpts=PROJECT.tasks.filter(t=>t.type!=='milestone').map(t=>`<option value="${esc(t.id)}">${esc(t.id)} — ${esc(t.name)}</option>`).join('');
+  const form=canRequest?`<div class="crform">
+    <h4>رفع طلب تغيير</h4>
+    <select id="crTask">${taskOpts}</select>
+    <select id="crKind"><option value="duration">تغيير المدة</option><option value="deps">تغيير التبعيات</option><option value="add">إضافة بند</option><option value="remove">حذف بند</option><option value="other">أخرى</option></select>
+    <input id="crVal" placeholder="القيمة المقترحة (مثل: 12)">
+    <textarea id="crReason" placeholder="المبرر..."></textarea>
+    <button class="hbtn" id="crSubmit" style="background:var(--gold);border-color:var(--gold);width:100%">إرسال الطلب</button>
+  </div>`:'';
+  const list=CRS.length?CRS.map(c=>{
+    const t=PROJECT.tasks.find(x=>x.id===c.task_ref);
+    const stcls=c.status==='pending'?'pending':c.status==='approved'?'approved':'rejected';
+    const sttxt=c.status==='pending'?'معلّق':c.status==='approved'?'موافق عليه':'مرفوض';
+    const KIND={duration:'تغيير المدة',deps:'تغيير التبعيات',add:'إضافة بند',remove:'حذف بند',other:'أخرى'};
+    const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn" data-ap="${c.id}" style="background:var(--ok);border-color:var(--ok)">موافقة وتطبيق</button><button class="hbtn" data-rj="${c.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc">رفض</button></div>`:'';
+    return `<div class="crcard">
+      <div class="crhd"><span class="crid">${esc(c.id.slice(0,12))}</span><span class="crstate ${stcls}">${sttxt}</span></div>
+      <div class="crbody"><b>البند:</b> ${esc(c.task_ref||'—')}${t?' — '+esc(t.name):''} · <b>النوع:</b> ${KIND[c.kind]||c.kind}${c.new_value?' · <b>القيمة:</b> '+esc(c.new_value):''}<br><b>المبرر:</b> ${esc(c.reason||'—')}<br><small>${new Date(c.created_at).toLocaleDateString('ar')}</small>${c.decision_note?'<br><small>القرار: '+esc(c.decision_note)+'</small>':''}</div>${actions}</div>`;
+  }).join(''):'<p class="empty" style="color:var(--muted);font-style:italic">لا طلبات تغيير.</p>';
+  return `<div class="crwrap">${form}<div class="crlist">${list}</div></div>`;
+}
+function bindCR(){
+  const sub=$('#crSubmit');
+  if(sub)sub.onclick=async()=>{
+    const reason=$('#crReason').value.trim();if(!reason){alert('اكتب المبرر');return;}
+    const {error}=await sb.from('pmo_change_requests').insert({project_id:PROJECT._dbId,task_ref:$('#crTask').value,kind:$('#crKind').value,new_value:$('#crVal').value,reason});
+    if(error){alert('تعذّر الإرسال: '+error.message);return;}
+    CRS=(await sb.from('pmo_change_requests').select('*').eq('project_id',PROJECT._dbId).order('created_at',{ascending:false})).data||[];
+    render();
+  };
+  $$('[data-ap]').forEach(b=>b.onclick=async()=>{
+    const c=CRS.find(x=>x.id===b.dataset.ap);
+    // تطبيق آلي لتغيير المدة
+    if(c.kind==='duration'&&c.task_ref){const t=PROJECT.tasks.find(x=>x.id===c.task_ref);
+      if(t&&t._dbId){const nv=parseInt(c.new_value||t.duration,10);await sb.from('pmo_tasks').update({duration:nv}).eq('id',t._dbId);}}
+    await sb.from('pmo_change_requests').update({status:'approved',decision_note:'طُبّق',decided_at:new Date().toISOString()}).eq('id',c.id);
+    await loadProject(CID);render();
+  });
+  $$('[data-rj]').forEach(b=>b.onclick=async()=>{
+    await sb.from('pmo_change_requests').update({status:'rejected',decided_at:new Date().toISOString()}).eq('id',b.dataset.rj);
+    CRS=(await sb.from('pmo_change_requests').select('*').eq('project_id',PROJECT._dbId).order('created_at',{ascending:false})).data||[];
+    render();
+  });
+}
+
+// ===== نافذة المتطلبات =====
+let REQ_TASK=null;
+async function openReqs(refId){
+  REQ_TASK=PROJECT.tasks.find(t=>t.id===refId);if(!REQ_TASK)return;
+  $('#reqTitle').textContent='متطلبات: '+REQ_TASK.name;
+  renderReqs();
+  $('#reqOverlay').style.display='flex';
+}
+function renderReqs(){
+  const canEdit=PERMS[ROLE].editReqs;
+  const reqs=REQ_TASK.requirements||[];
+  const ST={received:'مُستلم',pending:'بانتظار',overdue:'متأخر',notrequested:'لم يُطلب',latejust:'مُستلم متأخرًا'};
+  const OWN={client:'العميل',alamah:'علامة'};
+  const dis=canEdit?'':'disabled';
+  let rows=reqs.map((r,i)=>{
+    const ow=Object.keys(OWN).map(k=>`<option value="${k}" ${k===r.owner?'selected':''}>${OWN[k]}</option>`).join('');
+    const extra=(r._state==='overdue'&&r._late)?(' +'+r._late+'ي'):'';
+    return `<tr data-i="${i}">
+      <td><input class="rq" data-rf="desc" value="${esc(r.desc)}" ${dis} style="min-width:140px;text-align:right"></td>
+      <td><select class="rq" data-rf="owner" ${dis}>${ow}</select></td>
+      <td><input class="rq" type="number" min="0" data-rf="sla" value="${r.sla||0}" ${dis} style="width:46px"></td>
+      <td><input class="rq" type="date" data-rf="requested" value="${r.requested||''}" ${dis} style="width:120px"></td>
+      <td><input class="rq" type="date" data-rf="received" value="${r.received||''}" ${dis} style="width:120px"></td>
+      <td style="text-align:center"><input class="rq" type="checkbox" data-rf="blocking" ${r.blocking?'checked':''} ${dis}></td>
+      <td><span class="rstate ${r._state||'notrequested'}">${ST[r._state]||'—'}${extra}</span></td>
+      ${canEdit?`<td><button class="ib" data-rdel="${i}" style="color:var(--crit)">✕</button></td>`:''}</tr>`;
+  }).join('');
+  $('#reqTbl').innerHTML=`<thead><tr><th>المتطلب</th><th>الجهة</th><th>SLA</th><th>الطلب</th><th>الاستلام</th><th>حاجز</th><th>الحالة</th>${canEdit?'<th></th>':''}</tr></thead><tbody>${rows||'<tr><td colspan="8" style="color:var(--muted);padding:12px">لا متطلبات.</td></tr>'}</tbody>`;
+  $('#reqAdd').style.display=canEdit?'':'none';
+  if(!canEdit)return;
+  $('#reqTbl').querySelectorAll('[data-rf]').forEach(inp=>inp.addEventListener('change',async()=>{
+    const i=+inp.closest('tr').dataset.i,f=inp.dataset.rf,r=REQ_TASK.requirements[i];
+    let val=(f==='blocking')?inp.checked:(f==='sla'?parseInt(inp.value||'0',10):inp.value);
+    r[f]=val;
+    const map={desc:'description',owner:'owner',sla:'sla_days',requested:'requested_at',received:'received_at',blocking:'blocking'};
+    const patch={};patch[map[f]]=(val===''?null:val);
+    if(r._id){const {error}=await sb.from('pmo_requirements').update(patch).eq('id',r._id);if(error){alert('تعذّر الحفظ: '+error.message);return;}}
+    compute();renderReqs();
+  }));
+  $('#reqTbl').querySelectorAll('[data-rdel]').forEach(b=>b.onclick=async()=>{
+    const r=REQ_TASK.requirements[+b.dataset.rdel];
+    if(r._id)await sb.from('pmo_requirements').delete().eq('id',r._id);
+    REQ_TASK.requirements.splice(+b.dataset.rdel,1);compute();renderReqs();
+  });
+}
+$('#reqAdd').onclick=async()=>{
+  const {data,error}=await sb.from('pmo_requirements').insert({task_id:REQ_TASK._dbId,description:'متطلب جديد',owner:'client',sla_days:2,blocking:true}).select().single();
+  if(error){alert('تعذّر الإضافة: '+error.message);return;}
+  REQ_TASK.requirements.push({_id:data.id,desc:'متطلب جديد',owner:'client',sla:2,blocking:true,requested:'',received:''});
+  compute();renderReqs();
+};
+$('#reqClose').onclick=()=>{$('#reqOverlay').style.display='none';render();};
+$('#reqOverlay').onclick=e=>{if(e.target.id==='reqOverlay'){$('#reqOverlay').style.display='none';render();}};
+
+// انطلاق
+boot();
