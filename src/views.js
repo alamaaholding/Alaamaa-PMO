@@ -1,5 +1,5 @@
 // ===== العرض =====
-const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',cr:'طلبات التغيير'};
+const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',cr:'طلبات التغيير',audit:'سجل التدقيق'};
 function render(){
   if(!PROJECT){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا يوجد مشروع لهذا العميل.</p>';return;}
   $('#backPortfolio').style.display=(ROLE!=='client')?'':'none';
@@ -29,6 +29,10 @@ function render(){
   else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(10,PX-4);render();};}
   else if(VIEW==='deliv')host.innerHTML=vDeliv();
   else if(VIEW==='cr'){host.innerHTML=vCR();bindCR();}
+  else if(VIEW==='audit'){
+    host.innerHTML='<div class="hintbar">آخر 60 تغييرًا مسجّلًا تلقائيًا (الحالة، التقدّم، المدة، طلبات التغيير).</div><div id="auditList"><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px"></div></div>';
+    loadAudit(PROJECT._dbId).then(rows=>{const el=document.getElementById('auditList');if(el)el.innerHTML=vAudit(rows);});
+  }
 }
 
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -142,4 +146,30 @@ function vDeliv(){
   PROJECT.tasks.forEach(t=>{if(!t.deliverable)return;const r=S.R[t.id],k=T[t.id],tc=TRACKS[t.track].color,isM=t.type==='milestone';
     rows+=`<tr class="${isM?'m':''}"><td style="font-weight:${isM?700:500}">${isM?'◆ ':''}${esc(t.deliverable)}</td><td><span class="idcell" style="--tc:${tc}">${esc(t.id)}</span> ${esc(t.name)}</td><td><span class="pill" style="background:${tc}">${esc(TRACKS[t.track].name)}</span></td><td>${fmt(r.EF)}/${new Date(r.EF).getFullYear()}</td><td><span class="ministat s-${k.effStatus}">${STATUS[k.effStatus]}</span></td></tr>`;});
   return `<div class="dwrap"><table class="dtbl"><thead><tr><th>المخرج</th><th>البند</th><th>المسار</th><th>التسليم المتوقع</th><th>الحالة</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function vAudit(rows){
+  if(!rows||!rows.length)return '<p class="empty" style="padding:20px;text-align:center">لا تغييرات مسجّلة بعد.</p>';
+  const ACT={status_change:'تغيير الحالة',progress_change:'تحديث التقدّم',duration_change:'تغيير المدة',cr_created:'طلب تغيير جديد',cr_approved:'الموافقة على طلب',cr_rejected:'رفض طلب',cr_pending:'طلب معلّق'};
+  const ENT={task:'بند',change_request:'طلب تغيير'};
+  // خريطة معرّف البند → اسمه (للعرض المفهوم)
+  const taskById={};PROJECT.tasks.forEach(t=>{taskById[t._dbId]=t;});
+  const rowsHtml=rows.map(a=>{
+    const act=ACT[a.action]||a.action;
+    let detail='';
+    if(a.action==='status_change'&&a.old_value&&a.new_value){detail=`${STATUS[a.old_value.status]||a.old_value.status} ← ${STATUS[a.new_value.status]||a.new_value.status}`;}
+    else if(a.action==='progress_change'&&a.new_value){detail=`${a.old_value?a.old_value.progress:0}% ← ${a.new_value.progress}%`;}
+    else if(a.action==='duration_change'&&a.new_value){detail=`${a.old_value?a.old_value.duration:'?'} ← ${a.new_value.duration} يوم`;}
+    else if(a.action==='cr_created'&&a.new_value){detail=esc(a.new_value.reason||a.new_value.kind||'');}
+    const t=a.entity==='task'?taskById[a.entity_id]:null;
+    const target=t?(esc(t.id)+' — '+esc(t.name)):(ENT[a.entity]||a.entity);
+    const when=new Date(a.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
+    return `<tr>
+      <td style="white-space:nowrap;font-size:.76rem;color:var(--muted)">${when}</td>
+      <td><span class="crstate ${a.action.startsWith('cr_')?(a.action==='cr_approved'?'approved':a.action==='cr_rejected'?'rejected':'pending'):'pending'}" style="font-size:.7rem">${act}</span></td>
+      <td>${target}</td>
+      <td style="font-size:.8rem;color:#4a4233">${detail}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="dwrap"><table class="dtbl"><thead><tr><th>الوقت</th><th>الإجراء</th><th>العنصر</th><th>التغيير</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
 }
