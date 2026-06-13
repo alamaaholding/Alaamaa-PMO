@@ -164,8 +164,8 @@ footer{text-align:center;color:var(--muted);font-size:.78rem;padding:14px 0 30px
 .rstate.received{background:#dde9dd;color:var(--ok)}.rstate.pending{background:#f5ecd6;color:var(--warn)}.rstate.overdue{background:#f3d9d4;color:var(--crit)}.rstate.notrequested{background:#eee;color:var(--muted)}.rstate.latejust{background:#f0e0d6;color:#9a5a2a}
 .ib{border:none;background:transparent;cursor:pointer;font-size:.9rem;padding:2px 5px;border-radius:5px}
 @media(max-width:900px){.dcols{grid-template-columns:1fr}.crwrap{grid-template-columns:1fr}}
-</style></head><body>
-
+</style>
+</head><body>
 <!-- شاشة الدخول -->
 <div id="login" class="hidden"><div class="lcard">
   <div class="eb">علامة · أثر دائم</div><h1>منصّة إدارة المشاريع</h1>
@@ -251,6 +251,7 @@ footer{text-align:center;color:var(--muted);font-size:.78rem;padding:14px 0 30px
 
 <!-- ===== المنطق ===== -->
 <script>
+/* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
 const SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd4aXVjc2llZXprdnd6dGJzcmdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyOTI5NzksImV4cCI6MjA5NDg2ODk3OX0.yKw4yQEJM_4wPk1ki5m084OZqqmAA8A07uVeamlIT3M';
@@ -265,6 +266,15 @@ const fmtY=d=>{const x=new Date(d);return x.getFullYear()+'-'+('0'+(x.getMonth()
 const D=s=>new Date(s+'T00:00:00');
 function todayISO(){return fmtY(new Date());}
 
+
+// ===== الصلاحيات =====
+const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:true,crAction:'approve',views:['dashboard','table','gantt','deliv','cr']},
+  delivery:{editStruct:false,editProg:true,editReqs:true,approveContract:false,crAction:'request',views:['dashboard','table','gantt','deliv','cr']},
+  client:{editStruct:false,editProg:false,editReqs:false,approveContract:false,crAction:'request',views:['dashboard','gantt','deliv','cr']}};
+function can(p){return PERMS[ROLE]&&PERMS[ROLE][p];}
+
+
+/* ===== engine.js ===== */
 // ===== محرك CPM (مختبَر) =====
 function scheduleTasks(tasks,projectStartStr){
   const WE=new Set([5,6]);const isWD=d=>!WE.has(d.getDay());const clone=d=>new Date(d.getTime());
@@ -317,10 +327,8 @@ function computeTracking(tasks,S,ddStr){
   return T;
 }
 
-// ===== الحالة =====
-let USER=null,ROLE=null,CLIENTS=[],CID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[];
-let SCREEN='portfolio'; // portfolio | project — للطاقم؛ العميل دائمًا project
 
+/* ===== api.js ===== */
 // ===== المصادقة =====
 async function loadIdentity(){
   const {data:{user}}=await sb.auth.getUser();USER=user;if(!user)return null;
@@ -348,11 +356,6 @@ $('#googleBtn').onclick=async()=>{
 $('#signout').onclick=$('#signoutDenied').onclick=async()=>{await sb.auth.signOut();location.reload();};
 $('#backPortfolio').onclick=async()=>{ await renderPortfolio(); $('#backPortfolio').style.display='none'; };
 
-// ===== الصلاحيات =====
-const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:true,crAction:'approve',views:['dashboard','table','gantt','deliv','cr']},
-  delivery:{editStruct:false,editProg:true,editReqs:true,approveContract:false,crAction:'request',views:['dashboard','table','gantt','deliv','cr']},
-  client:{editStruct:false,editProg:false,editReqs:false,approveContract:false,crAction:'request',views:['dashboard','gantt','deliv','cr']}};
-function can(p){return PERMS[ROLE]&&PERMS[ROLE][p];}
 
 // ===== تحميل المشروع =====
 async function loadClients(){const {data}=await sb.from('pmo_clients').select('*').order('created_at');CLIENTS=data||[];}
@@ -377,74 +380,8 @@ async function loadProject(clientId){
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
 
-// ===== بدء التطبيق =====
-async function startApp(){
-  $('#login').classList.add('hidden');$('#loader').classList.remove('hidden');
-  await loadClients();
-  $('#app').classList.remove('hidden');$('#loader').classList.add('hidden');
-  $('#uName').textContent=USER._name||USER.email;
-  $('#roleChip').textContent=ROLE_NAMES[ROLE];
-  $('#dataDate').value=DATA_DATE;$('#dataDate').onchange=e=>{DATA_DATE=e.target.value;if(SCREEN==='project')render();else renderPortfolio();};
-  if(!CLIENTS.length){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا توجد مشاريع متاحة لحسابك بعد.</p>';hideChrome();return;}
-  // العميل: دخول مباشر لمشروعه الوحيد. الطاقم: شاشة المحفظة
-  if(ROLE==='client'){
-    SCREEN='project';CID=CLIENTS[0].id;await loadProject(CID);render();
-  }else{
-    SCREEN='portfolio';await renderPortfolio();
-  }
-}
-function hideChrome(){ $('#barClient').style.display='none'; $('#kpisRow').style.display='none'; $('#tabs').style.display='none'; $('#lifeBadge').style.display='none'; }
-function showChrome(){ $('#kpisRow').style.display=''; $('#tabs').style.display=''; $('#lifeBadge').style.display=''; }
 
-// ===== شاشة المحفظة (للطاقم) =====
-async function loadSummary(clientId){
-  const {data:projects}=await sb.from('pmo_projects').select('*').eq('client_id',clientId).limit(1);
-  if(!projects||!projects.length) return null;
-  const p=projects[0];
-  const {data:tasks}=await sb.from('pmo_tasks').select('id,ref,type,status,duration,fixed_date,project_id').eq('project_id',p.id);
-  const {data:deps}=await sb.from('pmo_dependencies').select('task_id,depends_on_id').eq('project_id',p.id);
-  return {p,tasks:tasks||[],deps:deps||[]};
-}
-async function renderPortfolio(){
-  SCREEN='portfolio';
-  $('#hProject').textContent='محفظة المشاريع';
-  $('#barClient').style.display='none';hideChrome();
-  $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.</div><div class="pgrid" id="pgrid"></div>';
-  const grid=$('#pgrid');grid.innerHTML='';
-  for(const c of CLIENTS){
-    const sum=await loadSummary(c.id);
-    let body,meta;
-    if(sum && sum.tasks.length){
-      // جدولة سريعة للملخّص
-      const tlist=sum.tasks.map(t=>({id:t.ref,type:t.type,duration:t.duration,fixedDate:t.fixed_date||undefined,
-        deps:sum.deps.filter(d=>d.task_id===t.id).map(d=>{const dt=sum.tasks.find(x=>x.id===d.depends_on_id);return dt?dt.ref:null;}).filter(Boolean)}));
-      const S=scheduleTasks(tlist,sum.p.start_date);
-      const real=sum.tasks.filter(t=>t.type!=='milestone'&&t.type!=='cont');
-      const done=real.filter(t=>t.status==='done').length;
-      const blocked=sum.tasks.filter(t=>t.status==='blocked').length;
-      const pct=real.length?Math.round(done/real.length*100):0;
-      meta=`<div class="pcard-meta"><span>${real.length} بند</span><span>الانتهاء ${fmt(S.pEnd)}</span></div>`;
-      body=`<div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div>
-        <div class="pstats"><span><b>${pct}%</b> إنجاز</span><span><b>${done}</b> منجز</span><span class="${blocked?'red':''}"><b>${blocked}</b> متوقف</span></div>`;
-    }else{
-      meta=`<div class="pcard-meta"><span>لا خطة بعد</span></div>`;
-      body=`<div class="pempty">مشروع فارغ — جاهز لبناء الخطة</div>`;
-    }
-    const life=sum?({proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'}[sum.p.lifecycle]||'—'):'—';
-    const card=document.createElement('div');card.className='pcard';card.style.cssText=`--cc:${c.color}`;
-    card.innerHTML=`<div class="pcard-top"><span class="pdot" style="background:${c.color}"></span><h3>${c.name}</h3><span class="plife">${life}</span></div>${meta}${body}`;
-    card.onclick=async()=>{CID=c.id;await openProject();};
-    grid.appendChild(card);
-  }
-}
-async function openProject(){
-  $('#loader').classList.remove('hidden');
-  await loadProject(CID);
-  $('#loader').classList.add('hidden');
-  SCREEN='project';$('#barClient').style.display='';showChrome();
-  render();
-}
-
+/* ===== views.js ===== */
 // ===== العرض =====
 const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',cr:'طلبات التغيير'};
 function render(){
@@ -590,6 +527,83 @@ function vDeliv(){
     rows+=`<tr class="${isM?'m':''}"><td style="font-weight:${isM?700:500}">${isM?'◆ ':''}${esc(t.deliverable)}</td><td><span class="idcell" style="--tc:${tc}">${esc(t.id)}</span> ${esc(t.name)}</td><td><span class="pill" style="background:${tc}">${esc(TRACKS[t.track].name)}</span></td><td>${fmt(r.EF)}/${new Date(r.EF).getFullYear()}</td><td><span class="ministat s-${k.effStatus}">${STATUS[k.effStatus]}</span></td></tr>`;});
   return `<div class="dwrap"><table class="dtbl"><thead><tr><th>المخرج</th><th>البند</th><th>المسار</th><th>التسليم المتوقع</th><th>الحالة</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
+
+
+/* ===== app.js ===== */
+// ===== الحالة =====
+let USER=null,ROLE=null,CLIENTS=[],CID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[];
+let SCREEN='portfolio'; // portfolio | project — للطاقم؛ العميل دائمًا project
+
+
+// ===== بدء التطبيق =====
+async function startApp(){
+  $('#login').classList.add('hidden');$('#loader').classList.remove('hidden');
+  await loadClients();
+  $('#app').classList.remove('hidden');$('#loader').classList.add('hidden');
+  $('#uName').textContent=USER._name||USER.email;
+  $('#roleChip').textContent=ROLE_NAMES[ROLE];
+  $('#dataDate').value=DATA_DATE;$('#dataDate').onchange=e=>{DATA_DATE=e.target.value;if(SCREEN==='project')render();else renderPortfolio();};
+  if(!CLIENTS.length){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا توجد مشاريع متاحة لحسابك بعد.</p>';hideChrome();return;}
+  // العميل: دخول مباشر لمشروعه الوحيد. الطاقم: شاشة المحفظة
+  if(ROLE==='client'){
+    SCREEN='project';CID=CLIENTS[0].id;await loadProject(CID);render();
+  }else{
+    SCREEN='portfolio';await renderPortfolio();
+  }
+}
+function hideChrome(){ $('#barClient').style.display='none'; $('#kpisRow').style.display='none'; $('#tabs').style.display='none'; $('#lifeBadge').style.display='none'; }
+function showChrome(){ $('#kpisRow').style.display=''; $('#tabs').style.display=''; $('#lifeBadge').style.display=''; }
+
+
+// ===== شاشة المحفظة (للطاقم) =====
+async function loadSummary(clientId){
+  const {data:projects}=await sb.from('pmo_projects').select('*').eq('client_id',clientId).limit(1);
+  if(!projects||!projects.length) return null;
+  const p=projects[0];
+  const {data:tasks}=await sb.from('pmo_tasks').select('id,ref,type,status,duration,fixed_date,project_id').eq('project_id',p.id);
+  const {data:deps}=await sb.from('pmo_dependencies').select('task_id,depends_on_id').eq('project_id',p.id);
+  return {p,tasks:tasks||[],deps:deps||[]};
+}
+async function renderPortfolio(){
+  SCREEN='portfolio';
+  $('#hProject').textContent='محفظة المشاريع';
+  $('#barClient').style.display='none';hideChrome();
+  $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.</div><div class="pgrid" id="pgrid"></div>';
+  const grid=$('#pgrid');grid.innerHTML='';
+  for(const c of CLIENTS){
+    const sum=await loadSummary(c.id);
+    let body,meta;
+    if(sum && sum.tasks.length){
+      // جدولة سريعة للملخّص
+      const tlist=sum.tasks.map(t=>({id:t.ref,type:t.type,duration:t.duration,fixedDate:t.fixed_date||undefined,
+        deps:sum.deps.filter(d=>d.task_id===t.id).map(d=>{const dt=sum.tasks.find(x=>x.id===d.depends_on_id);return dt?dt.ref:null;}).filter(Boolean)}));
+      const S=scheduleTasks(tlist,sum.p.start_date);
+      const real=sum.tasks.filter(t=>t.type!=='milestone'&&t.type!=='cont');
+      const done=real.filter(t=>t.status==='done').length;
+      const blocked=sum.tasks.filter(t=>t.status==='blocked').length;
+      const pct=real.length?Math.round(done/real.length*100):0;
+      meta=`<div class="pcard-meta"><span>${real.length} بند</span><span>الانتهاء ${fmt(S.pEnd)}</span></div>`;
+      body=`<div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div>
+        <div class="pstats"><span><b>${pct}%</b> إنجاز</span><span><b>${done}</b> منجز</span><span class="${blocked?'red':''}"><b>${blocked}</b> متوقف</span></div>`;
+    }else{
+      meta=`<div class="pcard-meta"><span>لا خطة بعد</span></div>`;
+      body=`<div class="pempty">مشروع فارغ — جاهز لبناء الخطة</div>`;
+    }
+    const life=sum?({proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'}[sum.p.lifecycle]||'—'):'—';
+    const card=document.createElement('div');card.className='pcard';card.style.cssText=`--cc:${c.color}`;
+    card.innerHTML=`<div class="pcard-top"><span class="pdot" style="background:${c.color}"></span><h3>${c.name}</h3><span class="plife">${life}</span></div>${meta}${body}`;
+    card.onclick=async()=>{CID=c.id;await openProject();};
+    grid.appendChild(card);
+  }
+}
+async function openProject(){
+  $('#loader').classList.remove('hidden');
+  await loadProject(CID);
+  $('#loader').classList.add('hidden');
+  SCREEN='project';$('#barClient').style.display='';showChrome();
+  render();
+}
+
 
 // ===== إدارة وصول العميل (PMO) =====
 async function openAccess(){
@@ -740,4 +754,5 @@ $('#reqOverlay').onclick=e=>{if(e.target.id==='reqOverlay'){$('#reqOverlay').sty
 
 // انطلاق
 boot();
-</script></body></html>
+</script>
+</body></html>
