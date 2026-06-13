@@ -1,5 +1,5 @@
 // ===== العرض =====
-const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',cr:'طلبات التغيير',audit:'سجل التدقيق'};
+const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',cr:'طلبات التغيير',discuss:'النقاش',audit:'سجل التدقيق'};
 function render(){
   if(!PROJECT){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا يوجد مشروع لهذا العميل.</p>';return;}
   $('#backPortfolio').style.display=(ROLE!=='client')?'':'none';
@@ -29,6 +29,10 @@ function render(){
   else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(10,PX-4);render();};}
   else if(VIEW==='deliv')host.innerHTML=vDeliv();
   else if(VIEW==='cr'){host.innerHTML=vCR();bindCR();}
+  else if(VIEW==='discuss'){
+    host.innerHTML='<div id="discussWrap"><div class="skeleton" style="height:80px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
+    loadComments(PROJECT._dbId).then(rows=>{const el=document.getElementById('discussWrap');if(el){el.innerHTML=vDiscuss(rows);bindDiscuss();}});
+  }
   else if(VIEW==='audit'){
     host.innerHTML='<div class="hintbar">آخر 60 تغييرًا مسجّلًا تلقائيًا (الحالة، التقدّم، المدة، طلبات التغيير).</div><div id="auditList"><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px"></div></div>';
     loadAudit(PROJECT._dbId).then(rows=>{const el=document.getElementById('auditList');if(el)el.innerHTML=vAudit(rows);});
@@ -190,4 +194,61 @@ function vAudit(rows){
     </tr>`;
   }).join('');
   return `<div class="dwrap"><table class="dtbl"><thead><tr><th>الوقت</th><th>الإجراء</th><th>العنصر</th><th>التغيير</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
+}
+
+function vDiscuss(rows){
+  const KIND={comment:'تعليق',question:'سؤال',suggestion:'مقترح'};
+  const KCLR={comment:'var(--blue)',question:'var(--warn)',suggestion:'var(--gold-dark)'};
+  const ROLE_AR={pmo:'إدارة المشاريع',delivery:'فريق التسويق',client:'العميل'};
+  // الجذور (بلا أب) ثم ردودها
+  const roots=rows.filter(r=>!r.parent_id);
+  const childrenOf=id=>rows.filter(r=>r.parent_id===id);
+  const canResolve=can('editStruct')||ROLE==='pmo';
+  const bubble=(c,isReply)=>{
+    const when=new Date(c.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
+    const resBtn=(!isReply&&c.kind!=='comment'&&ROLE==='pmo')?`<button class="reqbtn" data-resolve="${c.id}" data-cur="${c.resolved?1:0}" style="font-size:.7rem">${c.resolved?'إعادة فتح':'تعليم محلول'}</button>`:'';
+    const resBadge=(c.kind!=='comment'&&c.resolved)?'<span class="crstate approved" style="font-size:.68rem">محلول</span>':'';
+    return `<div class="crcard" style="${isReply?'margin-inline-start:28px;border-inline-start:3px solid var(--line)':''}">
+      <div class="crhd">
+        <span><span class="crstate" style="background:color-mix(in srgb,${KCLR[c.kind]} 14%,#fff);color:${KCLR[c.kind]};font-size:.7rem">${KIND[c.kind]}</span>
+          <b style="font-size:.82rem;margin-inline-start:6px">${esc(c.author_email||'—')}</b>
+          <span style="font-size:.7rem;color:var(--muted)">· ${ROLE_AR[c.author_role]||''}</span></span>
+        <span style="display:flex;gap:8px;align-items:center">${resBadge}<small style="color:var(--muted)">${when}</small></span>
+      </div>
+      <div class="crbody">${esc(c.body)}</div>
+      <div class="cract">${resBtn}<button class="reqbtn" data-reply="${c.id}" style="font-size:.72rem">رد</button></div>
+      <div id="replyBox-${c.id}"></div>
+    </div>`;
+  };
+  let thread=roots.map(c=>bubble(c,false)+childrenOf(c.id).map(ch=>bubble(ch,true)).join('')).join('');
+  if(!roots.length)thread='<p class="empty" style="padding:14px">لا نقاش بعد — ابدأ بأول تعليق أو سؤال.</p>';
+  const composer=`<div class="crform" style="position:static;margin-bottom:16px">
+    <h4>إضافة للنقاش</h4>
+    <select id="dcKind"><option value="comment">تعليق</option><option value="question">سؤال</option><option value="suggestion">مقترح</option></select>
+    <textarea id="dcBody" placeholder="اكتب رسالتك..."></textarea>
+    <button class="hbtn" id="dcSend" style="background:var(--gold);border-color:var(--gold);width:100%">إرسال</button>
+  </div>`;
+  return composer+'<div class="crlist">'+thread+'</div>';
+}
+function bindDiscuss(){
+  const send=document.getElementById('dcSend');
+  if(send)send.onclick=async()=>{
+    const body=document.getElementById('dcBody').value.trim();if(!body){toast('اكتب رسالة','warn');return;}
+    try{ await addComment(PROJECT._dbId, document.getElementById('dcKind').value, body, null); toast('أُرسلت','ok'); render(); }
+    catch(e){ toast('تعذّر الإرسال: '+e.message,'err'); }
+  };
+  document.querySelectorAll('[data-reply]').forEach(b=>b.onclick=()=>{
+    const box=document.getElementById('replyBox-'+b.dataset.reply);
+    if(box.innerHTML){box.innerHTML='';return;}
+    box.innerHTML=`<div style="display:flex;gap:6px;margin-top:8px"><input id="rin-${b.dataset.reply}" placeholder="ردك..." style="flex:1;border:1.5px solid var(--line);border-radius:7px;padding:7px;font-family:inherit;font-size:.82rem"><button class="reqbtn" data-sendreply="${b.dataset.reply}" style="background:var(--gold);border-color:var(--gold);color:#fff">رد</button></div>`;
+    box.querySelector('[data-sendreply]').onclick=async()=>{
+      const v=document.getElementById('rin-'+b.dataset.reply).value.trim();if(!v){return;}
+      try{ await addComment(PROJECT._dbId,'comment',v,b.dataset.reply); toast('أُرسل الرد','ok'); render(); }
+      catch(e){ toast('تعذّر: '+e.message,'err'); }
+    };
+  });
+  document.querySelectorAll('[data-resolve]').forEach(b=>b.onclick=async()=>{
+    try{ await resolveComment(b.dataset.resolve, b.dataset.cur!=='1'); render(); }
+    catch(e){ toast('تعذّر: '+e.message,'err'); }
+  });
 }
