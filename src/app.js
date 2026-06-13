@@ -34,40 +34,32 @@ function showChrome(){ $('#kpisRow').style.display=''; $('#tabs').style.display=
 
 
 // ===== شاشة المحفظة (للطاقم) =====
-async function loadSummary(clientId){
-  const {data:projects}=await sb.from('pmo_projects').select('*').eq('client_id',clientId).limit(1);
-  if(!projects||!projects.length) return null;
-  const p=projects[0];
-  const {data:tasks}=await sb.from('pmo_tasks').select('id,ref,type,status,duration,fixed_date,project_id').eq('project_id',p.id);
-  const {data:deps}=await sb.from('pmo_dependencies').select('task_id,depends_on_id').eq('project_id',p.id);
-  return {p,tasks:tasks||[],deps:deps||[]};
-}
+async function loadSummary(clientId){ return null; /* لم تعد مستخدمة — استُبدلت بـpmo_portfolio */ }
 async function renderPortfolio(){
   SCREEN='portfolio';
   $('#hProject').textContent='محفظة المشاريع';
   $('#barClient').style.display='none';hideChrome();
-  $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.</div><div class="pgrid" id="pgrid"></div>';
+  // هيكل skeleton فوري (تجربة أسرع بصريًا)
+  const skel=CLIENTS.map(()=>'<div class="pcard"><div class="skeleton" style="height:22px;width:55%;margin-bottom:14px"></div><div class="skeleton" style="height:8px;margin-bottom:12px"></div><div class="skeleton" style="height:36px"></div></div>').join('');
+  $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.</div><div class="pgrid" id="pgrid">'+skel+'</div>';
+  // استعلام واحد لكل الملخّصات (بدل 12 متسلسلًا)
+  const {data:rows,error}=await sb.rpc('pmo_portfolio');
   const grid=$('#pgrid');grid.innerHTML='';
+  if(error){grid.innerHTML='<p class="pempty">تعذّر تحميل المحفظة.</p>';return;}
+  const byClient={};(rows||[]).forEach(r=>{byClient[r.client_id]=r;});
+  const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'};
   for(const c of CLIENTS){
-    const sum=await loadSummary(c.id);
-    let body,meta;
-    if(sum && sum.tasks.length){
-      // جدولة سريعة للملخّص
-      const tlist=sum.tasks.map(t=>({id:t.ref,type:t.type,duration:t.duration,fixedDate:t.fixed_date||undefined,
-        deps:sum.deps.filter(d=>d.task_id===t.id).map(d=>{const dt=sum.tasks.find(x=>x.id===d.depends_on_id);return dt?dt.ref:null;}).filter(Boolean)}));
-      const S=scheduleTasks(tlist,sum.p.start_date);
-      const real=sum.tasks.filter(t=>t.type!=='milestone'&&t.type!=='cont');
-      const done=real.filter(t=>t.status==='done').length;
-      const blocked=sum.tasks.filter(t=>t.status==='blocked').length;
-      const pct=real.length?Math.round(done/real.length*100):0;
-      meta=`<div class="pcard-meta"><span>${real.length} بند</span><span>الانتهاء ${fmt(S.pEnd)}</span></div>`;
+    const r=byClient[c.id];let body,meta;
+    if(r && r.total_tasks>0){
+      const pct=r.total_tasks?Math.round(r.done_tasks/r.total_tasks*100):0;
+      meta=`<div class="pcard-meta"><span>${r.total_tasks} بند</span><span>${r.milestones} معالم</span></div>`;
       body=`<div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div>
-        <div class="pstats"><span><b>${pct}%</b> إنجاز</span><span><b>${done}</b> منجز</span><span class="${blocked?'red':''}"><b>${blocked}</b> متوقف</span></div>`;
+        <div class="pstats"><span><b>${pct}%</b>إنجاز</span><span><b>${r.done_tasks}</b>منجز</span><span class="${r.blocked_tasks>0?'red':''}"><b>${r.blocked_tasks}</b>متوقف</span><span class="${r.pending_client_reqs>0?'red':''}"><b>${r.pending_client_reqs}</b>متطلب</span></div>`;
     }else{
       meta=`<div class="pcard-meta"><span>لا خطة بعد</span></div>`;
       body=`<div class="pempty">مشروع فارغ — جاهز لبناء الخطة</div>`;
     }
-    const life=sum?({proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'}[sum.p.lifecycle]||'—'):'—';
+    const life=r?(LIFE[r.lifecycle]||'—'):'—';
     const card=document.createElement('div');card.className='pcard';card.style.cssText=`--cc:${c.color}`;
     card.innerHTML=`<div class="pcard-top"><span class="pdot" style="background:${c.color}"></span><h3>${c.name}</h3><span class="plife">${life}</span></div>${meta}${body}`;
     card.onclick=async()=>{CID=c.id;await openProject();};
