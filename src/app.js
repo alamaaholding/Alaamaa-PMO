@@ -258,5 +258,67 @@ $('#reqAdd').onclick=async()=>{
 $('#reqClose').onclick=()=>{$('#reqOverlay').style.display='none';render();};
 $('#reqOverlay').onclick=e=>{if(e.target.id==='reqOverlay'){$('#reqOverlay').style.display='none';render();}};
 
+// ===== أداة بناء الخطة (PMO) =====
+async function handleAddTask(){
+  const ref=prompt('معرّف البند (فريد، مثل B10 أو C7):');
+  if(!ref)return;
+  if(PROJECT.tasks.some(t=>t.id===ref.trim())){toast('المعرّف مستخدم بالفعل','warn');return;}
+  const name=prompt('اسم البند:','بند جديد');
+  if(name===null)return;
+  try{
+    await addTask(PROJECT._dbId,{ref:ref.trim(),name:name||'بند جديد',track:'0',type:'task',duration:1});
+    await loadProject(CID);
+    toast('أُضيف البند · عدّل مساره ونوعه ومدته ثم عرّف تبعياته','ok');
+    render();
+  }catch(e){toast('تعذّر الإضافة: '+(e.message.includes('duplicate')?'المعرّف مستخدم':e.message),'err');}
+}
+async function handleDeleteTask(refId){
+  const t=PROJECT.tasks.find(x=>x.id===refId);if(!t)return;
+  // تحذير إن كانت بنود أخرى تعتمد عليه
+  const dependents=PROJECT.tasks.filter(x=>(x.deps||[]).includes(refId)).map(x=>x.id);
+  let msg='حذف البند «'+t.name+'» ('+refId+')؟';
+  if(dependents.length)msg+='\n\nتنبيه: تعتمد عليه البنود: '+dependents.join('، ')+' — ستُزال هذه الروابط.';
+  if(!confirm(msg))return;
+  try{
+    await deleteTask(t._dbId);
+    await loadProject(CID);
+    toast('حُذف البند','ok');
+    render();
+  }catch(e){toast('تعذّر الحذف: '+e.message,'err');}
+}
+let DEP_TASK=null;
+function openDeps(refId){
+  DEP_TASK=PROJECT.tasks.find(t=>t.id===refId);if(!DEP_TASK)return;
+  $('#depTitle').textContent='تبعيات: '+DEP_TASK.name+' ('+DEP_TASK.id+')';
+  renderDeps();
+  $('#depOverlay').style.display='flex';
+}
+function renderDeps(){
+  const current=new Set(DEP_TASK.deps||[]);
+  // البنود المتاحة كاعتماد = كل البنود عدا نفسه (ومنع الدوائر المباشرة: لا نعرض من يعتمد عليه)
+  const dependents=new Set();
+  // إيجاد كل من يعتمد على DEP_TASK (مباشرة أو غير مباشرة) لمنع الدورات
+  function collectDependents(ref){PROJECT.tasks.forEach(t=>{if((t.deps||[]).includes(ref)&&!dependents.has(t.id)){dependents.add(t.id);collectDependents(t.id);}});}
+  collectDependents(DEP_TASK.id);
+  const opts=PROJECT.tasks.filter(t=>t.id!==DEP_TASK.id&&!dependents.has(t.id));
+  $('#depList').innerHTML=opts.map(t=>`<label style="display:flex;align-items:center;gap:9px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;cursor:pointer;font-size:.84rem">
+    <input type="checkbox" data-dep="${esc(t.id)}" ${current.has(t.id)?'checked':''}>
+    <span class="idcell" style="--tc:${TRACKS[t.track].color}">${esc(t.id)}</span> ${esc(t.name)}</label>`).join('')||'<p class="empty">لا بنود متاحة.</p>';
+}
+$('#depSave').onclick=async()=>{
+  const checked=[...document.querySelectorAll('#depList [data-dep]:checked')].map(c=>c.dataset.dep);
+  // تحويل المعرّفات (ref) إلى dbIds
+  const dbIds=checked.map(ref=>{const t=PROJECT.tasks.find(x=>x.id===ref);return t?t._dbId:null;}).filter(Boolean);
+  try{
+    await setDependencies(PROJECT._dbId,DEP_TASK._dbId,dbIds);
+    await loadProject(CID);
+    $('#depOverlay').style.display='none';
+    toast('حُدّثت التبعيات','ok');
+    render();
+  }catch(e){toast('تعذّر الحفظ: '+e.message,'err');}
+};
+$('#depClose').onclick=()=>{$('#depOverlay').style.display='none';};
+$('#depOverlay').onclick=e=>{if(e.target.id==='depOverlay')$('#depOverlay').style.display='none';};
+
 // انطلاق
 boot();
