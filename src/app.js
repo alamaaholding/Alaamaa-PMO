@@ -12,6 +12,45 @@ function toast(msg, kind){ // kind: ok | err | warn | (افتراضي)
   setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),300);},3200);
 }
 
+// ===== نوافذ الحوار المخصّصة (بديل prompt/confirm المتصفح) =====
+function dialog(opts){ // {title, message, fields:[{key,label,value,type,placeholder,options}], confirmText, danger}
+  return new Promise(resolve=>{
+    const ov=document.getElementById('dlgOverlay');
+    const fieldsHtml=(opts.fields||[]).map(f=>{
+      if(f.type==='select'){
+        return `<label class="dlg-l">${esc(f.label)}<select class="dlg-i" data-k="${f.key}">${f.options.map(o=>`<option value="${o.v}" ${o.v===f.value?'selected':''}>${esc(o.t)}</option>`).join('')}</select></label>`;
+      }
+      if(f.type==='textarea'){
+        return `<label class="dlg-l">${esc(f.label)}<textarea class="dlg-i" data-k="${f.key}" placeholder="${esc(f.placeholder||'')}">${esc(f.value||'')}</textarea></label>`;
+      }
+      return `<label class="dlg-l">${esc(f.label)}<input class="dlg-i" data-k="${f.key}" type="${f.type||'text'}" value="${esc(f.value||'')}" placeholder="${esc(f.placeholder||'')}"></label>`;
+    }).join('');
+    document.getElementById('dlgBox').innerHTML=`
+      <div class="rqhd"><h3 style="font-size:1.02rem">${esc(opts.title||'')}</h3><button id="dlgX" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
+      <div style="padding:18px">
+        ${opts.message?`<p style="font-size:.86rem;color:var(--muted);margin-bottom:14px;line-height:1.7;white-space:pre-line">${esc(opts.message)}</p>`:''}
+        ${fieldsHtml}
+        <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-start">
+          <button class="hbtn" id="dlgOk" style="background:${opts.danger?'var(--crit)':'var(--gold)'};border-color:${opts.danger?'var(--crit)':'var(--gold)'};padding:9px 20px">${esc(opts.confirmText||'تأكيد')}</button>
+          <button class="hbtn" id="dlgCancel" style="background:#fff;color:var(--ink);border-color:var(--line);padding:9px 20px">إلغاء</button>
+        </div>
+      </div>`;
+    ov.style.display='flex';
+    const first=document.querySelector('#dlgBox .dlg-i');if(first)setTimeout(()=>first.focus(),50);
+    const close=val=>{ov.style.display='none';resolve(val);};
+    const collect=()=>{ if(!opts.fields||!opts.fields.length)return true; const o={}; document.querySelectorAll('#dlgBox .dlg-i').forEach(i=>o[i.dataset.k]=i.value.trim()); return o; };
+    document.getElementById('dlgOk').onclick=()=>close(collect());
+    document.getElementById('dlgCancel').onclick=()=>close(null);
+    document.getElementById('dlgX').onclick=()=>close(null);
+    ov.onclick=e=>{if(e.target.id==='dlgOverlay')close(null);};
+    document.querySelectorAll('#dlgBox .dlg-i').forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter'&&i.tagName!=='TEXTAREA'){e.preventDefault();close(collect());}}));
+  });
+}
+async function confirmDialog(title,message,danger){
+  const r=await dialog({title,message,confirmText:danger?'حذف':'تأكيد',danger});
+  return r!==null;
+}
+
 
 // ===== بدء التطبيق =====
 async function startApp(){
@@ -98,11 +137,12 @@ async function renderLeads(){
     </div>`;
   }).join('');
   box.querySelectorAll('[data-convert]').forEach(b=>b.onclick=async()=>{
-    const name=prompt('اسم المشروع:', 'مشروع '+(b.dataset.name||''));
-    if(!name)return;
+    const r=await dialog({title:'تحويل إلى مشروع',message:'سيُنشأ عميل ومشروع في مرحلة «مقترح».',
+      fields:[{key:'name',label:'اسم المشروع',value:'مشروع '+(b.dataset.name||'')}],confirmText:'إنشاء'});
+    if(!r||!r.name)return;
     b.disabled=true;b.textContent='جارٍ...';
     try{
-      await convertLead(b.dataset.convert, name);
+      await convertLead(b.dataset.convert, r.name);
       await loadClients();
       toast('تم إنشاء عميل ومشروع-مقترح بنجاح','ok');
       renderLeads();
@@ -144,11 +184,13 @@ $('#manageAccess').onclick=openAccess;
 
 // ===== اعتماد العقد + تثبيت الأساس =====
 $('#approveContract').onclick=async()=>{
-  const val=prompt('قيمة العقد (ر.س) — اتركه فارغًا إن لم تتوفر:','571400');
-  if(val===null)return;
-  if(!confirm('اعتماد الخطة كخط أساس؟ بعدها أي تعديل على البنية يتطلب طلب تغيير.'))return;
-  // بناء snapshot من الجدولة الحالية
-  const snap={};PROJECT.tasks.forEach(t=>{const r=SCHED.R[t.id];snap[t.id]={duration:t.duration,ES:fmtY(r.ES),EF:fmtY(r.EF)};});
+  const r=await dialog({title:'اعتماد العقد وتثبيت الأساس',
+    message:'سيتحوّل المشروع إلى «نشط» وتُجمّد الخطة كخط أساس. بعدها أي تعديل على البنية يتطلب طلب تغيير رسمي.',
+    fields:[{key:'val',label:'قيمة العقد (ر.س) — اختياري',type:'number',value:'',placeholder:'مثال: 571400'}],
+    confirmText:'اعتماد وتثبيت'});
+  if(!r)return;
+  const val=r.val;
+  const snap={};PROJECT.tasks.forEach(t=>{const rr=SCHED.R[t.id];snap[t.id]={duration:t.duration,ES:fmtY(rr.ES),EF:fmtY(rr.EF)};});
   const {error}=await sb.rpc('pmo_approve_contract',{p_project_id:PROJECT._dbId,p_contract_value:val?parseFloat(val):null,p_snapshot:snap});
   if(error){toast('تعذّر الاعتماد: '+error.message,'err');return;}
   await loadProject(CID);render();
@@ -260,25 +302,30 @@ $('#reqOverlay').onclick=e=>{if(e.target.id==='reqOverlay'){$('#reqOverlay').sty
 
 // ===== أداة بناء الخطة (PMO) =====
 async function handleAddTask(){
-  const ref=prompt('معرّف البند (فريد، مثل B10 أو C7):');
-  if(!ref)return;
-  if(PROJECT.tasks.some(t=>t.id===ref.trim())){toast('المعرّف مستخدم بالفعل','warn');return;}
-  const name=prompt('اسم البند:','بند جديد');
-  if(name===null)return;
+  const r=await dialog({title:'إضافة بند جديد',
+    fields:[
+      {key:'ref',label:'المعرّف (فريد، مثل B10)',placeholder:'B10'},
+      {key:'name',label:'اسم البند',value:'بند جديد'},
+      {key:'track',label:'المسار',type:'select',value:'0',options:Object.keys(TRACKS).map(k=>({v:k,t:TRACKS[k].code+' — '+TRACKS[k].name}))},
+      {key:'type',label:'النوع',type:'select',value:'task',options:Object.keys(TYPES).map(k=>({v:k,t:TYPES[k]}))},
+      {key:'duration',label:'المدة (أيام عمل)',type:'number',value:'1'}
+    ],confirmText:'إضافة'});
+  if(!r)return;
+  if(!r.ref){toast('المعرّف مطلوب','warn');return;}
+  if(PROJECT.tasks.some(t=>t.id===r.ref)){toast('المعرّف مستخدم بالفعل','warn');return;}
   try{
-    await addTask(PROJECT._dbId,{ref:ref.trim(),name:name||'بند جديد',track:'0',type:'task',duration:1});
+    await addTask(PROJECT._dbId,{ref:r.ref,name:r.name||'بند جديد',track:r.track,type:r.type,duration:parseInt(r.duration||'1',10)});
     await loadProject(CID);
-    toast('أُضيف البند · عدّل مساره ونوعه ومدته ثم عرّف تبعياته','ok');
+    toast('أُضيف البند بنجاح','ok');
     render();
   }catch(e){toast('تعذّر الإضافة: '+(e.message.includes('duplicate')?'المعرّف مستخدم':e.message),'err');}
 }
 async function handleDeleteTask(refId){
   const t=PROJECT.tasks.find(x=>x.id===refId);if(!t)return;
-  // تحذير إن كانت بنود أخرى تعتمد عليه
   const dependents=PROJECT.tasks.filter(x=>(x.deps||[]).includes(refId)).map(x=>x.id);
   let msg='حذف البند «'+t.name+'» ('+refId+')؟';
   if(dependents.length)msg+='\n\nتنبيه: تعتمد عليه البنود: '+dependents.join('، ')+' — ستُزال هذه الروابط.';
-  if(!confirm(msg))return;
+  if(!await confirmDialog('تأكيد الحذف',msg,true))return;
   try{
     await deleteTask(t._dbId);
     await loadProject(CID);
