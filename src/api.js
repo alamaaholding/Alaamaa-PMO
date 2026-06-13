@@ -36,7 +36,7 @@ async function loadProject(clientId, force){
   const p=projects[0];
   // tasks/deps/baseline/CRs تعتمد على project_id فقط → نطلبها بالتوازي
   const [tasksR,depsR,blR,crR]=await Promise.all([
-    sb.from('pmo_tasks').select('id,ref,wbs,name,track,type,duration,lag,fixed_date,owner,deliverable,status,progress').eq('project_id',p.id).order('sort_order'),
+    sb.from('pmo_tasks').select('id,ref,wbs,name,track,type,duration,lag,fixed_date,owner,deliverable,status,progress,sort_order').eq('project_id',p.id).order('sort_order'),
     sb.from('pmo_dependencies').select('task_id,depends_on_id').eq('project_id',p.id),
     sb.from('pmo_baselines').select('snapshot').eq('project_id',p.id).order('approved_at',{ascending:false}).limit(1),
     sb.from('pmo_change_requests').select('*').eq('project_id',p.id).order('created_at',{ascending:false})
@@ -50,7 +50,7 @@ async function loadProject(clientId, force){
   const reqMap={};reqs.forEach(r=>{(reqMap[r.task_id]=reqMap[r.task_id]||[]).push({_id:r.id,desc:r.description,owner:r.owner,sla:r.sla_days,blocking:r.blocking,requested:r.requested_at||'',received:r.received_at||''});});
   PROJECT={_dbId:p.id,name:p.name,start:p.start_date,status:p.status,lifecycle:p.lifecycle,contractValue:p.contract_value,
     baseline:(bl&&bl.length)?{snapshot:bl[0].snapshot}:null,
-    tasks:tasks.map(t=>({id:t.ref,_dbId:t.id,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],requirements:reqMap[t.id]||[]}))};
+    tasks:tasks.map(t=>({id:t.ref,_dbId:t.id,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],requirements:reqMap[t.id]||[]}))};
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
 
@@ -72,4 +72,30 @@ async function convertLead(submissionId, projectName){
 async function loadAudit(projectId){
   const {data}=await sb.from('pmo_audit_log').select('*').eq('project_id',projectId).order('created_at',{ascending:false}).limit(60);
   return data||[];
+}
+
+// ===== تحرير الخطة (PMO) =====
+async function addTask(projectId, fields){
+  // sort_order = آخر ترتيب + 1
+  const maxSort=Math.max(0,...PROJECT.tasks.map(t=>t._sortOrder||0));
+  const row={project_id:projectId,ref:fields.ref,name:fields.name||'بند جديد',track:fields.track||'0',
+    type:fields.type||'task',duration:fields.duration||1,sort_order:maxSort+1};
+  const {data,error}=await sb.from('pmo_tasks').insert(row).select().single();
+  if(error) throw error;
+  return data;
+}
+async function deleteTask(taskDbId){
+  // التبعيات تُحذف تلقائيًا (cascade) أو نحذفها صراحة
+  await sb.from('pmo_dependencies').delete().or(`task_id.eq.${taskDbId},depends_on_id.eq.${taskDbId}`);
+  const {error}=await sb.from('pmo_tasks').delete().eq('id',taskDbId);
+  if(error) throw error;
+}
+async function setDependencies(projectId, taskDbId, dependsOnDbIds){
+  // نحذف القديمة ثم نضيف الجديدة
+  await sb.from('pmo_dependencies').delete().eq('task_id',taskDbId);
+  if(dependsOnDbIds.length){
+    const rows=dependsOnDbIds.map(d=>({project_id:projectId,task_id:taskDbId,depends_on_id:d}));
+    const {error}=await sb.from('pmo_dependencies').insert(rows);
+    if(error) throw error;
+  }
 }
