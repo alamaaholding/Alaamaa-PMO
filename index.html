@@ -171,6 +171,7 @@ footer{text-align:center;color:var(--muted);font-size:.78rem;padding:14px 0 30px
   <div id="barClient" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
     <span class="tg">تاريخ الحالة (اليوم): <input type="date" id="dataDate"></span>
     <span class="lifebadge" id="lifeBadge">—</span>
+    <button class="hbtn" id="manageAccess" style="display:none;background:var(--gold);border-color:var(--gold)">إدارة وصول العميل</button>
     <span class="hintbar" id="roleHint" style="margin-inline-start:auto"></span>
   </div>
   <div class="kpis" id="kpisRow">
@@ -189,6 +190,24 @@ footer{text-align:center;color:var(--muted);font-size:.78rem;padding:14px 0 30px
   <div id="host"></div>
 </div>
 <footer><b>علامة</b> · منصّة حوكمة المشاريع · المرحلة 1 (نواة Supabase)</footer>
+</div>
+
+<!-- نافذة إدارة وصول العميل -->
+<div id="accessOverlay" style="position:fixed;inset:0;background:rgba(26,26,26,.5);z-index:120;display:none;align-items:flex-start;justify-content:center;padding:50px 16px;overflow:auto">
+  <div style="background:#fff;border-radius:14px;max-width:520px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="background:var(--ink);color:#fff;padding:14px 18px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center">
+      <h3 id="accTitle" style="font-size:1.02rem">إدارة وصول العميل</h3>
+      <button id="accClose" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:16px 18px">
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:12px">الإيميلات المضافة هنا يمكنها الدخول عبر Google ورؤية داشبورد هذا العميل فقط. يمكن الإضافة قبل أن يسجّل صاحب الإيميل دخوله.</p>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <input id="accEmail" type="email" placeholder="email@example.com" style="flex:1;border:1.5px solid var(--line);border-radius:9px;padding:9px;font-family:inherit;font-size:.86rem">
+        <button id="accAdd" class="hbtn" style="background:var(--gold);border-color:var(--gold);padding:9px 16px">إضافة</button>
+      </div>
+      <div id="accList"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ===== المنطق ===== -->
@@ -268,7 +287,11 @@ async function loadIdentity(){
   const {data:{user}}=await sb.auth.getUser();USER=user;if(!user)return null;
   const {data:tm}=await sb.from('team_members').select('role,is_active,full_name').eq('id',user.id).maybeSingle();
   if(tm&&tm.is_active){ROLE=(tm.role==='admin')?'pmo':(tm.role==='manager'?'delivery':'client');USER._name=tm.full_name||user.email;}
-  else{const {data:mem}=await sb.from('pmo_project_members').select('project_id').eq('user_id',user.id);if(mem&&mem.length){ROLE='client';USER._name=user.email;}else ROLE=null;}
+  else{
+    // عميل: نتحقق من التصريح بالإيميل (دالة pmo_my_client_ids)
+    const {data:ids}=await sb.rpc('pmo_my_client_ids');
+    if(ids&&ids.length){ROLE='client';USER._name=user.email;}else ROLE=null;
+  }
   return ROLE;
 }
 async function boot(){
@@ -386,6 +409,7 @@ const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS P
 function render(){
   if(!PROJECT){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا يوجد مشروع لهذا العميل.</p>';return;}
   $('#backPortfolio').style.display=(ROLE!=='client')?'':'none';
+  $('#manageAccess').style.display=(ROLE==='pmo')?'':'none';
   $('#roleHint').textContent=can('editStruct')?'لديك صلاحية تعديل الخطة':(can('editProg')?'يمكنك تحديث الحالة والتقدم':'عرض فقط');
   compute();
   $('#hProject').textContent=PROJECT.name;
@@ -522,6 +546,37 @@ function vDeliv(){
     rows+=`<tr class="${isM?'m':''}"><td style="font-weight:${isM?700:500}">${isM?'◆ ':''}${esc(t.deliverable)}</td><td><span class="idcell" style="--tc:${tc}">${esc(t.id)}</span> ${esc(t.name)}</td><td><span class="pill" style="background:${tc}">${esc(TRACKS[t.track].name)}</span></td><td>${fmt(r.EF)}/${new Date(r.EF).getFullYear()}</td><td><span class="ministat s-${k.effStatus}">${STATUS[k.effStatus]}</span></td></tr>`;});
   return `<div class="dwrap"><table class="dtbl"><thead><tr><th>المخرج</th><th>البند</th><th>المسار</th><th>التسليم المتوقع</th><th>الحالة</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
+
+// ===== إدارة وصول العميل (PMO) =====
+async function openAccess(){
+  const c=CLIENTS.find(x=>x.id===CID);
+  $('#accTitle').textContent='إدارة وصول: '+c.name;
+  $('#accEmail').value='';
+  await renderAccessList();
+  $('#accessOverlay').style.display='flex';
+}
+async function renderAccessList(){
+  const {data,error}=await sb.from('pmo_client_access').select('*').eq('client_id',CID).order('created_at');
+  const list=$('#accList');
+  if(error){list.innerHTML='<p style="color:var(--crit);font-size:.82rem">تعذّر التحميل: '+esc(error.message)+'</p>';return;}
+  if(!data||!data.length){list.innerHTML='<p class="empty" style="color:var(--muted);font-style:italic;font-size:.85rem">لا إيميلات مضافة بعد.</p>';return;}
+  list.innerHTML=data.map(a=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:7px">
+    <span style="font-size:.86rem">${esc(a.email)}</span>
+    <button class="hbtn" data-rm="${a.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc;padding:4px 10px">إزالة</button></div>`).join('');
+  list.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{
+    await sb.from('pmo_client_access').delete().eq('id',b.dataset.rm);await renderAccessList();
+  });
+}
+$('#accAdd').onclick=async()=>{
+  const email=$('#accEmail').value.trim().toLowerCase();
+  if(!email||!email.includes('@')){alert('أدخل إيميلًا صحيحًا');return;}
+  const {error}=await sb.from('pmo_client_access').insert({client_id:CID,email});
+  if(error){alert(error.message.includes('duplicate')?'هذا الإيميل مُضاف مسبقًا':('تعذّر الإضافة: '+error.message));return;}
+  $('#accEmail').value='';await renderAccessList();
+};
+$('#accClose').onclick=()=>{$('#accessOverlay').style.display='none';};
+$('#accessOverlay').onclick=e=>{if(e.target.id==='accessOverlay')$('#accessOverlay').style.display='none';};
+$('#manageAccess').onclick=openAccess;
 
 // انطلاق
 boot();
