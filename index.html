@@ -315,6 +315,18 @@ footer{text-align:center;color:var(--muted);font-size:.78rem;padding:var(--s4) 0
 
 <!-- ===== المنطق ===== -->
 <div id="toastWrap"></div>
+
+<!-- نافذة التبعيات -->
+<div id="depOverlay" class="rqoverlay">
+  <div class="rqmodal" style="max-width:520px">
+    <div class="rqhd"><h3 id="depTitle" style="font-size:1.02rem">التبعيات</h3><button id="depClose" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
+    <div style="padding:16px 18px">
+      <p style="font-size:.8rem;color:var(--muted);margin-bottom:12px">اختر البنود التي يبدأ هذا البند بعد انتهائها. (البنود التي تعتمد عليه مخفية لمنع الدوران.)</p>
+      <div id="depList" style="max-height:50vh;overflow:auto"></div>
+      <button class="hbtn" id="depSave" style="margin-top:12px;background:var(--gold);border-color:var(--gold)">حفظ التبعيات</button>
+    </div>
+  </div>
+</div>
 <script>
 /* ===== config.js ===== */
 // ===== الإعدادات =====
@@ -432,7 +444,7 @@ async function loadProject(clientId, force){
   const p=projects[0];
   // tasks/deps/baseline/CRs تعتمد على project_id فقط → نطلبها بالتوازي
   const [tasksR,depsR,blR,crR]=await Promise.all([
-    sb.from('pmo_tasks').select('id,ref,wbs,name,track,type,duration,lag,fixed_date,owner,deliverable,status,progress').eq('project_id',p.id).order('sort_order'),
+    sb.from('pmo_tasks').select('id,ref,wbs,name,track,type,duration,lag,fixed_date,owner,deliverable,status,progress,sort_order').eq('project_id',p.id).order('sort_order'),
     sb.from('pmo_dependencies').select('task_id,depends_on_id').eq('project_id',p.id),
     sb.from('pmo_baselines').select('snapshot').eq('project_id',p.id).order('approved_at',{ascending:false}).limit(1),
     sb.from('pmo_change_requests').select('*').eq('project_id',p.id).order('created_at',{ascending:false})
@@ -446,7 +458,7 @@ async function loadProject(clientId, force){
   const reqMap={};reqs.forEach(r=>{(reqMap[r.task_id]=reqMap[r.task_id]||[]).push({_id:r.id,desc:r.description,owner:r.owner,sla:r.sla_days,blocking:r.blocking,requested:r.requested_at||'',received:r.received_at||''});});
   PROJECT={_dbId:p.id,name:p.name,start:p.start_date,status:p.status,lifecycle:p.lifecycle,contractValue:p.contract_value,
     baseline:(bl&&bl.length)?{snapshot:bl[0].snapshot}:null,
-    tasks:tasks.map(t=>({id:t.ref,_dbId:t.id,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],requirements:reqMap[t.id]||[]}))};
+    tasks:tasks.map(t=>({id:t.ref,_dbId:t.id,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],requirements:reqMap[t.id]||[]}))};
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
 
@@ -468,6 +480,32 @@ async function convertLead(submissionId, projectName){
 async function loadAudit(projectId){
   const {data}=await sb.from('pmo_audit_log').select('*').eq('project_id',projectId).order('created_at',{ascending:false}).limit(60);
   return data||[];
+}
+
+// ===== تحرير الخطة (PMO) =====
+async function addTask(projectId, fields){
+  // sort_order = آخر ترتيب + 1
+  const maxSort=Math.max(0,...PROJECT.tasks.map(t=>t._sortOrder||0));
+  const row={project_id:projectId,ref:fields.ref,name:fields.name||'بند جديد',track:fields.track||'0',
+    type:fields.type||'task',duration:fields.duration||1,sort_order:maxSort+1};
+  const {data,error}=await sb.from('pmo_tasks').insert(row).select().single();
+  if(error) throw error;
+  return data;
+}
+async function deleteTask(taskDbId){
+  // التبعيات تُحذف تلقائيًا (cascade) أو نحذفها صراحة
+  await sb.from('pmo_dependencies').delete().or(`task_id.eq.${taskDbId},depends_on_id.eq.${taskDbId}`);
+  const {error}=await sb.from('pmo_tasks').delete().eq('id',taskDbId);
+  if(error) throw error;
+}
+async function setDependencies(projectId, taskDbId, dependsOnDbIds){
+  // نحذف القديمة ثم نضيف الجديدة
+  await sb.from('pmo_dependencies').delete().eq('task_id',taskDbId);
+  if(dependsOnDbIds.length){
+    const rows=dependsOnDbIds.map(d=>({project_id:projectId,task_id:taskDbId,depends_on_id:d}));
+    const {error}=await sb.from('pmo_dependencies').insert(rows);
+    if(error) throw error;
+  }
 }
 
 
@@ -543,18 +581,27 @@ function vDashboard(){
 
 function vTable(){
   const S=SCHED,T=TRACK;const editStruct=can('editStruct')&&PROJECT.status!=='baselined';const editProg=can('editProg');
+  const colspan=editStruct?12:11;
   let rows='',last=null;
   PROJECT.tasks.forEach(t=>{
-    if(t.track!==last){last=t.track;rows+=`<tr class="grp"><td colspan="11">${TRACKS[t.track].code} — ${esc(TRACKS[t.track].name)}</td></tr>`;}
+    if(t.track!==last){last=t.track;rows+=`<tr class="grp"><td colspan="${colspan}">${TRACKS[t.track].code} — ${esc(TRACKS[t.track].name)}</td></tr>`;}
     const r=S.R[t.id],k=T[t.id],tc=TRACKS[t.track].color;
     const sopt=Object.keys(STATUS).map(x=>`<option value="${x}" ${x===t.status?'selected':''}>${STATUS[x]}</option>`).join('');
     const durDis=(t.type==='milestone'||t.type==='cont'||!editStruct)?'disabled':'';
     const delay=k.delay==='client'?'<span class="delay client">العميل</span>':k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>';
     const reqs=(t.requirements||[]);const bad=reqs.filter(x=>x._state==='overdue').length;
+    // الاسم: قابل للتعديل بنيويًا
+    const nameCell=`<input class="cell iname" data-f="name" value="${esc(t.name)}" ${editStruct?'':'disabled'}>`;
+    // النوع: قائمة عند التحرير، نص خلافه
+    const typeCell=editStruct
+      ? `<select class="cell" data-f="type">${Object.keys(TYPES).map(x=>`<option value="${x}" ${x===t.type?'selected':''}>${TYPES[x]}</option>`).join('')}</select>`
+      : TYPES[t.type];
+    const depCount=(t.deps||[]).length;
+    const editCol=editStruct?`<td style="white-space:nowrap"><button class="reqbtn" data-deps="${esc(t.id)}" title="التبعيات">⛓ ${depCount||''}</button> <button class="ib" data-del="${esc(t.id)}" title="حذف" style="color:var(--crit)">🗑</button></td>`:'';
     rows+=`<tr data-id="${esc(t.id)}" class="${r.critical?'crit':''}">
       <td><span class="idcell" style="--tc:${tc}">${esc(t.id)}${r.critical?'<span class="critdot"></span>':''}</span></td>
-      <td><input class="cell iname" data-f="name" value="${esc(t.name)}" ${editStruct?'':'disabled'}></td>
-      <td>${TYPES[t.type]}</td>
+      <td>${nameCell}</td>
+      <td>${typeCell}</td>
       <td><input class="cell inum" type="number" min="0" data-f="duration" value="${t.duration||0}" ${durDis}></td>
       <td><span class="dt s">${fmt(r.ES)}</span></td>
       <td><span class="dt">${fmt(r.EF)}</span></td>
@@ -563,19 +610,23 @@ function vTable(){
       <td>${delay}</td>
       <td><button class="reqbtn" data-reqs="${esc(t.id)}">${reqs.length?(bad?bad+'⚠':reqs.length):'—'}</button></td>
       <td style="font-size:.74rem;color:var(--tC);text-align:right">${esc(t.deliverable||'—')}</td>
+      ${editCol}
     </tr>`;
   });
-  return `<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const editHead=editStruct?'<th>تحرير</th>':'';
+  const addBar=editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف يجب أن يكون فريدًا (مثل B10). بعد الإضافة عرّف تبعياته بزر ⛓.</span></div>`:'';
+  return addBar+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function bindTable(){
+  const editStruct=can('editStruct')&&PROJECT.status!=='baselined';
   $$('#tbl tr[data-id]').forEach(tr=>{
     const id=tr.dataset.id,t=PROJECT.tasks.find(x=>x.id===id);
     tr.querySelectorAll('[data-f]').forEach(inp=>{
-      const f=inp.dataset.f,ev=(f==='duration'||f==='progress')?'change':'change';
-      inp.addEventListener(ev,async()=>{
+      inp.addEventListener('change',async()=>{
+        const f=inp.dataset.f;
         let val=inp.value;if(f==='duration'||f==='progress')val=parseInt(val||'0',10);
         t[f]=val;
-        const map={duration:'duration',progress:'progress',status:'status',name:'name'};
+        const map={duration:'duration',progress:'progress',status:'status',name:'name',type:'type'};
         if(map[f]&&t._dbId){const patch={};patch[map[f]]=val;
           const {error}=await sb.from('pmo_tasks').update(patch).eq('id',t._dbId);
           if(error){toast('تعذّر الحفظ: '+error.message,'err');return;}}
@@ -584,6 +635,11 @@ function bindTable(){
     });
   });
   $$('#tbl [data-reqs]').forEach(b=>b.onclick=()=>openReqs(b.dataset.reqs));
+  if(editStruct){
+    $$('#tbl [data-del]').forEach(b=>b.onclick=()=>handleDeleteTask(b.dataset.del));
+    $$('#tbl [data-deps]').forEach(b=>b.onclick=()=>openDeps(b.dataset.deps));
+    const ab=$('#addTaskBtn');if(ab)ab.onclick=handleAddTask;
+  }
 }
 
 function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div><span style="margin-inline-start:auto"></span><div class="zoom"><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
@@ -909,6 +965,68 @@ $('#reqAdd').onclick=async()=>{
 };
 $('#reqClose').onclick=()=>{$('#reqOverlay').style.display='none';render();};
 $('#reqOverlay').onclick=e=>{if(e.target.id==='reqOverlay'){$('#reqOverlay').style.display='none';render();}};
+
+// ===== أداة بناء الخطة (PMO) =====
+async function handleAddTask(){
+  const ref=prompt('معرّف البند (فريد، مثل B10 أو C7):');
+  if(!ref)return;
+  if(PROJECT.tasks.some(t=>t.id===ref.trim())){toast('المعرّف مستخدم بالفعل','warn');return;}
+  const name=prompt('اسم البند:','بند جديد');
+  if(name===null)return;
+  try{
+    await addTask(PROJECT._dbId,{ref:ref.trim(),name:name||'بند جديد',track:'0',type:'task',duration:1});
+    await loadProject(CID);
+    toast('أُضيف البند · عدّل مساره ونوعه ومدته ثم عرّف تبعياته','ok');
+    render();
+  }catch(e){toast('تعذّر الإضافة: '+(e.message.includes('duplicate')?'المعرّف مستخدم':e.message),'err');}
+}
+async function handleDeleteTask(refId){
+  const t=PROJECT.tasks.find(x=>x.id===refId);if(!t)return;
+  // تحذير إن كانت بنود أخرى تعتمد عليه
+  const dependents=PROJECT.tasks.filter(x=>(x.deps||[]).includes(refId)).map(x=>x.id);
+  let msg='حذف البند «'+t.name+'» ('+refId+')؟';
+  if(dependents.length)msg+='\n\nتنبيه: تعتمد عليه البنود: '+dependents.join('، ')+' — ستُزال هذه الروابط.';
+  if(!confirm(msg))return;
+  try{
+    await deleteTask(t._dbId);
+    await loadProject(CID);
+    toast('حُذف البند','ok');
+    render();
+  }catch(e){toast('تعذّر الحذف: '+e.message,'err');}
+}
+let DEP_TASK=null;
+function openDeps(refId){
+  DEP_TASK=PROJECT.tasks.find(t=>t.id===refId);if(!DEP_TASK)return;
+  $('#depTitle').textContent='تبعيات: '+DEP_TASK.name+' ('+DEP_TASK.id+')';
+  renderDeps();
+  $('#depOverlay').style.display='flex';
+}
+function renderDeps(){
+  const current=new Set(DEP_TASK.deps||[]);
+  // البنود المتاحة كاعتماد = كل البنود عدا نفسه (ومنع الدوائر المباشرة: لا نعرض من يعتمد عليه)
+  const dependents=new Set();
+  // إيجاد كل من يعتمد على DEP_TASK (مباشرة أو غير مباشرة) لمنع الدورات
+  function collectDependents(ref){PROJECT.tasks.forEach(t=>{if((t.deps||[]).includes(ref)&&!dependents.has(t.id)){dependents.add(t.id);collectDependents(t.id);}});}
+  collectDependents(DEP_TASK.id);
+  const opts=PROJECT.tasks.filter(t=>t.id!==DEP_TASK.id&&!dependents.has(t.id));
+  $('#depList').innerHTML=opts.map(t=>`<label style="display:flex;align-items:center;gap:9px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;cursor:pointer;font-size:.84rem">
+    <input type="checkbox" data-dep="${esc(t.id)}" ${current.has(t.id)?'checked':''}>
+    <span class="idcell" style="--tc:${TRACKS[t.track].color}">${esc(t.id)}</span> ${esc(t.name)}</label>`).join('')||'<p class="empty">لا بنود متاحة.</p>';
+}
+$('#depSave').onclick=async()=>{
+  const checked=[...document.querySelectorAll('#depList [data-dep]:checked')].map(c=>c.dataset.dep);
+  // تحويل المعرّفات (ref) إلى dbIds
+  const dbIds=checked.map(ref=>{const t=PROJECT.tasks.find(x=>x.id===ref);return t?t._dbId:null;}).filter(Boolean);
+  try{
+    await setDependencies(PROJECT._dbId,DEP_TASK._dbId,dbIds);
+    await loadProject(CID);
+    $('#depOverlay').style.display='none';
+    toast('حُدّثت التبعيات','ok');
+    render();
+  }catch(e){toast('تعذّر الحفظ: '+e.message,'err');}
+};
+$('#depClose').onclick=()=>{$('#depOverlay').style.display='none';};
+$('#depOverlay').onclick=e=>{if(e.target.id==='depOverlay')$('#depOverlay').style.display='none';};
 
 // انطلاق
 boot();
