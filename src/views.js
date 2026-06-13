@@ -1,0 +1,145 @@
+// ===== العرض =====
+const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',cr:'طلبات التغيير'};
+function render(){
+  if(!PROJECT){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا يوجد مشروع لهذا العميل.</p>';return;}
+  $('#backPortfolio').style.display=(ROLE!=='client')?'':'none';
+  $('#manageAccess').style.display=(ROLE==='pmo')?'':'none';
+  $('#approveContract').style.display=(ROLE==='pmo'&&PROJECT.status!=='baselined')?'':'none';
+  $('#roleHint').textContent=can('editStruct')?'لديك صلاحية تعديل الخطة':(can('editProg')?'يمكنك تحديث الحالة والتقدم':'عرض فقط');
+  compute();
+  $('#hProject').textContent=PROJECT.name;
+  const lifeMap={proposal:['مقترح — قيد النقاش','proposal'],negotiation:['قيد التفاوض','proposal'],approved:['معتمد','active'],active:['نشط','active'],closed:['مغلق',''],lost:['ملغى','']};
+  const lm=lifeMap[PROJECT.lifecycle]||['—',''];$('#lifeBadge').textContent=lm[0];$('#lifeBadge').className='lifebadge '+lm[1];
+  const tasks=PROJECT.tasks;
+  $('#kEnd').textContent=fmt(SCHED.pEnd)+'/'+new Date(SCHED.pEnd).getFullYear();
+  $('#kDur').textContent=SCHED.totalWD;
+  $('#kCrit').textContent=tasks.filter(t=>SCHED.R[t.id].critical).length;
+  $('#kBlk').textContent=tasks.filter(t=>TRACK[t.id].blocked).length;
+  $('#kCl').textContent=tasks.filter(t=>TRACK[t.id].delay==='client').length;
+  $('#kAl').textContent=tasks.filter(t=>TRACK[t.id].delay==='alamah').length;
+  const w=$('#warnBox');const blk=tasks.filter(t=>TRACK[t.id].blocked);const arr=SCHED.warnings.slice();
+  if(blk.length)arr.push('بنود متوقفة بانتظار متطلبات: '+blk.map(t=>t.id).join('، '));
+  if(arr.length){w.classList.add('show');w.innerHTML=arr.map(x=>'⚠ '+x).join('<br>');}else w.classList.remove('show');
+  const views=PERMS[ROLE].views;if(!views.includes(VIEW))VIEW=views[0];
+  $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''}" data-v="${v}">${VIEW_LABELS[v]}</button>`).join('');
+  $$('#tabs .tab').forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render();});
+  const host=$('#host');
+  if(VIEW==='dashboard')host.innerHTML=vDashboard();
+  else if(VIEW==='table'){host.innerHTML='<div class="hintbar">تحديث الحالة والتقدّم يُحفظ مباشرة في القاعدة. المسار الحرج مظلّل.</div>'+vTable();bindTable();}
+  else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(10,PX-4);render();};}
+  else if(VIEW==='deliv')host.innerHTML=vDeliv();
+  else if(VIEW==='cr'){host.innerHTML=vCR();bindCR();}
+}
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function vDashboard(){
+  const tasks=PROJECT.tasks.filter(t=>t.type!=='cont'),S=SCHED,T=TRACK,dd=D(DATA_DATE);
+  const total=tasks.filter(t=>t.type!=='milestone').length;
+  const done=tasks.filter(t=>t.status==='done'&&t.type!=='milestone').length;
+  const inprog=tasks.filter(t=>T[t.id].effStatus==='inprogress').length;
+  const blocked=tasks.filter(t=>T[t.id].blocked).length;const pct=total?Math.round(done/total*100):0;
+  const today=tasks.filter(t=>t.type!=='milestone'&&D(fmtY(S.R[t.id].ES))<=dd&&dd<=D(fmtY(S.R[t.id].EF)));
+  const wkEnd=new Date(dd.getTime()+7*86400000);
+  const week=tasks.filter(t=>t.type!=='milestone'&&D(fmtY(S.R[t.id].ES))<=wkEnd&&D(fmtY(S.R[t.id].EF))>=dd);
+  const creqs=[];PROJECT.tasks.forEach(t=>(t.requirements||[]).forEach(r=>{if(r.owner==='client'&&r._state!=='received'&&r._state!=='latejust')creqs.push({t,r});}));
+  const miles=PROJECT.tasks.filter(t=>t.type==='milestone').map(t=>({t,ef:S.R[t.id].EF})).filter(m=>D(fmtY(m.ef))>=dd).sort((a,b)=>a.ef-b.ef).slice(0,5);
+  const alerts=[];creqs.filter(x=>x.r._state==='overdue').forEach(x=>alerts.push(['client','متطلب متأخر من العميل: '+x.r.desc+' ('+x.t.id+')'+(x.r._late?' +'+x.r._late+'ي':'')]));
+  tasks.filter(t=>T[t.id].delay==='alamah').forEach(t=>alerts.push(['alamah','تأخير على فريق علامة: '+t.id+' — '+t.name]));
+  tasks.filter(t=>T[t.id].blocked).forEach(t=>alerts.push(['blocked','بند متوقف: '+t.id+' — '+t.name]));
+  const tl=t=>`<li><span class="tgw" style="--tc:${TRACKS[t.track].color}">${esc(t.id)}</span> ${esc(t.name)} <em>${fmt(S.R[t.id].ES)}–${fmt(S.R[t.id].EF)}</em> <span class="ministat s-${T[t.id].effStatus}">${STATUS[T[t.id].effStatus]}</span></li>`;
+  const card=(l,v,c)=>`<div class="dcard ${c||''}"><b>${v}</b><span>${l}</span></div>`;
+  let h=`<div class="dgrid">${card('نسبة الإنجاز',pct+'%','ok')}${card('مكتملة',done)}${card('جارية',inprog,'blue')}${card('متبقية',total-done)}${card('متوقفة',blocked,'crit')}${card('متطلبات مطلوبة',creqs.length,'warn')}</div>
+  <div class="dprog"><div class="dprog-fill" style="width:${pct}%"></div></div>
+  <div class="dcols">
+    <div class="dbox"><h4>مهام اليوم (${today.length})</h4><ul class="tlist">${today.length?today.map(tl).join(''):'<li class="empty">لا مهام مجدولة لليوم.</li>'}</ul></div>
+    <div class="dbox"><h4>مهام هذا الأسبوع (${week.length})</h4><ul class="tlist">${week.length?week.map(tl).join(''):'<li class="empty">لا مهام هذا الأسبوع.</li>'}</ul></div>
+  </div>
+  <div class="dcols">
+    <div class="dbox"><h4>المتطلبات المطلوبة من العميل (${creqs.length})</h4><ul class="tlist">${creqs.length?creqs.map(x=>`<li><span class="ministat s-${x.r._state==='overdue'?'blocked':'notstarted'}">${x.r._state==='overdue'?'متأخر':'بانتظار'}</span> ${esc(x.r.desc)} <em>SLA ${x.r.sla}ي · ${esc(x.t.id)}</em></li>`).join(''):'<li class="empty">لا متطلبات معلّقة.</li>'}</ul></div>
+    <div class="dbox"><h4>المعالم القادمة</h4><ul class="tlist">${miles.length?miles.map(m=>`<li><span class="md">◆</span> ${esc(m.t.name.replace('معلم: ',''))} <em>${fmt(m.ef)}</em></li>`).join(''):'<li class="empty">—</li>'}</ul></div>
+  </div>
+  <div class="dbox alerts"><h4>التنبيهات (${alerts.length})</h4><ul class="tlist">${alerts.length?alerts.map(a=>`<li class="alert a-${a[0]}">⚠ ${esc(a[1])}</li>`).join(''):'<li class="empty">لا تنبيهات.</li>'}</ul></div>`;
+  return h;
+}
+
+function vTable(){
+  const S=SCHED,T=TRACK;const editStruct=can('editStruct')&&PROJECT.status!=='baselined';const editProg=can('editProg');
+  let rows='',last=null;
+  PROJECT.tasks.forEach(t=>{
+    if(t.track!==last){last=t.track;rows+=`<tr class="grp"><td colspan="11">${TRACKS[t.track].code} — ${esc(TRACKS[t.track].name)}</td></tr>`;}
+    const r=S.R[t.id],k=T[t.id],tc=TRACKS[t.track].color;
+    const sopt=Object.keys(STATUS).map(x=>`<option value="${x}" ${x===t.status?'selected':''}>${STATUS[x]}</option>`).join('');
+    const durDis=(t.type==='milestone'||t.type==='cont'||!editStruct)?'disabled':'';
+    const delay=k.delay==='client'?'<span class="delay client">العميل</span>':k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>';
+    const reqs=(t.requirements||[]);const bad=reqs.filter(x=>x._state==='overdue').length;
+    rows+=`<tr data-id="${esc(t.id)}" class="${r.critical?'crit':''}">
+      <td><span class="idcell" style="--tc:${tc}">${esc(t.id)}${r.critical?'<span class="critdot"></span>':''}</span></td>
+      <td><input class="cell iname" data-f="name" value="${esc(t.name)}" ${editStruct?'':'disabled'}></td>
+      <td>${TYPES[t.type]}</td>
+      <td><input class="cell inum" type="number" min="0" data-f="duration" value="${t.duration||0}" ${durDis}></td>
+      <td><span class="dt s">${fmt(r.ES)}</span></td>
+      <td><span class="dt">${fmt(r.EF)}</span></td>
+      <td><select class="st st-${k.effStatus}" data-f="status" ${editProg?'':'disabled'}>${sopt}</select></td>
+      <td><input class="cell iprog" type="number" min="0" max="100" data-f="progress" value="${t.progress||0}" ${editProg&&t.type!=='milestone'?'':'disabled'}></td>
+      <td>${delay}</td>
+      <td><button class="reqbtn" data-reqs="${esc(t.id)}">${reqs.length?(bad?bad+'⚠':reqs.length):'—'}</button></td>
+      <td style="font-size:.74rem;color:var(--tC);text-align:right">${esc(t.deliverable||'—')}</td>
+    </tr>`;
+  });
+  return `<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function bindTable(){
+  $$('#tbl tr[data-id]').forEach(tr=>{
+    const id=tr.dataset.id,t=PROJECT.tasks.find(x=>x.id===id);
+    tr.querySelectorAll('[data-f]').forEach(inp=>{
+      const f=inp.dataset.f,ev=(f==='duration'||f==='progress')?'change':'change';
+      inp.addEventListener(ev,async()=>{
+        let val=inp.value;if(f==='duration'||f==='progress')val=parseInt(val||'0',10);
+        t[f]=val;
+        const map={duration:'duration',progress:'progress',status:'status',name:'name'};
+        if(map[f]&&t._dbId){const patch={};patch[map[f]]=val;
+          const {error}=await sb.from('pmo_tasks').update(patch).eq('id',t._dbId);
+          if(error){alert('تعذّر الحفظ: '+error.message);return;}}
+        render();
+      });
+    });
+  });
+  $$('#tbl [data-reqs]').forEach(b=>b.onclick=()=>openReqs(b.dataset.reqs));
+}
+
+function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div><span style="margin-inline-start:auto"></span><div class="zoom"><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
+function vGantt(){
+  const S=SCHED,T=TRACK,start=S.pStart,end=S.pEnd,oneDay=86400000,dd=D(DATA_DATE);
+  const lo=start<dd?start:dd,hi=end>dd?end:dd,totalDays=Math.round((hi-lo)/oneDay)+3,W=totalDays*PX;
+  const off=d=>Math.round((new Date(d)-lo)/oneDay);
+  const MN=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  let months='',weeks='',grid='';let d=new Date(lo);
+  while(d<=hi){const ms=off(d);const nx=new Date(d.getFullYear(),d.getMonth()+1,1);const se=nx>hi?hi:new Date(nx-oneDay);const days=Math.round((se-d)/oneDay)+1;months+=`<div class="mhead" style="right:${ms*PX}px;width:${days*PX}px">${MN[d.getMonth()]} ${d.getFullYear()}</div>`;d=nx;}
+  let wk=new Date(lo),wi=1;while(wk<=hi){weeks+=`<div class="whead" style="right:${off(wk)*PX}px;width:${7*PX}px"><b>أسبوع ${wi}</b><s>${fmt(wk)}</s></div>`;grid+=`<div class="vg" style="right:${off(wk)*PX}px"></div>`;wk=new Date(wk.getTime()+7*oneDay);wi++;}
+  const today=`<div class="today" style="right:${off(dd)*PX}px"><span>اليوم ${fmt(dd)}</span></div>`;
+  const BL=PROJECT.baseline?PROJECT.baseline.snapshot:null;let rows='',last=null;
+  PROJECT.tasks.forEach(t=>{const r=S.R[t.id],k=T[t.id],tc=TRACKS[t.track].color;
+    if(t.track!==last){last=t.track;rows+=`<div class="grow grp"><div class="glbl">${TRACKS[t.track].code} — ${esc(TRACKS[t.track].name)}</div><div class="glane"></div></div>`;}
+    const o=off(r.ES);const tip=`${esc(t.name)} — ${fmt(r.ES)}–${fmt(r.EF)} | ${STATUS[k.effStatus]}`;
+    let lane='';
+    if(BL&&BL[t.id]&&t.type!=='milestone'){const bo=off(D(BL[t.id].ES)),bl=Math.max(1,Math.round((D(BL[t.id].EF)-D(BL[t.id].ES))/oneDay)+1);lane+=`<div class="blbar" style="right:${bo*PX}px;width:${bl*PX}px"></div>`;}
+    if(t.type==='milestone')lane+=`<div class="gmile ${r.critical?'crit':''}" style="right:${o*PX-7}px" title="${tip}"><span class="md">◆</span><span class="ml">${esc(t.id)}</span></div>`;
+    else{const len=Math.max(1,Math.round((new Date(r.EF)-new Date(r.ES))/oneDay)+1),wpx=len*PX;const cls=(t.type==='cont')?'cont':k.effStatus;const prog=t.type==='cont'?0:(t.progress||0);
+      const fill=(k.effStatus==='inprogress'&&prog>0)?`<div class="fill" style="width:${prog}%"></div>`:'';
+      const durTxt=(t.type==='cont')?'مستمر':(t.duration+' ي'+(prog?' · '+prog+'%':''));const inside=wpx>56;
+      const durEl=inside?`<div class="gdur inside" style="right:${o*PX+6}px">${durTxt}</div>`:`<div class="gdur" style="right:${(o+len)*PX+4}px">${durTxt}</div>`;
+      lane+=`<div class="gbar ${cls} ${r.critical?'crit':''}" style="right:${o*PX}px;width:${wpx}px;background:${tc}" title="${tip}">${fill}</div>${durEl}`;}
+    rows+=`<div class="grow"><div class="glbl"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
+  return `<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
+    <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${months}${weeks}</div></div>
+    <div style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${grid}${today}</div>${rows}</div></div></div>
+    <div class="glegend"><span><span class="di"></span>معلم</span><span><span class="ci"></span>حرج</span>${BL?'<span><i class="blleg"></i>الأساس المعتمد</span>':''}<span><span class="dot" style="background:#cbbfa6"></span>لم تبدأ</span><span><span class="dot" style="background:var(--blue)"></span>جارية</span><span><span class="dot" style="background:var(--crit)"></span>متوقفة</span><span><span class="dot" style="background:var(--ok)"></span>مكتملة</span></div></div>`;
+}
+
+function vDeliv(){
+  const S=SCHED,T=TRACK;let rows='';
+  PROJECT.tasks.forEach(t=>{if(!t.deliverable)return;const r=S.R[t.id],k=T[t.id],tc=TRACKS[t.track].color,isM=t.type==='milestone';
+    rows+=`<tr class="${isM?'m':''}"><td style="font-weight:${isM?700:500}">${isM?'◆ ':''}${esc(t.deliverable)}</td><td><span class="idcell" style="--tc:${tc}">${esc(t.id)}</span> ${esc(t.name)}</td><td><span class="pill" style="background:${tc}">${esc(TRACKS[t.track].name)}</span></td><td>${fmt(r.EF)}/${new Date(r.EF).getFullYear()}</td><td><span class="ministat s-${k.effStatus}">${STATUS[k.effStatus]}</span></td></tr>`;});
+  return `<div class="dwrap"><table class="dtbl"><thead><tr><th>المخرج</th><th>البند</th><th>المسار</th><th>التسليم المتوقع</th><th>الحالة</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
