@@ -100,7 +100,7 @@ function bindTable(){
         const map={duration:'duration',progress:'progress',status:'status',name:'name'};
         if(map[f]&&t._dbId){const patch={};patch[map[f]]=val;
           const {error}=await sb.from('pmo_tasks').update(patch).eq('id',t._dbId);
-          if(error){alert('تعذّر الحفظ: '+error.message);return;}}
+          if(error){toast('تعذّر الحفظ: '+error.message,'err');return;}}
         render();
       });
     });
