@@ -69,3 +69,7 @@ async function convertLead(submissionId, projectName){
   if(error) throw error;
   return data;
 }
+async function loadAudit(projectId){
+  const {data}=await sb.from('pmo_audit_log').select('*').eq('project_id',projectId).order('created_at',{ascending:false}).limit(60);
+  return data||[];
+}
