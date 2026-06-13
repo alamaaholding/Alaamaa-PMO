@@ -96,4 +96,16 @@
 <script src="views.js"></script>
 <script src="app.js"></script>
 <div id="toastWrap"></div>
+
+<!-- نافذة التبعيات -->
+<div id="depOverlay" class="rqoverlay">
+  <div class="rqmodal" style="max-width:520px">
+    <div class="rqhd"><h3 id="depTitle" style="font-size:1.02rem">التبعيات</h3><button id="depClose" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
+    <div style="padding:16px 18px">
+      <p style="font-size:.8rem;color:var(--muted);margin-bottom:12px">اختر البنود التي يبدأ هذا البند بعد انتهائها. (البنود التي تعتمد عليه مخفية لمنع الدوران.)</p>
+      <div id="depList" style="max-height:50vh;overflow:auto"></div>
+      <button class="hbtn" id="depSave" style="margin-top:12px;background:var(--gold);border-color:var(--gold)">حفظ التبعيات</button>
+    </div>
+  </div>
+</div>
 </body></html>
