@@ -39,9 +39,11 @@ async function renderPortfolio(){
   SCREEN='portfolio';
   $('#hProject').textContent='محفظة المشاريع';
   $('#barClient').style.display='none';hideChrome();
+  const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads" style="margin-inline-start:auto">العملاء المحتملون ↗</button>':'';
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
   const skel=CLIENTS.map(()=>'<div class="pcard"><div class="skeleton" style="height:22px;width:55%;margin-bottom:14px"></div><div class="skeleton" style="height:8px;margin-bottom:12px"></div><div class="skeleton" style="height:36px"></div></div>').join('');
-  $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.</div><div class="pgrid" id="pgrid">'+skel+'</div>';
+  $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+leadsBtn+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
+  if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;}
   // استعلام واحد لكل الملخّصات (بدل 12 متسلسلًا)
   const {data:rows,error}=await sb.rpc('pmo_portfolio');
   const grid=$('#pgrid');grid.innerHTML='';
@@ -72,6 +74,40 @@ async function openProject(){
   $('#loader').classList.add('hidden');
   SCREEN='project';$('#barClient').style.display='';showChrome();
   render();
+}
+
+// ===== شاشة العملاء المحتملين (PMO) =====
+async function renderLeads(){
+  $('#hProject').textContent='العملاء المحتملون';
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backToPortfolio">↩ المحفظة</button><span style="margin-inline-start:auto">النماذج الواردة من الموقع — حوّل أيًّا منها إلى مشروع-مقترح.</span></div><div id="leadsList"><div class="skeleton" style="height:60px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
+  $('#backToPortfolio').onclick=renderPortfolio;
+  let leads;
+  try{ leads=await loadLeads(); }catch(e){ $('#leadsList').innerHTML='<p class="pempty">تعذّر تحميل النماذج.</p>'; return; }
+  const box=$('#leadsList');
+  if(!leads.length){box.innerHTML='<p class="pempty">لا توجد نماذج واردة.</p>';return;}
+  box.innerHTML=leads.map(l=>{
+    const conv=l._converted;
+    const date=l.submitted_at?new Date(l.submitted_at).toLocaleDateString('ar'):'';
+    return `<div class="crcard" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <b style="font-size:.95rem">${esc(l.company_name||'(بلا اسم شركة)')}</b>
+        <div style="font-size:.8rem;color:var(--muted)">${esc(l.contact_name||'')}${l.contact_email?' · '+esc(l.contact_email):''}${date?' · '+date:''}</div>
+      </div>
+      <span class="crstate ${conv?'approved':'pending'}">${conv?'محوّل لمشروع':(esc(l.status||'جديد'))}</span>
+      ${conv?'':`<button class="reqbtn" data-convert="${l.id}" data-name="${esc(l.company_name||'')}" style="background:var(--gold);border-color:var(--gold);color:#fff">تحويل لمشروع</button>`}
+    </div>`;
+  }).join('');
+  box.querySelectorAll('[data-convert]').forEach(b=>b.onclick=async()=>{
+    const name=prompt('اسم المشروع:', 'مشروع '+(b.dataset.name||''));
+    if(!name)return;
+    b.disabled=true;b.textContent='جارٍ...';
+    try{
+      await convertLead(b.dataset.convert, name);
+      await loadClients();
+      toast('تم إنشاء عميل ومشروع-مقترح بنجاح','ok');
+      renderLeads();
+    }catch(e){ toast('تعذّر التحويل: '+e.message,'err'); b.disabled=false;b.textContent='تحويل لمشروع'; }
+  });
 }
 
 
