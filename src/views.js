@@ -7,7 +7,8 @@ function render(){
   $('#approveContract').style.display=(ROLE==='pmo'&&PROJECT.status!=='baselined')?'':'none';
   $('#roleHint').textContent=can('editStruct')?'لديك صلاحية تعديل الخطة':(can('editProg')?'يمكنك تحديث الحالة والتقدم':'عرض فقط');
   compute();
-  $('#hProject').textContent=PROJECT.name;
+  const _c=CLIENTS.find(x=>x.id===CID);
+  $('#hProject').innerHTML=(_c?`<span class="ctx-dot" style="background:${_c.color}"></span>`:'')+esc(PROJECT.name);
   const lifeMap={proposal:['مقترح — قيد النقاش','proposal'],negotiation:['قيد التفاوض','proposal'],approved:['معتمد','active'],active:['نشط','active'],closed:['مغلق',''],lost:['ملغى','']};
   const lm=lifeMap[PROJECT.lifecycle]||['—',''];$('#lifeBadge').textContent=lm[0];$('#lifeBadge').className='lifebadge '+lm[1];
   const tasks=PROJECT.tasks;
@@ -24,6 +25,15 @@ function render(){
   $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''}" data-v="${v}">${VIEW_LABELS[v]}</button>`).join('');
   $$('#tabs .tab').forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render();});
   const host=$('#host');
+  // حالة فارغة: مشروع بلا بنود — دعوة فعل واضحة (لا تبويبات فارغة)
+  if(!PROJECT.tasks.length && VIEW!=='discuss'){
+    const canBuild=can('editStruct');
+    host.innerHTML=`<div class="empty-cta"><div class="ico">📋</div><h3>لا توجد خطة بعد لهذا المشروع</h3>
+      <p>${canBuild?'ابدأ ببناء خطة المشروع بإضافة أول بند، ثم عرّف المسارات والتبعيات.':'لم تُبنَ خطة هذا المشروع بعد. سيظهر المحتوى فور إعدادها من فريق إدارة المشاريع.'}</p>
+      ${canBuild?'<button id="emptyAdd">+ إضافة أول بند</button>':''}</div>`;
+    const ea=$('#emptyAdd');if(ea)ea.onclick=()=>{VIEW='table';handleAddTask();};
+    return;
+  }
   if(VIEW==='dashboard')host.innerHTML=vDashboard();
   else if(VIEW==='table'){host.innerHTML='<div class="hintbar">تحديث الحالة والتقدّم يُحفظ مباشرة في القاعدة. المسار الحرج مظلّل.</div>'+vTable();bindTable();}
   else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(10,PX-4);render();};}
