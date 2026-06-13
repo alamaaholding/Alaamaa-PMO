@@ -28,23 +28,28 @@ $('#backPortfolio').onclick=async()=>{ await renderPortfolio(); $('#backPortfoli
 
 // ===== تحميل المشروع =====
 async function loadClients(){const {data}=await sb.from('pmo_clients').select('*').order('created_at');CLIENTS=data||[];}
-async function loadProject(clientId){
+const PROJECT_CACHE={}; // تخزين مؤقت للمشاريع المحمّلة (يُبطل عند الكتابة)
+async function loadProject(clientId, force){
   CID=clientId;
   const {data:projects}=await sb.from('pmo_projects').select('*').eq('client_id',clientId).limit(1);
   if(!projects||!projects.length){PROJECT=null;return;}
   const p=projects[0];
-  const {data:tasks}=await sb.from('pmo_tasks').select('*').eq('project_id',p.id).order('sort_order');
-  const {data:deps}=await sb.from('pmo_dependencies').select('*').eq('project_id',p.id);
-  const ids=(tasks||[]).map(t=>t.id);let reqs=[];
+  // tasks/deps/baseline/CRs تعتمد على project_id فقط → نطلبها بالتوازي
+  const [tasksR,depsR,blR,crR]=await Promise.all([
+    sb.from('pmo_tasks').select('id,ref,wbs,name,track,type,duration,lag,fixed_date,owner,deliverable,status,progress').eq('project_id',p.id).order('sort_order'),
+    sb.from('pmo_dependencies').select('task_id,depends_on_id').eq('project_id',p.id),
+    sb.from('pmo_baselines').select('snapshot').eq('project_id',p.id).order('approved_at',{ascending:false}).limit(1),
+    sb.from('pmo_change_requests').select('*').eq('project_id',p.id).order('created_at',{ascending:false})
+  ]);
+  const tasks=tasksR.data||[],deps=depsR.data||[],bl=blR.data||[];
+  CRS=crR.data||[];
+  const ids=tasks.map(t=>t.id);let reqs=[];
   if(ids.length){const r=await sb.from('pmo_requirements').select('*').in('task_id',ids);reqs=r.data||[];}
-  const refById={};(tasks||[]).forEach(t=>refById[t.id]=t.ref);
-  const depMap={};(deps||[]).forEach(d=>{(depMap[d.task_id]=depMap[d.task_id]||[]).push(refById[d.depends_on_id]);});
+  const refById={};tasks.forEach(t=>refById[t.id]=t.ref);
+  const depMap={};deps.forEach(d=>{(depMap[d.task_id]=depMap[d.task_id]||[]).push(refById[d.depends_on_id]);});
   const reqMap={};reqs.forEach(r=>{(reqMap[r.task_id]=reqMap[r.task_id]||[]).push({_id:r.id,desc:r.description,owner:r.owner,sla:r.sla_days,blocking:r.blocking,requested:r.requested_at||'',received:r.received_at||''});});
-  const {data:bl}=await sb.from('pmo_baselines').select('*').eq('project_id',p.id).order('approved_at',{ascending:false}).limit(1);
-  const {data:crData}=await sb.from('pmo_change_requests').select('*').eq('project_id',p.id).order('created_at',{ascending:false});
-  CRS=crData||[];
   PROJECT={_dbId:p.id,name:p.name,start:p.start_date,status:p.status,lifecycle:p.lifecycle,contractValue:p.contract_value,
     baseline:(bl&&bl.length)?{snapshot:bl[0].snapshot}:null,
-    tasks:(tasks||[]).map(t=>({id:t.ref,_dbId:t.id,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],requirements:reqMap[t.id]||[]}))};
+    tasks:tasks.map(t=>({id:t.ref,_dbId:t.id,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],requirements:reqMap[t.id]||[]}))};
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
