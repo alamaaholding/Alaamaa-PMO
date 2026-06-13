@@ -2,6 +2,16 @@
 let USER=null,ROLE=null,CLIENTS=[],CID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[];
 let SCREEN='portfolio'; // portfolio | project — للطاقم؛ العميل دائمًا project
 
+// ===== الإشعارات (Toast) =====
+function toast(msg, kind){ // kind: ok | err | warn | (افتراضي)
+  const wrap=document.getElementById('toastWrap'); if(!wrap)return;
+  const t=document.createElement('div'); t.className='toast'+(kind?' '+kind:'');
+  const icon=kind==='ok'?'✓':kind==='err'?'✕':kind==='warn'?'⚠':'•';
+  t.innerHTML='<span>'+icon+'</span><span>'+msg+'</span>';
+  wrap.appendChild(t);
+  setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),300);},3200);
+}
+
 
 // ===== بدء التطبيق =====
 async function startApp(){
@@ -95,9 +105,9 @@ async function renderAccessList(){
 }
 $('#accAdd').onclick=async()=>{
   const email=$('#accEmail').value.trim().toLowerCase();
-  if(!email||!email.includes('@')){alert('أدخل إيميلًا صحيحًا');return;}
+  if(!email||!email.includes('@')){toast('أدخل إيميلًا صحيحًا','warn');return;}
   const {error}=await sb.from('pmo_client_access').insert({client_id:CID,email});
-  if(error){alert(error.message.includes('duplicate')?'هذا الإيميل مُضاف مسبقًا':('تعذّر الإضافة: '+error.message));return;}
+  if(error){toast(error.message.includes('duplicate')?'هذا الإيميل مُضاف مسبقًا':('تعذّر الإضافة: '+error.message),'err');return;}
   $('#accEmail').value='';await renderAccessList();
 };
 $('#accClose').onclick=()=>{$('#accessOverlay').style.display='none';};
@@ -112,9 +122,9 @@ $('#approveContract').onclick=async()=>{
   // بناء snapshot من الجدولة الحالية
   const snap={};PROJECT.tasks.forEach(t=>{const r=SCHED.R[t.id];snap[t.id]={duration:t.duration,ES:fmtY(r.ES),EF:fmtY(r.EF)};});
   const {error}=await sb.rpc('pmo_approve_contract',{p_project_id:PROJECT._dbId,p_contract_value:val?parseFloat(val):null,p_snapshot:snap});
-  if(error){alert('تعذّر الاعتماد: '+error.message);return;}
+  if(error){toast('تعذّر الاعتماد: '+error.message,'err');return;}
   await loadProject(CID);render();
-  alert('تم اعتماد العقد وتثبيت خط الأساس. المشروع الآن نشط.');
+  toast('تم اعتماد العقد وتثبيت خط الأساس · المشروع الآن نشط','ok');
 };
 
 // ===== تبويب طلبات التغيير =====
@@ -145,9 +155,9 @@ function vCR(){
 function bindCR(){
   const sub=$('#crSubmit');
   if(sub)sub.onclick=async()=>{
-    const reason=$('#crReason').value.trim();if(!reason){alert('اكتب المبرر');return;}
+    const reason=$('#crReason').value.trim();if(!reason){toast('اكتب المبرر','warn');return;}
     const {error}=await sb.from('pmo_change_requests').insert({project_id:PROJECT._dbId,task_ref:$('#crTask').value,kind:$('#crKind').value,new_value:$('#crVal').value,reason});
-    if(error){alert('تعذّر الإرسال: '+error.message);return;}
+    if(error){toast('تعذّر الإرسال: '+error.message,'err');return;}
     CRS=(await sb.from('pmo_change_requests').select('*').eq('project_id',PROJECT._dbId).order('created_at',{ascending:false})).data||[];
     render();
   };
@@ -202,7 +212,7 @@ function renderReqs(){
     r[f]=val;
     const map={desc:'description',owner:'owner',sla:'sla_days',requested:'requested_at',received:'received_at',blocking:'blocking'};
     const patch={};patch[map[f]]=(val===''?null:val);
-    if(r._id){const {error}=await sb.from('pmo_requirements').update(patch).eq('id',r._id);if(error){alert('تعذّر الحفظ: '+error.message);return;}}
+    if(r._id){const {error}=await sb.from('pmo_requirements').update(patch).eq('id',r._id);if(error){toast('تعذّر الحفظ: '+error.message,'err');return;}}
     compute();renderReqs();
   }));
   $('#reqTbl').querySelectorAll('[data-rdel]').forEach(b=>b.onclick=async()=>{
@@ -213,7 +223,7 @@ function renderReqs(){
 }
 $('#reqAdd').onclick=async()=>{
   const {data,error}=await sb.from('pmo_requirements').insert({task_id:REQ_TASK._dbId,description:'متطلب جديد',owner:'client',sla_days:2,blocking:true}).select().single();
-  if(error){alert('تعذّر الإضافة: '+error.message);return;}
+  if(error){toast('تعذّر الإضافة: '+error.message,'err');return;}
   REQ_TASK.requirements.push({_id:data.id,desc:'متطلب جديد',owner:'client',sla:2,blocking:true,requested:'',received:''});
   compute();renderReqs();
 };
