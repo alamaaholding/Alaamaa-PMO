@@ -69,18 +69,27 @@ function vDashboard(){
 
 function vTable(){
   const S=SCHED,T=TRACK;const editStruct=can('editStruct')&&PROJECT.status!=='baselined';const editProg=can('editProg');
+  const colspan=editStruct?12:11;
   let rows='',last=null;
   PROJECT.tasks.forEach(t=>{
-    if(t.track!==last){last=t.track;rows+=`<tr class="grp"><td colspan="11">${TRACKS[t.track].code} — ${esc(TRACKS[t.track].name)}</td></tr>`;}
+    if(t.track!==last){last=t.track;rows+=`<tr class="grp"><td colspan="${colspan}">${TRACKS[t.track].code} — ${esc(TRACKS[t.track].name)}</td></tr>`;}
     const r=S.R[t.id],k=T[t.id],tc=TRACKS[t.track].color;
     const sopt=Object.keys(STATUS).map(x=>`<option value="${x}" ${x===t.status?'selected':''}>${STATUS[x]}</option>`).join('');
     const durDis=(t.type==='milestone'||t.type==='cont'||!editStruct)?'disabled':'';
     const delay=k.delay==='client'?'<span class="delay client">العميل</span>':k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>';
     const reqs=(t.requirements||[]);const bad=reqs.filter(x=>x._state==='overdue').length;
+    // الاسم: قابل للتعديل بنيويًا
+    const nameCell=`<input class="cell iname" data-f="name" value="${esc(t.name)}" ${editStruct?'':'disabled'}>`;
+    // النوع: قائمة عند التحرير، نص خلافه
+    const typeCell=editStruct
+      ? `<select class="cell" data-f="type">${Object.keys(TYPES).map(x=>`<option value="${x}" ${x===t.type?'selected':''}>${TYPES[x]}</option>`).join('')}</select>`
+      : TYPES[t.type];
+    const depCount=(t.deps||[]).length;
+    const editCol=editStruct?`<td style="white-space:nowrap"><button class="reqbtn" data-deps="${esc(t.id)}" title="التبعيات">⛓ ${depCount||''}</button> <button class="ib" data-del="${esc(t.id)}" title="حذف" style="color:var(--crit)">🗑</button></td>`:'';
     rows+=`<tr data-id="${esc(t.id)}" class="${r.critical?'crit':''}">
       <td><span class="idcell" style="--tc:${tc}">${esc(t.id)}${r.critical?'<span class="critdot"></span>':''}</span></td>
-      <td><input class="cell iname" data-f="name" value="${esc(t.name)}" ${editStruct?'':'disabled'}></td>
-      <td>${TYPES[t.type]}</td>
+      <td>${nameCell}</td>
+      <td>${typeCell}</td>
       <td><input class="cell inum" type="number" min="0" data-f="duration" value="${t.duration||0}" ${durDis}></td>
       <td><span class="dt s">${fmt(r.ES)}</span></td>
       <td><span class="dt">${fmt(r.EF)}</span></td>
@@ -89,19 +98,23 @@ function vTable(){
       <td>${delay}</td>
       <td><button class="reqbtn" data-reqs="${esc(t.id)}">${reqs.length?(bad?bad+'⚠':reqs.length):'—'}</button></td>
       <td style="font-size:.74rem;color:var(--tC);text-align:right">${esc(t.deliverable||'—')}</td>
+      ${editCol}
     </tr>`;
   });
-  return `<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const editHead=editStruct?'<th>تحرير</th>':'';
+  const addBar=editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف يجب أن يكون فريدًا (مثل B10). بعد الإضافة عرّف تبعياته بزر ⛓.</span></div>`:'';
+  return addBar+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function bindTable(){
+  const editStruct=can('editStruct')&&PROJECT.status!=='baselined';
   $$('#tbl tr[data-id]').forEach(tr=>{
     const id=tr.dataset.id,t=PROJECT.tasks.find(x=>x.id===id);
     tr.querySelectorAll('[data-f]').forEach(inp=>{
-      const f=inp.dataset.f,ev=(f==='duration'||f==='progress')?'change':'change';
-      inp.addEventListener(ev,async()=>{
+      inp.addEventListener('change',async()=>{
+        const f=inp.dataset.f;
         let val=inp.value;if(f==='duration'||f==='progress')val=parseInt(val||'0',10);
         t[f]=val;
-        const map={duration:'duration',progress:'progress',status:'status',name:'name'};
+        const map={duration:'duration',progress:'progress',status:'status',name:'name',type:'type'};
         if(map[f]&&t._dbId){const patch={};patch[map[f]]=val;
           const {error}=await sb.from('pmo_tasks').update(patch).eq('id',t._dbId);
           if(error){toast('تعذّر الحفظ: '+error.message,'err');return;}}
@@ -110,6 +123,11 @@ function bindTable(){
     });
   });
   $$('#tbl [data-reqs]').forEach(b=>b.onclick=()=>openReqs(b.dataset.reqs));
+  if(editStruct){
+    $$('#tbl [data-del]').forEach(b=>b.onclick=()=>handleDeleteTask(b.dataset.del));
+    $$('#tbl [data-deps]').forEach(b=>b.onclick=()=>openDeps(b.dataset.deps));
+    const ab=$('#addTaskBtn');if(ab)ab.onclick=handleAddTask;
+  }
 }
 
 function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div><span style="margin-inline-start:auto"></span><div class="zoom"><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
