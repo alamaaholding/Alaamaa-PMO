@@ -220,3 +220,24 @@ footer{text-align:center;color:var(--muted);font-size:.78rem;padding:var(--s4) 0
 @media(max-width:640px){.wrap{padding:0 var(--s3)}.brand h1{font-size:1rem}.kpi b{font-size:1.1rem}.dgrid{grid-template-columns:repeat(2,1fr)}.dcard b{font-size:1.5rem}.tab{padding:9px 12px;font-size:.82rem}.pgrid{grid-template-columns:1fr}.hright{gap:var(--s2)}.usr{display:none}}
 @media print{.bar2,.tabs,.gctrl,.reqbtn,.hbtn{display:none}header{-webkit-print-color-adjust:exact;print-color-adjust:exact}.gbar,.dprog-fill,.pbar-fill{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+/* نوافذ الحوار المخصّصة */
+.dlg-l{display:block;font-size:.8rem;font-weight:600;color:var(--ink);margin-bottom:12px}
+.dlg-i{display:block;width:100%;margin-top:5px;border:1.5px solid var(--line);border-radius:var(--r-sm);padding:9px;font-family:inherit;font-size:.86rem;color:var(--ink);transition:var(--t)}
+.dlg-i:focus{border-color:var(--gold);outline:none;box-shadow:var(--ring)}
+textarea.dlg-i{min-height:80px;resize:vertical}
+/* تمرير التبويبات على الموبايل */
+@media(max-width:760px){
+  .tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{white-space:nowrap;flex:none}
+}
+/* مؤشّر سياق العميل في الرأس */
+.brand h1{display:flex;align-items:center;gap:8px}
+.ctx-dot{width:11px;height:11px;border-radius:50%;flex:none;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+/* الحالة الفارغة بدعوة فعل */
+.empty-cta{text-align:center;padding:48px 20px;background:var(--paper);border:1.5px dashed var(--line);border-radius:var(--r-lg)}
+.empty-cta .ico{font-size:2.4rem;opacity:.5;margin-bottom:10px}
+.empty-cta h3{font-size:1.05rem;margin-bottom:6px}
+.empty-cta p{font-size:.85rem;color:var(--muted);margin-bottom:18px}
+.empty-cta button{background:var(--gold);border:none;color:#fff;border-radius:var(--r);padding:11px 22px;font-family:inherit;font-weight:600;font-size:.9rem;cursor:pointer;transition:var(--t);box-shadow:var(--e1)}
+.empty-cta button:hover{background:var(--gold-dark);box-shadow:var(--e2)}
