@@ -53,3 +53,19 @@ async function loadProject(clientId, force){
     tasks:tasks.map(t=>({id:t.ref,_dbId:t.id,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],requirements:reqMap[t.id]||[]}))};
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
+
+// ===== التكامل: العملاء المحتملون (submissions) =====
+// نجلب النماذج التي لم تُحوّل بعد لمشاريع (ليست مصدرًا لأي pmo_clients)
+async function loadLeads(){
+  const [subsR,clientsR]=await Promise.all([
+    sb.from('submissions').select('id,company_name,contact_name,contact_email,contact_phone,status,submitted_at').order('submitted_at',{ascending:false}),
+    sb.from('pmo_clients').select('submission_id')
+  ]);
+  const converted=new Set((clientsR.data||[]).map(c=>c.submission_id).filter(Boolean));
+  return (subsR.data||[]).map(s=>({...s,_converted:converted.has(s.id)}));
+}
+async function convertLead(submissionId, projectName){
+  const {data,error}=await sb.rpc('pmo_create_proposal',{p_submission_id:submissionId,p_project_name:projectName});
+  if(error) throw error;
+  return data;
+}
