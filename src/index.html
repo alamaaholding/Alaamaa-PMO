@@ -1,0 +1,98 @@
+<!DOCTYPE html><html lang="ar" dir="rtl"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>منصّة إدارة المشاريع — علامة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<!-- شاشة الدخول -->
+<div id="login" class="hidden"><div class="lcard">
+  <div class="eb">علامة · أثر دائم</div><h1>منصّة إدارة المشاريع</h1>
+  <p>سجّل الدخول بحساب علامة للمتابعة</p>
+  <button class="gbtn" id="googleBtn">
+    <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.5 29.6 4.5 24 4.5 13.2 4.5 4.5 13.2 4.5 24S13.2 43.5 24 43.5 43.5 34.8 43.5 24c0-1.2-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.5 29.6 4.5 24 4.5 16.3 4.5 9.7 8.9 6.3 14.7z"/><path fill="#4CAF50" d="M24 43.5c5.5 0 10.3-1.9 13.8-5.1l-6.4-5.4c-2 1.5-4.6 2.5-7.4 2.5-5.2 0-9.6-3.3-11.2-7.9l-6.5 5C9.6 39 16.2 43.5 24 43.5z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4 5.5l6.4 5.4c-.5.4 6.8-4.9 6.8-14.9 0-1.2-.1-2.3-.4-3.5z"/></svg>
+    الدخول عبر Google
+  </button>
+  <div class="lerr" id="loginErr"></div>
+  <div class="lmute hidden" id="denied">هذا الحساب غير مصرّح له. تواصل مع مكتب إدارة المشاريع.<br><button class="hbtn" id="signoutDenied" style="margin-top:8px;background:#fff;color:var(--crit);border-color:#e8c4bc">خروج</button></div>
+</div></div>
+
+<!-- التحميل -->
+<div id="loader" class="loader hidden"><div class="spin"></div><div style="color:var(--muted);font-size:.85rem">جارٍ تحميل المشروع…</div></div>
+
+<!-- التطبيق -->
+<div id="app" class="hidden">
+<header><div class="wrap"><div class="htop">
+  <div class="brand"><div class="eb">علامة · أثر دائم — حوكمة المشاريع</div><h1 id="hProject">—</h1></div>
+  <div class="hright">
+    <button class="hbtn" id="backPortfolio" style="display:none">▸ المحفظة</button>
+    <span class="usr">مرحبًا <b id="uName">—</b></span>
+    <span class="rolechip" id="roleChip">—</span>
+    <button class="hbtn" id="signout">خروج</button>
+  </div>
+</div></div></header>
+
+<div class="bar2"><div class="wrap">
+  <div id="barClient" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+    <span class="tg">تاريخ الحالة (اليوم): <input type="date" id="dataDate"></span>
+    <span class="lifebadge" id="lifeBadge">—</span>
+    <button class="hbtn" id="manageAccess" style="display:none;background:var(--gold);border-color:var(--gold)">إدارة وصول العميل</button>
+    <button class="hbtn" id="approveContract" style="display:none;background:var(--ok);border-color:var(--ok)">اعتماد العقد + تثبيت الأساس</button>
+    <span class="hintbar" id="roleHint" style="margin-inline-start:auto"></span>
+  </div>
+  <div class="kpis" id="kpisRow">
+    <div class="kpi"><b id="kEnd">—</b><span>الانتهاء المتوقع</span></div>
+    <div class="kpi"><b id="kDur">0</b><span>أيام عمل</span></div>
+    <div class="kpi crit"><b id="kCrit">0</b><span>على المسار الحرج</span></div>
+    <div class="kpi blk"><b id="kBlk">0</b><span>متوقفة</span></div>
+    <div class="kpi cl"><b id="kCl">0</b><span>تأخير العميل</span></div>
+    <div class="kpi al"><b id="kAl">0</b><span>تأخير علامة</span></div>
+  </div>
+</div></div>
+
+<div class="wrap">
+  <div class="warn" id="warnBox"></div>
+  <div class="tabs" id="tabs"></div>
+  <div id="host"></div>
+</div>
+<!-- نافذة المتطلبات -->
+<div id="reqOverlay" class="rqoverlay">
+  <div class="rqmodal">
+    <div class="rqhd"><h3 id="reqTitle" style="font-size:1.02rem">متطلبات البند</h3><button id="reqClose" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
+    <div style="padding:16px 18px">
+      <p style="font-size:.8rem;color:var(--muted);margin-bottom:10px">المتطلب «الحاجز» غير المُستلم يوقف البند · تجاوز SLA يُحتسب تأخيرًا على الجهة المسؤولة.</p>
+      <table class="rqtbl" id="reqTbl"></table>
+      <button class="hbtn" id="reqAdd" style="margin-top:10px;background:var(--gold);border-color:var(--gold)">+ إضافة متطلب</button>
+    </div>
+  </div>
+</div>
+
+<footer><b>علامة</b> · منصّة حوكمة المشاريع · المرحلة 2 (الحوكمة الكاملة)</footer>
+</div>
+
+<!-- نافذة إدارة وصول العميل -->
+<div id="accessOverlay" style="position:fixed;inset:0;background:rgba(26,26,26,.5);z-index:120;display:none;align-items:flex-start;justify-content:center;padding:50px 16px;overflow:auto">
+  <div style="background:#fff;border-radius:14px;max-width:520px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="background:var(--ink);color:#fff;padding:14px 18px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center">
+      <h3 id="accTitle" style="font-size:1.02rem">إدارة وصول العميل</h3>
+      <button id="accClose" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:16px 18px">
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:12px">الإيميلات المضافة هنا يمكنها الدخول عبر Google ورؤية داشبورد هذا العميل فقط. يمكن الإضافة قبل أن يسجّل صاحب الإيميل دخوله.</p>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <input id="accEmail" type="email" placeholder="email@example.com" style="flex:1;border:1.5px solid var(--line);border-radius:9px;padding:9px;font-family:inherit;font-size:.86rem">
+        <button id="accAdd" class="hbtn" style="background:var(--gold);border-color:var(--gold);padding:9px 16px">إضافة</button>
+      </div>
+      <div id="accList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== المنطق ===== -->
+<script src="config.js"></script>
+<script src="engine.js"></script>
+<script src="api.js"></script>
+<script src="views.js"></script>
+<script src="app.js"></script>
+</body></html>
