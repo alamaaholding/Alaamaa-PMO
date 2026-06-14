@@ -130,7 +130,7 @@ function bindTable(){
         t[f]=val;
         const map={duration:'duration',progress:'progress',status:'status',name:'name',type:'type'};
         if(map[f]&&t._dbId){const patch={};patch[map[f]]=val;
-          const {error}=await sb.from('pmo_tasks').update(patch).eq('id',t._dbId);
+          const {error}=await updateTaskFields(t._dbId,patch);
           if(error){toast('تعذّر الحفظ: '+error.message,'err');return;}}
         render();
       });
