@@ -84,7 +84,7 @@ async function renderPortfolio(){
   $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+leadsBtn+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
   if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;}
   // استعلام واحد لكل الملخّصات (بدل 12 متسلسلًا)
-  const {data:rows,error}=await sb.rpc('pmo_portfolio');
+  const {data:rows,error}=await fetchPortfolio();
   const grid=$('#pgrid');grid.innerHTML='';
   if(error){grid.innerHTML='<p class="pempty">تعذّر تحميل المحفظة.</p>';return;}
   const byClient={};(rows||[]).forEach(r=>{byClient[r.client_id]=r;});
@@ -160,7 +160,7 @@ async function openAccess(){
   $('#accessOverlay').style.display='flex';
 }
 async function renderAccessList(){
-  const {data,error}=await sb.from('pmo_client_access').select('*').eq('client_id',CID).order('created_at');
+  const {data,error}=await fetchClientAccess(CID);
   const list=$('#accList');
   if(error){list.innerHTML='<p style="color:var(--crit);font-size:.82rem">تعذّر التحميل: '+esc(error.message)+'</p>';return;}
   if(!data||!data.length){list.innerHTML='<p class="empty" style="color:var(--muted);font-style:italic;font-size:.85rem">لا إيميلات مضافة بعد.</p>';return;}
@@ -168,13 +168,13 @@ async function renderAccessList(){
     <span style="font-size:.86rem">${esc(a.email)}</span>
     <button class="hbtn" data-rm="${a.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc;padding:4px 10px">إزالة</button></div>`).join('');
   list.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{
-    await sb.from('pmo_client_access').delete().eq('id',b.dataset.rm);await renderAccessList();
+    await removeClientAccess(b.dataset.rm);await renderAccessList();
   });
 }
 $('#accAdd').onclick=async()=>{
   const email=$('#accEmail').value.trim().toLowerCase();
   if(!email||!email.includes('@')){toast('أدخل إيميلًا صحيحًا','warn');return;}
-  const {error}=await sb.from('pmo_client_access').insert({client_id:CID,email});
+  const {error}=await addClientAccess(CID,email);
   if(error){toast(error.message.includes('duplicate')?'هذا الإيميل مُضاف مسبقًا':('تعذّر الإضافة: '+error.message),'err');return;}
   $('#accEmail').value='';await renderAccessList();
 };
@@ -191,7 +191,7 @@ $('#approveContract').onclick=async()=>{
   if(!r)return;
   const val=r.val;
   const snap={};PROJECT.tasks.forEach(t=>{const rr=SCHED.R[t.id];snap[t.id]={duration:t.duration,ES:fmtY(rr.ES),EF:fmtY(rr.EF)};});
-  const {error}=await sb.rpc('pmo_approve_contract',{p_project_id:PROJECT._dbId,p_contract_value:val?parseFloat(val):null,p_snapshot:snap});
+  const {error}=await rpcApproveContract(PROJECT._dbId, val?parseFloat(val):null, snap);
   if(error){toast('تعذّر الاعتماد: '+error.message,'err');return;}
   await loadProject(CID);render();
   toast('تم اعتماد العقد وتثبيت خط الأساس · المشروع الآن نشط','ok');
@@ -226,22 +226,22 @@ function bindCR(){
   const sub=$('#crSubmit');
   if(sub)sub.onclick=async()=>{
     const reason=$('#crReason').value.trim();if(!reason){toast('اكتب المبرر','warn');return;}
-    const {error}=await sb.from('pmo_change_requests').insert({project_id:PROJECT._dbId,task_ref:$('#crTask').value,kind:$('#crKind').value,new_value:$('#crVal').value,reason});
+    const {error}=await insertCR({project_id:PROJECT._dbId,task_ref:$('#crTask').value,kind:$('#crKind').value,new_value:$('#crVal').value,reason});
     if(error){toast('تعذّر الإرسال: '+error.message,'err');return;}
-    CRS=(await sb.from('pmo_change_requests').select('*').eq('project_id',PROJECT._dbId).order('created_at',{ascending:false})).data||[];
+    CRS=await fetchCRs(PROJECT._dbId);
     render();
   };
   $$('[data-ap]').forEach(b=>b.onclick=async()=>{
     const c=CRS.find(x=>x.id===b.dataset.ap);
     // تطبيق آلي لتغيير المدة
     if(c.kind==='duration'&&c.task_ref){const t=PROJECT.tasks.find(x=>x.id===c.task_ref);
-      if(t&&t._dbId){const nv=parseInt(c.new_value||t.duration,10);await sb.from('pmo_tasks').update({duration:nv}).eq('id',t._dbId);}}
-    await sb.from('pmo_change_requests').update({status:'approved',decision_note:'طُبّق',decided_at:new Date().toISOString()}).eq('id',c.id);
+      if(t&&t._dbId){const nv=parseInt(c.new_value||t.duration,10);await updateTaskFields(t._dbId,{duration:nv});}}
+    await decideCR(c.id,{status:'approved',decision_note:'طُبّق',decided_at:new Date().toISOString()});
     await loadProject(CID);render();
   });
   $$('[data-rj]').forEach(b=>b.onclick=async()=>{
-    await sb.from('pmo_change_requests').update({status:'rejected',decided_at:new Date().toISOString()}).eq('id',b.dataset.rj);
-    CRS=(await sb.from('pmo_change_requests').select('*').eq('project_id',PROJECT._dbId).order('created_at',{ascending:false})).data||[];
+    await decideCR(b.dataset.rj,{status:'rejected',decided_at:new Date().toISOString()});
+    CRS=await fetchCRs(PROJECT._dbId);
     render();
   });
 }
@@ -282,17 +282,17 @@ function renderReqs(){
     r[f]=val;
     const map={desc:'description',owner:'owner',sla:'sla_days',requested:'requested_at',received:'received_at',blocking:'blocking'};
     const patch={};patch[map[f]]=(val===''?null:val);
-    if(r._id){const {error}=await sb.from('pmo_requirements').update(patch).eq('id',r._id);if(error){toast('تعذّر الحفظ: '+error.message,'err');return;}}
+    if(r._id){const {error}=await updateRequirement(r._id,patch);if(error){toast('تعذّر الحفظ: '+error.message,'err');return;}}
     compute();renderReqs();
   }));
   $('#reqTbl').querySelectorAll('[data-rdel]').forEach(b=>b.onclick=async()=>{
     const r=REQ_TASK.requirements[+b.dataset.rdel];
-    if(r._id)await sb.from('pmo_requirements').delete().eq('id',r._id);
+    if(r._id)await deleteRequirement(r._id);
     REQ_TASK.requirements.splice(+b.dataset.rdel,1);compute();renderReqs();
   });
 }
 $('#reqAdd').onclick=async()=>{
-  const {data,error}=await sb.from('pmo_requirements').insert({task_id:REQ_TASK._dbId,description:'متطلب جديد',owner:'client',sla_days:2,blocking:true}).select().single();
+  const {data,error}=await insertRequirement({task_id:REQ_TASK._dbId,description:'متطلب جديد',owner:'client',sla_days:2,blocking:true});
   if(error){toast('تعذّر الإضافة: '+error.message,'err');return;}
   REQ_TASK.requirements.push({_id:data.id,desc:'متطلب جديد',owner:'client',sla:2,blocking:true,requested:'',received:''});
   compute();renderReqs();
