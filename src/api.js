@@ -134,3 +134,16 @@ async function updateTaskFields(taskDbId,patch){ return await sb.from('pmo_tasks
 async function updateRequirement(id,patch){ return await sb.from('pmo_requirements').update(patch).eq('id',id); }
 async function deleteRequirement(id){ return await sb.from('pmo_requirements').delete().eq('id',id); }
 async function insertRequirement(row){ return await sb.from('pmo_requirements').insert(row).select().single(); }
+
+// ===== طبقة القرار (DOL) — دوال البيانات =====
+async function fetchDecisions(){ return (await sb.from('pmo_v2_decisions').select('*').order('created_at')).data||[]; }
+async function fetchDecisionProjects(){ return (await sb.from('pmo_v2_decision_projects').select('*')).data||[]; }
+async function insertDecision(row){ return await sb.from('pmo_v2_decisions').insert(row).select().single(); }
+async function updateDecision(id,patch){ return await sb.from('pmo_v2_decisions').update(patch).eq('id',id); }
+async function deleteDecision(id){ return await sb.from('pmo_v2_decisions').delete().eq('id',id); }
+async function linkDecisionProject(decisionId,projectId){ return await sb.from('pmo_v2_decision_projects').insert({decision_id:decisionId,project_id:projectId}); }
+async function evaluateDecision(gateId,values){ return await sb.rpc('pmo_v2_evaluate_decision',{p_gate_id:gateId,p_values:values}); }
+async function fetchDeviations(decisionId){ return (await sb.from('pmo_v2_deviations').select('*').eq('decision_id',decisionId)).data||[]; }
+async function insertDeviation(row){ return await sb.from('pmo_v2_deviations').insert(row); }
+async function fetchDecisionLinks(decisionId){ return (await sb.from('pmo_v2_decision_links').select('*').eq('decision_id',decisionId)).data||[]; }
+async function insertDecisionLink(row){ return await sb.from('pmo_v2_decision_links').insert(row); }
