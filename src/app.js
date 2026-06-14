@@ -79,10 +79,12 @@ async function renderPortfolio(){
   $('#hProject').textContent='محفظة المشاريع';
   $('#barClient').style.display='none';hideChrome();
   const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads" style="margin-inline-start:auto">العملاء المحتملون ↗</button>':'';
+  const dolBtn=(ROLE==='pmo'||ROLE==='delivery')?'<button class="reqbtn" id="showDOL" style="background:#a8442f;border-color:#a8442f;color:#fff'+(ROLE==='pmo'?'':';margin-inline-start:auto')+'">⚖️ طبقة القرار (DOL)</button>':'';
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
   const skel=CLIENTS.map(()=>'<div class="pcard"><div class="skeleton" style="height:22px;width:55%;margin-bottom:14px"></div><div class="skeleton" style="height:8px;margin-bottom:12px"></div><div class="skeleton" style="height:36px"></div></div>').join('');
-  $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+leadsBtn+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
+  $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+dolBtn+leadsBtn+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
   if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;}
+  {const db=$('#showDOL');if(db)db.onclick=openDOL;}
   // استعلام واحد لكل الملخّصات (بدل 12 متسلسلًا)
   const {data:rows,error}=await fetchPortfolio();
   const grid=$('#pgrid');grid.innerHTML='';
