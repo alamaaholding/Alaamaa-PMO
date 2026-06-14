@@ -114,3 +114,23 @@ async function addComment(projectId, kind, body, parentId){
 async function resolveComment(commentId, resolved){
   await sb.from('pmo_comments').update({resolved}).eq('id',commentId);
 }
+
+// ===== دوال بيانات معزولة (كانت متناثرة في app/views) =====
+// المحفظة
+async function fetchPortfolio(){ return await sb.rpc('pmo_portfolio'); }
+// وصول العميل
+async function fetchClientAccess(clientId){ return await sb.from('pmo_client_access').select('*').eq('client_id',clientId).order('created_at'); }
+async function addClientAccess(clientId,email){ return await sb.from('pmo_client_access').insert({client_id:clientId,email}); }
+async function removeClientAccess(id){ return await sb.from('pmo_client_access').delete().eq('id',id); }
+// اعتماد العقد
+async function rpcApproveContract(projectId,value,snapshot){ return await sb.rpc('pmo_approve_contract',{p_project_id:projectId,p_contract_value:value,p_snapshot:snapshot}); }
+// طلبات التغيير
+async function fetchCRs(projectId){ return (await sb.from('pmo_change_requests').select('*').eq('project_id',projectId).order('created_at',{ascending:false})).data||[]; }
+async function insertCR(row){ return await sb.from('pmo_change_requests').insert(row); }
+async function decideCR(id,patch){ return await sb.from('pmo_change_requests').update(patch).eq('id',id); }
+// البنود
+async function updateTaskFields(taskDbId,patch){ return await sb.from('pmo_tasks').update(patch).eq('id',taskDbId); }
+// المتطلبات
+async function updateRequirement(id,patch){ return await sb.from('pmo_requirements').update(patch).eq('id',id); }
+async function deleteRequirement(id){ return await sb.from('pmo_requirements').delete().eq('id',id); }
+async function insertRequirement(row){ return await sb.from('pmo_requirements').insert(row).select().single(); }
