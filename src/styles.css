@@ -241,3 +241,22 @@ textarea.dlg-i{min-height:80px;resize:vertical}
 .empty-cta p{font-size:.85rem;color:var(--muted);margin-bottom:18px}
 .empty-cta button{background:var(--gold);border:none;color:#fff;border-radius:var(--r);padding:11px 22px;font-family:inherit;font-weight:600;font-size:.9rem;cursor:pointer;transition:var(--t);box-shadow:var(--e1)}
 .empty-cta button:hover{background:var(--gold-dark);box-shadow:var(--e2)}
+/* طبقة القرار DOL */
+.dec-type{font-size:.7rem;font-weight:700;color:#fff;padding:2px 9px;border-radius:999px}
+.dim-chip{display:inline-block;font-size:.72rem;background:var(--soft-2);border:1px solid var(--line);border-radius:7px;padding:3px 9px;margin:2px}
+.dim-chip b{color:var(--ink)}.dim-chip i{color:var(--muted);font-style:normal;font-size:.66rem}
+.gate-card{background:var(--paper);border:1px solid var(--line);border-inline-start:4px solid var(--gc);border-radius:var(--r-lg);padding:16px;margin-bottom:14px;box-shadow:var(--e1)}
+.gate-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.gate-title{font-size:1rem;margin:0 8px}
+.gate-acts{display:flex;gap:6px;align-items:center}
+.gate-rationale{font-size:.82rem;color:#4a4233;background:var(--soft-2);border-radius:8px;padding:8px 11px;margin-bottom:10px}
+.gate-bounds{margin-bottom:8px}
+.gate-btext{font-size:.78rem;color:var(--muted);font-style:italic;border-inline-start:2px solid var(--line);padding-inline-start:9px;margin-bottom:10px}
+.gate-ops{display:flex;flex-direction:column;gap:6px;margin-top:8px;padding-top:10px;border-top:1px dashed var(--line)}
+.op-card{display:flex;align-items:center;gap:8px;background:var(--soft-2);border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:.84rem}
+.op-card b{font-weight:600}
+.dol-empty-ops{font-size:.78rem;color:var(--muted);font-style:italic;padding:4px 2px}
+.dev-badge{font-size:.66rem;font-weight:700;padding:2px 8px;border-radius:6px}
+.dev-badge.ok{background:var(--ok-bg);color:var(--ok)}.dev-badge.warning{background:var(--warn-bg);color:var(--warn)}.dev-badge.breach{background:var(--crit-bg);color:var(--crit)}
+.trace-node{background:var(--soft-2);border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:.82rem}
+.trace-arrow{text-align:center;color:var(--gold-dark);font-weight:700;margin:3px 0}
