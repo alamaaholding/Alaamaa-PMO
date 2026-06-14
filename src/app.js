@@ -68,8 +68,8 @@ async function startApp(){
     SCREEN='portfolio';await renderPortfolio();
   }
 }
-function hideChrome(){ $('#barClient').style.display='none'; $('#kpisRow').style.display='none'; $('#tabs').style.display='none'; $('#lifeBadge').style.display='none'; }
-function showChrome(){ $('#kpisRow').style.display=''; $('#tabs').style.display=''; $('#lifeBadge').style.display=''; }
+function hideChrome(){ $('#barClient').style.display='none'; $('#kpisRow').style.display='none'; $('#tabs').style.display='none'; $('#lifeBadge').style.display='none'; const e=$('#exportReport');if(e)e.style.display='none'; }
+function showChrome(){ $('#kpisRow').style.display=''; $('#tabs').style.display=''; $('#lifeBadge').style.display=''; const e=$('#exportReport');if(e)e.style.display=''; }
 
 
 // ===== شاشة المحفظة (للطاقم) =====
@@ -366,6 +366,70 @@ $('#depSave').onclick=async()=>{
 };
 $('#depClose').onclick=()=>{$('#depOverlay').style.display='none';};
 $('#depOverlay').onclick=e=>{if(e.target.id==='depOverlay')$('#depOverlay').style.display='none';};
+
+// ===== تصدير تقرير الحالة (PDF عبر طباعة المتصفح) =====
+function buildReport(){
+  const c=CLIENTS.find(x=>x.id===CID);
+  const tasks=PROJECT.tasks.filter(t=>t.type!=='cont');
+  const real=tasks.filter(t=>t.type!=='milestone');
+  const done=real.filter(t=>t.status==='done').length;
+  const pct=real.length?Math.round(done/real.length*100):0;
+  const crit=tasks.filter(t=>SCHED.R[t.id].critical).length;
+  const blocked=tasks.filter(t=>TRACK[t.id].blocked).length;
+  const clientDelay=tasks.filter(t=>TRACK[t.id].delay==='client').length;
+  const alamahDelay=tasks.filter(t=>TRACK[t.id].delay==='alamah').length;
+  const dd=D(DATA_DATE);
+  const miles=PROJECT.tasks.filter(t=>t.type==='milestone').map(t=>({t,ef:SCHED.R[t.id].EF})).sort((a,b)=>a.ef-b.ef);
+  const delayed=tasks.filter(t=>TRACK[t.id].delay).map(t=>({t,d:TRACK[t.id].delay}));
+  const pendingReqs=[];PROJECT.tasks.forEach(t=>(t.requirements||[]).forEach(r=>{if(r.owner==='client'&&r._state!=='received'&&r._state!=='latejust')pendingReqs.push({t,r});}));
+  const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'};
+  const row=(a,b)=>`<tr><td>${a}</td><td style="font-weight:700">${b}</td></tr>`;
+  const reportHtml=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير حالة — ${esc(c?c.name:'')}</title>
+  <style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'IBM Plex Sans Arabic',sans-serif;color:#1A1A1A;line-height:1.6;padding:32px;max-width:800px;margin:0 auto}
+  .rhd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #C8A06B;padding-bottom:16px;margin-bottom:24px}
+  .rhd .eb{color:#a9824f;font-weight:700;font-size:.8rem;letter-spacing:.05em}
+  .rhd h1{font-size:1.5rem;margin-top:4px}
+  .rhd .meta{text-align:left;font-size:.8rem;color:#7d6e54}
+  .cdot{display:inline-block;width:12px;height:12px;border-radius:50%;background:${c?c.color:'#C8A06B'};margin-inline-end:6px;vertical-align:middle}
+  h2{font-size:1.05rem;color:#a9824f;margin:24px 0 10px;padding-bottom:5px;border-bottom:1px solid #E9DEC9}
+  table{width:100%;border-collapse:collapse;font-size:.88rem}
+  td{padding:7px 10px;border-bottom:1px solid #F0E8D8}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0}
+  .kpi{background:#FAF7F2;border:1px solid #E9DEC9;border-radius:10px;padding:14px;text-align:center}
+  .kpi b{display:block;font-size:1.6rem;color:#a9824f}.kpi.crit b{color:#a8442f}.kpi.ok b{color:#2E7D32}
+  .kpi span{font-size:.72rem;color:#7d6e54}
+  .badge{font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:999px;background:#F4ECDC}
+  .del-client{color:#a8442f}.del-alamah{color:#35608F}
+  .foot{margin-top:32px;padding-top:14px;border-top:1px solid #E9DEC9;font-size:.74rem;color:#7d6e54;text-align:center}
+  @media print{body{padding:0}@page{margin:1.5cm}}
+  </style></head><body>
+  <div class="rhd">
+    <div><div class="eb">علامة · أثر دائم</div><h1><span class="cdot"></span>${esc(c?c.name:'')} — تقرير حالة المشروع</h1></div>
+    <div class="meta">التاريخ: ${new Date().toLocaleDateString('ar')}<br>تاريخ الحالة: ${fmt(dd)}/${dd.getFullYear()}<br>المرحلة: ${LIFE[PROJECT.lifecycle]||'—'}</div>
+  </div>
+  <div class="kpis">
+    <div class="kpi ok"><b>${pct}%</b><span>نسبة الإنجاز</span></div>
+    <div class="kpi"><b>${fmt(SCHED.pEnd)}/${new Date(SCHED.pEnd).getFullYear()}</b><span>الانتهاء المتوقع</span></div>
+    <div class="kpi"><b>${SCHED.totalWD}</b><span>أيام العمل</span></div>
+    <div class="kpi"><b>${done}/${real.length}</b><span>المنجز/الإجمالي</span></div>
+    <div class="kpi crit"><b>${blocked}</b><span>بنود متوقفة</span></div>
+    <div class="kpi crit"><b>${crit}</b><span>على المسار الحرج</span></div>
+  </div>
+  <h2>المعالم</h2>
+  <table>${miles.map(m=>`<tr><td>◆ ${esc(m.t.name.replace('معلم: ',''))}</td><td style="text-align:left;font-weight:700">${fmt(m.ef)}/${new Date(m.ef).getFullYear()}</td></tr>`).join('')||'<tr><td>لا معالم</td></tr>'}</table>
+  ${delayed.length?`<h2>البنود المتأخرة (${delayed.length})</h2><table>${delayed.map(x=>`<tr><td>${esc(x.t.id)} — ${esc(x.t.name)}</td><td class="del-${x.d}" style="text-align:left;font-weight:700">${x.d==='client'?'بانتظار العميل':'على فريق علامة'}</td></tr>`).join('')}</table>`:''}
+  ${pendingReqs.length?`<h2>متطلبات معلّقة من العميل (${pendingReqs.length})</h2><table>${pendingReqs.map(x=>`<tr><td>${esc(x.r.desc)}</td><td style="text-align:left"><span class="badge">${esc(x.t.id)} · SLA ${x.r.sla}ي</span></td></tr>`).join('')}</table>`:''}
+  <div class="foot">علامة · منصّة حوكمة المشاريع — تقرير مُولّد آليًا · ${PROJECT.name}</div>
+  </body></html>`;
+  const w=window.open('','_blank');
+  if(!w){toast('فعّل النوافذ المنبثقة لتصدير التقرير','warn');return;}
+  w.document.write(reportHtml);w.document.close();
+  setTimeout(()=>{w.focus();w.print();},600);
+}
+$('#exportReport').onclick=()=>{ if(SCREEN!=='project'||!PROJECT||!PROJECT.tasks.length){toast('افتح مشروعًا له خطة أولًا','warn');return;} buildReport(); };
 
 // انطلاق
 boot();
