@@ -4,6 +4,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="styles.css">
 </head><body>
 <!-- شاشة الدخول -->
@@ -97,6 +98,7 @@
 <script src="views.js"></script>
 <script src="app.js"></script>
 <script src="dol.js"></script>
+<script src="importer.js"></script>
 <div id="toastWrap"></div>
 
 <!-- نافذة الحوار العامة -->
@@ -105,6 +107,13 @@
 </div>
 
 <!-- نافذة التبعيات -->
+<!-- نافذة الاستيراد -->
+<div id="impOverlay" class="rqoverlay" style="align-items:flex-start">
+  <div class="rqmodal" style="max-width:680px">
+    <div class="rqhd"><h3 style="font-size:1.02rem">استيراد خطة من Excel</h3><button onclick="document.getElementById('impOverlay').style.display='none'" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
+    <div id="impBody" style="padding:18px"></div>
+  </div>
+</div>
 <div id="depOverlay" class="rqoverlay">
   <div class="rqmodal" style="max-width:520px">
     <div class="rqhd"><h3 id="depTitle" style="font-size:1.02rem">التبعيات</h3><button id="depClose" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
