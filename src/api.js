@@ -100,6 +100,41 @@ async function setDependencies(projectId, taskDbId, dependsOnDbIds){
   }
 }
 
+// ===== الاستيراد الجماعي (Excel) =====
+// يمسح كل مهام/تبعيات المشروع (للاستبدال) — يُستخدم بحذر
+async function clearProjectPlan(projectId){
+  const {data:ts}=await sb.from('pmo_tasks').select('id').eq('project_id',projectId);
+  const ids=(ts||[]).map(t=>t.id);
+  if(ids.length){
+    await sb.from('pmo_dependencies').delete().eq('project_id',projectId);
+    await sb.from('pmo_tasks').delete().eq('project_id',projectId);
+  }
+}
+// إدخال مهام دفعة واحدة؛ يُرجع خريطة ref → id
+async function bulkInsertTasks(projectId, tasks){
+  const rows=tasks.map((t,i)=>({project_id:projectId,ref:t.ref,name:t.name||t.ref,
+    track:t.track||'0',type:t.type||'task',duration:t.duration||0,
+    deliverable:t.deliverable||null,owner:t.owner||null,sort_order:i+1}));
+  const {data,error}=await sb.from('pmo_tasks').insert(rows).select('id,ref');
+  if(error) throw error;
+  const map={};(data||[]).forEach(r=>{map[r.ref]=r.id;});
+  return map;
+}
+// إدخال تبعيات دفعة واحدة (تأخذ خريطة ref→id)
+async function bulkInsertDeps(projectId, depPairs, refToId){
+  const rows=[];
+  depPairs.forEach(([taskRef,depRef])=>{
+    if(refToId[taskRef]&&refToId[depRef]) rows.push({project_id:projectId,task_id:refToId[taskRef],depends_on_id:refToId[depRef]});
+  });
+  if(rows.length){const {error}=await sb.from('pmo_dependencies').insert(rows);if(error) throw error;}
+  return rows.length;
+}
+// مهام المشروع الحالية (للدمج)
+async function fetchProjectTaskRefs(projectId){
+  const {data}=await sb.from('pmo_tasks').select('id,ref').eq('project_id',projectId);
+  return data||[];
+}
+
 // ===== النقاش (تعليقات/أسئلة/مقترحات) =====
 async function loadComments(projectId){
   const {data}=await sb.from('pmo_comments').select('*').eq('project_id',projectId).order('created_at');
