@@ -260,3 +260,22 @@ textarea.dlg-i{min-height:80px;resize:vertical}
 .dev-badge.ok{background:var(--ok-bg);color:var(--ok)}.dev-badge.warning{background:var(--warn-bg);color:var(--warn)}.dev-badge.breach{background:var(--crit-bg);color:var(--crit)}
 .trace-node{background:var(--soft-2);border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:.82rem}
 .trace-arrow{text-align:center;color:var(--gold-dark);font-weight:700;margin:3px 0}
+/* مستورد Excel */
+.imp-hint{background:var(--soft-2);border:1px solid var(--line);border-radius:10px;padding:13px 15px;font-size:.84rem;line-height:1.9;margin-bottom:14px}
+.imp-hint b{color:var(--gold-dark)}
+.imp-col{display:inline-block;background:#fff;border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-size:.76rem;margin:1px}
+.imp-hint small{color:var(--muted);display:block;margin-top:6px}
+.imp-drop{display:block;border:2px dashed var(--line);border-radius:12px;padding:28px;text-align:center;cursor:pointer;transition:var(--t);background:#fff}
+.imp-drop:hover{border-color:var(--blue);background:var(--soft-2)}
+.imp-drop-txt{font-size:.95rem;font-weight:600;color:var(--blue)}
+.imp-summary{background:var(--ok-bg);border:1px solid #c5dcc5;border-radius:9px;padding:11px 14px;font-size:.86rem;margin:12px 0;color:#1e5620}
+.imp-ok{color:var(--ok);font-size:.82rem;padding:6px 0}
+.imp-warn{background:var(--warn-bg);border:1px solid #ecdcb6;border-radius:9px;padding:11px 14px;font-size:.8rem;margin:10px 0}
+.imp-warn ul{margin:6px 18px 0;padding:0}.imp-warn li{margin-bottom:3px}
+.imp-err{background:var(--crit-bg);border:1px solid #ecc9bf;border-inline-start:4px solid var(--crit);border-radius:9px;padding:13px 15px;font-size:.85rem;color:var(--crit);line-height:1.8;margin:10px 0}
+.imp-tablewrap{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:9px;margin:12px 0}
+.imp-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.imp-table th{background:var(--soft);padding:7px 9px;position:sticky;top:0;font-weight:600;text-align:right}
+.imp-table td{border-top:1px solid var(--line-soft);padding:6px 9px;text-align:right}
+.imp-table tfoot td{color:var(--muted);font-style:italic;text-align:center}
+.imp-actions{display:flex;gap:9px;margin-top:16px;flex-wrap:wrap}
