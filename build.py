@@ -7,13 +7,13 @@ def read(p): return open(os.path.join(ROOT,p),encoding='utf-8').read()
 
 html=read('src/index.html')
 css=read('src/styles.css')
-js_files=['src/config.js','src/engine.js','src/api.js','src/views.js','src/app.js','src/dol.js']
+js_files=['src/config.js','src/engine.js','src/api.js','src/views.js','src/app.js','src/dol.js','src/importer.js']
 js='\n\n'.join('/* ===== '+os.path.basename(f)+' ===== */\n'+read(f) for f in js_files)
 
 # استبدال رابط CSS بالمحتوى المضمّن
 html=html.replace('<link rel="stylesheet" href="styles.css">','<style>\n'+css+'\n</style>')
 # إزالة روابط <script src> المحلية واستبدالها بحزمة واحدة (نُبقي Supabase CDN)
-html=re.sub(r'\n<script src="(config|engine|api|views|app|dol)\.js"></script>','',html)
+html=re.sub(r'\n<script src="(config|engine|api|views|app|dol|importer)\.js"></script>','',html)
 html=html.replace('</body></html>','<script>\n'+js+'\n</script>\n</body></html>')
 
 open(os.path.join(ROOT,'index.html'),'w',encoding='utf-8').write(html)
