@@ -1,5 +1,5 @@
 // ===== الحالة =====
-let USER=null,ROLE=null,CLIENTS=[],CID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[];
+let USER=null,ROLE=null,CLIENTS=[],CID=null,PID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[],PFILTER='all';
 let SCREEN='portfolio'; // portfolio | project — للطاقم؛ العميل دائمًا project
 
 // ===== الإشعارات (Toast) =====
@@ -91,36 +91,61 @@ async function renderPortfolio(){
   {const db=$('#showDOL');if(db)db.onclick=openDOL;}
   {const ab=$('#showAudit');if(ab)ab.onclick=renderAuditLog;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
-  // استعلام واحد لكل الملخّصات (بدل 12 متسلسلًا)
+  // استعلام واحد لكل الملخّصات (صف لكل مشروع)
   const {data:rows,error}=await fetchPortfolio();
   const grid=$('#pgrid');grid.innerHTML='';
   if(error){grid.innerHTML='<p class="pempty">تعذّر تحميل المحفظة.</p>';return;}
-  const byClient={};(rows||[]).forEach(r=>{byClient[r.client_id]=r;});
   const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'};
-  for(const c of CLIENTS){
-    const r=byClient[c.id];let body,meta;
-    if(r && r.total_tasks>0){
-      const pct=r.total_tasks?Math.round(r.done_tasks/r.total_tasks*100):0;
-      meta=`<div class="pcard-meta"><span>${r.total_tasks} بند</span><span>${r.milestones} معالم</span></div>`;
-      body=`<div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div>
-        <div class="pstats"><span><b>${pct}%</b>إنجاز</span><span><b>${r.done_tasks}</b>منجز</span><span class="${r.blocked_tasks>0?'red':''}"><b>${r.blocked_tasks}</b>متوقف</span><span class="${r.pending_client_reqs>0?'red':''}"><b>${r.pending_client_reqs}</b>متطلب</span></div>`;
-    }else{
-      meta=`<div class="pcard-meta"><span>لا خطة بعد</span></div>`;
-      body=`<div class="pempty">مشروع فارغ — جاهز لبناء الخطة</div>`;
-    }
-    const life=r?(LIFE[r.lifecycle]||'—'):'—';
+  // الصفوف = مشاريع (قد يكون للعميل أكثر من مشروع). نستبعد الصفوف بلا مشروع.
+  let projects=(rows||[]).filter(r=>r.project_id);
+  // شريط الفلترة
+  const counts={all:projects.length,active:0,draft:0,alerts:0};
+  projects.forEach(r=>{
+    if(r.lifecycle==='active'||r.lifecycle==='approved')counts.active++;
+    if(r.status==='draft'||r.lifecycle==='proposal')counts.draft++;
+    if((r.blocked_tasks>0)||(r.pending_client_reqs>0)||(r.open_comments>0))counts.alerts++;
+  });
+  const fbtn=(k,lbl)=>`<button class="pfilter ${PFILTER===k?'active':''}" data-filter="${k}">${lbl} <span class="pfilter-n">${counts[k]}</span></button>`;
+  const filterBar=`<div class="pfilters">${fbtn('all','الكل')}${fbtn('active','نشطة')}${fbtn('draft','مسوّدة')}${fbtn('alerts','بها تنبيهات')}</div>`;
+  // تطبيق الفلتر
+  let shown=projects.filter(r=>{
+    if(PFILTER==='active')return r.lifecycle==='active'||r.lifecycle==='approved';
+    if(PFILTER==='draft')return r.status==='draft'||r.lifecycle==='proposal';
+    if(PFILTER==='alerts')return (r.blocked_tasks>0)||(r.pending_client_reqs>0)||(r.open_comments>0);
+    return true;
+  });
+  $('#host').querySelector('.hintbar').insertAdjacentHTML('afterend',filterBar);
+  // ربط الفلاتر
+  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{PFILTER=b.dataset.filter;renderPortfolio();});
+
+  if(!shown.length){grid.innerHTML='<p class="pempty">لا مشاريع مطابقة لهذا الفلتر.</p>';return;}
+  // تجميع المشاريع حسب العميل لعرض اسم العميل مرة
+  for(const r of shown){
+    const c=CLIENTS.find(x=>x.id===r.client_id)||{name:r.client_name,color:r.color||'#C8A06B'};
+    const hasplan=r.total_tasks>0;
+    const pct=hasplan?Math.round(r.done_tasks/r.total_tasks*100):0;
+    const alerts=[];
+    if(r.blocked_tasks>0)alerts.push(`<span class="palert red">${r.blocked_tasks} متوقف</span>`);
+    if(r.pending_client_reqs>0)alerts.push(`<span class="palert amber">${r.pending_client_reqs} متطلب</span>`);
+    if(r.open_comments>0)alerts.push(`<span class="palert blue">${r.open_comments} نقاش</span>`);
+    const meta=hasplan?`<div class="pcard-meta"><span>${r.total_tasks} بند</span><span>${r.milestones} معالم</span></div>`:`<div class="pcard-meta"><span>لا خطة بعد</span></div>`;
+    const body=hasplan
+      ?`<div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div><div class="pstats"><span><b>${pct}%</b>إنجاز</span><span><b>${r.done_tasks}</b>منجز</span></div>`
+      :`<div class="pempty">مشروع فارغ — جاهز لبناء الخطة</div>`;
     const card=document.createElement('div');card.className='pcard';card.style.cssText=`--cc:${c.color}`;
-    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${c.id}" title="إجراءات">⋮</button>`:'';
-    card.innerHTML=`<div class="pcard-top"><span class="pdot" style="background:${c.color}"></span><h3>${c.name}</h3><span class="plife">${life}</span>${actBtn}</div>${meta}${body}`;
-    card.onclick=async(e)=>{if(e.target.closest('[data-cmenu]'))return;CID=c.id;await openProject();};
+    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${r.client_id}" title="إجراءات">⋮</button>`:'';
+    card.innerHTML=`<div class="pcard-top"><span class="pdot" style="background:${c.color}"></span><h3>${c.name}</h3><span class="plife">${LIFE[r.lifecycle]||'—'}</span>${actBtn}</div>
+      <div class="pcard-proj">${esc(r.project_name||'مشروع')}</div>
+      ${alerts.length?`<div class="palerts">${alerts.join('')}</div>`:''}
+      ${meta}${body}`;
+    card.onclick=async(e)=>{if(e.target.closest('[data-cmenu]'))return;CID=r.client_id;PID=r.project_id;await openProject();};
     grid.appendChild(card);
   }
-  // ربط أزرار الإجراءات
   document.querySelectorAll('[data-cmenu]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openClientMenu(b.dataset.cmenu);});
 }
 async function openProject(){
   $('#loader').classList.remove('hidden');
-  await loadProject(CID);
+  await loadProject(CID,PID);
   $('#loader').classList.add('hidden');
   SCREEN='project';$('#barClient').style.display='';showChrome();
   render();
