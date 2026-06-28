@@ -314,3 +314,30 @@ textarea.dlg-i{min-height:80px;resize:vertical}
 .palert.red{background:var(--crit-bg);color:var(--crit)}
 .palert.amber{background:var(--warn-bg);color:var(--warn)}
 .palert.blue{background:#e8eef5;color:var(--blue)}
+/* جانت المحفظة (المرحلة 4) */
+.pg-legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;font-size:.78rem;color:var(--muted)}
+.pg-leg{display:inline-flex;align-items:center;gap:5px}
+.pg-leg i{width:13px;height:13px;border-radius:3px;display:inline-block}
+.pg-leg-today{width:2px!important;height:14px!important;background:var(--crit);border-radius:0!important}
+.pg-chart{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--paper)}
+.pg-axis{display:flex;border-bottom:2px solid var(--line);background:var(--soft-2)}
+.pg-axis-label{width:230px;flex-shrink:0;border-inline-end:1px solid var(--line)}
+.pg-axis-track{position:relative;flex:1;height:30px}
+.pg-week{position:absolute;top:7px;font-size:.68rem;color:var(--muted);transform:translateX(50%)}
+.pg-today{position:absolute;top:0;bottom:-9999px;width:2px;background:var(--crit);z-index:5}
+.pg-rows{position:relative}
+.pg-row{display:flex;align-items:stretch;border-bottom:1px solid var(--line-soft);cursor:pointer;transition:var(--t);min-height:62px}
+.pg-row:hover{background:var(--soft-2)}
+.pg-label{width:230px;flex-shrink:0;padding:10px 14px;border-inline-end:1px solid var(--line)}
+.pg-client{font-size:.82rem;font-weight:700;display:flex;align-items:center;gap:6px}
+.pg-dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.pg-pname{font-size:.78rem;color:var(--gold-dark);margin:2px 0;font-weight:600}
+.pg-meta{font-size:.68rem;color:var(--muted)}
+.pg-track{position:relative;flex:1;min-height:62px}
+.pg-bar{position:absolute;top:50%;transform:translateY(-50%);height:26px;border-radius:7px;box-shadow:var(--e1);overflow:hidden;min-width:30px;display:flex;align-items:center}
+.pg-bar-fill{position:absolute;inset-inline-start:0;top:0;bottom:0;background:rgba(255,255,255,.32)}
+.pg-bar-txt{position:relative;font-size:.68rem;font-weight:700;color:#fff;padding:0 8px;white-space:nowrap;z-index:2;text-shadow:0 1px 2px rgba(0,0,0,.25)}
+.pg-date{position:absolute;top:2px;font-size:.62rem;color:var(--muted);white-space:nowrap}
+.pg-date-s{transform:translateX(50%)}
+.pg-date-e{transform:translateX(50%)}
+@media(max-width:640px){.pg-label,.pg-axis-label{width:130px}.pg-meta{display:none}}
