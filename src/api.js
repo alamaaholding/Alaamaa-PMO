@@ -200,3 +200,16 @@ async function fetchAuditLog(limit, projectId){
   if(projectId) q=q.eq('project_id',projectId);
   return (await q).data||[];
 }
+
+// ===== جانت المحفظة (المرحلة 4) =====
+// ملخّص زمني لكل المشاريع
+async function fetchPortfolioTimeline(){ return (await sb.rpc('pmo_portfolio_timeline')).data||[]; }
+// مهام خفيفة لكل المشاريع المعطاة (لحساب CPM في الواجهة)
+async function fetchAllProjectsTasks(projectIds){
+  if(!projectIds.length) return {tasks:[],deps:[]};
+  const [tasksR,depsR]=await Promise.all([
+    sb.from('pmo_tasks').select('id,ref,name,track,type,duration,status,sort_order,project_id').in('project_id',projectIds),
+    sb.from('pmo_dependencies').select('task_id,depends_on_id,project_id').in('project_id',projectIds)
+  ]);
+  return {tasks:tasksR.data||[],deps:depsR.data||[]};
+}
