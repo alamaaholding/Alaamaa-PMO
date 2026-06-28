@@ -82,15 +82,17 @@ async function renderPortfolio(){
   const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads">العملاء المحتملون ↗</button>':'';
   const dolBtn=isStaff?'<button class="reqbtn" id="showDOL" style="background:#a8442f;border-color:#a8442f;color:#fff">⚖️ طبقة القرار (DOL)</button>':'';
   const auditBtn=isStaff?'<button class="reqbtn" id="showAudit">📋 سجل التدقيق</button>':'';
+  const pgBtn=isStaff?'<button class="reqbtn" id="showPGantt" style="background:var(--blue);border-color:var(--blue);color:#fff">📅 الخط الزمني الشامل</button>':'';
   const archBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showArchived">🗄 المؤرشفة</button>':'';
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
   const skel=CLIENTS.map(()=>'<div class="pcard"><div class="skeleton" style="height:22px;width:55%;margin-bottom:14px"></div><div class="skeleton" style="height:8px;margin-bottom:12px"></div><div class="skeleton" style="height:36px"></div></div>').join('');
-  const toolbar=isStaff?`<div class="portfolio-tools">${dolBtn}${auditBtn}${archBtn}${leadsBtn}</div>`:'';
+  const toolbar=isStaff?`<div class="portfolio-tools">${pgBtn}${dolBtn}${auditBtn}${archBtn}${leadsBtn}</div>`:'';
   $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
   if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;}
   {const db=$('#showDOL');if(db)db.onclick=openDOL;}
   {const ab=$('#showAudit');if(ab)ab.onclick=renderAuditLog;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
+  {const pg=$('#showPGantt');if(pg)pg.onclick=renderPortfolioGantt;}
   // استعلام واحد لكل الملخّصات (صف لكل مشروع)
   const {data:rows,error}=await fetchPortfolio();
   const grid=$('#pgrid');grid.innerHTML='';
