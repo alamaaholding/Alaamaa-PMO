@@ -29,9 +29,12 @@ $('#backPortfolio').onclick=async()=>{ await renderPortfolio(); $('#backPortfoli
 // ===== تحميل المشروع =====
 async function loadClients(){const {data}=await sb.from('pmo_clients').select('*').order('created_at');CLIENTS=data||[];}
 const PROJECT_CACHE={}; // تخزين مؤقت للمشاريع المحمّلة (يُبطل عند الكتابة)
-async function loadProject(clientId, force){
+async function loadProject(clientId, projectId){
   CID=clientId;
-  const {data:projects}=await sb.from('pmo_projects').select('*').eq('client_id',clientId).limit(1);
+  let q=sb.from('pmo_projects').select('*').eq('client_id',clientId);
+  if(projectId) q=q.eq('id',projectId);
+  else q=q.order('start_date').limit(1);
+  const {data:projects}=await q;
   if(!projects||!projects.length){PROJECT=null;return;}
   const p=projects[0];
   // tasks/deps/baseline/CRs تعتمد على project_id فقط → نطلبها بالتوازي
