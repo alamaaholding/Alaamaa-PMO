@@ -279,3 +279,25 @@ textarea.dlg-i{min-height:80px;resize:vertical}
 .imp-table td{border-top:1px solid var(--line-soft);padding:6px 9px;text-align:right}
 .imp-table tfoot td{color:var(--muted);font-style:italic;text-align:center}
 .imp-actions{display:flex;gap:9px;margin-top:16px;flex-wrap:wrap}
+/* أدوات المحفظة + دورة الحياة + التدقيق (المرحلة 1) */
+.portfolio-tools{display:flex;gap:8px;margin-inline-start:auto;flex-wrap:wrap}
+.pcard-top{position:relative}
+.pcard-menu{position:absolute;inset-inline-end:0;top:0;background:none;border:none;font-size:1.2rem;color:var(--muted);cursor:pointer;padding:2px 8px;border-radius:6px;line-height:1}
+.pcard-menu:hover{background:var(--soft-2);color:var(--ink)}
+.arch-sec{font-size:.85rem;color:var(--gold-dark);margin:16px 0 8px;font-weight:700}
+.arch-row{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:12px 15px;margin-bottom:8px}
+.arch-row.pending{border-inline-start:4px solid var(--crit)}
+.arch-badge{display:inline-block;font-size:.7rem;background:var(--soft-2);color:var(--muted);padding:2px 9px;border-radius:999px;margin-inline-start:8px}
+.arch-badge.crit{background:var(--crit-bg);color:var(--crit);font-weight:700}
+.arch-acts{display:flex;gap:7px;align-items:center}
+.arch-note{font-size:.72rem;color:var(--muted);font-style:italic}
+.hbtn.ghost{background:#fff;color:var(--ink);border-color:var(--line)}
+.audit-table{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.audit-row{display:grid;grid-template-columns:140px 90px 1fr 150px;gap:10px;align-items:center;background:var(--paper);padding:9px 14px;font-size:.82rem}
+.audit-row:hover{background:var(--soft-2)}
+.audit-act{font-weight:700;color:var(--ink)}
+.audit-act.crit{color:var(--crit)}
+.audit-ent{color:var(--muted);font-size:.74rem}
+.audit-detail{color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.audit-time{color:var(--muted);font-size:.74rem;text-align:end}
+@media(max-width:640px){.audit-row{grid-template-columns:1fr 1fr;gap:4px}.audit-detail,.audit-time{grid-column:span 2}}
