@@ -301,3 +301,16 @@ textarea.dlg-i{min-height:80px;resize:vertical}
 .audit-detail{color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .audit-time{color:var(--muted);font-size:.74rem;text-align:end}
 @media(max-width:640px){.audit-row{grid-template-columns:1fr 1fr;gap:4px}.audit-detail,.audit-time{grid-column:span 2}}
+/* المرحلة 2: تعدد المشاريع + الفلترة + التنبيهات */
+.pfilters{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
+.pfilter{background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:.82rem;font-weight:600;color:var(--muted);cursor:pointer;transition:var(--t);font-family:inherit;display:inline-flex;align-items:center;gap:6px}
+.pfilter:hover{border-color:var(--gold);color:var(--ink)}
+.pfilter.active{background:var(--ink);border-color:var(--ink);color:#fff}
+.pfilter-n{background:var(--soft-2);color:var(--ink);border-radius:999px;padding:0 7px;font-size:.72rem;min-width:18px;text-align:center}
+.pfilter.active .pfilter-n{background:rgba(255,255,255,.25);color:#fff}
+.pcard-proj{font-size:.84rem;color:var(--gold-dark);font-weight:600;margin:2px 0 8px;padding-inline-start:18px}
+.palerts{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding-inline-start:18px}
+.palert{font-size:.7rem;font-weight:700;padding:2px 9px;border-radius:999px}
+.palert.red{background:var(--crit-bg);color:var(--crit)}
+.palert.amber{background:var(--warn-bg);color:var(--warn)}
+.palert.blue{background:#e8eef5;color:var(--blue)}
