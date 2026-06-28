@@ -182,3 +182,18 @@ async function fetchDeviations(decisionId){ return (await sb.from('pmo_v2_deviat
 async function insertDeviation(row){ return await sb.from('pmo_v2_deviations').insert(row); }
 async function fetchDecisionLinks(decisionId){ return (await sb.from('pmo_v2_decision_links').select('*').eq('decision_id',decisionId)).data||[]; }
 async function insertDecisionLink(row){ return await sb.from('pmo_v2_decision_links').insert(row); }
+
+// ===== دورة حياة العميل + المالك + سجل التدقيق (المرحلة 1) =====
+async function rpcArchiveClient(clientId){ return await sb.rpc('pmo_archive_client',{p_client:clientId}); }
+async function rpcRestoreClient(clientId){ return await sb.rpc('pmo_restore_client',{p_client:clientId}); }
+async function rpcRequestDeletion(clientId){ return await sb.rpc('pmo_request_deletion',{p_client:clientId}); }
+async function rpcPurgeClient(clientId){ return await sb.rpc('pmo_purge_client',{p_client:clientId}); }
+async function checkIsOwner(){ const {data}=await sb.rpc('pmo_is_owner'); return data===true; }
+// عملاء حسب الحالة (نشط/مؤرشف/بانتظار حذف)
+async function fetchClientsByState(state){ return (await sb.from('pmo_clients').select('*').eq('lifecycle_state',state).order('name')).data||[]; }
+// سجل التدقيق على مستوى المكتب (كل المشاريع) أو لمشروع
+async function fetchAuditLog(limit, projectId){
+  let q=sb.from('pmo_audit_log').select('*').order('created_at',{ascending:false}).limit(limit||100);
+  if(projectId) q=q.eq('project_id',projectId);
+  return (await q).data||[];
+}
