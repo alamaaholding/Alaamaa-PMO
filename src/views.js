@@ -1,5 +1,5 @@
 // ===== العرض =====
-const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',cr:'طلبات التغيير',discuss:'النقاش',audit:'سجل التدقيق'};
+const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',cr:'طلبات التغيير',requests:'طلبات العميل',discuss:'النقاش',audit:'سجل التدقيق'};
 function render(){
   if(!PROJECT){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا يوجد مشروع لهذا العميل.</p>';return;}
   $('#backPortfolio').style.display=(ROLE!=='client')?'':'none';
@@ -26,7 +26,7 @@ function render(){
   $$('#tabs .tab').forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render();});
   const host=$('#host');
   // حالة فارغة: مشروع بلا بنود — دعوة فعل واضحة (لا تبويبات فارغة)
-  if(!PROJECT.tasks.length && VIEW!=='discuss'){
+  if(!PROJECT.tasks.length && VIEW!=='discuss' && VIEW!=='requests'){
     const canBuild=can('editStruct');
     host.innerHTML=`<div class="empty-cta"><div class="ico">📋</div><h3>لا توجد خطة بعد لهذا المشروع</h3>
       <p>${canBuild?'ابدأ ببناء خطة المشروع بإضافة أول بند، ثم عرّف المسارات والتبعيات.':'لم تُبنَ خطة هذا المشروع بعد. سيظهر المحتوى فور إعدادها من فريق إدارة المشاريع.'}</p>
@@ -42,6 +42,10 @@ function render(){
   else if(VIEW==='discuss'){
     host.innerHTML='<div id="discussWrap"><div class="skeleton" style="height:80px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
     loadComments(PROJECT._dbId).then(rows=>{const el=document.getElementById('discussWrap');if(el){el.innerHTML=vDiscuss(rows);bindDiscuss();}});
+  }
+  else if(VIEW==='requests'){
+    host.innerHTML='<div id="reqWrap"><div class="skeleton" style="height:80px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
+    loadClientRequests(PROJECT._dbId).then(rows=>{const el=document.getElementById('reqWrap');if(el){el.innerHTML=vRequests(rows);bindRequests();}});
   }
   else if(VIEW==='audit'){
     host.innerHTML='<div class="hintbar">آخر 60 تغييرًا مسجّلًا تلقائيًا (الحالة، التقدّم، المدة، طلبات التغيير).</div><div id="auditList"><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px"></div></div>';
@@ -227,7 +231,7 @@ function vDiscuss(rows){
         <span style="display:flex;gap:8px;align-items:center">${resBadge}<small style="color:var(--muted)">${when}</small></span>
       </div>
       <div class="crbody">${esc(c.body)}</div>
-      <div class="cract">${resBtn}<button class="reqbtn" data-reply="${c.id}" style="font-size:.72rem">رد</button></div>
+      <div class="cract">${resBtn}<button class="reqbtn" data-reply="${c.id}" style="font-size:.72rem">رد</button>${(ROLE==='pmo'||c.author_id===USER.id)?`<button class="reqbtn" data-delc="${c.id}" style="font-size:.72rem;color:var(--crit)">حذف</button>`:''}</div>
       <div id="replyBox-${c.id}"></div>
     </div>`;
   };
@@ -260,6 +264,83 @@ function bindDiscuss(){
   });
   document.querySelectorAll('[data-resolve]').forEach(b=>b.onclick=async()=>{
     try{ await resolveComment(b.dataset.resolve, b.dataset.cur!=='1'); render(); }
+    catch(e){ toast('تعذّر: '+e.message,'err'); }
+  });
+  document.querySelectorAll('[data-delc]').forEach(b=>b.onclick=async()=>{
+    if(!await confirmDialog('حذف التعليق','حذف هذا التعليق؟ لا يمكن التراجع.',true))return;
+    try{ await deleteComment(b.dataset.delc); toast('حُذف','ok'); render(); }
+    catch(e){ toast('تعذّر: '+e.message,'err'); }
+  });
+}
+
+// ===== طلبات العميل الموجّهة للأقسام (المرحلة 3) =====
+const DEPT_AR={marketing:'التسويق',tech:'التقني',strategy:'الاستراتيجية',consulting:'الاستشارات',other:'أخرى'};
+const REQ_STATUS_AR={new:'جديد',in_progress:'قيد المعالجة',done:'منجز',declined:'مرفوض'};
+const REQ_STATUS_CLR={new:'var(--blue)',in_progress:'var(--warn)',done:'var(--ok)',declined:'var(--muted)'};
+const PRIO_AR={low:'منخفضة',normal:'عادية',high:'عالية',urgent:'عاجلة'};
+const PRIO_CLR={low:'var(--muted)',normal:'var(--ink-soft)',high:'var(--warn)',urgent:'var(--crit)'};
+function vRequests(rows){
+  const isStaff=(ROLE==='pmo'||ROLE==='delivery');
+  const ROLE_AR={pmo:'إدارة المشاريع',delivery:'فريق التسويق',client:'العميل'};
+  // نموذج تقديم طلب
+  const composer=`<div class="crform" style="position:static;margin-bottom:16px">
+    <h4>${ROLE==='client'?'تقديم طلب جديد':'تسجيل طلب نيابة عن العميل'}</h4>
+    <input id="rqTitle" placeholder="عنوان الطلب (مثل: تصميم إعلان لعرض رمضان)" style="width:100%;border:1.5px solid var(--line);border-radius:7px;padding:9px;font-family:inherit;margin-bottom:8px">
+    <textarea id="rqBody" placeholder="تفاصيل الطلب..." style="margin-bottom:8px"></textarea>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <select id="rqDept"><option value="marketing">التسويق</option><option value="tech">التقني</option><option value="strategy">الاستراتيجية</option><option value="consulting">الاستشارات</option><option value="other">أخرى</option></select>
+      <select id="rqPrio"><option value="normal">أولوية عادية</option><option value="low">منخفضة</option><option value="high">عالية</option><option value="urgent">عاجلة</option></select>
+    </div>
+    <button class="hbtn" id="rqSend" style="background:var(--gold);border-color:var(--gold);width:100%">إرسال الطلب</button>
+  </div>`;
+  if(!rows.length) return composer+'<p class="empty" style="padding:14px">لا طلبات بعد.</p>';
+  const cards=rows.map(r=>{
+    const when=new Date(r.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
+    // أزرار إدارة الحالة (للطاقم فقط)
+    const statusBtns=isStaff?`<div class="rq-statusbtns">${Object.keys(REQ_STATUS_AR).map(s=>`<button class="rq-sbtn ${r.status===s?'active':''}" data-setstatus="${r.id}" data-s="${s}" style="--sc:${REQ_STATUS_CLR[s]}">${REQ_STATUS_AR[s]}</button>`).join('')}</div>`:'';
+    const assignBtn=isStaff?`<button class="reqbtn" data-assign="${r.id}" data-cur="${esc(r.assigned_to||'')}" style="font-size:.72rem">${r.assigned_to?'إعادة الإسناد':'إسناد'}</button>`:'';
+    const delBtn=(ROLE==='pmo'||r.created_by===USER.id)?`<button class="reqbtn" data-delreq="${r.id}" style="font-size:.72rem;color:var(--crit)">حذف</button>`:'';
+    return `<div class="crcard rq-card" style="border-inline-start:3px solid ${REQ_STATUS_CLR[r.status]}">
+      <div class="crhd">
+        <span><b style="font-size:.9rem">${esc(r.title)}</b>
+          <span class="rq-badge" style="background:color-mix(in srgb,${REQ_STATUS_CLR[r.status]} 14%,#fff);color:${REQ_STATUS_CLR[r.status]}">${REQ_STATUS_AR[r.status]}</span></span>
+        <span style="font-size:.7rem;color:${PRIO_CLR[r.priority]};font-weight:700">${PRIO_AR[r.priority]}</span>
+      </div>
+      <div class="rq-tags">
+        <span class="rq-tag">القسم: ${DEPT_AR[r.department]}</span>
+        ${r.assigned_to?`<span class="rq-tag">مُسند إلى: ${esc(r.assigned_to)}</span>`:''}
+        <span class="rq-tag muted">${ROLE_AR[r.created_role]||''} · ${when}</span>
+      </div>
+      ${r.body?`<div class="crbody">${esc(r.body)}</div>`:''}
+      ${r.resolution?`<div class="rq-resolution">الرد: ${esc(r.resolution)}</div>`:''}
+      ${statusBtns}
+      <div class="cract">${assignBtn}${delBtn}</div>
+    </div>`;
+  }).join('');
+  return composer+'<div class="crlist">'+cards+'</div>';
+}
+function bindRequests(){
+  const send=document.getElementById('rqSend');
+  if(send)send.onclick=async()=>{
+    const title=document.getElementById('rqTitle').value.trim();
+    if(!title){toast('اكتب عنوان الطلب','warn');return;}
+    const body=document.getElementById('rqBody').value.trim();
+    const dept=document.getElementById('rqDept').value;
+    const prio=document.getElementById('rqPrio').value;
+    try{ await addClientRequest(PROJECT._dbId,title,body,dept,prio); toast('أُرسل الطلب','ok'); render(); }
+    catch(e){ toast('تعذّر الإرسال: '+e.message,'err'); }
+  };
+  document.querySelectorAll('[data-setstatus]').forEach(b=>b.onclick=async()=>{
+    try{ await updateClientRequest(b.dataset.setstatus,{status:b.dataset.s}); render(); }
+    catch(e){ toast('تعذّر: '+e.message,'err'); }
+  });
+  document.querySelectorAll('[data-assign]').forEach(b=>b.onclick=async()=>{
+    const r=await dialog({title:'إسناد الطلب',fields:[{key:'who',label:'إلى مَن (شخص/فريق)',value:b.dataset.cur,placeholder:'مثل: فريق التسويق'}],confirmText:'إسناد'});
+    if(r&&r.who){try{ await updateClientRequest(b.dataset.assign,{assigned_to:r.who}); toast('تم الإسناد','ok'); render(); }catch(e){toast('تعذّر','err');}}
+  });
+  document.querySelectorAll('[data-delreq]').forEach(b=>b.onclick=async()=>{
+    if(!await confirmDialog('حذف الطلب','حذف هذا الطلب نهائيًا؟',true))return;
+    try{ await deleteClientRequest(b.dataset.delreq); toast('حُذف','ok'); render(); }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
 }
