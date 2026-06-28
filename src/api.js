@@ -152,6 +152,31 @@ async function addComment(projectId, kind, body, parentId){
 async function resolveComment(commentId, resolved){
   await sb.from('pmo_comments').update({resolved}).eq('id',commentId);
 }
+async function deleteComment(commentId){
+  const {error}=await sb.from('pmo_comments').delete().eq('id',commentId);
+  if(error) throw error;
+}
+
+// ===== طلبات العميل الموجّهة للأقسام (المرحلة 3) =====
+async function loadClientRequests(projectId){
+  const {data}=await sb.from('pmo_client_requests').select('*').eq('project_id',projectId).order('created_at',{ascending:false});
+  return data||[];
+}
+async function addClientRequest(projectId, title, body, department, priority){
+  const row={project_id:projectId,title,body:body||null,department,priority:priority||'normal',
+    created_by:USER.id,created_role:ROLE};
+  const {error}=await sb.from('pmo_client_requests').insert(row);
+  if(error) throw error;
+}
+async function updateClientRequest(id, patch){
+  patch.updated_at=new Date().toISOString();
+  const {error}=await sb.from('pmo_client_requests').update(patch).eq('id',id);
+  if(error) throw error;
+}
+async function deleteClientRequest(id){
+  const {error}=await sb.from('pmo_client_requests').delete().eq('id',id);
+  if(error) throw error;
+}
 
 // ===== دوال بيانات معزولة (كانت متناثرة في app/views) =====
 // المحفظة
