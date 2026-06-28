@@ -14,7 +14,7 @@ function todayISO(){return fmtY(new Date());}
 
 
 // ===== الصلاحيات =====
-const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:true,crAction:'approve',views:['dashboard','table','gantt','deliv','cr','discuss','audit']},
-  delivery:{editStruct:false,editProg:true,editReqs:true,approveContract:false,crAction:'request',views:['dashboard','table','gantt','deliv','cr','discuss','audit']},
-  client:{editStruct:false,editProg:false,editReqs:false,approveContract:false,crAction:'request',views:['dashboard','gantt','deliv','cr','discuss']}};
+const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:true,crAction:'approve',views:['dashboard','table','gantt','deliv','cr','requests','discuss','audit']},
+  delivery:{editStruct:false,editProg:true,editReqs:true,approveContract:false,crAction:'request',views:['dashboard','table','gantt','deliv','cr','requests','discuss','audit']},
+  client:{editStruct:false,editProg:false,editReqs:false,approveContract:false,crAction:'request',views:['dashboard','gantt','deliv','cr','requests','discuss']}};
 function can(p){return PERMS[ROLE]&&PERMS[ROLE][p];}
