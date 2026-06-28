@@ -341,3 +341,14 @@ textarea.dlg-i{min-height:80px;resize:vertical}
 .pg-date-s{transform:translateX(50%)}
 .pg-date-e{transform:translateX(50%)}
 @media(max-width:640px){.pg-label,.pg-axis-label{width:130px}.pg-meta{display:none}}
+/* طلبات العميل (المرحلة 3) */
+.rq-card{margin-bottom:10px}
+.rq-badge{font-size:.68rem;font-weight:700;padding:2px 9px;border-radius:999px;margin-inline-start:8px}
+.rq-tags{display:flex;gap:7px;flex-wrap:wrap;margin:6px 0}
+.rq-tag{font-size:.7rem;background:var(--soft-2);color:var(--ink-soft);padding:2px 9px;border-radius:6px}
+.rq-tag.muted{color:var(--muted)}
+.rq-resolution{font-size:.8rem;background:var(--ok-bg);border-radius:7px;padding:8px 11px;margin:6px 0;color:#1e5620}
+.rq-statusbtns{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.rq-sbtn{background:#fff;border:1.5px solid var(--line);border-radius:7px;padding:4px 11px;font-size:.74rem;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit;transition:var(--t)}
+.rq-sbtn:hover{border-color:var(--sc);color:var(--sc)}
+.rq-sbtn.active{background:var(--sc);border-color:var(--sc);color:#fff}
