@@ -78,13 +78,19 @@ async function renderPortfolio(){
   SCREEN='portfolio';
   $('#hProject').textContent='محفظة المشاريع';
   $('#barClient').style.display='none';hideChrome();
-  const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads" style="margin-inline-start:auto">العملاء المحتملون ↗</button>':'';
-  const dolBtn=(ROLE==='pmo'||ROLE==='delivery')?'<button class="reqbtn" id="showDOL" style="background:#a8442f;border-color:#a8442f;color:#fff'+(ROLE==='pmo'?'':';margin-inline-start:auto')+'">⚖️ طبقة القرار (DOL)</button>':'';
+  const isStaff=(ROLE==='pmo'||ROLE==='delivery');
+  const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads">العملاء المحتملون ↗</button>':'';
+  const dolBtn=isStaff?'<button class="reqbtn" id="showDOL" style="background:#a8442f;border-color:#a8442f;color:#fff">⚖️ طبقة القرار (DOL)</button>':'';
+  const auditBtn=isStaff?'<button class="reqbtn" id="showAudit">📋 سجل التدقيق</button>':'';
+  const archBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showArchived">🗄 المؤرشفة</button>':'';
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
   const skel=CLIENTS.map(()=>'<div class="pcard"><div class="skeleton" style="height:22px;width:55%;margin-bottom:14px"></div><div class="skeleton" style="height:8px;margin-bottom:12px"></div><div class="skeleton" style="height:36px"></div></div>').join('');
-  $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+dolBtn+leadsBtn+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
+  const toolbar=isStaff?`<div class="portfolio-tools">${dolBtn}${auditBtn}${archBtn}${leadsBtn}</div>`:'';
+  $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
   if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;}
   {const db=$('#showDOL');if(db)db.onclick=openDOL;}
+  {const ab=$('#showAudit');if(ab)ab.onclick=renderAuditLog;}
+  {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
   // استعلام واحد لكل الملخّصات (بدل 12 متسلسلًا)
   const {data:rows,error}=await fetchPortfolio();
   const grid=$('#pgrid');grid.innerHTML='';
@@ -104,10 +110,13 @@ async function renderPortfolio(){
     }
     const life=r?(LIFE[r.lifecycle]||'—'):'—';
     const card=document.createElement('div');card.className='pcard';card.style.cssText=`--cc:${c.color}`;
-    card.innerHTML=`<div class="pcard-top"><span class="pdot" style="background:${c.color}"></span><h3>${c.name}</h3><span class="plife">${life}</span></div>${meta}${body}`;
-    card.onclick=async()=>{CID=c.id;await openProject();};
+    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${c.id}" title="إجراءات">⋮</button>`:'';
+    card.innerHTML=`<div class="pcard-top"><span class="pdot" style="background:${c.color}"></span><h3>${c.name}</h3><span class="plife">${life}</span>${actBtn}</div>${meta}${body}`;
+    card.onclick=async(e)=>{if(e.target.closest('[data-cmenu]'))return;CID=c.id;await openProject();};
     grid.appendChild(card);
   }
+  // ربط أزرار الإجراءات
+  document.querySelectorAll('[data-cmenu]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openClientMenu(b.dataset.cmenu);});
 }
 async function openProject(){
   $('#loader').classList.remove('hidden');
@@ -115,6 +124,92 @@ async function openProject(){
   $('#loader').classList.add('hidden');
   SCREEN='project';$('#barClient').style.display='';showChrome();
   render();
+}
+
+// ===== دورة حياة العميل (المرحلة 1) =====
+async function openClientMenu(clientId){
+  const c=CLIENTS.find(x=>x.id===clientId); if(!c)return;
+  const r=await dialog({title:'إجراءات: '+c.name,
+    message:'الأرشفة تُخفي العميل من المحفظة النشطة (قابلة للاسترجاع). طلب الحذف يبدأ مهلة 30 يومًا قبل الحذف النهائي.',
+    fields:[{key:'action',label:'الإجراء',type:'select',value:'archive',options:[
+      {v:'archive',t:'أرشفة العميل'},
+      {v:'delete',t:'طلب حذف (مهلة 30 يومًا)'}
+    ]}],confirmText:'متابعة'});
+  if(!r)return;
+  if(r.action==='archive'){
+    if(!await confirmDialog('تأكيد الأرشفة','أرشفة «'+c.name+'»؟ سيُخفى من المحفظة النشطة ويمكن استرجاعه لاحقًا.',false))return;
+    const {data}=await rpcArchiveClient(clientId);
+    if(data&&data.ok){toast('تمت الأرشفة','ok');CLIENTS=CLIENTS.filter(x=>x.id!==clientId);renderPortfolio();}
+    else toast((data&&data.error)||'تعذّرت الأرشفة','err');
+  }else if(r.action==='delete'){
+    if(!await confirmDialog('تأكيد طلب الحذف','طلب حذف «'+c.name+'»؟\n\nسيبدأ عدّاد 30 يومًا. يبقى قابلًا للاسترجاع طوال المهلة. الحذف النهائي يتطلب مالك النظام بعد انقضائها.',true))return;
+    const {data}=await rpcRequestDeletion(clientId);
+    if(data&&data.ok){toast('بدأت مهلة الحذف (30 يومًا)','warn');CLIENTS=CLIENTS.filter(x=>x.id!==clientId);renderPortfolio();}
+    else toast((data&&data.error)||'تعذّر الطلب','err');
+  }
+}
+
+async function renderArchived(){
+  SCREEN='archived';$('#hProject').textContent='العملاء المؤرشفون';hideChrome();
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">العملاء المؤرشفون والمجدولون للحذف. الاسترجاع متاح طوال مهلة الـ30 يومًا.</span></div><div id="archList"><div class="skeleton" style="height:60px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
+  $('#backP').onclick=renderPortfolio;
+  const isOwner=await checkIsOwner();
+  const arch=await fetchClientsByState('archived');
+  const pend=await fetchClientsByState('pending_deletion');
+  const list=$('#archList');
+  if(!arch.length&&!pend.length){list.innerHTML='<div class="empty-cta"><div class="ico">🗄</div><h3>لا عملاء مؤرشفين</h3><p>العملاء المؤرشفون أو المجدولون للحذف يظهرون هنا.</p></div>';return;}
+  let html='';
+  if(pend.length){
+    html+='<h4 class="arch-sec">بانتظار الحذف</h4>';
+    pend.forEach(c=>{
+      const days=Math.max(0,Math.ceil((new Date(c.deletion_scheduled_at)-new Date())/(1000*60*60*24)));
+      const purgeBtn=isOwner?`<button class="hbtn" data-purge="${c.id}" style="background:var(--crit);border-color:var(--crit)">حذف نهائي</button>`:`<span class="arch-note">الحذف النهائي بصلاحية المالك</span>`;
+      html+=`<div class="arch-row pending"><div><b>${c.name}</b><span class="arch-badge crit">يُحذف خلال ${days} يومًا</span></div><div class="arch-acts"><button class="hbtn ghost" data-restore="${c.id}">استرجاع</button>${purgeBtn}</div></div>`;
+    });
+  }
+  if(arch.length){
+    html+='<h4 class="arch-sec">مؤرشفة</h4>';
+    arch.forEach(c=>{
+      html+=`<div class="arch-row"><div><b>${c.name}</b><span class="arch-badge">مؤرشف</span></div><div class="arch-acts"><button class="hbtn ghost" data-restore="${c.id}">استرجاع</button><button class="hbtn" data-del="${c.id}" style="background:var(--warn);border-color:var(--warn)">طلب حذف</button></div></div>`;
+    });
+  }
+  list.innerHTML=html;
+  list.querySelectorAll('[data-restore]').forEach(b=>b.onclick=async()=>{
+    const {data}=await rpcRestoreClient(b.dataset.restore);
+    if(data&&data.ok){toast('تم الاسترجاع','ok');const c=await fetchClientsByState('active');CLIENTS=c;renderArchived();}
+    else toast((data&&data.error)||'تعذّر','err');});
+  list.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    if(!await confirmDialog('طلب حذف','بدء مهلة 30 يومًا لحذف هذا العميل؟',true))return;
+    const {data}=await rpcRequestDeletion(b.dataset.del);
+    if(data&&data.ok){toast('بدأت مهلة الحذف','warn');renderArchived();}else toast((data&&data.error)||'تعذّر','err');});
+  list.querySelectorAll('[data-purge]').forEach(b=>b.onclick=async()=>{
+    if(!await confirmDialog('حذف نهائي','تحذير: حذف نهائي لا رجعة فيه لكل بيانات العميل ومشاريعه. متأكد؟',true))return;
+    const {data}=await rpcPurgeClient(b.dataset.purge);
+    if(data&&data.ok){toast('تم الحذف النهائي','ok');renderArchived();}else toast((data&&data.error)||'تعذّر — تحقق من المهلة والصلاحية','err');});
+}
+
+// ===== سجل التدقيق على مستوى المكتب =====
+const AUDIT_LABELS={
+  archive_client:'أرشفة عميل',restore_client:'استرجاع عميل',request_deletion:'طلب حذف',purge_client:'حذف نهائي',
+  comment_add:'إضافة تعليق',comment_delete:'حذف تعليق',comment_resolve:'حلّ تعليق',comment_reopen:'إعادة فتح تعليق',
+  requirement_add:'إضافة متطلب',requirement_delete:'حذف متطلب',
+  project_create:'إنشاء مشروع',project_delete:'حذف مشروع',
+  task_update:'تعديل مهمة',cr_create:'طلب تغيير',cr_decision:'قرار تغيير'
+};
+async function renderAuditLog(){
+  SCREEN='audit';$('#hProject').textContent='سجل التدقيق';hideChrome();
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">كل الأفعال الحسّاسة عبر المكتب — من فعل، ماذا، ومتى.</span></div><div id="auditList"><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px"></div></div>';
+  $('#backP').onclick=renderPortfolio;
+  const rows=await fetchAuditLog(150);
+  const list=$('#auditList');
+  if(!rows.length){list.innerHTML='<div class="empty-cta"><div class="ico">📋</div><h3>السجل فارغ</h3><p>الأفعال الحسّاسة (حذف، أرشفة، تعليقات، طلبات) ستظهر هنا.</p></div>';return;}
+  const fmt=ts=>{const d=new Date(ts);return d.toLocaleDateString('ar-SA-u-ca-gregory',{year:'numeric',month:'short',day:'numeric'})+' · '+d.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});};
+  list.innerHTML='<div class="audit-table">'+rows.map(r=>{
+    const label=AUDIT_LABELS[r.action]||r.action;
+    const detail=(r.new_value&&(r.new_value.name||r.new_value.body||r.new_value.description||r.new_value.title))||(r.old_value&&(r.old_value.name||r.old_value.body||r.old_value.description))||'';
+    const isCrit=/purge|delete/.test(r.action);
+    return `<div class="audit-row"><span class="audit-act ${isCrit?'crit':''}">${label}</span><span class="audit-ent">${r.entity||''}</span><span class="audit-detail">${detail?esc(String(detail).slice(0,80)):''}</span><span class="audit-time">${fmt(r.created_at)}</span></div>`;
+  }).join('')+'</div>';
 }
 
 // ===== شاشة العملاء المحتملين (PMO) =====
