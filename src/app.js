@@ -121,9 +121,12 @@ async function renderPortfolio(){
   document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{PFILTER=b.dataset.filter;renderPortfolio();});
 
   if(!shown.length){grid.innerHTML='<p class="pempty">لا مشاريع مطابقة لهذا الفلتر.</p>';return;}
-  // تجميع المشاريع حسب العميل لعرض اسم العميل مرة
-  for(const r of shown){
-    const c=CLIENTS.find(x=>x.id===r.client_id)||{name:r.client_name,color:r.color||'#C8A06B'};
+  // تجميع المشاريع حسب الشركة (client_id)
+  const groups={}; const order=[];
+  shown.forEach(r=>{ if(!groups[r.client_id]){groups[r.client_id]=[];order.push(r.client_id);} groups[r.client_id].push(r); });
+
+  grid.className='pgrid-grouped';
+  const buildCard=(r,c)=>{
     const hasplan=r.total_tasks>0;
     const pct=hasplan?Math.round(r.done_tasks/r.total_tasks*100):0;
     const alerts=[];
@@ -135,14 +138,32 @@ async function renderPortfolio(){
       ?`<div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div><div class="pstats"><span><b>${pct}%</b>إنجاز</span><span><b>${r.done_tasks}</b>منجز</span></div>`
       :`<div class="pempty">مشروع فارغ — جاهز لبناء الخطة</div>`;
     const card=document.createElement('div');card.className='pcard';card.style.cssText=`--cc:${c.color}`;
-    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${r.client_id}" title="إجراءات">⋮</button>`:'';
-    card.innerHTML=`<div class="pcard-top"><span class="pdot" style="background:${c.color}"></span><h3>${c.name}</h3><span class="plife">${LIFE[r.lifecycle]||'—'}</span>${actBtn}</div>
-      <div class="pcard-proj">${esc(r.project_name||'مشروع')}</div>
+    card.innerHTML=`<div class="pcard-proj-name">${esc(r.project_name||'مشروع')}<span class="plife">${LIFE[r.lifecycle]||'—'}</span></div>
       ${alerts.length?`<div class="palerts">${alerts.join('')}</div>`:''}
       ${meta}${body}`;
     card.onclick=async(e)=>{if(e.target.closest('[data-cmenu]'))return;CID=r.client_id;PID=r.project_id;await openProject();};
-    grid.appendChild(card);
-  }
+    return card;
+  };
+
+  order.forEach(cid=>{
+    const list=groups[cid];
+    const r0=list[0];
+    const c=CLIENTS.find(x=>x.id===cid)||{name:r0.client_name,color:r0.color||'#C8A06B'};
+    const group=document.createElement('div'); group.className='pgroup';
+    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${cid}" title="إجراءات">⋮</button>`:'';
+    // ترويسة الشركة
+    const multi=list.length>1;
+    group.innerHTML=`<div class="pgroup-hd" style="--cc:${c.color}">
+      <span class="pdot" style="background:${c.color}"></span>
+      <h3>${esc(c.name)}</h3>
+      ${multi?`<span class="pgroup-count">${list.length} مشاريع</span>`:''}
+      ${actBtn}
+    </div>`;
+    const inner=document.createElement('div'); inner.className=multi?'pgroup-cards multi':'pgroup-cards';
+    list.forEach(r=>inner.appendChild(buildCard(r,c)));
+    group.appendChild(inner);
+    grid.appendChild(group);
+  });
   document.querySelectorAll('[data-cmenu]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openClientMenu(b.dataset.cmenu);});
 }
 async function openProject(){
@@ -151,6 +172,22 @@ async function openProject(){
   $('#loader').classList.add('hidden');
   SCREEN='project';$('#barClient').style.display='';showChrome();
   render();
+}
+
+// تعديل تاريخ بدء المشروع — المصدر الوحيد للحقيقة، يعيد حساب كل التواريخ
+async function editStartDate(){
+  if(PROJECT.status==='baselined'){ toast('الخطة مثبّتة — تعديل التاريخ يتطلب طلب تغيير','warn'); return; }
+  const cur=PROJECT.start||'';
+  const r=await dialog({title:'تعديل تاريخ بدء المشروع',
+    message:'هذا التاريخ هو الأساس الذي تُحسب منه كل تواريخ المهام تلقائيًا (CPM). تغييره يعيد جدولة المشروع بالكامل.',
+    fields:[{key:'date',label:'تاريخ البدء',type:'date',value:cur}],confirmText:'تحديث وإعادة الجدولة'});
+  if(!r||!r.date)return;
+  try{
+    await updateProjectStart(PROJECT._dbId, r.date);
+    PROJECT.start=r.date;
+    toast('حُدّث تاريخ البدء — أُعيد حساب الجدول','ok');
+    await loadProject(CID,PID); render();
+  }catch(e){ toast('تعذّر التحديث: '+e.message,'err'); }
 }
 
 // ===== دورة حياة العميل (المرحلة 1) =====
