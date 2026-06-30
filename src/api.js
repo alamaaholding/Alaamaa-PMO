@@ -238,3 +238,9 @@ async function fetchAllProjectsTasks(projectIds){
   ]);
   return {tasks:tasksR.data||[],deps:depsR.data||[]};
 }
+
+// ===== تعديل تاريخ بدء المشروع (المصدر الوحيد للحقيقة) =====
+async function updateProjectStart(projectId, newDate){
+  const {error}=await sb.from('pmo_projects').update({start_date:newDate}).eq('id',projectId);
+  if(error) throw error;
+}
