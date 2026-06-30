@@ -360,6 +360,22 @@ textarea.dlg-i{min-height:80px;resize:vertical}
 .rq-sbtn{background:#fff;border:1.5px solid var(--line);border-radius:7px;padding:4px 11px;font-size:.74rem;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit;transition:var(--t)}
 .rq-sbtn:hover{border-color:var(--sc);color:var(--sc)}
 .rq-sbtn.active{background:var(--sc);border-color:var(--sc);color:#fff}
+/* التجميع الذكي للمحفظة + تاريخ البدء (المرحلة 5) */
+.pgrid-grouped{display:flex;flex-direction:column;gap:18px}
+.pgroup{background:transparent}
+.pgroup-hd{display:flex;align-items:center;gap:9px;padding:6px 4px 10px;border-bottom:2px solid var(--cc,var(--gold));margin-bottom:12px}
+.pgroup-hd h3{font-size:1.05rem;margin:0;font-weight:700}
+.pgroup-hd .pdot{width:12px;height:12px;border-radius:50%}
+.pgroup-count{font-size:.72rem;background:var(--soft-2);color:var(--ink-soft);padding:2px 10px;border-radius:999px;font-weight:600}
+.pgroup-hd .pcard-menu{margin-inline-start:auto;position:static}
+.pgroup-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.pgroup-cards.multi .pcard{border-inline-start:3px solid var(--cc)}
+.pcard-proj-name{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.92rem;font-weight:700;color:var(--ink);margin-bottom:10px}
+.pcard-proj-name .plife{font-size:.68rem;font-weight:600;color:var(--muted);background:var(--soft-2);padding:2px 8px;border-radius:999px;flex-shrink:0}
+/* تاريخ البدء القابل للتعديل */
+.kpi-start b{color:var(--blue)}
+.kstart-edit{background:none;border:none;color:var(--gold-dark);cursor:pointer;font-size:.8rem;padding:0 2px;margin-inline-start:3px;border-radius:4px;transition:var(--t)}
+.kstart-edit:hover{background:var(--soft-2);color:var(--ink)}
 
 </style>
 </head><body>
@@ -400,6 +416,7 @@ textarea.dlg-i{min-height:80px;resize:vertical}
     <span class="hintbar" id="roleHint" style="margin-inline-start:auto"></span>
   </div>
   <div class="kpis" id="kpisRow">
+    <div class="kpi kpi-start"><b id="kStart">—</b><span>بداية المشروع <button id="editStart" class="kstart-edit" title="تعديل تاريخ البدء">✎</button></span></div>
     <div class="kpi"><b id="kEnd">—</b><span>الانتهاء المتوقع</span></div>
     <div class="kpi"><b id="kDur">0</b><span>أيام عمل</span></div>
     <div class="kpi crit"><b id="kCrit">0</b><span>على المسار الحرج</span></div>
@@ -793,6 +810,12 @@ async function fetchAllProjectsTasks(projectIds){
   return {tasks:tasksR.data||[],deps:depsR.data||[]};
 }
 
+// ===== تعديل تاريخ بدء المشروع (المصدر الوحيد للحقيقة) =====
+async function updateProjectStart(projectId, newDate){
+  const {error}=await sb.from('pmo_projects').update({start_date:newDate}).eq('id',projectId);
+  if(error) throw error;
+}
+
 
 /* ===== views.js ===== */
 // ===== العرض =====
@@ -811,6 +834,12 @@ function render(){
   const tasks=PROJECT.tasks;
   $('#kEnd').textContent=fmt(SCHED.pEnd)+'/'+new Date(SCHED.pEnd).getFullYear();
   $('#kDur').textContent=SCHED.totalWD;
+  // تاريخ البدء (قابل للتعديل فقط للـPMO وقبل التثبيت)
+  const sd=PROJECT.start?new Date(PROJECT.start):SCHED.pStart;
+  $('#kStart').textContent=fmt(sd)+'/'+sd.getFullYear();
+  const canEditStart=(ROLE==='pmo'&&PROJECT.status!=='baselined');
+  const esBtn=$('#editStart');
+  if(esBtn){ esBtn.style.display=canEditStart?'':'none'; esBtn.onclick=canEditStart?editStartDate:null; }
   $('#kCrit').textContent=tasks.filter(t=>SCHED.R[t.id].critical).length;
   $('#kBlk').textContent=tasks.filter(t=>TRACK[t.id].blocked).length;
   $('#kCl').textContent=tasks.filter(t=>TRACK[t.id].delay==='client').length;
@@ -1267,9 +1296,12 @@ async function renderPortfolio(){
   document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{PFILTER=b.dataset.filter;renderPortfolio();});
 
   if(!shown.length){grid.innerHTML='<p class="pempty">لا مشاريع مطابقة لهذا الفلتر.</p>';return;}
-  // تجميع المشاريع حسب العميل لعرض اسم العميل مرة
-  for(const r of shown){
-    const c=CLIENTS.find(x=>x.id===r.client_id)||{name:r.client_name,color:r.color||'#C8A06B'};
+  // تجميع المشاريع حسب الشركة (client_id)
+  const groups={}; const order=[];
+  shown.forEach(r=>{ if(!groups[r.client_id]){groups[r.client_id]=[];order.push(r.client_id);} groups[r.client_id].push(r); });
+
+  grid.className='pgrid-grouped';
+  const buildCard=(r,c)=>{
     const hasplan=r.total_tasks>0;
     const pct=hasplan?Math.round(r.done_tasks/r.total_tasks*100):0;
     const alerts=[];
@@ -1281,14 +1313,32 @@ async function renderPortfolio(){
       ?`<div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div><div class="pstats"><span><b>${pct}%</b>إنجاز</span><span><b>${r.done_tasks}</b>منجز</span></div>`
       :`<div class="pempty">مشروع فارغ — جاهز لبناء الخطة</div>`;
     const card=document.createElement('div');card.className='pcard';card.style.cssText=`--cc:${c.color}`;
-    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${r.client_id}" title="إجراءات">⋮</button>`:'';
-    card.innerHTML=`<div class="pcard-top"><span class="pdot" style="background:${c.color}"></span><h3>${c.name}</h3><span class="plife">${LIFE[r.lifecycle]||'—'}</span>${actBtn}</div>
-      <div class="pcard-proj">${esc(r.project_name||'مشروع')}</div>
+    card.innerHTML=`<div class="pcard-proj-name">${esc(r.project_name||'مشروع')}<span class="plife">${LIFE[r.lifecycle]||'—'}</span></div>
       ${alerts.length?`<div class="palerts">${alerts.join('')}</div>`:''}
       ${meta}${body}`;
     card.onclick=async(e)=>{if(e.target.closest('[data-cmenu]'))return;CID=r.client_id;PID=r.project_id;await openProject();};
-    grid.appendChild(card);
-  }
+    return card;
+  };
+
+  order.forEach(cid=>{
+    const list=groups[cid];
+    const r0=list[0];
+    const c=CLIENTS.find(x=>x.id===cid)||{name:r0.client_name,color:r0.color||'#C8A06B'};
+    const group=document.createElement('div'); group.className='pgroup';
+    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${cid}" title="إجراءات">⋮</button>`:'';
+    // ترويسة الشركة
+    const multi=list.length>1;
+    group.innerHTML=`<div class="pgroup-hd" style="--cc:${c.color}">
+      <span class="pdot" style="background:${c.color}"></span>
+      <h3>${esc(c.name)}</h3>
+      ${multi?`<span class="pgroup-count">${list.length} مشاريع</span>`:''}
+      ${actBtn}
+    </div>`;
+    const inner=document.createElement('div'); inner.className=multi?'pgroup-cards multi':'pgroup-cards';
+    list.forEach(r=>inner.appendChild(buildCard(r,c)));
+    group.appendChild(inner);
+    grid.appendChild(group);
+  });
   document.querySelectorAll('[data-cmenu]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openClientMenu(b.dataset.cmenu);});
 }
 async function openProject(){
@@ -1297,6 +1347,22 @@ async function openProject(){
   $('#loader').classList.add('hidden');
   SCREEN='project';$('#barClient').style.display='';showChrome();
   render();
+}
+
+// تعديل تاريخ بدء المشروع — المصدر الوحيد للحقيقة، يعيد حساب كل التواريخ
+async function editStartDate(){
+  if(PROJECT.status==='baselined'){ toast('الخطة مثبّتة — تعديل التاريخ يتطلب طلب تغيير','warn'); return; }
+  const cur=PROJECT.start||'';
+  const r=await dialog({title:'تعديل تاريخ بدء المشروع',
+    message:'هذا التاريخ هو الأساس الذي تُحسب منه كل تواريخ المهام تلقائيًا (CPM). تغييره يعيد جدولة المشروع بالكامل.',
+    fields:[{key:'date',label:'تاريخ البدء',type:'date',value:cur}],confirmText:'تحديث وإعادة الجدولة'});
+  if(!r||!r.date)return;
+  try{
+    await updateProjectStart(PROJECT._dbId, r.date);
+    PROJECT.start=r.date;
+    toast('حُدّث تاريخ البدء — أُعيد حساب الجدول','ok');
+    await loadProject(CID,PID); render();
+  }catch(e){ toast('تعذّر التحديث: '+e.message,'err'); }
 }
 
 // ===== دورة حياة العميل (المرحلة 1) =====
