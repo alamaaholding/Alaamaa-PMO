@@ -14,6 +14,12 @@ function render(){
   const tasks=PROJECT.tasks;
   $('#kEnd').textContent=fmt(SCHED.pEnd)+'/'+new Date(SCHED.pEnd).getFullYear();
   $('#kDur').textContent=SCHED.totalWD;
+  // تاريخ البدء (قابل للتعديل فقط للـPMO وقبل التثبيت)
+  const sd=PROJECT.start?new Date(PROJECT.start):SCHED.pStart;
+  $('#kStart').textContent=fmt(sd)+'/'+sd.getFullYear();
+  const canEditStart=(ROLE==='pmo'&&PROJECT.status!=='baselined');
+  const esBtn=$('#editStart');
+  if(esBtn){ esBtn.style.display=canEditStart?'':'none'; esBtn.onclick=canEditStart?editStartDate:null; }
   $('#kCrit').textContent=tasks.filter(t=>SCHED.R[t.id].critical).length;
   $('#kBlk').textContent=tasks.filter(t=>TRACK[t.id].blocked).length;
   $('#kCl').textContent=tasks.filter(t=>TRACK[t.id].delay==='client').length;
