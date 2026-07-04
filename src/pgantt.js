@@ -13,7 +13,7 @@ async function renderPortfolioGantt(){
 
   // نجلب المشاريع ومهامها، ونحسب CPM لكل مشروع
   const timeline=await fetchPortfolioTimeline();
-  if(!timeline.length){ $('#pgWrap').innerHTML='<div class="empty-cta"><div class="ico">📅</div><h3>لا مشاريع لعرضها</h3><p>المشاريع التي لها خطط مهام ستظهر هنا في خط زمني موحّد.</p></div>'; return; }
+  if(!timeline.length){ $('#pgWrap').innerHTML='<div class="empty-cta"><div class="ico">'+I.calendar+'</div><h3>لا مشاريع لعرضها</h3><p>المشاريع التي لها خطط مهام ستظهر هنا في خط زمني موحّد.</p></div>'; return; }
   const pids=timeline.map(t=>t.project_id);
   const {tasks,deps}=await fetchAllProjectsTasks(pids);
   // نجمّع المهام والتبعيات لكل مشروع
