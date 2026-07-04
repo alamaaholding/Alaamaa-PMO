@@ -424,6 +424,11 @@ textarea.dlg-i{min-height:80px;resize:vertical}
 .tabs::after{content:'';position:absolute;inset-inline-end:0;top:0;bottom:0;width:36px;background:linear-gradient(to var(--fade-dir,left),var(--cream),transparent);pointer-events:none;opacity:0}
 @media(max-width:760px){.tabs::after{opacity:1}}
 html[dir="rtl"] .tabs::after{--fade-dir:right}
+/* أيقونات SVG موحدة */
+.icn{width:15px;height:15px;vertical-align:-2.5px;flex-shrink:0}
+.reqbtn,.hbtn{display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.empty-cta .ico .icn{width:44px;height:44px;color:var(--gold-dark)}
+.pcard-menu .icn,.ib .icn{width:16px;height:16px;vertical-align:middle}
 
 </style>
 </head><body>
@@ -464,7 +469,7 @@ html[dir="rtl"] .tabs::after{--fade-dir:right}
     <span class="hintbar" id="roleHint" style="margin-inline-start:auto"></span>
   </div>
   <div class="kpis" id="kpisRow">
-    <div class="kpi kpi-start"><b id="kStart">—</b><span>بداية المشروع <button id="editStart" class="kstart-edit" title="تعديل تاريخ البدء" aria-label="تعديل تاريخ بدء المشروع">✎</button></span></div>
+    <div class="kpi kpi-start"><b id="kStart">—</b><span>بداية المشروع <button id="editStart" class="kstart-edit" title="تعديل تاريخ البدء" aria-label="تعديل تاريخ بدء المشروع"><svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg></button></span></div>
     <div class="kpi"><b id="kEnd">—</b><span>الانتهاء المتوقع</span></div>
     <div class="kpi"><b id="kDur">0</b><span>أيام عمل</span></div>
     <div class="kpi crit"><b id="kCrit">0</b><span>على المسار الحرج</span></div>
@@ -560,6 +565,20 @@ const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:tr
   delivery:{editStruct:false,editProg:true,editReqs:true,approveContract:false,crAction:'request',views:['dashboard','table','gantt','deliv','cr','requests','discuss','audit']},
   client:{editStruct:false,editProg:false,editReqs:false,approveContract:false,crAction:'request',views:['dashboard','gantt','deliv','cr','requests','discuss']}};
 function can(p){return PERMS[ROLE]&&PERMS[ROLE][p];}
+
+// ===== أيقونات SVG موحّدة (خطية، ترث لون النص) =====
+const I={
+ scale:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 21h18M6 7l-3 6h6l-3-6zM18 7l-3 6h6l-3-6zM7 7h10"/></svg>',
+ clipboard:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4a2 2 0 0 1 6 0M9 10h6M9 14h6M9 18h4"/></svg>',
+ archive:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/></svg>',
+ calendar:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18M7 15h3M14 15h3"/></svg>',
+ upload:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5M7 10l5-5 5 5M4 19h16"/></svg>',
+ dots:'<svg class="icn" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>',
+ pencil:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg>',
+ trash:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M10 11v6M14 11v6"/></svg>',
+ link:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>',
+ users:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4.5-6"/></svg>'
+};
 
 
 /* ===== engine.js ===== */
@@ -903,7 +922,7 @@ function render(){
   // حالة فارغة: مشروع بلا بنود — دعوة فعل واضحة (لا تبويبات فارغة)
   if(!PROJECT.tasks.length && VIEW!=='discuss' && VIEW!=='requests'){
     const canBuild=can('editStruct');
-    host.innerHTML=`<div class="empty-cta"><div class="ico">📋</div><h3>لا توجد خطة بعد لهذا المشروع</h3>
+    host.innerHTML=`<div class="empty-cta"><div class="ico">${I.clipboard}</div><h3>لا توجد خطة بعد لهذا المشروع</h3>
       <p>${canBuild?'ابدأ ببناء خطة المشروع بإضافة أول بند، ثم عرّف المسارات والتبعيات.':'لم تُبنَ خطة هذا المشروع بعد. سيظهر المحتوى فور إعدادها من فريق إدارة المشاريع.'}</p>
       ${canBuild?'<button id="emptyAdd">+ إضافة أول بند</button>':''}</div>`;
     const ea=$('#emptyAdd');if(ea)ea.onclick=()=>{VIEW='table';handleAddTask();};
@@ -978,7 +997,7 @@ function vTable(){
       ? `<select class="cell" data-f="type">${Object.keys(TYPES).map(x=>`<option value="${x}" ${x===t.type?'selected':''}>${TYPES[x]}</option>`).join('')}</select>`
       : TYPES[t.type];
     const depCount=(t.deps||[]).length;
-    const editCol=editStruct?`<td style="white-space:nowrap"><button class="reqbtn" data-deps="${esc(t.id)}" title="التبعيات">⛓ ${depCount||''}</button> <button class="ib" data-del="${esc(t.id)}" title="حذف" style="color:var(--crit)">🗑</button></td>`:'';
+    const editCol=editStruct?`<td style="white-space:nowrap"><button class="reqbtn" data-deps="${esc(t.id)}" title="التبعيات" aria-label="تحرير التبعيات">${I.link} ${depCount||''}</button> <button class="ib" data-del="${esc(t.id)}" title="حذف" aria-label="حذف البند" style="color:var(--crit)">${I.trash}</button></td>`:'';
     rows+=`<tr data-id="${esc(t.id)}" class="${r.critical?'crit':''}">
       <td><span class="idcell" style="--tc:${tc}">${esc(t.id)}${r.critical?'<span class="critdot"></span>':''}</span></td>
       <td>${nameCell}</td>
@@ -995,7 +1014,7 @@ function vTable(){
     </tr>`;
   });
   const editHead=editStruct?'<th>تحرير</th>':'';
-  const addBar=editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">⬆ استيراد من Excel</button><span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'';
+  const addBar=editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button><span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'';
   return addBar+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function bindTable(){
@@ -1318,11 +1337,11 @@ async function renderPortfolio(){
   $('#hProject').textContent='محفظة المشاريع';
   $('#barClient').style.display='none';hideChrome();
   const isStaff=(ROLE==='pmo'||ROLE==='delivery');
-  const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads">العملاء المحتملون ↗</button>':'';
-  const dolBtn=isStaff?'<button class="reqbtn" id="showDOL" style="background:var(--crit);border-color:var(--crit);color:#fff">⚖️ طبقة القرار (DOL)</button>':'';
-  const auditBtn=isStaff?'<button class="reqbtn" id="showAudit">📋 سجل التدقيق</button>':'';
-  const pgBtn=isStaff?'<button class="reqbtn" id="showPGantt" style="background:var(--blue);border-color:var(--blue);color:#fff">📅 الخط الزمني الشامل</button>':'';
-  const archBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showArchived">🗄 المؤرشفة</button>':'';
+  const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads">'+I.users+' العملاء المحتملون</button>':'';
+  const dolBtn=isStaff?'<button class="reqbtn" id="showDOL" style="background:var(--crit);border-color:var(--crit);color:#fff">'+I.scale+' طبقة القرار (DOL)</button>':'';
+  const auditBtn=isStaff?'<button class="reqbtn" id="showAudit">'+I.clipboard+' سجل التدقيق</button>':'';
+  const pgBtn=isStaff?'<button class="reqbtn" id="showPGantt" style="background:var(--blue);border-color:var(--blue);color:#fff">'+I.calendar+' الخط الزمني الشامل</button>':'';
+  const archBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showArchived">'+I.archive+' المؤرشفة</button>':'';
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
   const skel=CLIENTS.map(()=>'<div class="pcard"><div class="skeleton" style="height:22px;width:55%;margin-bottom:14px"></div><div class="skeleton" style="height:8px;margin-bottom:12px"></div><div class="skeleton" style="height:36px"></div></div>').join('');
   const toolbar=isStaff?`<div class="portfolio-tools">${pgBtn}${dolBtn}${auditBtn}${archBtn}${leadsBtn}</div>`:'';
@@ -1419,7 +1438,7 @@ async function renderPortfolio(){
     if(x.blocked>0)alertBadges.push(`<span class="palert red">${x.blocked} متوقف</span>`);
     if(x.reqs>0)alertBadges.push(`<span class="palert amber">${x.reqs} متطلب</span>`);
     if(x.comments>0)alertBadges.push(`<span class="palert blue">${x.comments} نقاش</span>`);
-    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات" aria-label="إجراءات العميل">⋮</button>`:'';
+    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات" aria-label="إجراءات العميل">${I.dots}</button>`:'';
     const card=document.createElement('div');
     card.className='pcompany'+(expanded?' expanded':'')+(x.hasAlerts?' has-alerts':'');
     card.style.cssText=`--cc:${x.c.color}`;
@@ -1513,7 +1532,7 @@ async function renderArchived(){
   const arch=await fetchClientsByState('archived');
   const pend=await fetchClientsByState('pending_deletion');
   const list=$('#archList');
-  if(!arch.length&&!pend.length){list.innerHTML='<div class="empty-cta"><div class="ico">🗄</div><h3>لا عملاء مؤرشفين</h3><p>العملاء المؤرشفون أو المجدولون للحذف يظهرون هنا.</p></div>';return;}
+  if(!arch.length&&!pend.length){list.innerHTML='<div class="empty-cta"><div class="ico">'+I.archive+'</div><h3>لا عملاء مؤرشفين</h3><p>العملاء المؤرشفون أو المجدولون للحذف يظهرون هنا.</p></div>';return;}
   let html='';
   if(pend.length){
     html+='<h4 class="arch-sec">بانتظار الحذف</h4>';
@@ -1558,7 +1577,7 @@ async function renderAuditLog(){
   $('#backP').onclick=renderPortfolio;
   const rows=await fetchAuditLog(150);
   const list=$('#auditList');
-  if(!rows.length){list.innerHTML='<div class="empty-cta"><div class="ico">📋</div><h3>السجل فارغ</h3><p>الأفعال الحسّاسة (حذف، أرشفة، تعليقات، طلبات) ستظهر هنا.</p></div>';return;}
+  if(!rows.length){list.innerHTML='<div class="empty-cta"><div class="ico">'+I.clipboard+'</div><h3>السجل فارغ</h3><p>الأفعال الحسّاسة (حذف، أرشفة، تعليقات، طلبات) ستظهر هنا.</p></div>';return;}
   const fmt=ts=>{const d=new Date(ts);return d.toLocaleDateString('ar-SA-u-ca-gregory',{year:'numeric',month:'short',day:'numeric'})+' · '+d.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});};
   list.innerHTML='<div class="audit-table">'+rows.map(r=>{
     const label=AUDIT_LABELS[r.action]||r.action;
@@ -1933,7 +1952,7 @@ function renderDOL(){
 
   let body='';
   if(!gates.length){
-    body='<div class="empty-cta"><div class="ico">⚖️</div><h3>لا قرارات بعد</h3><p>ابدأ بإنشاء بوابة قرار (استراتيجية أو تكتيكية) تضع الحدود التي تعمل القرارات التشغيلية داخلها.</p></div>';
+    body='<div class="empty-cta"><div class="ico">'+I.scale+'</div><h3>لا قرارات بعد</h3><p>ابدأ بإنشاء بوابة قرار (استراتيجية أو تكتيكية) تضع الحدود التي تعمل القرارات التشغيلية داخلها.</p></div>';
   }else{
     body=gates.map(g=>{
       const b=g.boundaries||{};
@@ -1949,8 +1968,8 @@ function renderDOL(){
             <span class="crstate ${g.status==='approved'?'approved':g.status==='rejected'?'rejected':'pending'}">${DEC_STATUS[g.status]}</span></div>
           <div class="gate-acts">
             <button class="reqbtn" data-addop="${g.id}">+ قرار تشغيلي</button>
-            <button class="reqbtn" data-trace="${g.id}" title="التتبّع">🔗</button>
-            <button class="ib" data-deldec="${g.id}" style="color:var(--crit)">🗑</button>
+            <button class="reqbtn" data-trace="${g.id}" title="التتبّع" aria-label="التتبع العكسي">${I.link}</button>
+            <button class="ib" data-deldec="${g.id}" style="color:var(--crit)">${I.trash}</button>
           </div>
         </div>
         ${g.rationale?`<div class="gate-rationale">${esc(g.rationale)}</div>`:''}
@@ -1974,7 +1993,7 @@ function opCard(o){
     <b>${esc(o.title)}</b>
     <span class="crstate ${o.status==='approved'?'approved':o.status==='executed'?'approved':'pending'}" style="font-size:.66rem">${DEC_STATUS[o.status]}</span>
     ${badge}
-    <button class="ib" data-deldec="${o.id}" style="color:var(--crit);margin-inline-start:auto">🗑</button>
+    <button class="ib" data-deldec="${o.id}" style="color:var(--crit);margin-inline-start:auto">${I.trash}</button>
   </div>`;
 }
 
@@ -2375,7 +2394,7 @@ async function renderPortfolioGantt(){
 
   // نجلب المشاريع ومهامها، ونحسب CPM لكل مشروع
   const timeline=await fetchPortfolioTimeline();
-  if(!timeline.length){ $('#pgWrap').innerHTML='<div class="empty-cta"><div class="ico">📅</div><h3>لا مشاريع لعرضها</h3><p>المشاريع التي لها خطط مهام ستظهر هنا في خط زمني موحّد.</p></div>'; return; }
+  if(!timeline.length){ $('#pgWrap').innerHTML='<div class="empty-cta"><div class="ico">'+I.calendar+'</div><h3>لا مشاريع لعرضها</h3><p>المشاريع التي لها خطط مهام ستظهر هنا في خط زمني موحّد.</p></div>'; return; }
   const pids=timeline.map(t=>t.project_id);
   const {tasks,deps}=await fetchAllProjectsTasks(pids);
   // نجمّع المهام والتبعيات لكل مشروع
