@@ -94,11 +94,11 @@ async function renderPortfolio(){
   $('#hProject').textContent='محفظة المشاريع';
   $('#barClient').style.display='none';hideChrome();
   const isStaff=(ROLE==='pmo'||ROLE==='delivery');
-  const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads">العملاء المحتملون ↗</button>':'';
-  const dolBtn=isStaff?'<button class="reqbtn" id="showDOL" style="background:var(--crit);border-color:var(--crit);color:#fff">⚖️ طبقة القرار (DOL)</button>':'';
-  const auditBtn=isStaff?'<button class="reqbtn" id="showAudit">📋 سجل التدقيق</button>':'';
-  const pgBtn=isStaff?'<button class="reqbtn" id="showPGantt" style="background:var(--blue);border-color:var(--blue);color:#fff">📅 الخط الزمني الشامل</button>':'';
-  const archBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showArchived">🗄 المؤرشفة</button>':'';
+  const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads">'+I.users+' العملاء المحتملون</button>':'';
+  const dolBtn=isStaff?'<button class="reqbtn" id="showDOL" style="background:var(--crit);border-color:var(--crit);color:#fff">'+I.scale+' طبقة القرار (DOL)</button>':'';
+  const auditBtn=isStaff?'<button class="reqbtn" id="showAudit">'+I.clipboard+' سجل التدقيق</button>':'';
+  const pgBtn=isStaff?'<button class="reqbtn" id="showPGantt" style="background:var(--blue);border-color:var(--blue);color:#fff">'+I.calendar+' الخط الزمني الشامل</button>':'';
+  const archBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showArchived">'+I.archive+' المؤرشفة</button>':'';
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
   const skel=CLIENTS.map(()=>'<div class="pcard"><div class="skeleton" style="height:22px;width:55%;margin-bottom:14px"></div><div class="skeleton" style="height:8px;margin-bottom:12px"></div><div class="skeleton" style="height:36px"></div></div>').join('');
   const toolbar=isStaff?`<div class="portfolio-tools">${pgBtn}${dolBtn}${auditBtn}${archBtn}${leadsBtn}</div>`:'';
@@ -195,7 +195,7 @@ async function renderPortfolio(){
     if(x.blocked>0)alertBadges.push(`<span class="palert red">${x.blocked} متوقف</span>`);
     if(x.reqs>0)alertBadges.push(`<span class="palert amber">${x.reqs} متطلب</span>`);
     if(x.comments>0)alertBadges.push(`<span class="palert blue">${x.comments} نقاش</span>`);
-    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات" aria-label="إجراءات العميل">⋮</button>`:'';
+    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات" aria-label="إجراءات العميل">${I.dots}</button>`:'';
     const card=document.createElement('div');
     card.className='pcompany'+(expanded?' expanded':'')+(x.hasAlerts?' has-alerts':'');
     card.style.cssText=`--cc:${x.c.color}`;
@@ -289,7 +289,7 @@ async function renderArchived(){
   const arch=await fetchClientsByState('archived');
   const pend=await fetchClientsByState('pending_deletion');
   const list=$('#archList');
-  if(!arch.length&&!pend.length){list.innerHTML='<div class="empty-cta"><div class="ico">🗄</div><h3>لا عملاء مؤرشفين</h3><p>العملاء المؤرشفون أو المجدولون للحذف يظهرون هنا.</p></div>';return;}
+  if(!arch.length&&!pend.length){list.innerHTML='<div class="empty-cta"><div class="ico">'+I.archive+'</div><h3>لا عملاء مؤرشفين</h3><p>العملاء المؤرشفون أو المجدولون للحذف يظهرون هنا.</p></div>';return;}
   let html='';
   if(pend.length){
     html+='<h4 class="arch-sec">بانتظار الحذف</h4>';
@@ -334,7 +334,7 @@ async function renderAuditLog(){
   $('#backP').onclick=renderPortfolio;
   const rows=await fetchAuditLog(150);
   const list=$('#auditList');
-  if(!rows.length){list.innerHTML='<div class="empty-cta"><div class="ico">📋</div><h3>السجل فارغ</h3><p>الأفعال الحسّاسة (حذف، أرشفة، تعليقات، طلبات) ستظهر هنا.</p></div>';return;}
+  if(!rows.length){list.innerHTML='<div class="empty-cta"><div class="ico">'+I.clipboard+'</div><h3>السجل فارغ</h3><p>الأفعال الحسّاسة (حذف، أرشفة، تعليقات، طلبات) ستظهر هنا.</p></div>';return;}
   const fmt=ts=>{const d=new Date(ts);return d.toLocaleDateString('ar-SA-u-ca-gregory',{year:'numeric',month:'short',day:'numeric'})+' · '+d.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});};
   list.innerHTML='<div class="audit-table">'+rows.map(r=>{
     const label=AUDIT_LABELS[r.action]||r.action;
