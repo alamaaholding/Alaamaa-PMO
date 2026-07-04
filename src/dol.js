@@ -36,7 +36,7 @@ function renderDOL(){
 
   let body='';
   if(!gates.length){
-    body='<div class="empty-cta"><div class="ico">⚖️</div><h3>لا قرارات بعد</h3><p>ابدأ بإنشاء بوابة قرار (استراتيجية أو تكتيكية) تضع الحدود التي تعمل القرارات التشغيلية داخلها.</p></div>';
+    body='<div class="empty-cta"><div class="ico">'+I.scale+'</div><h3>لا قرارات بعد</h3><p>ابدأ بإنشاء بوابة قرار (استراتيجية أو تكتيكية) تضع الحدود التي تعمل القرارات التشغيلية داخلها.</p></div>';
   }else{
     body=gates.map(g=>{
       const b=g.boundaries||{};
@@ -52,8 +52,8 @@ function renderDOL(){
             <span class="crstate ${g.status==='approved'?'approved':g.status==='rejected'?'rejected':'pending'}">${DEC_STATUS[g.status]}</span></div>
           <div class="gate-acts">
             <button class="reqbtn" data-addop="${g.id}">+ قرار تشغيلي</button>
-            <button class="reqbtn" data-trace="${g.id}" title="التتبّع">🔗</button>
-            <button class="ib" data-deldec="${g.id}" style="color:var(--crit)">🗑</button>
+            <button class="reqbtn" data-trace="${g.id}" title="التتبّع" aria-label="التتبع العكسي">${I.link}</button>
+            <button class="ib" data-deldec="${g.id}" style="color:var(--crit)">${I.trash}</button>
           </div>
         </div>
         ${g.rationale?`<div class="gate-rationale">${esc(g.rationale)}</div>`:''}
@@ -77,7 +77,7 @@ function opCard(o){
     <b>${esc(o.title)}</b>
     <span class="crstate ${o.status==='approved'?'approved':o.status==='executed'?'approved':'pending'}" style="font-size:.66rem">${DEC_STATUS[o.status]}</span>
     ${badge}
-    <button class="ib" data-deldec="${o.id}" style="color:var(--crit);margin-inline-start:auto">🗑</button>
+    <button class="ib" data-deldec="${o.id}" style="color:var(--crit);margin-inline-start:auto">${I.trash}</button>
   </div>`;
 }
 
