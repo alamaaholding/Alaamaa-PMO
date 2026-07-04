@@ -28,7 +28,8 @@ function render(){
   if(blk.length)arr.push('بنود متوقفة بانتظار متطلبات: '+blk.map(t=>t.id).join('، '));
   if(arr.length){w.classList.add('show');w.innerHTML=arr.map(x=>'⚠ '+x).join('<br>');}else w.classList.remove('show');
   const views=PERMS[ROLE].views;if(!views.includes(VIEW))VIEW=views[0];
-  $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''}" data-v="${v}">${VIEW_LABELS[v]}</button>`).join('');
+  $('#tabs').setAttribute('role','tablist');
+  $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''}" role="tab" aria-selected="${v===VIEW}" data-v="${v}">${VIEW_LABELS[v]}</button>`).join('');
   $$('#tabs .tab').forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render();});
   const host=$('#host');
   // حالة فارغة: مشروع بلا بنود — دعوة فعل واضحة (لا تبويبات فارغة)
@@ -237,7 +238,7 @@ function vDiscuss(rows){
         <span style="display:flex;gap:8px;align-items:center">${resBadge}<small style="color:var(--muted)">${when}</small></span>
       </div>
       <div class="crbody">${esc(c.body)}</div>
-      <div class="cract">${resBtn}<button class="reqbtn" data-reply="${c.id}" style="font-size:.72rem">رد</button>${(ROLE==='pmo'||c.author_id===USER.id)?`<button class="reqbtn" data-delc="${c.id}" style="font-size:.72rem;color:var(--crit)">حذف</button>`:''}</div>
+      <div class="cract">${resBtn}<button class="reqbtn" data-reply="${c.id}" style="font-size:.72rem">رد</button>${(ROLE==='pmo'||c.author_id===USER.id)?`<button class="reqbtn" data-delc="${c.id}" aria-label="حذف التعليق" style="font-size:.72rem;color:var(--crit)">حذف</button>`:''}</div>
       <div id="replyBox-${c.id}"></div>
     </div>`;
   };
