@@ -26,7 +26,7 @@ function dialog(opts){ // {title, message, fields:[{key,label,value,type,placeho
       return `<label class="dlg-l">${esc(f.label)}<input class="dlg-i" data-k="${f.key}" type="${f.type||'text'}" value="${esc(f.value||'')}" placeholder="${esc(f.placeholder||'')}"></label>`;
     }).join('');
     document.getElementById('dlgBox').innerHTML=`
-      <div class="rqhd"><h3 style="font-size:1.02rem">${esc(opts.title||'')}</h3><button id="dlgX" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
+      <div class="rqhd"><h3 style="font-size:1.02rem" id="dlgTitle">${esc(opts.title||'')}</h3><button id="dlgX" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
       <div style="padding:18px">
         ${opts.message?`<p style="font-size:.86rem;color:var(--muted);margin-bottom:14px;line-height:1.7;white-space:pre-line">${esc(opts.message)}</p>`:''}
         ${fieldsHtml}
@@ -35,10 +35,25 @@ function dialog(opts){ // {title, message, fields:[{key,label,value,type,placeho
           <button class="hbtn" id="dlgCancel" style="background:#fff;color:var(--ink);border-color:var(--line);padding:9px 20px">إلغاء</button>
         </div>
       </div>`;
+    const box=document.getElementById('dlgBox');
+    box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');box.setAttribute('aria-labelledby','dlgTitle');
     ov.style.display='flex';
-    const first=document.querySelector('#dlgBox .dlg-i');if(first)setTimeout(()=>first.focus(),50);
-    const close=val=>{ov.style.display='none';resolve(val);};
+    const prevFocus=document.activeElement;
+    const first=document.querySelector('#dlgBox .dlg-i')||document.getElementById('dlgOk');if(first)setTimeout(()=>first.focus(),50);
+    const close=val=>{ov.style.display='none';document.removeEventListener('keydown',keyH,true);if(prevFocus&&prevFocus.focus)prevFocus.focus();resolve(val);};
     const collect=()=>{ if(!opts.fields||!opts.fields.length)return true; const o={}; document.querySelectorAll('#dlgBox .dlg-i').forEach(i=>o[i.dataset.k]=i.value.trim()); return o; };
+    // لوحة المفاتيح: Escape يغلق، Tab محبوس داخل الحوار
+    const keyH=e=>{
+      if(e.key==='Escape'){e.preventDefault();close(null);return;}
+      if(e.key==='Tab'){
+        const f=[...box.querySelectorAll('button,input,select,textarea')].filter(x=>!x.disabled);
+        if(!f.length)return;
+        const i=f.indexOf(document.activeElement);
+        if(e.shiftKey&&(i<=0)){e.preventDefault();f[f.length-1].focus();}
+        else if(!e.shiftKey&&(i===f.length-1)){e.preventDefault();f[0].focus();}
+      }
+    };
+    document.addEventListener('keydown',keyH,true);
     document.getElementById('dlgOk').onclick=()=>close(collect());
     document.getElementById('dlgCancel').onclick=()=>close(null);
     document.getElementById('dlgX').onclick=()=>close(null);
@@ -80,7 +95,7 @@ async function renderPortfolio(){
   $('#barClient').style.display='none';hideChrome();
   const isStaff=(ROLE==='pmo'||ROLE==='delivery');
   const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads">العملاء المحتملون ↗</button>':'';
-  const dolBtn=isStaff?'<button class="reqbtn" id="showDOL" style="background:#a8442f;border-color:#a8442f;color:#fff">⚖️ طبقة القرار (DOL)</button>':'';
+  const dolBtn=isStaff?'<button class="reqbtn" id="showDOL" style="background:var(--crit);border-color:var(--crit);color:#fff">⚖️ طبقة القرار (DOL)</button>':'';
   const auditBtn=isStaff?'<button class="reqbtn" id="showAudit">📋 سجل التدقيق</button>':'';
   const pgBtn=isStaff?'<button class="reqbtn" id="showPGantt" style="background:var(--blue);border-color:var(--blue);color:#fff">📅 الخط الزمني الشامل</button>':'';
   const archBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showArchived">🗄 المؤرشفة</button>':'';
@@ -162,7 +177,7 @@ async function renderPortfolio(){
     if(r.blocked_tasks>0)alerts.push(`<span class="palert red">${r.blocked_tasks}</span>`);
     if(r.pending_client_reqs>0)alerts.push(`<span class="palert amber">${r.pending_client_reqs}</span>`);
     if(r.open_comments>0)alerts.push(`<span class="palert blue">${r.open_comments}</span>`);
-    return `<div class="proj-row" data-openproj="${r.project_id}" data-cid="${r.client_id}">
+    return `<div class="proj-row" data-openproj="${r.project_id}" data-cid="${r.client_id}" role="button" tabindex="0">
       <div class="proj-row-main">
         <span class="proj-row-name">${esc(r.project_name||'مشروع')}</span>
         <span class="plife">${LIFE[r.lifecycle]||'—'}</span>
@@ -180,12 +195,12 @@ async function renderPortfolio(){
     if(x.blocked>0)alertBadges.push(`<span class="palert red">${x.blocked} متوقف</span>`);
     if(x.reqs>0)alertBadges.push(`<span class="palert amber">${x.reqs} متطلب</span>`);
     if(x.comments>0)alertBadges.push(`<span class="palert blue">${x.comments} نقاش</span>`);
-    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات">⋮</button>`:'';
+    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات" aria-label="إجراءات العميل">⋮</button>`:'';
     const card=document.createElement('div');
     card.className='pcompany'+(expanded?' expanded':'')+(x.hasAlerts?' has-alerts':'');
     card.style.cssText=`--cc:${x.c.color}`;
     card.innerHTML=`
-      <div class="pcompany-hd" data-toggle="${x.cid}">
+      <div class="pcompany-hd" data-toggle="${x.cid}" role="button" tabindex="0" aria-expanded="${expanded}">
         <span class="pdot" style="background:${x.c.color}"></span>
         <div class="pcompany-info">
           <h3>${esc(x.c.name)}</h3>
@@ -193,8 +208,8 @@ async function renderPortfolio(){
         </div>
         <div class="pcompany-side">
           ${alertBadges.length?`<div class="palerts">${alertBadges.join('')}</div>`:''}
-          <div class="pcompany-pct"><b>${x.pct}%</b><div class="pbar mini"><div class="pbar-fill" style="width:${x.pct}%"></div></div></div>
-          ${multi?`<span class="pcompany-chev">${expanded?'▾':'◂'}</span>`:'<span class="pcompany-chev">←</span>'}
+          <div class="pcompany-pct"><b>${x.pct}%</b><div class="pbar mini" role="progressbar" aria-valuenow="${x.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="نسبة الإنجاز"><div class="pbar-fill" style="width:${x.pct}%"></div></div></div>
+          ${multi?`<span class="pcompany-chev">${expanded?'▴':'▾'}</span>`:'<span class="pcompany-chev">←</span>'}
           ${actBtn}
         </div>
       </div>
@@ -644,6 +659,13 @@ function buildReport(){
   setTimeout(()=>{w.focus();w.print();},600);
 }
 $('#exportReport').onclick=()=>{ if(SCREEN!=='project'||!PROJECT||!PROJECT.tasks.length){toast('افتح مشروعًا له خطة أولًا','warn');return;} buildReport(); };
+
+// دعم لوحة المفاتيح: Enter/Space يفعّلان العناصر ذات role=button (بطاقات، صفوف)
+document.addEventListener('keydown',e=>{
+  if((e.key==='Enter'||e.key===' ')&&e.target&&e.target.getAttribute&&e.target.getAttribute('role')==='button'&&e.target.tagName!=='BUTTON'){
+    e.preventDefault(); e.target.click();
+  }
+});
 
 // انطلاق
 boot();
