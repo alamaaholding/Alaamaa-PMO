@@ -6,7 +6,7 @@ const PHASE_NAMES={'0':'التأسيس','A':'التنفيذ','B':'الذكاء',
 
 async function renderPortfolioGantt(){
   SCREEN='pgantt';
-  $('#hProject').innerHTML='<span class="ctx-dot" style="background:#35608F"></span>الخط الزمني الشامل — كل المشاريع';
+  $('#hProject').innerHTML='<span class="ctx-dot" style="background:var(--blue)"></span>الخط الزمني الشامل — كل المشاريع';
   $('#barClient').style.display='none';hideChrome();
   $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">رؤية شاملة لكل المشاريع النشطة. اضغط أي مشروع للدخول إليه.</span></div><div id="pgWrap"><div class="skeleton" style="height:50px;margin-bottom:8px"></div><div class="skeleton" style="height:50px;margin-bottom:8px"></div><div class="skeleton" style="height:50px"></div></div>';
   $('#backP').onclick=renderPortfolio;
