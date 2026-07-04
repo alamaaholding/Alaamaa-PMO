@@ -376,6 +376,36 @@ textarea.dlg-i{min-height:80px;resize:vertical}
 .kpi-start b{color:var(--blue)}
 .kstart-edit{background:none;border:none;color:var(--gold-dark);cursor:pointer;font-size:.8rem;padding:0 2px;margin-inline-start:3px;border-radius:4px;transition:var(--t)}
 .kstart-edit:hover{background:var(--soft-2);color:var(--ink)}
+/* المحفظة المعاد تنظيمها: بطاقات شركات مضغوطة + توسيع (UX) */
+.pcompany-grid{display:flex;flex-direction:column;gap:10px}
+.pcompany{background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;transition:var(--t);box-shadow:var(--e1)}
+.pcompany:hover{box-shadow:var(--e2);border-color:var(--cc)}
+.pcompany.has-alerts{border-inline-start:4px solid var(--crit)}
+.pcompany-hd{display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer;user-select:none}
+.pcompany-hd .pdot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.pcompany-info{flex:1;min-width:0}
+.pcompany-info h3{margin:0;font-size:1rem;font-weight:700}
+.pcompany-sub{font-size:.74rem;color:var(--muted)}
+.pcompany-side{display:flex;align-items:center;gap:14px;flex-shrink:0}
+.pcompany-pct{display:flex;align-items:center;gap:8px}
+.pcompany-pct b{font-size:.9rem;color:var(--ink)}
+.pbar.mini{width:70px;height:6px;margin:0}
+.pcompany-chev{color:var(--muted);font-size:.9rem;width:18px;text-align:center}
+.pcompany.expanded .pcompany-hd{border-bottom:1px solid var(--line-soft)}
+.pcompany-body{background:var(--soft-2);padding:6px 12px}
+.proj-row{display:flex;align-items:center;gap:12px;background:var(--paper);border:1px solid var(--line-soft);border-radius:9px;padding:10px 14px;margin:6px 0;cursor:pointer;transition:var(--t)}
+.proj-row:hover{border-color:var(--cc);box-shadow:var(--e1)}
+.proj-row-main{flex:1;display:flex;align-items:center;gap:9px;min-width:0}
+.proj-row-name{font-size:.86rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.proj-row-alerts{display:flex;gap:4px}
+.proj-row-alerts .palert{padding:1px 7px;font-size:.66rem}
+.proj-row-prog{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.proj-row-pct{font-size:.76rem;font-weight:700;color:var(--ink);min-width:34px}
+.proj-row-empty{font-size:.72rem;color:var(--muted);font-style:italic}
+.proj-row-go{color:var(--gold-dark);font-weight:700}
+.psearch{margin-inline-start:auto;border:1.5px solid var(--line);border-radius:999px;padding:6px 16px;font-family:inherit;font-size:.82rem;width:230px;background:var(--paper);transition:var(--t)}
+.psearch:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(200,160,107,.15)}
+@media(max-width:640px){.psearch{width:100%;margin:6px 0 0}.pcompany-side{gap:8px}.pcompany-pct .pbar.mini{display:none}}
 
 </style>
 </head><body>
@@ -1174,7 +1204,7 @@ function bindRequests(){
 
 /* ===== app.js ===== */
 // ===== الحالة =====
-let USER=null,ROLE=null,CLIENTS=[],CID=null,PID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[],PFILTER='all';
+let USER=null,ROLE=null,CLIENTS=[],CID=null,PID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[],PFILTER='all',PSEARCH='',PEXPANDED=new Set();
 let SCREEN='portfolio'; // portfolio | project — للطاقم؛ العميل دائمًا project
 
 // ===== الإشعارات (Toast) =====
@@ -1273,71 +1303,124 @@ async function renderPortfolio(){
   const grid=$('#pgrid');grid.innerHTML='';
   if(error){grid.innerHTML='<p class="pempty">تعذّر تحميل المحفظة.</p>';return;}
   const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'};
-  // الصفوف = مشاريع (قد يكون للعميل أكثر من مشروع). نستبعد الصفوف بلا مشروع.
   let projects=(rows||[]).filter(r=>r.project_id);
-  // شريط الفلترة
-  const counts={all:projects.length,active:0,draft:0,alerts:0};
-  projects.forEach(r=>{
-    if(r.lifecycle==='active'||r.lifecycle==='approved')counts.active++;
-    if(r.status==='draft'||r.lifecycle==='proposal')counts.draft++;
-    if((r.blocked_tasks>0)||(r.pending_client_reqs>0)||(r.open_comments>0))counts.alerts++;
+
+  // تجميع حسب الشركة أولًا (الشركة هي وحدة العرض)
+  const groups={}; 
+  projects.forEach(r=>{ (groups[r.client_id]=groups[r.client_id]||[]).push(r); });
+  let companies=Object.keys(groups).map(cid=>{
+    const list=groups[cid]; const r0=list[0];
+    const c=CLIENTS.find(x=>x.id===cid)||{name:r0.client_name,color:r0.color||'#C8A06B'};
+    // مجاميع الشركة
+    const tot=list.reduce((s,r)=>s+Number(r.total_tasks||0),0);
+    const done=list.reduce((s,r)=>s+Number(r.done_tasks||0),0);
+    const blocked=list.reduce((s,r)=>s+Number(r.blocked_tasks||0),0);
+    const reqs=list.reduce((s,r)=>s+Number(r.pending_client_reqs||0),0);
+    const comments=list.reduce((s,r)=>s+Number(r.open_comments||0),0);
+    const hasAlerts=blocked>0||reqs>0||comments>0;
+    const isActive=list.some(r=>r.lifecycle==='active'||r.lifecycle==='approved');
+    const isDraft=list.some(r=>r.status==='draft'||r.lifecycle==='proposal');
+    return {cid,c,list,tot,done,blocked,reqs,comments,hasAlerts,isActive,isDraft,
+      pct:tot>0?Math.round(done/tot*100):0};
   });
+
+  // عدّادات الفلاتر (على مستوى الشركات)
+  const counts={all:companies.length,
+    active:companies.filter(x=>x.isActive).length,
+    draft:companies.filter(x=>x.isDraft).length,
+    alerts:companies.filter(x=>x.hasAlerts).length};
   const fbtn=(k,lbl)=>`<button class="pfilter ${PFILTER===k?'active':''}" data-filter="${k}">${lbl} <span class="pfilter-n">${counts[k]}</span></button>`;
-  const filterBar=`<div class="pfilters">${fbtn('all','الكل')}${fbtn('active','نشطة')}${fbtn('draft','مسوّدة')}${fbtn('alerts','بها تنبيهات')}</div>`;
-  // تطبيق الفلتر
-  let shown=projects.filter(r=>{
-    if(PFILTER==='active')return r.lifecycle==='active'||r.lifecycle==='approved';
-    if(PFILTER==='draft')return r.status==='draft'||r.lifecycle==='proposal';
-    if(PFILTER==='alerts')return (r.blocked_tasks>0)||(r.pending_client_reqs>0)||(r.open_comments>0);
+  const searchBox=`<input id="pSearch" class="psearch" placeholder="🔍 بحث باسم الشركة أو المشروع…" value="${esc(PSEARCH)}">`;
+  const filterBar=`<div class="pfilters">${fbtn('all','الكل')}${fbtn('active','نشطة')}${fbtn('draft','مسوّدة')}${fbtn('alerts','بها تنبيهات')}${searchBox}</div>`;
+
+  // تطبيق الفلتر والبحث
+  let shown=companies.filter(x=>{
+    if(PFILTER==='active'&&!x.isActive)return false;
+    if(PFILTER==='draft'&&!x.isDraft)return false;
+    if(PFILTER==='alerts'&&!x.hasAlerts)return false;
+    if(PSEARCH){
+      const q=PSEARCH.trim();
+      const inName=x.c.name.includes(q);
+      const inProj=x.list.some(r=>(r.project_name||'').includes(q));
+      if(!inName&&!inProj)return false;
+    }
     return true;
   });
+  // الترتيب: ذات التنبيهات أولًا، ثم الأكثر مشاريع
+  shown.sort((a,b)=>(b.hasAlerts-a.hasAlerts)||(b.list.length-a.list.length));
+
   $('#host').querySelector('.hintbar').insertAdjacentHTML('afterend',filterBar);
-  // ربط الفلاتر
   document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{PFILTER=b.dataset.filter;renderPortfolio();});
+  const sIn=$('#pSearch');
+  if(sIn){ sIn.oninput=()=>{PSEARCH=sIn.value; clearTimeout(sIn._t); sIn._t=setTimeout(renderPortfolio,300);};
+    // إبقاء التركيز بعد إعادة العرض
+    if(PSEARCH){ setTimeout(()=>{const el=$('#pSearch');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}},0); } }
 
-  if(!shown.length){grid.innerHTML='<p class="pempty">لا مشاريع مطابقة لهذا الفلتر.</p>';return;}
-  // تجميع المشاريع حسب الشركة (client_id)
-  const groups={}; const order=[];
-  shown.forEach(r=>{ if(!groups[r.client_id]){groups[r.client_id]=[];order.push(r.client_id);} groups[r.client_id].push(r); });
+  if(!shown.length){grid.innerHTML='<p class="pempty">لا شركات مطابقة.</p>';return;}
+  grid.className='pcompany-grid';
 
-  grid.className='pgrid-grouped';
-  const buildCard=(r,c)=>{
+  // صف مشروع مدمج (داخل التوسيع)
+  const projRow=(r)=>{
     const hasplan=r.total_tasks>0;
     const pct=hasplan?Math.round(r.done_tasks/r.total_tasks*100):0;
     const alerts=[];
-    if(r.blocked_tasks>0)alerts.push(`<span class="palert red">${r.blocked_tasks} متوقف</span>`);
-    if(r.pending_client_reqs>0)alerts.push(`<span class="palert amber">${r.pending_client_reqs} متطلب</span>`);
-    if(r.open_comments>0)alerts.push(`<span class="palert blue">${r.open_comments} نقاش</span>`);
-    const meta=hasplan?`<div class="pcard-meta"><span>${r.total_tasks} بند</span><span>${r.milestones} معالم</span></div>`:`<div class="pcard-meta"><span>لا خطة بعد</span></div>`;
-    const body=hasplan
-      ?`<div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div><div class="pstats"><span><b>${pct}%</b>إنجاز</span><span><b>${r.done_tasks}</b>منجز</span></div>`
-      :`<div class="pempty">مشروع فارغ — جاهز لبناء الخطة</div>`;
-    const card=document.createElement('div');card.className='pcard';card.style.cssText=`--cc:${c.color}`;
-    card.innerHTML=`<div class="pcard-proj-name">${esc(r.project_name||'مشروع')}<span class="plife">${LIFE[r.lifecycle]||'—'}</span></div>
-      ${alerts.length?`<div class="palerts">${alerts.join('')}</div>`:''}
-      ${meta}${body}`;
-    card.onclick=async(e)=>{if(e.target.closest('[data-cmenu]'))return;CID=r.client_id;PID=r.project_id;await openProject();};
-    return card;
+    if(r.blocked_tasks>0)alerts.push(`<span class="palert red">${r.blocked_tasks}</span>`);
+    if(r.pending_client_reqs>0)alerts.push(`<span class="palert amber">${r.pending_client_reqs}</span>`);
+    if(r.open_comments>0)alerts.push(`<span class="palert blue">${r.open_comments}</span>`);
+    return `<div class="proj-row" data-openproj="${r.project_id}" data-cid="${r.client_id}">
+      <div class="proj-row-main">
+        <span class="proj-row-name">${esc(r.project_name||'مشروع')}</span>
+        <span class="plife">${LIFE[r.lifecycle]||'—'}</span>
+        ${alerts.length?`<span class="proj-row-alerts">${alerts.join('')}</span>`:''}
+      </div>
+      ${hasplan?`<div class="proj-row-prog"><div class="pbar mini"><div class="pbar-fill" style="width:${pct}%"></div></div><span class="proj-row-pct">${pct}%</span></div>`:'<span class="proj-row-empty">بلا خطة</span>'}
+      <span class="proj-row-go">←</span>
+    </div>`;
   };
 
-  order.forEach(cid=>{
-    const list=groups[cid];
-    const r0=list[0];
-    const c=CLIENTS.find(x=>x.id===cid)||{name:r0.client_name,color:r0.color||'#C8A06B'};
-    const group=document.createElement('div'); group.className='pgroup';
-    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${cid}" title="إجراءات">⋮</button>`:'';
-    // ترويسة الشركة
-    const multi=list.length>1;
-    group.innerHTML=`<div class="pgroup-hd" style="--cc:${c.color}">
-      <span class="pdot" style="background:${c.color}"></span>
-      <h3>${esc(c.name)}</h3>
-      ${multi?`<span class="pgroup-count">${list.length} مشاريع</span>`:''}
-      ${actBtn}
-    </div>`;
-    const inner=document.createElement('div'); inner.className=multi?'pgroup-cards multi':'pgroup-cards';
-    list.forEach(r=>inner.appendChild(buildCard(r,c)));
-    group.appendChild(inner);
-    grid.appendChild(group);
+  shown.forEach(x=>{
+    const multi=x.list.length>1;
+    const expanded=PEXPANDED.has(x.cid);
+    const alertBadges=[];
+    if(x.blocked>0)alertBadges.push(`<span class="palert red">${x.blocked} متوقف</span>`);
+    if(x.reqs>0)alertBadges.push(`<span class="palert amber">${x.reqs} متطلب</span>`);
+    if(x.comments>0)alertBadges.push(`<span class="palert blue">${x.comments} نقاش</span>`);
+    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات">⋮</button>`:'';
+    const card=document.createElement('div');
+    card.className='pcompany'+(expanded?' expanded':'')+(x.hasAlerts?' has-alerts':'');
+    card.style.cssText=`--cc:${x.c.color}`;
+    card.innerHTML=`
+      <div class="pcompany-hd" data-toggle="${x.cid}">
+        <span class="pdot" style="background:${x.c.color}"></span>
+        <div class="pcompany-info">
+          <h3>${esc(x.c.name)}</h3>
+          <span class="pcompany-sub">${multi?x.list.length+' مشاريع':esc(x.list[0].project_name||'مشروع واحد')} · ${x.tot} بند</span>
+        </div>
+        <div class="pcompany-side">
+          ${alertBadges.length?`<div class="palerts">${alertBadges.join('')}</div>`:''}
+          <div class="pcompany-pct"><b>${x.pct}%</b><div class="pbar mini"><div class="pbar-fill" style="width:${x.pct}%"></div></div></div>
+          ${multi?`<span class="pcompany-chev">${expanded?'▾':'◂'}</span>`:'<span class="pcompany-chev">←</span>'}
+          ${actBtn}
+        </div>
+      </div>
+      ${multi?`<div class="pcompany-body" style="display:${expanded?'block':'none'}">${x.list.map(projRow).join('')}</div>`:''}
+    `;
+    grid.appendChild(card);
+  });
+
+  // التفاعل: ترويسة الشركة — توسّع (متعدد) أو تدخل مباشرة (مفرد)
+  document.querySelectorAll('[data-toggle]').forEach(el=>el.onclick=async(e)=>{
+    if(e.target.closest('[data-cmenu]'))return;
+    const cid=el.dataset.toggle;
+    const comp=shown.find(x=>x.cid===cid); if(!comp)return;
+    if(comp.list.length===1){ CID=cid; PID=comp.list[0].project_id; await openProject(); return; }
+    if(PEXPANDED.has(cid))PEXPANDED.delete(cid); else PEXPANDED.add(cid);
+    renderPortfolio();
+  });
+  // نقرة على مشروع داخل التوسيع
+  document.querySelectorAll('[data-openproj]').forEach(el=>el.onclick=async(e)=>{
+    e.stopPropagation();
+    CID=el.dataset.cid; PID=el.dataset.openproj; await openProject();
   });
   document.querySelectorAll('[data-cmenu]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openClientMenu(b.dataset.cmenu);});
 }
