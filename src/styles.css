@@ -416,3 +416,8 @@ textarea.dlg-i{min-height:80px;resize:vertical}
 .tabs::after{content:'';position:absolute;inset-inline-end:0;top:0;bottom:0;width:36px;background:linear-gradient(to var(--fade-dir,left),var(--cream),transparent);pointer-events:none;opacity:0}
 @media(max-width:760px){.tabs::after{opacity:1}}
 html[dir="rtl"] .tabs::after{--fade-dir:right}
+/* أيقونات SVG موحدة */
+.icn{width:15px;height:15px;vertical-align:-2.5px;flex-shrink:0}
+.reqbtn,.hbtn{display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.empty-cta .ico .icn{width:44px;height:44px;color:var(--gold-dark)}
+.pcard-menu .icn,.ib .icn{width:16px;height:16px;vertical-align:middle}
