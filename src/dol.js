@@ -2,7 +2,7 @@
 // تُحمّل بعد app.js. تستخدم: $, esc, toast, dialog, CLIENTS, ROLE, و api functions.
 
 const DEC_TYPE={strategic_gate:'بوابة استراتيجية',tactical_gate:'بوابة تكتيكية',operational:'قرار تشغيلي'};
-const DEC_TCLR={strategic_gate:'#a8442f',tactical_gate:'#B07A1E',operational:'#35608F'};
+const DEC_TCLR={strategic_gate:'var(--crit)',tactical_gate:'#B07A1E',operational:'var(--blue)'};
 const DEC_STATUS={proposed:'مقترح',approved:'معتمد',rejected:'مرفوض',executed:'منفّذ'};
 const DIM_AR={budget:'الميزانية',time:'الزمن',scope:'النطاق',channel:'القنوات',messaging:'الرسائل'};
 const ENF_AR={hard:'صارم',soft:'مرن',advisory:'إرشادي'};
@@ -10,7 +10,7 @@ let DOL_DECISIONS=[], DOL_LINKS=[];
 
 async function openDOL(){
   SCREEN='dol';
-  $('#hProject').innerHTML='<span class="ctx-dot" style="background:#a8442f"></span>طبقة تشغيل القرار — DOL Console';
+  $('#hProject').innerHTML='<span class="ctx-dot" style="background:var(--crit)"></span>طبقة تشغيل القرار — DOL Console';
   $('#barClient').style.display='none';hideChrome();
   $('#backPortfolio').style.display='';
   $('#host').innerHTML='<div id="dolWrap"><div class="skeleton" style="height:60px;margin-bottom:8px"></div><div class="skeleton" style="height:120px"></div></div>';
@@ -28,9 +28,9 @@ function renderDOL(){
   const ops=DOL_DECISIONS.filter(d=>d.decision_type==='operational');
   const opsByGate={};ops.forEach(o=>{(opsByGate[o.parent_gate_id]=opsByGate[o.parent_gate_id]||[]).push(o);});
 
-  const toolbar=`<div class="lockbar" style="border-inline-start-color:#a8442f">
+  const toolbar=`<div class="lockbar" style="border-inline-start-color:var(--crit)">
     <span>الحوكمة:</span>
-    <button class="reqbtn" id="dolAddGate" style="background:#a8442f;border-color:#a8442f;color:#fff">+ بوابة قرار</button>
+    <button class="reqbtn" id="dolAddGate" style="background:var(--crit);border-color:var(--crit);color:#fff">+ بوابة قرار</button>
     <span style="color:var(--muted);font-weight:400;font-size:.78rem">البوابات تضع الحدود · القرارات التشغيلية تعمل داخلها · الانحراف يُقيَّم آليًا.</span>
   </div>`;
 
