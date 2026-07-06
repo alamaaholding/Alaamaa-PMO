@@ -101,9 +101,11 @@ async function renderPortfolio(){
   const archBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showArchived">'+I.archive+' المؤرشفة</button>':'';
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
   const skel=CLIENTS.map(()=>'<div class="pcard"><div class="skeleton" style="height:22px;width:55%;margin-bottom:14px"></div><div class="skeleton" style="height:8px;margin-bottom:12px"></div><div class="skeleton" style="height:36px"></div></div>').join('');
-  const toolbar=isStaff?`<div class="portfolio-tools">${pgBtn}${dolBtn}${auditBtn}${archBtn}${leadsBtn}</div>`:'';
+  const addClientBtn=(ROLE==='pmo')?'<button class="reqbtn" id="addClientBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ عميل جديد</button>':'';
+  const toolbar=isStaff?`<div class="portfolio-tools">${addClientBtn}${pgBtn}${dolBtn}${auditBtn}${archBtn}${leadsBtn}</div>`:'';
   $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
-  if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;}
+  if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;
+    const ac=$('#addClientBtn');if(ac)ac.onclick=addNewClient;}
   {const db=$('#showDOL');if(db)db.onclick=openDOL;}
   {const ab=$('#showAudit');if(ab)ab.onclick=renderAuditLog;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
@@ -114,6 +116,7 @@ async function renderPortfolio(){
   if(error){grid.innerHTML='<p class="pempty">تعذّر تحميل المحفظة.</p>';return;}
   const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'};
   let projects=(rows||[]).filter(r=>r.project_id);
+  const noProjRows=(rows||[]).filter(r=>!r.project_id);
 
   // تجميع حسب الشركة أولًا (الشركة هي وحدة العرض)
   const groups={}; 
@@ -132,6 +135,12 @@ async function renderPortfolio(){
     const isDraft=list.some(r=>r.status==='draft'||r.lifecycle==='proposal');
     return {cid,c,list,tot,done,blocked,reqs,comments,hasAlerts,isActive,isDraft,
       pct:tot>0?Math.round(done/tot*100):0};
+  });
+  // العملاء بلا مشاريع: بطاقة دعوة لإضافة أول مشروع
+  noProjRows.forEach(r=>{
+    const c=CLIENTS.find(x=>x.id===r.client_id)||{name:r.client_name,color:r.color||'#C8A06B'};
+    companies.push({cid:r.client_id,c,list:[],tot:0,done:0,blocked:0,reqs:0,comments:0,
+      hasAlerts:false,isActive:false,isDraft:true,pct:0,noProjects:true});
   });
 
   // عدّادات الفلاتر (على مستوى الشركات)
@@ -204,12 +213,12 @@ async function renderPortfolio(){
         <span class="pdot" style="background:${x.c.color}"></span>
         <div class="pcompany-info">
           <h3>${esc(x.c.name)}</h3>
-          <span class="pcompany-sub">${multi?x.list.length+' مشاريع':esc(x.list[0].project_name||'مشروع واحد')} · ${x.tot} بند</span>
+          <span class="pcompany-sub">${x.noProjects?'لا مشاريع بعد — انقر لإضافة أول مشروع':(multi?x.list.length+' مشاريع':esc(x.list[0].project_name||'مشروع واحد'))+' · '+x.tot+' بند'}</span>
         </div>
         <div class="pcompany-side">
           ${alertBadges.length?`<div class="palerts">${alertBadges.join('')}</div>`:''}
-          <div class="pcompany-pct"><b>${x.pct}%</b><div class="pbar mini" role="progressbar" aria-valuenow="${x.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="نسبة الإنجاز"><div class="pbar-fill" style="width:${x.pct}%"></div></div></div>
-          ${multi?`<span class="pcompany-chev">${expanded?'▴':'▾'}</span>`:'<span class="pcompany-chev">←</span>'}
+          ${x.noProjects?'':`<div class="pcompany-pct"><b>${x.pct}%</b><div class="pbar mini" role="progressbar" aria-valuenow="${x.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="نسبة الإنجاز"><div class="pbar-fill" style="width:${x.pct}%"></div></div></div>`}
+          ${x.noProjects?'<span class="pcompany-chev">+</span>':(multi?`<span class="pcompany-chev">${expanded?'▴':'▾'}</span>`:'<span class="pcompany-chev">←</span>')}
           ${actBtn}
         </div>
       </div>
@@ -223,6 +232,7 @@ async function renderPortfolio(){
     if(e.target.closest('[data-cmenu]'))return;
     const cid=el.dataset.toggle;
     const comp=shown.find(x=>x.cid===cid); if(!comp)return;
+    if(!comp.list.length){ openClientMenu(cid); return; }
     if(comp.list.length===1){ CID=cid; PID=comp.list[0].project_id; await openProject(); return; }
     if(PEXPANDED.has(cid))PEXPANDED.delete(cid); else PEXPANDED.add(cid);
     renderPortfolio();
@@ -259,16 +269,63 @@ async function editStartDate(){
 }
 
 // ===== دورة حياة العميل (المرحلة 1) =====
+// إنشاء عميل جديد مباشرة (سدّ فجوة الرحلة الأولى)
+async function addNewClient(){
+  const r=await dialog({title:'عميل جديد',
+    message:'يُنشأ العميل نشطًا. يمكنك بعدها إضافة مشروعه الأول من قائمة ⋮ على بطاقته.',
+    fields:[
+      {key:'name',label:'اسم العميل / الشركة',placeholder:'مثل: شركة الأفق'},
+      {key:'color',label:'لون العميل (للتمييز البصري)',type:'color',value:'#C8A06B'}
+    ],confirmText:'إنشاء العميل'});
+  if(!r||!r.name)return;
+  try{
+    const c=await insertClient(r.name,r.color);
+    await loadClients();
+    toast('أُنشئ العميل «'+r.name+'» — أضف مشروعه الأول من ⋮','ok');
+    renderPortfolio();
+  }catch(err){toast('تعذّر الإنشاء: '+err.message,'err');}
+}
+
 async function openClientMenu(clientId){
   const c=CLIENTS.find(x=>x.id===clientId); if(!c)return;
   const r=await dialog({title:'إجراءات: '+c.name,
-    message:'الأرشفة تُخفي العميل من المحفظة النشطة (قابلة للاسترجاع). طلب الحذف يبدأ مهلة 30 يومًا قبل الحذف النهائي.',
-    fields:[{key:'action',label:'الإجراء',type:'select',value:'archive',options:[
+    fields:[{key:'action',label:'الإجراء',type:'select',value:'edit',options:[
+      {v:'edit',t:'تعديل بيانات العميل (الاسم واللون)'},
+      {v:'newproject',t:'+ مشروع جديد لهذا العميل'},
+      {v:'access',t:'إدارة وصول العميل (البريد)'},
       {v:'archive',t:'أرشفة العميل'},
       {v:'delete',t:'طلب حذف (مهلة 30 يومًا)'}
     ]}],confirmText:'متابعة'});
   if(!r)return;
-  if(r.action==='archive'){
+  if(r.action==='edit'){
+    const e=await dialog({title:'تعديل بيانات: '+c.name,
+      fields:[
+        {key:'name',label:'اسم العميل',value:c.name},
+        {key:'color',label:'لون العميل',type:'color',value:c.color||'#C8A06B'}
+      ],confirmText:'حفظ التعديلات'});
+    if(!e||!e.name)return;
+    try{
+      await updateClientInfo(clientId,{name:e.name,color:e.color});
+      c.name=e.name;c.color=e.color;
+      toast('حُدّثت بيانات العميل','ok');renderPortfolio();
+    }catch(err){toast('تعذّر التحديث: '+err.message,'err');}
+  }else if(r.action==='newproject'){
+    const p=await dialog({title:'مشروع جديد — '+c.name,
+      message:'يُنشأ المشروع كمسوّدة. تاريخ البدء هو أساس حساب كل التواريخ.',
+      fields:[
+        {key:'name',label:'اسم المشروع',placeholder:'مثل: حملة الصيف 2026'},
+        {key:'date',label:'تاريخ البدء',type:'date',value:todayISO()}
+      ],confirmText:'إنشاء المشروع'});
+    if(!p||!p.name)return;
+    try{
+      const proj=await insertProjectForClient(clientId,p.name,p.date||todayISO());
+      toast('أُنشئ المشروع — جاهز لبناء الخطة أو الاستيراد','ok');
+      CID=clientId;PID=proj.id;await openProject();
+    }catch(err){toast('تعذّر الإنشاء: '+err.message,'err');}
+  }else if(r.action==='access'){
+    CID=clientId;PID=null;await openProject();
+    if(typeof openAccess==='function')openAccess();
+  }else if(r.action==='archive'){
     if(!await confirmDialog('تأكيد الأرشفة','أرشفة «'+c.name+'»؟ سيُخفى من المحفظة النشطة ويمكن استرجاعه لاحقًا.',false))return;
     const {data}=await rpcArchiveClient(clientId);
     if(data&&data.ok){toast('تمت الأرشفة','ok');CLIENTS=CLIENTS.filter(x=>x.id!==clientId);renderPortfolio();}
