@@ -244,3 +244,21 @@ async function updateProjectStart(projectId, newDate){
   const {error}=await sb.from('pmo_projects').update({start_date:newDate}).eq('id',projectId);
   if(error) throw error;
 }
+
+// ===== إدارة العملاء والمشاريع من الواجهة (سدّ فجوات الرحلة) =====
+async function updateClientInfo(id, patch){
+  const {error}=await sb.from('pmo_clients').update(patch).eq('id',id);
+  if(error) throw error;
+}
+async function insertClient(name, color){
+  const slug='c-'+Date.now().toString(36);
+  const {data,error}=await sb.from('pmo_clients')
+    .insert({name,color:color||'#C8A06B',slug,lifecycle_state:'active'}).select().single();
+  if(error) throw error; return data;
+}
+async function insertProjectForClient(clientId, name, startDate){
+  const {data,error}=await sb.from('pmo_projects')
+    .insert({client_id:clientId,name,start_date:startDate,status:'draft',lifecycle:'proposal'})
+    .select().single();
+  if(error) throw error; return data;
+}
