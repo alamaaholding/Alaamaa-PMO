@@ -41,7 +41,7 @@ function render(){
     const ea=$('#emptyAdd');if(ea)ea.onclick=()=>{VIEW='table';handleAddTask();};
     return;
   }
-  if(VIEW==='dashboard')host.innerHTML=vDashboard();
+  if(VIEW==='dashboard')host.innerHTML=(ROLE==='client')?vClientDash():vDashboard();
   else if(VIEW==='table'){host.innerHTML='<div class="hintbar">تحديث الحالة والتقدّم يُحفظ مباشرة في القاعدة. المسار الحرج مظلّل.</div>'+vTable();bindTable();}
   else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(10,PX-4);render();};}
   else if(VIEW==='deliv')host.innerHTML=vDeliv();
@@ -350,4 +350,76 @@ function bindRequests(){
     try{ await deleteClientRequest(b.dataset.delreq); toast('حُذف','ok'); render(); }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
+}
+
+// ===== داشبورد العميل: أين نحن الآن، المتأخر، المعالم القادمة =====
+const CD_PHASES=[['0','التأسيس'],['B','الذكاء والرؤى'],['C','الاستراتيجية'],['A','التنفيذ']];
+function vClientDash(){
+  const tasks=PROJECT.tasks, dd=new Date(DATA_DATE);
+  const real=tasks.filter(t=>t.type!=='milestone'&&t.type!=='cont');
+  const done=real.filter(t=>t.status==='done').length;
+  const pct=real.length?Math.round(done/real.length*100):0;
+  const fmt=d=>d?`${d.getDate()}/${d.getMonth()+1}`:'—';
+
+  // 1) تدفّق المراحل: منجزة / جارية (أول ناقصة) / قادمة
+  let currentFound=false;
+  const flow=CD_PHASES.filter(([k])=>real.some(t=>t.track===k)).map(([k,name])=>{
+    const pt=real.filter(t=>t.track===k);
+    const allDone=pt.every(t=>t.status==='done');
+    let state='upcoming';
+    if(allDone)state='done';
+    else if(!currentFound){state='current';currentFound=true;}
+    const clr=(TRACKS[k]&&TRACKS[k].color)||'var(--gold)';
+    const pdone=pt.filter(t=>t.status==='done').length;
+    return `<div class="cd-phase ${state}" style="--pc:${clr}">
+      <div class="cd-phase-dot">${state==='done'?'✓':(state==='current'?'●':'')}</div>
+      <div class="cd-phase-name">${name}</div>
+      <div class="cd-phase-sub">${state==='done'?'مكتملة':(state==='current'?`جارية · ${pdone}/${pt.length}`:'قادمة')}</div>
+    </div>`;
+  }).join('<div class="cd-flow-arrow">←</div>');
+
+  // 2) المتأخر
+  const OWNER_AR={client:'بانتظاركم',alamah:'لدى علامة'};
+  const late=real.filter(t=>{
+    const tr=TRACK&&TRACK[t.id];
+    return tr&&(tr.delay||tr.effStatus==='blocked')&&t.status!=='done';
+  }).map(t=>{
+    const tr=TRACK[t.id];const r=SCHED.R[t.id];
+    const who=tr.delay?OWNER_AR[tr.delay]:'متوقفة';
+    const cls=tr.delay==='client'?'cl':'al';
+    return `<div class="cd-late-row"><span class="cd-late-name">${esc(t.name)}</span><span class="cd-late-who ${cls}">${who}</span><span class="cd-late-date">كان مخططًا: ${fmt(r&&r.EF)}</span></div>`;
+  }).join('');
+
+  // 3) المعالم القادمة (أقرب 3)
+  const upMs=tasks.filter(t=>t.type==='milestone').map(t=>({t,ef:SCHED.R[t.id]&&SCHED.R[t.id].EF}))
+    .filter(x=>x.ef&&x.ef>=dd&&x.t.status!=='done').sort((a,b)=>a.ef-b.ef).slice(0,3);
+  const msHtml=upMs.length?upMs.map(x=>{
+    const days=Math.ceil((x.ef-dd)/86400000);
+    return `<div class="cd-ms"><span class="cd-ms-d">◆</span><div><b>${esc(x.t.name)}</b><span class="cd-ms-date">${fmt(x.ef)} · بعد ${days} يومًا</span></div></div>`;
+  }).join(''):'<p class="empty">لا معالم قادمة.</p>';
+
+  return `<div class="cdash">
+    <div class="cd-hero">
+      <div class="cd-hero-right">
+        <h3>أين نحن الآن</h3>
+        <div class="cd-flow">${flow}</div>
+      </div>
+      <div class="cd-prog">
+        <div class="cd-prog-num">${pct}<small>%</small></div>
+        <div class="cd-prog-lbl">نسبة الإنجاز</div>
+        <div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div>
+        <div class="cd-prog-sub">${done} من ${real.length} بندًا</div>
+      </div>
+    </div>
+    <div class="cd-grid">
+      <div class="cd-card">
+        <h4>${late?'بنود متأخرة تحتاج انتباهًا':'حالة المسار'}</h4>
+        ${late||'<div class="cd-ontrack">✓ المشروع على المسار — لا تأخير حاليًا</div>'}
+      </div>
+      <div class="cd-card">
+        <h4>المعالم القادمة</h4>
+        ${msHtml}
+      </div>
+    </div>
+  </div>`;
 }
