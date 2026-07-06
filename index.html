@@ -429,6 +429,42 @@ html[dir="rtl"] .tabs::after{--fade-dir:right}
 .reqbtn,.hbtn{display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .empty-cta .ico .icn{width:44px;height:44px;color:var(--gold-dark)}
 .pcard-menu .icn,.ib .icn{width:16px;height:16px;vertical-align:middle}
+/* داشبورد العميل */
+.cdash{display:flex;flex-direction:column;gap:16px}
+.cd-hero{display:flex;gap:20px;align-items:stretch;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:var(--e1);flex-wrap:wrap}
+.cd-hero-right{flex:1;min-width:280px}
+.cd-hero h3{margin:0 0 16px;font-size:var(--fs-xl)}
+.cd-flow{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap}
+.cd-phase{flex:1;min-width:110px;text-align:center;border:1.5px solid var(--line);border-radius:11px;padding:12px 8px;background:var(--soft-2);opacity:.55}
+.cd-phase.done{opacity:1;border-color:var(--ok);background:var(--ok-bg)}
+.cd-phase.current{opacity:1;border-color:var(--pc);background:#fff;box-shadow:0 0 0 3px color-mix(in srgb,var(--pc) 22%,transparent);position:relative}
+.cd-phase.current .cd-phase-dot{animation:cdpulse 1.6s ease-in-out infinite}
+@keyframes cdpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.35)}}
+.cd-phase-dot{font-size:1.1rem;color:var(--pc);height:22px}
+.cd-phase.done .cd-phase-dot{color:var(--ok)}
+.cd-phase-name{font-weight:700;font-size:var(--fs-md)}
+.cd-phase-sub{font-size:var(--fs-xs);color:var(--muted);margin-top:2px}
+.cd-flow-arrow{align-self:center;color:var(--muted);font-weight:700}
+.cd-prog{width:190px;text-align:center;border-inline-start:1px solid var(--line);padding-inline-start:20px;display:flex;flex-direction:column;justify-content:center;gap:6px}
+.cd-prog-num{font-size:2.6rem;font-weight:800;color:var(--gold-dark);line-height:1}
+.cd-prog-num small{font-size:1.2rem}
+.cd-prog-lbl{font-size:var(--fs-sm);color:var(--muted)}
+.cd-prog-sub{font-size:var(--fs-xs);color:var(--muted)}
+.cd-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.cd-card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:var(--e1)}
+.cd-card h4{margin:0 0 12px;font-size:var(--fs-base);color:var(--ink)}
+.cd-late-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-soft);font-size:var(--fs-md);flex-wrap:wrap}
+.cd-late-name{flex:1;font-weight:600;min-width:140px}
+.cd-late-who{font-size:var(--fs-xs);font-weight:700;padding:2px 10px;border-radius:999px}
+.cd-late-who.cl{background:var(--crit-bg);color:var(--crit)}
+.cd-late-who.al{background:#e8eef5;color:var(--blue)}
+.cd-late-date{font-size:var(--fs-xs);color:var(--muted)}
+.cd-ontrack{background:var(--ok-bg);color:#1e5620;border-radius:9px;padding:14px;font-weight:600;font-size:var(--fs-md);text-align:center}
+.cd-ms{display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line-soft)}
+.cd-ms-d{color:var(--crit);font-size:1rem}
+.cd-ms b{display:block;font-size:var(--fs-md)}
+.cd-ms-date{font-size:var(--fs-xs);color:var(--muted)}
+@media(max-width:700px){.cd-grid{grid-template-columns:1fr}.cd-prog{width:100%;border-inline-start:none;padding-inline-start:0;border-top:1px solid var(--line);padding-top:14px}.cd-flow-arrow{display:none}}
 
 </style>
 </head><body>
@@ -883,6 +919,24 @@ async function updateProjectStart(projectId, newDate){
   if(error) throw error;
 }
 
+// ===== إدارة العملاء والمشاريع من الواجهة (سدّ فجوات الرحلة) =====
+async function updateClientInfo(id, patch){
+  const {error}=await sb.from('pmo_clients').update(patch).eq('id',id);
+  if(error) throw error;
+}
+async function insertClient(name, color){
+  const slug='c-'+Date.now().toString(36);
+  const {data,error}=await sb.from('pmo_clients')
+    .insert({name,color:color||'#C8A06B',slug,lifecycle_state:'active'}).select().single();
+  if(error) throw error; return data;
+}
+async function insertProjectForClient(clientId, name, startDate){
+  const {data,error}=await sb.from('pmo_projects')
+    .insert({client_id:clientId,name,start_date:startDate,status:'draft',lifecycle:'proposal'})
+    .select().single();
+  if(error) throw error; return data;
+}
+
 
 /* ===== views.js ===== */
 // ===== العرض =====
@@ -928,7 +982,7 @@ function render(){
     const ea=$('#emptyAdd');if(ea)ea.onclick=()=>{VIEW='table';handleAddTask();};
     return;
   }
-  if(VIEW==='dashboard')host.innerHTML=vDashboard();
+  if(VIEW==='dashboard')host.innerHTML=(ROLE==='client')?vClientDash():vDashboard();
   else if(VIEW==='table'){host.innerHTML='<div class="hintbar">تحديث الحالة والتقدّم يُحفظ مباشرة في القاعدة. المسار الحرج مظلّل.</div>'+vTable();bindTable();}
   else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(10,PX-4);render();};}
   else if(VIEW==='deliv')host.innerHTML=vDeliv();
@@ -1239,6 +1293,78 @@ function bindRequests(){
   });
 }
 
+// ===== داشبورد العميل: أين نحن الآن، المتأخر، المعالم القادمة =====
+const CD_PHASES=[['0','التأسيس'],['B','الذكاء والرؤى'],['C','الاستراتيجية'],['A','التنفيذ']];
+function vClientDash(){
+  const tasks=PROJECT.tasks, dd=new Date(DATA_DATE);
+  const real=tasks.filter(t=>t.type!=='milestone'&&t.type!=='cont');
+  const done=real.filter(t=>t.status==='done').length;
+  const pct=real.length?Math.round(done/real.length*100):0;
+  const fmt=d=>d?`${d.getDate()}/${d.getMonth()+1}`:'—';
+
+  // 1) تدفّق المراحل: منجزة / جارية (أول ناقصة) / قادمة
+  let currentFound=false;
+  const flow=CD_PHASES.filter(([k])=>real.some(t=>t.track===k)).map(([k,name])=>{
+    const pt=real.filter(t=>t.track===k);
+    const allDone=pt.every(t=>t.status==='done');
+    let state='upcoming';
+    if(allDone)state='done';
+    else if(!currentFound){state='current';currentFound=true;}
+    const clr=(TRACKS[k]&&TRACKS[k].color)||'var(--gold)';
+    const pdone=pt.filter(t=>t.status==='done').length;
+    return `<div class="cd-phase ${state}" style="--pc:${clr}">
+      <div class="cd-phase-dot">${state==='done'?'✓':(state==='current'?'●':'')}</div>
+      <div class="cd-phase-name">${name}</div>
+      <div class="cd-phase-sub">${state==='done'?'مكتملة':(state==='current'?`جارية · ${pdone}/${pt.length}`:'قادمة')}</div>
+    </div>`;
+  }).join('<div class="cd-flow-arrow">←</div>');
+
+  // 2) المتأخر
+  const OWNER_AR={client:'بانتظاركم',alamah:'لدى علامة'};
+  const late=real.filter(t=>{
+    const tr=TRACK&&TRACK[t.id];
+    return tr&&(tr.delay||tr.effStatus==='blocked')&&t.status!=='done';
+  }).map(t=>{
+    const tr=TRACK[t.id];const r=SCHED.R[t.id];
+    const who=tr.delay?OWNER_AR[tr.delay]:'متوقفة';
+    const cls=tr.delay==='client'?'cl':'al';
+    return `<div class="cd-late-row"><span class="cd-late-name">${esc(t.name)}</span><span class="cd-late-who ${cls}">${who}</span><span class="cd-late-date">كان مخططًا: ${fmt(r&&r.EF)}</span></div>`;
+  }).join('');
+
+  // 3) المعالم القادمة (أقرب 3)
+  const upMs=tasks.filter(t=>t.type==='milestone').map(t=>({t,ef:SCHED.R[t.id]&&SCHED.R[t.id].EF}))
+    .filter(x=>x.ef&&x.ef>=dd&&x.t.status!=='done').sort((a,b)=>a.ef-b.ef).slice(0,3);
+  const msHtml=upMs.length?upMs.map(x=>{
+    const days=Math.ceil((x.ef-dd)/86400000);
+    return `<div class="cd-ms"><span class="cd-ms-d">◆</span><div><b>${esc(x.t.name)}</b><span class="cd-ms-date">${fmt(x.ef)} · بعد ${days} يومًا</span></div></div>`;
+  }).join(''):'<p class="empty">لا معالم قادمة.</p>';
+
+  return `<div class="cdash">
+    <div class="cd-hero">
+      <div class="cd-hero-right">
+        <h3>أين نحن الآن</h3>
+        <div class="cd-flow">${flow}</div>
+      </div>
+      <div class="cd-prog">
+        <div class="cd-prog-num">${pct}<small>%</small></div>
+        <div class="cd-prog-lbl">نسبة الإنجاز</div>
+        <div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div>
+        <div class="cd-prog-sub">${done} من ${real.length} بندًا</div>
+      </div>
+    </div>
+    <div class="cd-grid">
+      <div class="cd-card">
+        <h4>${late?'بنود متأخرة تحتاج انتباهًا':'حالة المسار'}</h4>
+        ${late||'<div class="cd-ontrack">✓ المشروع على المسار — لا تأخير حاليًا</div>'}
+      </div>
+      <div class="cd-card">
+        <h4>المعالم القادمة</h4>
+        ${msHtml}
+      </div>
+    </div>
+  </div>`;
+}
+
 
 /* ===== app.js ===== */
 // ===== الحالة =====
@@ -1344,9 +1470,11 @@ async function renderPortfolio(){
   const archBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showArchived">'+I.archive+' المؤرشفة</button>':'';
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
   const skel=CLIENTS.map(()=>'<div class="pcard"><div class="skeleton" style="height:22px;width:55%;margin-bottom:14px"></div><div class="skeleton" style="height:8px;margin-bottom:12px"></div><div class="skeleton" style="height:36px"></div></div>').join('');
-  const toolbar=isStaff?`<div class="portfolio-tools">${pgBtn}${dolBtn}${auditBtn}${archBtn}${leadsBtn}</div>`:'';
+  const addClientBtn=(ROLE==='pmo')?'<button class="reqbtn" id="addClientBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ عميل جديد</button>':'';
+  const toolbar=isStaff?`<div class="portfolio-tools">${addClientBtn}${pgBtn}${dolBtn}${auditBtn}${archBtn}${leadsBtn}</div>`:'';
   $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
-  if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;}
+  if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;
+    const ac=$('#addClientBtn');if(ac)ac.onclick=addNewClient;}
   {const db=$('#showDOL');if(db)db.onclick=openDOL;}
   {const ab=$('#showAudit');if(ab)ab.onclick=renderAuditLog;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
@@ -1357,6 +1485,7 @@ async function renderPortfolio(){
   if(error){grid.innerHTML='<p class="pempty">تعذّر تحميل المحفظة.</p>';return;}
   const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'};
   let projects=(rows||[]).filter(r=>r.project_id);
+  const noProjRows=(rows||[]).filter(r=>!r.project_id);
 
   // تجميع حسب الشركة أولًا (الشركة هي وحدة العرض)
   const groups={}; 
@@ -1375,6 +1504,12 @@ async function renderPortfolio(){
     const isDraft=list.some(r=>r.status==='draft'||r.lifecycle==='proposal');
     return {cid,c,list,tot,done,blocked,reqs,comments,hasAlerts,isActive,isDraft,
       pct:tot>0?Math.round(done/tot*100):0};
+  });
+  // العملاء بلا مشاريع: بطاقة دعوة لإضافة أول مشروع
+  noProjRows.forEach(r=>{
+    const c=CLIENTS.find(x=>x.id===r.client_id)||{name:r.client_name,color:r.color||'#C8A06B'};
+    companies.push({cid:r.client_id,c,list:[],tot:0,done:0,blocked:0,reqs:0,comments:0,
+      hasAlerts:false,isActive:false,isDraft:true,pct:0,noProjects:true});
   });
 
   // عدّادات الفلاتر (على مستوى الشركات)
@@ -1447,12 +1582,12 @@ async function renderPortfolio(){
         <span class="pdot" style="background:${x.c.color}"></span>
         <div class="pcompany-info">
           <h3>${esc(x.c.name)}</h3>
-          <span class="pcompany-sub">${multi?x.list.length+' مشاريع':esc(x.list[0].project_name||'مشروع واحد')} · ${x.tot} بند</span>
+          <span class="pcompany-sub">${x.noProjects?'لا مشاريع بعد — انقر لإضافة أول مشروع':(multi?x.list.length+' مشاريع':esc(x.list[0].project_name||'مشروع واحد'))+' · '+x.tot+' بند'}</span>
         </div>
         <div class="pcompany-side">
           ${alertBadges.length?`<div class="palerts">${alertBadges.join('')}</div>`:''}
-          <div class="pcompany-pct"><b>${x.pct}%</b><div class="pbar mini" role="progressbar" aria-valuenow="${x.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="نسبة الإنجاز"><div class="pbar-fill" style="width:${x.pct}%"></div></div></div>
-          ${multi?`<span class="pcompany-chev">${expanded?'▴':'▾'}</span>`:'<span class="pcompany-chev">←</span>'}
+          ${x.noProjects?'':`<div class="pcompany-pct"><b>${x.pct}%</b><div class="pbar mini" role="progressbar" aria-valuenow="${x.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="نسبة الإنجاز"><div class="pbar-fill" style="width:${x.pct}%"></div></div></div>`}
+          ${x.noProjects?'<span class="pcompany-chev">+</span>':(multi?`<span class="pcompany-chev">${expanded?'▴':'▾'}</span>`:'<span class="pcompany-chev">←</span>')}
           ${actBtn}
         </div>
       </div>
@@ -1466,6 +1601,7 @@ async function renderPortfolio(){
     if(e.target.closest('[data-cmenu]'))return;
     const cid=el.dataset.toggle;
     const comp=shown.find(x=>x.cid===cid); if(!comp)return;
+    if(!comp.list.length){ openClientMenu(cid); return; }
     if(comp.list.length===1){ CID=cid; PID=comp.list[0].project_id; await openProject(); return; }
     if(PEXPANDED.has(cid))PEXPANDED.delete(cid); else PEXPANDED.add(cid);
     renderPortfolio();
@@ -1502,16 +1638,63 @@ async function editStartDate(){
 }
 
 // ===== دورة حياة العميل (المرحلة 1) =====
+// إنشاء عميل جديد مباشرة (سدّ فجوة الرحلة الأولى)
+async function addNewClient(){
+  const r=await dialog({title:'عميل جديد',
+    message:'يُنشأ العميل نشطًا. يمكنك بعدها إضافة مشروعه الأول من قائمة ⋮ على بطاقته.',
+    fields:[
+      {key:'name',label:'اسم العميل / الشركة',placeholder:'مثل: شركة الأفق'},
+      {key:'color',label:'لون العميل (للتمييز البصري)',type:'color',value:'#C8A06B'}
+    ],confirmText:'إنشاء العميل'});
+  if(!r||!r.name)return;
+  try{
+    const c=await insertClient(r.name,r.color);
+    await loadClients();
+    toast('أُنشئ العميل «'+r.name+'» — أضف مشروعه الأول من ⋮','ok');
+    renderPortfolio();
+  }catch(err){toast('تعذّر الإنشاء: '+err.message,'err');}
+}
+
 async function openClientMenu(clientId){
   const c=CLIENTS.find(x=>x.id===clientId); if(!c)return;
   const r=await dialog({title:'إجراءات: '+c.name,
-    message:'الأرشفة تُخفي العميل من المحفظة النشطة (قابلة للاسترجاع). طلب الحذف يبدأ مهلة 30 يومًا قبل الحذف النهائي.',
-    fields:[{key:'action',label:'الإجراء',type:'select',value:'archive',options:[
+    fields:[{key:'action',label:'الإجراء',type:'select',value:'edit',options:[
+      {v:'edit',t:'تعديل بيانات العميل (الاسم واللون)'},
+      {v:'newproject',t:'+ مشروع جديد لهذا العميل'},
+      {v:'access',t:'إدارة وصول العميل (البريد)'},
       {v:'archive',t:'أرشفة العميل'},
       {v:'delete',t:'طلب حذف (مهلة 30 يومًا)'}
     ]}],confirmText:'متابعة'});
   if(!r)return;
-  if(r.action==='archive'){
+  if(r.action==='edit'){
+    const e=await dialog({title:'تعديل بيانات: '+c.name,
+      fields:[
+        {key:'name',label:'اسم العميل',value:c.name},
+        {key:'color',label:'لون العميل',type:'color',value:c.color||'#C8A06B'}
+      ],confirmText:'حفظ التعديلات'});
+    if(!e||!e.name)return;
+    try{
+      await updateClientInfo(clientId,{name:e.name,color:e.color});
+      c.name=e.name;c.color=e.color;
+      toast('حُدّثت بيانات العميل','ok');renderPortfolio();
+    }catch(err){toast('تعذّر التحديث: '+err.message,'err');}
+  }else if(r.action==='newproject'){
+    const p=await dialog({title:'مشروع جديد — '+c.name,
+      message:'يُنشأ المشروع كمسوّدة. تاريخ البدء هو أساس حساب كل التواريخ.',
+      fields:[
+        {key:'name',label:'اسم المشروع',placeholder:'مثل: حملة الصيف 2026'},
+        {key:'date',label:'تاريخ البدء',type:'date',value:todayISO()}
+      ],confirmText:'إنشاء المشروع'});
+    if(!p||!p.name)return;
+    try{
+      const proj=await insertProjectForClient(clientId,p.name,p.date||todayISO());
+      toast('أُنشئ المشروع — جاهز لبناء الخطة أو الاستيراد','ok');
+      CID=clientId;PID=proj.id;await openProject();
+    }catch(err){toast('تعذّر الإنشاء: '+err.message,'err');}
+  }else if(r.action==='access'){
+    CID=clientId;PID=null;await openProject();
+    if(typeof openAccess==='function')openAccess();
+  }else if(r.action==='archive'){
     if(!await confirmDialog('تأكيد الأرشفة','أرشفة «'+c.name+'»؟ سيُخفى من المحفظة النشطة ويمكن استرجاعه لاحقًا.',false))return;
     const {data}=await rpcArchiveClient(clientId);
     if(data&&data.ok){toast('تمت الأرشفة','ok');CLIENTS=CLIENTS.filter(x=>x.id!==clientId);renderPortfolio();}
