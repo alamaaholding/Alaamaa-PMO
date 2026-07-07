@@ -500,6 +500,7 @@ html[dir="rtl"] .tabs::after{--fade-dir:right}
     <span class="tg"><span title="التاريخ الذي تُحسب عنده حالة التقدم والتأخير">تاريخ الحالة (اليوم):</span> <input type="date" id="dataDate" aria-label="تاريخ الحالة"></span>
     <span class="lifebadge" id="lifeBadge">—</span>
     <button class="hbtn" id="manageAccess" style="display:none;background:var(--gold);border-color:var(--gold)">إدارة وصول العميل</button>
+    <button class="hbtn" id="projMenuBtn" style="display:none;background:#fff;color:var(--ink);border-color:var(--line)">إجراءات المشروع</button>
     <button class="hbtn" id="exportReport" style="background:#fff;color:var(--ink);border-color:var(--line)">تصدير تقرير</button>
     <button class="hbtn" id="approveContract" style="display:none;background:var(--ok);border-color:var(--ok)">اعتماد العقد + تثبيت الأساس</button>
     <span class="hintbar" id="roleHint" style="margin-inline-start:auto"></span>
@@ -598,7 +599,7 @@ function todayISO(){return fmtY(new Date());}
 
 // ===== الصلاحيات =====
 const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:true,crAction:'approve',views:['dashboard','table','gantt','deliv','cr','requests','discuss','audit']},
-  delivery:{editStruct:false,editProg:true,editReqs:true,approveContract:false,crAction:'request',views:['dashboard','table','gantt','deliv','cr','requests','discuss','audit']},
+  delivery:{editStruct:true,editProg:true,editReqs:true,approveContract:false,crAction:'request',views:['dashboard','table','gantt','deliv','cr','requests','discuss','audit']},
   client:{editStruct:false,editProg:false,editReqs:false,approveContract:false,crAction:'request',views:['dashboard','gantt','deliv','cr','requests','discuss']}};
 function can(p){return PERMS[ROLE]&&PERMS[ROLE][p];}
 
@@ -615,6 +616,19 @@ const I={
  link:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>',
  users:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4.5-6"/></svg>'
 };
+
+// المراحل الديناميكية: قائمة مراحل المشروع الحالي (أو الافتراضية)
+function projTrackList(){
+  if(typeof PROJECT!=='undefined'&&PROJECT&&PROJECT.tracks&&PROJECT.tracks.length)
+    return PROJECT.tracks.map(t=>({key:t.key,name:t.name,color:t.color,code:t.key,id:t.id,sort:t.sort}));
+  return Object.keys(TRACKS).map((k,i)=>({key:k,name:TRACKS[k].name,color:TRACKS[k].color,code:TRACKS[k].code||k,sort:i}));
+}
+function trackMeta(k){
+  const t=projTrackList().find(x=>x.key===k);
+  if(t)return t;
+  if(TRACKS[k])return{key:k,name:TRACKS[k].name,color:TRACKS[k].color,code:TRACKS[k].code||k};
+  return{key:k,name:k,color:'#C8A06B',code:k};
+}
 
 
 /* ===== engine.js ===== */
@@ -666,7 +680,17 @@ function computeTracking(tasks,S,ddStr){
     let delay=null;if(t.status!=='done'){if(co)delay='client';else if(ao)delay='alamah';
       else if(!blocked&&r){if(t.status==='notstarted'&&dd>r.ES)delay='alamah';else if(t.status==='inprogress'&&dd>r.EF)delay='alamah';}}
     let eff=t.status;if(blocked&&t.status!=='done')eff='blocked';
-    T[t.id]={blocked,delay,effStatus:eff};});
+    else if(t.status==='notstarted'&&r&&dd>=r.ES)eff='inprogress'; // بدء تلقائي عند حلول الموعد
+    // التقدّم التلقائي: أيام العمل المنقضية من مدة البند (سقف 90% حتى الإنجاز اليدوي)
+    let auto=0;
+    if(t.status==='done')auto=100;
+    else if(t.type!=='milestone'&&t.type!=='cont'&&r&&dd>r.ES){
+      const tot=Math.max(1,wdB(r.ES,r.EF));
+      auto=Math.min(90,Math.round(wdB(r.ES,(dd<r.EF?dd:r.EF))/tot*100));
+      if(auto<0)auto=0;
+    }
+    const disp=t.status==='done'?100:Math.max(auto,t.progress||0);
+    T[t.id]={blocked,delay,effStatus:eff,autoPct:auto,dispPct:disp};});
   return T;
 }
 
@@ -707,7 +731,7 @@ async function loadProject(clientId, projectId){
   CID=clientId;
   let q=sb.from('pmo_projects').select('*').eq('client_id',clientId);
   if(projectId) q=q.eq('id',projectId);
-  else q=q.order('start_date').limit(1);
+  else q=q.eq('lifecycle_state','active').order('start_date').limit(1);
   const {data:projects}=await q;
   if(!projects||!projects.length){PROJECT=null;return;}
   const p=projects[0];
@@ -728,6 +752,7 @@ async function loadProject(clientId, projectId){
   PROJECT={_dbId:p.id,name:p.name,start:p.start_date,status:p.status,lifecycle:p.lifecycle,contractValue:p.contract_value,
     baseline:(bl&&bl.length)?{snapshot:bl[0].snapshot}:null,
     tasks:tasks.map(t=>({id:t.ref,_dbId:t.id,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],requirements:reqMap[t.id]||[]}))};
+  PROJECT.tracks=(await sb.from('pmo_project_tracks').select('*').eq('project_id',p.id).order('sort')).data||[];
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
 
@@ -937,6 +962,19 @@ async function insertProjectForClient(clientId, name, startDate){
   if(error) throw error; return data;
 }
 
+// ===== دورة حياة المشروع + المراحل الديناميكية =====
+async function rpcArchiveProject(id){return await sb.rpc('pmo_archive_project',{p_project:id});}
+async function rpcRestoreProject(id){return await sb.rpc('pmo_restore_project',{p_project:id});}
+async function rpcRequestProjectDeletion(id){return await sb.rpc('pmo_request_project_deletion',{p_project:id});}
+async function rpcPurgeProject(id){return await sb.rpc('pmo_purge_project',{p_project:id});}
+async function renameProject(id,name){const{error}=await sb.from('pmo_projects').update({name}).eq('id',id);if(error)throw error;}
+async function fetchArchivedProjects(){
+  const{data}=await sb.from('pmo_projects').select('id,name,lifecycle_state,deletion_scheduled_at,client_id')
+    .neq('lifecycle_state','active');return data||[];}
+async function fetchTracks(projectId){const{data}=await sb.from('pmo_project_tracks').select('*').eq('project_id',projectId).order('sort');return data||[];}
+async function addTrack(projectId,key,name,color,sort){const{error}=await sb.from('pmo_project_tracks').insert({project_id:projectId,key,name,color,sort});if(error)throw error;}
+async function updateTrack(id,patch){const{error}=await sb.from('pmo_project_tracks').update(patch).eq('id',id);if(error)throw error;}
+
 
 /* ===== views.js ===== */
 // ===== العرض =====
@@ -945,6 +983,7 @@ function render(){
   if(!PROJECT){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا يوجد مشروع لهذا العميل.</p>';return;}
   $('#backPortfolio').style.display=(ROLE!=='client')?'':'none';
   $('#manageAccess').style.display=(ROLE==='pmo')?'':'none';
+  const pmb=$('#projMenuBtn');if(pmb)pmb.style.display=(ROLE==='pmo')?'':'none';
   $('#approveContract').style.display=(ROLE==='pmo'&&PROJECT.status!=='baselined')?'':'none';
   $('#roleHint').textContent=can('editStruct')?'لديك صلاحية تعديل الخطة':(can('editProg')?'يمكنك تحديث الحالة والتقدم':'عرض فقط');
   compute();
@@ -1017,7 +1056,7 @@ function vDashboard(){
   const alerts=[];creqs.filter(x=>x.r._state==='overdue').forEach(x=>alerts.push(['client','متطلب متأخر من العميل: '+x.r.desc+' ('+x.t.id+')'+(x.r._late?' +'+x.r._late+'ي':'')]));
   tasks.filter(t=>T[t.id].delay==='alamah').forEach(t=>alerts.push(['alamah','تأخير على فريق علامة: '+t.id+' — '+t.name]));
   tasks.filter(t=>T[t.id].blocked).forEach(t=>alerts.push(['blocked','بند متوقف: '+t.id+' — '+t.name]));
-  const tl=t=>`<li><span class="tgw" style="--tc:${TRACKS[t.track].color}">${esc(t.id)}</span> ${esc(t.name)} <em>${fmt(S.R[t.id].ES)}–${fmt(S.R[t.id].EF)}</em> <span class="ministat s-${T[t.id].effStatus}">${STATUS[T[t.id].effStatus]}</span></li>`;
+  const tl=t=>`<li><span class="tgw" style="--tc:${trackMeta(t.track).color}">${esc(t.id)}</span> ${esc(t.name)} <em>${fmt(S.R[t.id].ES)}–${fmt(S.R[t.id].EF)}</em> <span class="ministat s-${T[t.id].effStatus}">${STATUS[T[t.id].effStatus]}</span></li>`;
   const card=(l,v,c)=>`<div class="dcard ${c||''}"><b>${v}</b><span>${l}</span></div>`;
   let h=`<div class="dgrid">${card('نسبة الإنجاز',pct+'%','ok')}${card('مكتملة',done)}${card('جارية',inprog,'blue')}${card('متبقية',total-done)}${card('متوقفة',blocked,'crit')}${card('متطلبات مطلوبة',creqs.length,'warn')}</div>
   <div class="dprog"><div class="dprog-fill" style="width:${pct}%"></div></div>
@@ -1038,8 +1077,8 @@ function vTable(){
   const colspan=editStruct?12:11;
   let rows='',last=null;
   PROJECT.tasks.forEach(t=>{
-    if(t.track!==last){last=t.track;rows+=`<tr class="grp"><td colspan="${colspan}">${TRACKS[t.track].code} — ${esc(TRACKS[t.track].name)}</td></tr>`;}
-    const r=S.R[t.id],k=T[t.id],tc=TRACKS[t.track].color;
+    if(t.track!==last){last=t.track;rows+=`<tr class="grp"><td colspan="${colspan}">${trackMeta(t.track).code} — ${esc(trackMeta(t.track).name)}</td></tr>`;}
+    const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
     const sopt=Object.keys(STATUS).map(x=>`<option value="${x}" ${x===t.status?'selected':''}>${STATUS[x]}</option>`).join('');
     const durDis=(t.type==='milestone'||t.type==='cont'||!editStruct)?'disabled':'';
     const delay=k.delay==='client'?'<span class="delay client">العميل</span>':k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>';
@@ -1060,7 +1099,7 @@ function vTable(){
       <td><span class="dt s">${fmt(r.ES)}</span></td>
       <td><span class="dt">${fmt(r.EF)}</span></td>
       <td><select class="st st-${k.effStatus}" data-f="status" ${editProg?'':'disabled'}>${sopt}</select></td>
-      <td><input class="cell iprog" type="number" min="0" max="100" data-f="progress" value="${t.progress||0}" ${editProg&&t.type!=='milestone'?'':'disabled'}></td>
+      <td><input class="cell iprog" type="number" min="0" max="100" data-f="progress" value="${(k&&k.dispPct)||t.progress||0}" ${editProg&&t.type!=='milestone'?'':'disabled'}></td>
       <td>${delay}</td>
       <td><button class="reqbtn" data-reqs="${esc(t.id)}">${reqs.length?(bad?bad+'⚠':reqs.length):'—'}</button></td>
       <td style="font-size:.74rem;color:var(--tC);text-align:right">${esc(t.deliverable||'—')}</td>
@@ -1068,7 +1107,7 @@ function vTable(){
     </tr>`;
   });
   const editHead=editStruct?'<th>تحرير</th>':'';
-  const addBar=editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button><span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'';
+  const addBar=editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button>${ROLE==='pmo'?'<button class="reqbtn" id="tracksBtn" style="background:var(--ink);border-color:var(--ink);color:#fff">إدارة المراحل</button>':''}<span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'';
   return addBar+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function bindTable(){
@@ -1093,6 +1132,7 @@ function bindTable(){
     $$('#tbl [data-del]').forEach(b=>b.onclick=()=>handleDeleteTask(b.dataset.del));
     $$('#tbl [data-deps]').forEach(b=>b.onclick=()=>openDeps(b.dataset.deps));
     const ab=$('#addTaskBtn');if(ab)ab.onclick=handleAddTask;
+    const tb=$('#tracksBtn');if(tb)tb.onclick=openTracksManager;
     const ib=$('#importXlsxBtn');if(ib)ib.onclick=openImporter;
   }
 }
@@ -1108,13 +1148,13 @@ function vGantt(){
   let wk=new Date(lo),wi=1;while(wk<=hi){weeks+=`<div class="whead" style="right:${off(wk)*PX}px;width:${7*PX}px"><b>أسبوع ${wi}</b><s>${fmt(wk)}</s></div>`;grid+=`<div class="vg" style="right:${off(wk)*PX}px"></div>`;wk=new Date(wk.getTime()+7*oneDay);wi++;}
   const today=`<div class="today" style="right:${off(dd)*PX}px"><span>اليوم ${fmt(dd)}</span></div>`;
   const BL=PROJECT.baseline?PROJECT.baseline.snapshot:null;let rows='',last=null;
-  PROJECT.tasks.forEach(t=>{const r=S.R[t.id],k=T[t.id],tc=TRACKS[t.track].color;
-    if(t.track!==last){last=t.track;rows+=`<div class="grow grp"><div class="glbl">${TRACKS[t.track].code} — ${esc(TRACKS[t.track].name)}</div><div class="glane"></div></div>`;}
+  PROJECT.tasks.forEach(t=>{const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
+    if(t.track!==last){last=t.track;rows+=`<div class="grow grp"><div class="glbl">${trackMeta(t.track).code} — ${esc(trackMeta(t.track).name)}</div><div class="glane"></div></div>`;}
     const o=off(r.ES);const tip=`${esc(t.name)} — ${fmt(r.ES)}–${fmt(r.EF)} | ${STATUS[k.effStatus]}`;
     let lane='';
     if(BL&&BL[t.id]&&t.type!=='milestone'){const bo=off(D(BL[t.id].ES)),bl=Math.max(1,Math.round((D(BL[t.id].EF)-D(BL[t.id].ES))/oneDay)+1);lane+=`<div class="blbar" style="right:${bo*PX}px;width:${bl*PX}px"></div>`;}
     if(t.type==='milestone')lane+=`<div class="gmile ${r.critical?'crit':''}" style="right:${o*PX-7}px" title="${tip}"><span class="md">◆</span><span class="ml">${esc(t.id)}</span></div>`;
-    else{const len=Math.max(1,Math.round((new Date(r.EF)-new Date(r.ES))/oneDay)+1),wpx=len*PX;const cls=(t.type==='cont')?'cont':k.effStatus;const prog=t.type==='cont'?0:(t.progress||0);
+    else{const len=Math.max(1,Math.round((new Date(r.EF)-new Date(r.ES))/oneDay)+1),wpx=len*PX;const cls=(t.type==='cont')?'cont':k.effStatus;const prog=t.type==='cont'?0:((k&&k.dispPct)||t.progress||0);
       const fill=(k.effStatus==='inprogress'&&prog>0)?`<div class="fill" style="width:${prog}%"></div>`:'';
       const durTxt=(t.type==='cont')?'مستمر':(t.duration+' ي'+(prog?' · '+prog+'%':''));const inside=wpx>56;
       const durEl=inside?`<div class="gdur inside" style="right:${o*PX+6}px">${durTxt}</div>`:`<div class="gdur" style="right:${(o+len)*PX+4}px">${durTxt}</div>`;
@@ -1128,8 +1168,8 @@ function vGantt(){
 
 function vDeliv(){
   const S=SCHED,T=TRACK;let rows='';
-  PROJECT.tasks.forEach(t=>{if(!t.deliverable)return;const r=S.R[t.id],k=T[t.id],tc=TRACKS[t.track].color,isM=t.type==='milestone';
-    rows+=`<tr class="${isM?'m':''}"><td style="font-weight:${isM?700:500}">${isM?'◆ ':''}${esc(t.deliverable)}</td><td><span class="idcell" style="--tc:${tc}">${esc(t.id)}</span> ${esc(t.name)}</td><td><span class="pill" style="background:${tc}">${esc(TRACKS[t.track].name)}</span></td><td>${fmt(r.EF)}/${new Date(r.EF).getFullYear()}</td><td><span class="ministat s-${k.effStatus}">${STATUS[k.effStatus]}</span></td></tr>`;});
+  PROJECT.tasks.forEach(t=>{if(!t.deliverable)return;const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color,isM=t.type==='milestone';
+    rows+=`<tr class="${isM?'m':''}"><td style="font-weight:${isM?700:500}">${isM?'◆ ':''}${esc(t.deliverable)}</td><td><span class="idcell" style="--tc:${tc}">${esc(t.id)}</span> ${esc(t.name)}</td><td><span class="pill" style="background:${tc}">${esc(trackMeta(t.track).name)}</span></td><td>${fmt(r.EF)}/${new Date(r.EF).getFullYear()}</td><td><span class="ministat s-${k.effStatus}">${STATUS[k.effStatus]}</span></td></tr>`;});
   return `<div class="dwrap"><table class="dtbl"><thead><tr><th>المخرج</th><th>البند</th><th>المسار</th><th>التسليم المتوقع</th><th>الحالة</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
@@ -1299,18 +1339,19 @@ function vClientDash(){
   const tasks=PROJECT.tasks, dd=new Date(DATA_DATE);
   const real=tasks.filter(t=>t.type!=='milestone'&&t.type!=='cont');
   const done=real.filter(t=>t.status==='done').length;
-  const pct=real.length?Math.round(done/real.length*100):0;
+  const _wsum=real.reduce((a,t)=>a+Math.max(1,t.duration||1),0);
+  const pct=_wsum?Math.round(real.reduce((a,t)=>a+((TRACK&&TRACK[t.id]&&TRACK[t.id].dispPct)||0)*Math.max(1,t.duration||1),0)/_wsum):0;
   const fmt=d=>d?`${d.getDate()}/${d.getMonth()+1}`:'—';
 
   // 1) تدفّق المراحل: منجزة / جارية (أول ناقصة) / قادمة
   let currentFound=false;
-  const flow=CD_PHASES.filter(([k])=>real.some(t=>t.track===k)).map(([k,name])=>{
+  const flow=projTrackList().map(x=>[x.key,x.name]).filter(([k])=>real.some(t=>t.track===k)).map(([k,name])=>{
     const pt=real.filter(t=>t.track===k);
     const allDone=pt.every(t=>t.status==='done');
     let state='upcoming';
     if(allDone)state='done';
     else if(!currentFound){state='current';currentFound=true;}
-    const clr=(TRACKS[k]&&TRACKS[k].color)||'var(--gold)';
+    const clr=trackMeta(k).color;
     const pdone=pt.filter(t=>t.status==='done').length;
     return `<div class="cd-phase ${state}" style="--pc:${clr}">
       <div class="cd-phase-dot">${state==='done'?'✓':(state==='current'?'●':'')}</div>
@@ -1562,6 +1603,7 @@ async function renderPortfolio(){
         ${alerts.length?`<span class="proj-row-alerts">${alerts.join('')}</span>`:''}
       </div>
       ${hasplan?`<div class="proj-row-prog"><div class="pbar mini"><div class="pbar-fill" style="width:${pct}%"></div></div><span class="proj-row-pct">${pct}%</span></div>`:'<span class="proj-row-empty">بلا خطة</span>'}
+      ${ROLE==='pmo'?`<button class="pcard-menu" data-pmenu="${r.project_id}" data-pname="${esc(r.project_name||'')}" aria-label="إجراءات المشروع">${I.dots}</button>`:''}
       <span class="proj-row-go">←</span>
     </div>`;
   };
@@ -1591,7 +1633,7 @@ async function renderPortfolio(){
           ${actBtn}
         </div>
       </div>
-      ${multi?`<div class="pcompany-body" style="display:${expanded?'block':'none'}">${x.list.map(projRow).join('')}</div>`:''}
+      ${multi?`<div class="pcompany-body" style="display:${expanded?'block':'none'}">${x.list.map(projRow).join('')}${ROLE==='pmo'?`<button class="reqbtn" data-addproj="${x.cid}" style="margin:6px 2px;background:var(--ok);border-color:var(--ok);color:#fff">+ مشروع جديد</button>`:''}</div>`:''}
     `;
     grid.appendChild(card);
   });
@@ -1612,6 +1654,8 @@ async function renderPortfolio(){
     CID=el.dataset.cid; PID=el.dataset.openproj; await openProject();
   });
   document.querySelectorAll('[data-cmenu]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openClientMenu(b.dataset.cmenu);});
+  document.querySelectorAll('[data-pmenu]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openProjectMenu(b.dataset.pmenu,b.dataset.pname);});
+  document.querySelectorAll('[data-addproj]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();newProjectDialog(b.dataset.addproj);});
 }
 async function openProject(){
   $('#loader').classList.remove('hidden');
@@ -1638,6 +1682,82 @@ async function editStartDate(){
 }
 
 // ===== دورة حياة العميل (المرحلة 1) =====
+// حوار مشروع جديد (يُستدعى من قائمة العميل وزر البطاقة)
+async function newProjectDialog(clientId){
+  const c=CLIENTS.find(x=>x.id===clientId)||{name:''};
+  const p=await dialog({title:'مشروع جديد — '+c.name,
+    message:'يُنشأ المشروع كمسوّدة بمراحله الافتراضية الأربع (قابلة للتعديل من إدارة المراحل).',
+    fields:[
+      {key:'name',label:'اسم المشروع',placeholder:'مثل: حملة الصيف 2026'},
+      {key:'date',label:'تاريخ البدء',type:'date',value:todayISO()}
+    ],confirmText:'إنشاء المشروع'});
+  if(!p||!p.name)return;
+  try{
+    const proj=await insertProjectForClient(clientId,p.name,p.date||todayISO());
+    toast('أُنشئ المشروع — جاهز لبناء الخطة أو الاستيراد','ok');
+    CID=clientId;PID=proj.id;await openProject();
+  }catch(err){toast('تعذّر الإنشاء: '+err.message,'err');}
+}
+
+// قائمة إجراءات المشروع (PMO فقط): تسمية، أرشفة، حذف بمهلة
+async function openProjectMenu(projectId, projectName){
+  const r=await dialog({title:'إجراءات المشروع: '+(projectName||''),
+    fields:[{key:'action',label:'الإجراء',type:'select',value:'rename',options:[
+      {v:'rename',t:'إعادة تسمية المشروع'},
+      {v:'archive',t:'أرشفة المشروع'},
+      {v:'delete',t:'طلب حذف المشروع (مهلة 30 يومًا)'}
+    ]}],confirmText:'متابعة'});
+  if(!r)return;
+  if(r.action==='rename'){
+    const e=await dialog({title:'إعادة التسمية',fields:[{key:'name',label:'الاسم الجديد',value:projectName||''}],confirmText:'حفظ'});
+    if(!e||!e.name)return;
+    try{await renameProject(projectId,e.name);
+      if(PROJECT&&PROJECT._dbId===projectId){PROJECT.name=e.name;render();}
+      toast('أُعيدت التسمية','ok');if(SCREEN==='portfolio')renderPortfolio();
+    }catch(err){toast('تعذّر: '+err.message,'err');}
+  }else if(r.action==='archive'){
+    if(!await confirmDialog('أرشفة المشروع','أرشفة «'+(projectName||'')+'»؟ يختفي من المحفظة والخط الزمني، ويُسترجع من المؤرشفة.',false))return;
+    const {data}=await rpcArchiveProject(projectId);
+    if(data&&data.ok){toast('أُرشف المشروع','ok');SCREEN='portfolio';renderPortfolio();}
+    else toast((data&&data.error)||'تعذّر','err');
+  }else if(r.action==='delete'){
+    if(!await confirmDialog('طلب حذف المشروع','سيبدأ عدّاد 30 يومًا لحذف «'+(projectName||'')+'» وكل بنوده. قابل للاسترجاع طوال المهلة، والحذف النهائي لمالك النظام.',true))return;
+    const {data}=await rpcRequestProjectDeletion(projectId);
+    if(data&&data.ok){toast('بدأت مهلة حذف المشروع (30 يومًا)','warn');SCREEN='portfolio';renderPortfolio();}
+    else toast((data&&data.error)||'تعذّر','err');
+  }
+}
+
+// مدير المراحل الديناميكية (PMO): تعديل أسماء/ألوان أو إضافة مراحل
+async function openTracksManager(){
+  if(!PROJECT)return;
+  const list=PROJECT.tracks||[];
+  const opts=list.map(t=>({v:t.id,t:t.key+' — '+t.name})).concat([{v:'__add',t:'+ إضافة مرحلة جديدة'}]);
+  const r=await dialog({title:'إدارة مراحل المشروع',
+    message:'المراحل تحدد تجميع البنود وألوانها في الجدول والجانت وداشبورد العميل.',
+    fields:[{key:'sel',label:'اختر مرحلة أو أضف',type:'select',value:opts[0].v,options:opts}],confirmText:'متابعة'});
+  if(!r)return;
+  if(r.sel==='__add'){
+    const a=await dialog({title:'مرحلة جديدة',fields:[
+      {key:'key',label:'الرمز (حرف/رقم فريد، مثل D)',placeholder:'D'},
+      {key:'name',label:'اسم المرحلة',placeholder:'مثل: التحليل بالموجات'},
+      {key:'color',label:'اللون',type:'color',value:'#C8A06B'}],confirmText:'إضافة'});
+    if(!a||!a.key||!a.name)return;
+    try{await addTrack(PROJECT._dbId,a.key.trim().toUpperCase(),a.name,a.color,list.length);
+      PROJECT.tracks=await fetchTracks(PROJECT._dbId);toast('أُضيفت المرحلة «'+a.name+'»','ok');render();
+    }catch(e){toast('تعذّر (الرمز مكرر؟): '+e.message,'err');}
+  }else{
+    const t=list.find(x=>x.id===r.sel);if(!t)return;
+    const e=await dialog({title:'تعديل المرحلة: '+t.key,fields:[
+      {key:'name',label:'الاسم',value:t.name},
+      {key:'color',label:'اللون',type:'color',value:t.color}],confirmText:'حفظ'});
+    if(!e||!e.name)return;
+    try{await updateTrack(t.id,{name:e.name,color:e.color});
+      PROJECT.tracks=await fetchTracks(PROJECT._dbId);toast('حُدّثت المرحلة','ok');render();
+    }catch(err){toast('تعذّر التحديث','err');}
+  }
+}
+
 // إنشاء عميل جديد مباشرة (سدّ فجوة الرحلة الأولى)
 async function addNewClient(){
   const r=await dialog({title:'عميل جديد',
@@ -1714,8 +1834,9 @@ async function renderArchived(){
   const isOwner=await checkIsOwner();
   const arch=await fetchClientsByState('archived');
   const pend=await fetchClientsByState('pending_deletion');
+  const aprojs=await fetchArchivedProjects();
   const list=$('#archList');
-  if(!arch.length&&!pend.length){list.innerHTML='<div class="empty-cta"><div class="ico">'+I.archive+'</div><h3>لا عملاء مؤرشفين</h3><p>العملاء المؤرشفون أو المجدولون للحذف يظهرون هنا.</p></div>';return;}
+  if(!arch.length&&!pend.length&&!aprojs.length){list.innerHTML='<div class="empty-cta"><div class="ico">'+I.archive+'</div><h3>لا عناصر مؤرشفة</h3><p>العملاء والمشاريع المؤرشفة أو المجدولة للحذف تظهر هنا.</p></div>';return;}
   let html='';
   if(pend.length){
     html+='<h4 class="arch-sec">بانتظار الحذف</h4>';
@@ -1731,7 +1852,37 @@ async function renderArchived(){
       html+=`<div class="arch-row"><div><b>${c.name}</b><span class="arch-badge">مؤرشف</span></div><div class="arch-acts"><button class="hbtn ghost" data-restore="${c.id}">استرجاع</button><button class="hbtn" data-del="${c.id}" style="background:var(--warn);border-color:var(--warn)">طلب حذف</button></div></div>`;
     });
   }
+  if(aprojs.length){
+    const cname=id=>{const c=CLIENTS.find(x=>x.id===id);return c?c.name:'';};
+    const ppend=aprojs.filter(p=>p.lifecycle_state==='pending_deletion');
+    const parch=aprojs.filter(p=>p.lifecycle_state==='archived');
+    if(ppend.length){
+      html+='<h4 class="arch-sec">مشاريع بانتظار الحذف</h4>';
+      ppend.forEach(p=>{
+        const days=Math.max(0,Math.ceil((new Date(p.deletion_scheduled_at)-new Date())/(1000*60*60*24)));
+        const purgeBtn=isOwner?`<button class="hbtn" data-ppurge="${p.id}" style="background:var(--crit);border-color:var(--crit)">حذف نهائي</button>`:`<span class="arch-note">الحذف النهائي بصلاحية المالك</span>`;
+        html+=`<div class="arch-row pending"><div><b>${esc(p.name)}</b><span class="arch-badge">${esc(cname(p.client_id))}</span><span class="arch-badge crit">يُحذف خلال ${days} يومًا</span></div><div class="arch-acts"><button class="hbtn ghost" data-prestore="${p.id}">استرجاع</button>${purgeBtn}</div></div>`;
+      });
+    }
+    if(parch.length){
+      html+='<h4 class="arch-sec">مشاريع مؤرشفة</h4>';
+      parch.forEach(p=>{
+        html+=`<div class="arch-row"><div><b>${esc(p.name)}</b><span class="arch-badge">${esc(cname(p.client_id))}</span><span class="arch-badge">مؤرشف</span></div><div class="arch-acts"><button class="hbtn ghost" data-prestore="${p.id}">استرجاع</button><button class="hbtn" data-pdel="${p.id}" style="background:var(--warn);border-color:var(--warn)">طلب حذف</button></div></div>`;
+      });
+    }
+  }
   list.innerHTML=html;
+  list.querySelectorAll('[data-prestore]').forEach(b=>b.onclick=async()=>{
+    const {data}=await rpcRestoreProject(b.dataset.prestore);
+    if(data&&data.ok){toast('استُرجع المشروع','ok');renderArchived();}else toast((data&&data.error)||'تعذّر','err');});
+  list.querySelectorAll('[data-pdel]').forEach(b=>b.onclick=async()=>{
+    if(!await confirmDialog('طلب حذف مشروع','بدء مهلة 30 يومًا لحذف هذا المشروع وكل بنوده؟',true))return;
+    const {data}=await rpcRequestProjectDeletion(b.dataset.pdel);
+    if(data&&data.ok){toast('بدأت المهلة','warn');renderArchived();}else toast((data&&data.error)||'تعذّر','err');});
+  list.querySelectorAll('[data-ppurge]').forEach(b=>b.onclick=async()=>{
+    if(!await confirmDialog('حذف نهائي','حذف نهائي لا رجعة فيه للمشروع وكل بنوده. متأكد؟',true))return;
+    const {data}=await rpcPurgeProject(b.dataset.ppurge);
+    if(data&&data.ok){toast('حُذف نهائيًا','ok');renderArchived();}else toast((data&&data.error)||'تعذّر — تحقق من المهلة والصلاحية','err');});
   list.querySelectorAll('[data-restore]').forEach(b=>b.onclick=async()=>{
     const {data}=await rpcRestoreClient(b.dataset.restore);
     if(data&&data.ok){toast('تم الاسترجاع','ok');const c=await fetchClientsByState('active');CLIENTS=c;renderArchived();}
@@ -1836,6 +1987,7 @@ $('#accAdd').onclick=async()=>{
 $('#accClose').onclick=()=>{$('#accessOverlay').style.display='none';};
 $('#accessOverlay').onclick=e=>{if(e.target.id==='accessOverlay')$('#accessOverlay').style.display='none';};
 $('#manageAccess').onclick=openAccess;
+const _pmb=$('#projMenuBtn');if(_pmb)_pmb.onclick=()=>{if(PROJECT)openProjectMenu(PROJECT._dbId,PROJECT.name);};
 
 // ===== اعتماد العقد + تثبيت الأساس =====
 $('#approveContract').onclick=async()=>{
@@ -2129,7 +2281,7 @@ function renderDOL(){
 
   const toolbar=`<div class="lockbar" style="border-inline-start-color:var(--crit)">
     <span>الحوكمة:</span>
-    <button class="reqbtn" id="dolAddGate" style="background:var(--crit);border-color:var(--crit);color:#fff">+ بوابة قرار</button>
+    ${ROLE==='pmo'?'<button class="reqbtn" id="dolAddGate" style="background:var(--crit);border-color:var(--crit);color:#fff">+ بوابة قرار</button>':''}
     <span style="color:var(--muted);font-weight:400;font-size:.78rem">البوابات تضع الحدود · القرارات التشغيلية تعمل داخلها · الانحراف يُقيَّم آليًا.</span>
   </div>`;
 
@@ -2150,9 +2302,9 @@ function renderDOL(){
             <b class="gate-title">${esc(g.title)}</b>
             <span class="crstate ${g.status==='approved'?'approved':g.status==='rejected'?'rejected':'pending'}">${DEC_STATUS[g.status]}</span></div>
           <div class="gate-acts">
-            <button class="reqbtn" data-addop="${g.id}">+ قرار تشغيلي</button>
+            ${ROLE==='pmo'?`<button class="reqbtn" data-addop="${g.id}">+ قرار تشغيلي</button>`:''}
             <button class="reqbtn" data-trace="${g.id}" title="التتبّع" aria-label="التتبع العكسي">${I.link}</button>
-            <button class="ib" data-deldec="${g.id}" style="color:var(--crit)">${I.trash}</button>
+            ${ROLE==='pmo'?`<button class="ib" data-deldec="${g.id}" style="color:var(--crit)">${I.trash}</button>`:''}
           </div>
         </div>
         ${g.rationale?`<div class="gate-rationale">${esc(g.rationale)}</div>`:''}
@@ -2176,7 +2328,7 @@ function opCard(o){
     <b>${esc(o.title)}</b>
     <span class="crstate ${o.status==='approved'?'approved':o.status==='executed'?'approved':'pending'}" style="font-size:.66rem">${DEC_STATUS[o.status]}</span>
     ${badge}
-    <button class="ib" data-deldec="${o.id}" style="color:var(--crit);margin-inline-start:auto">${I.trash}</button>
+    ${ROLE==='pmo'?`<button class="ib" data-deldec="${o.id}" style="color:var(--crit);margin-inline-start:auto">${I.trash}</button>`:''}
   </div>`;
 }
 
@@ -2579,7 +2731,8 @@ async function renderPortfolioGantt(){
   const timeline=await fetchPortfolioTimeline();
   if(!timeline.length){ $('#pgWrap').innerHTML='<div class="empty-cta"><div class="ico">'+I.calendar+'</div><h3>لا مشاريع لعرضها</h3><p>المشاريع التي لها خطط مهام ستظهر هنا في خط زمني موحّد.</p></div>'; return; }
   const pids=timeline.map(t=>t.project_id);
-  const {tasks,deps}=await fetchAllProjectsTasks(pids);
+  const {tasks,deps,tracks:allTracks}=await fetchAllProjectsTasks(pids);
+  const trkByProj={};(allTracks||[]).forEach(t=>{(trkByProj[t.project_id]=trkByProj[t.project_id]||{})[t.key]={name:t.name,color:t.color};});
   // نجمّع المهام والتبعيات لكل مشروع
   const byProj={};
   timeline.forEach(t=>byProj[t.project_id]={info:t,tasks:[],deps:[]});
@@ -2607,7 +2760,7 @@ async function renderPortfolioGantt(){
     const curPhase=cur?cur.track:(info.current_phase||'—');
     const pct=info.total_tasks>0?Math.round(info.done_tasks/info.total_tasks*100):0;
     projRows.push({pid,clientId:info.client_id,client:info.client_name,name:info.project_name,color:info.color,
-      start,end,curPhase,pct,lifecycle:info.lifecycle,
+      start,end,curPhase,pct,lifecycle:info.lifecycle,trk:trkByProj[pid]||{},
       tasks:info.total_tasks,milestones:info.milestones,sched,T});
     if(!minD||start<minD)minD=start;
     if(!maxD||end>maxD)maxD=end;
@@ -2640,7 +2793,7 @@ function PG_RENDER(rows,minD,maxD){
   let rowsHtml='';
   rows.forEach(r=>{
     const left=pct(r.start), width=Math.max(1.5,pct(r.end)-pct(r.start));
-    const clr=(TRACKS&&TRACKS[r.curPhase]&&TRACKS[r.curPhase].color)||r.color||'#C8A06B';
+    const _tm=r.trk&&r.trk[r.curPhase];const clr=(_tm&&_tm.color)||(TRACKS&&TRACKS[r.curPhase]&&TRACKS[r.curPhase].color)||r.color||'#C8A06B';
     const fmt=d=>`${d.getDate()}/${d.getMonth()+1}`;
     rowsHtml+=`<div class="pg-row" data-open="${r.pid}">
       <div class="pg-label">
@@ -2651,7 +2804,7 @@ function PG_RENDER(rows,minD,maxD){
       <div class="pg-track">
         <div class="pg-bar" style="inset-inline-start:${left}%;width:${width}%;background:${clr}">
           <div class="pg-bar-fill" style="width:${r.pct}%"></div>
-          <span class="pg-bar-txt">${PHASE_NAMES[r.curPhase]||''} · ${r.pct}%</span>
+          <span class="pg-bar-txt">${(_tm&&_tm.name)||PHASE_NAMES[r.curPhase]||''} · ${r.pct}%</span>
         </div>
         <span class="pg-date pg-date-s" style="inset-inline-start:${left}%">${fmt(r.start)}</span>
         <span class="pg-date pg-date-e" style="inset-inline-start:${Math.min(96,pct(r.end))}%">${fmt(r.end)}</span>
