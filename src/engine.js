@@ -46,6 +46,16 @@ function computeTracking(tasks,S,ddStr){
     let delay=null;if(t.status!=='done'){if(co)delay='client';else if(ao)delay='alamah';
       else if(!blocked&&r){if(t.status==='notstarted'&&dd>r.ES)delay='alamah';else if(t.status==='inprogress'&&dd>r.EF)delay='alamah';}}
     let eff=t.status;if(blocked&&t.status!=='done')eff='blocked';
-    T[t.id]={blocked,delay,effStatus:eff};});
+    else if(t.status==='notstarted'&&r&&dd>=r.ES)eff='inprogress'; // بدء تلقائي عند حلول الموعد
+    // التقدّم التلقائي: أيام العمل المنقضية من مدة البند (سقف 90% حتى الإنجاز اليدوي)
+    let auto=0;
+    if(t.status==='done')auto=100;
+    else if(t.type!=='milestone'&&t.type!=='cont'&&r&&dd>r.ES){
+      const tot=Math.max(1,wdB(r.ES,r.EF));
+      auto=Math.min(90,Math.round(wdB(r.ES,(dd<r.EF?dd:r.EF))/tot*100));
+      if(auto<0)auto=0;
+    }
+    const disp=t.status==='done'?100:Math.max(auto,t.progress||0);
+    T[t.id]={blocked,delay,effStatus:eff,autoPct:auto,dispPct:disp};});
   return T;
 }
