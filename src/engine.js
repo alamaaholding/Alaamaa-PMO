@@ -17,9 +17,11 @@ function scheduleTasks(tasks,projectStartStr){
     if(t.type==='fixed'&&t.fixedDate){ES=ensureWD(new Date(t.fixedDate+'T00:00:00'));}
     else if(t.type==='milestone'){let mx=null;deps.forEach(d=>{const ef=R[d]?R[d].EF:start;if(mx===null||ef>mx)mx=ef;});ES=ensureWD(mx||start);}
     else if(deps.length===0)ES=addWD(start,t.lag||0);
-    else{let mx=null;deps.forEach(d=>{const ef=R[d]?R[d].EF:start;if(mx===null||ef>mx)mx=ef;});ES=addWD(nextWD(mx),t.lag||0);}
-    const dur=t.type==='milestone'?0:(t.type==='cont'?null:Math.max(1,t.duration||1));let EF;
-    if(t.type==='milestone')EF=clone(ES);else if(t.type==='cont')EF=clone(ES);else EF=addWD(ES,dur-1);
+    else{let mx=null;deps.forEach(d=>{const ef=R[d]?R[d].EF:start;if(mx===null||ef>mx)mx=ef;});
+      const zero=(t.duration||0)<=0; // مهمة بمدة 0: تلتصق بنهاية سابقتها ولا تستهلك يومًا
+      ES=zero?ensureWD(mx||start):addWD(nextWD(mx),t.lag||0);}
+    const dur=t.type==='milestone'?0:(t.type==='cont'?null:((t.duration||0)<=0?0:Math.max(1,t.duration)));let EF;
+    if(t.type==='milestone'||t.type==='cont'||dur===0)EF=clone(ES);else EF=addWD(ES,dur-1);
     R[id]={ES,EF,dur};});
   let pEnd=start;tasks.forEach(t=>{if(t.type!=='cont'&&R[t.id].EF>pEnd)pEnd=R[t.id].EF;});
   tasks.forEach(t=>{if(t.type==='cont')R[t.id].EF=clone(pEnd);});
