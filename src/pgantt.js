@@ -15,7 +15,8 @@ async function renderPortfolioGantt(){
   const timeline=await fetchPortfolioTimeline();
   if(!timeline.length){ $('#pgWrap').innerHTML='<div class="empty-cta"><div class="ico">'+I.calendar+'</div><h3>لا مشاريع لعرضها</h3><p>المشاريع التي لها خطط مهام ستظهر هنا في خط زمني موحّد.</p></div>'; return; }
   const pids=timeline.map(t=>t.project_id);
-  const {tasks,deps}=await fetchAllProjectsTasks(pids);
+  const {tasks,deps,tracks:allTracks}=await fetchAllProjectsTasks(pids);
+  const trkByProj={};(allTracks||[]).forEach(t=>{(trkByProj[t.project_id]=trkByProj[t.project_id]||{})[t.key]={name:t.name,color:t.color};});
   // نجمّع المهام والتبعيات لكل مشروع
   const byProj={};
   timeline.forEach(t=>byProj[t.project_id]={info:t,tasks:[],deps:[]});
@@ -43,7 +44,7 @@ async function renderPortfolioGantt(){
     const curPhase=cur?cur.track:(info.current_phase||'—');
     const pct=info.total_tasks>0?Math.round(info.done_tasks/info.total_tasks*100):0;
     projRows.push({pid,clientId:info.client_id,client:info.client_name,name:info.project_name,color:info.color,
-      start,end,curPhase,pct,lifecycle:info.lifecycle,
+      start,end,curPhase,pct,lifecycle:info.lifecycle,trk:trkByProj[pid]||{},
       tasks:info.total_tasks,milestones:info.milestones,sched,T});
     if(!minD||start<minD)minD=start;
     if(!maxD||end>maxD)maxD=end;
@@ -76,7 +77,7 @@ function PG_RENDER(rows,minD,maxD){
   let rowsHtml='';
   rows.forEach(r=>{
     const left=pct(r.start), width=Math.max(1.5,pct(r.end)-pct(r.start));
-    const clr=(TRACKS&&TRACKS[r.curPhase]&&TRACKS[r.curPhase].color)||r.color||'#C8A06B';
+    const _tm=r.trk&&r.trk[r.curPhase];const clr=(_tm&&_tm.color)||(TRACKS&&TRACKS[r.curPhase]&&TRACKS[r.curPhase].color)||r.color||'#C8A06B';
     const fmt=d=>`${d.getDate()}/${d.getMonth()+1}`;
     rowsHtml+=`<div class="pg-row" data-open="${r.pid}">
       <div class="pg-label">
@@ -87,7 +88,7 @@ function PG_RENDER(rows,minD,maxD){
       <div class="pg-track">
         <div class="pg-bar" style="inset-inline-start:${left}%;width:${width}%;background:${clr}">
           <div class="pg-bar-fill" style="width:${r.pct}%"></div>
-          <span class="pg-bar-txt">${PHASE_NAMES[r.curPhase]||''} · ${r.pct}%</span>
+          <span class="pg-bar-txt">${(_tm&&_tm.name)||PHASE_NAMES[r.curPhase]||''} · ${r.pct}%</span>
         </div>
         <span class="pg-date pg-date-s" style="inset-inline-start:${left}%">${fmt(r.start)}</span>
         <span class="pg-date pg-date-e" style="inset-inline-start:${Math.min(96,pct(r.end))}%">${fmt(r.end)}</span>
