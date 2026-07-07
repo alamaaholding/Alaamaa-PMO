@@ -1,5 +1,9 @@
 // ===== الحالة =====
-let USER=null,ROLE=null,IS_OWNER=false,CLIENTS=[],CID=null,PID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[],PFILTER='all',PSEARCH='',PEXPANDED=new Set();
+let USER=null,ROLE=null,IS_OWNER=false,CLIENTS=[],CID=null,PID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[],PFILTER='all',PSEARCH='',PEXPANDED=new Set(),PALERTS=new Set(),PSORT='alerts';
+try{const sv=JSON.parse(localStorage.getItem('pmo_pfilters')||'{}');
+  if(sv.PFILTER)PFILTER=sv.PFILTER; if(sv.PSORT)PSORT=sv.PSORT; if(Array.isArray(sv.PALERTS))PALERTS=new Set(sv.PALERTS);
+}catch(e){}
+function savePFilters(){try{localStorage.setItem('pmo_pfilters',JSON.stringify({PFILTER,PSORT,PALERTS:[...PALERTS]}));}catch(e){}}
 let SCREEN='portfolio'; // portfolio | project — للطاقم؛ العميل دائمًا project
 
 // ===== الإشعارات (Toast) =====
@@ -147,16 +151,33 @@ async function renderPortfolio(){
   const counts={all:companies.length,
     active:companies.filter(x=>x.isActive).length,
     draft:companies.filter(x=>x.isDraft).length,
-    alerts:companies.filter(x=>x.hasAlerts).length};
+    blocked:companies.filter(x=>x.blocked>0).length,
+    reqs:companies.filter(x=>x.reqs>0).length,
+    comments:companies.filter(x=>x.comments>0).length};
   const fbtn=(k,lbl)=>`<button class="pfilter ${PFILTER===k?'active':''}" data-filter="${k}">${lbl} <span class="pfilter-n">${counts[k]}</span></button>`;
+  const abtn=(k,lbl,cls)=>`<button class="pfilter chip-${cls} ${PALERTS.has(k)?'active':''}" data-alertfilter="${k}">${lbl} <span class="pfilter-n">${counts[k]}</span></button>`;
   const searchBox=`<input id="pSearch" class="psearch" placeholder="🔍 بحث باسم الشركة أو المشروع…" value="${esc(PSEARCH)}">`;
-  const filterBar=`<div class="pfilters">${fbtn('all','الكل')}${fbtn('active','نشطة')}${fbtn('draft','مسوّدة')}${fbtn('alerts','بها تنبيهات')}${searchBox}</div>`;
+  const sortSel=`<select id="pSort" class="psort" aria-label="ترتيب">
+    <option value="alerts" ${PSORT==='alerts'?'selected':''}>ترتيب: التنبيهات أولًا</option>
+    <option value="name" ${PSORT==='name'?'selected':''}>ترتيب: الاسم</option>
+    <option value="progress" ${PSORT==='progress'?'selected':''}>ترتيب: الأعلى تقدّمًا</option>
+    <option value="projects" ${PSORT==='projects'?'selected':''}>ترتيب: عدد المشاريع</option>
+  </select>`;
+  const filterBar=`<div class="pfilters-wrap">
+    <div class="pfilters">
+      <span class="pfacet-lbl">الحالة:</span>${fbtn('all','الكل')}${fbtn('active','نشطة')}${fbtn('draft','مسوّدة')}
+      <span class="pfacet-lbl">تنبيهات:</span>${abtn('blocked','متوقفة','red')}${abtn('reqs','متطلبات','amber')}${abtn('comments','نقاش','blue')}
+      ${sortSel}${searchBox}
+    </div>
+  </div>`;
 
-  // تطبيق الفلتر والبحث
+  // تطبيق الفلاتر (تُدمج: حالة + تنبيهات متعددة + بحث)
   let shown=companies.filter(x=>{
     if(PFILTER==='active'&&!x.isActive)return false;
     if(PFILTER==='draft'&&!x.isDraft)return false;
-    if(PFILTER==='alerts'&&!x.hasAlerts)return false;
+    if(PALERTS.has('blocked')&&!(x.blocked>0))return false;
+    if(PALERTS.has('reqs')&&!(x.reqs>0))return false;
+    if(PALERTS.has('comments')&&!(x.comments>0))return false;
     if(PSEARCH){
       const q=PSEARCH.trim();
       const inName=x.c.name.includes(q);
@@ -165,17 +186,43 @@ async function renderPortfolio(){
     }
     return true;
   });
-  // الترتيب: ذات التنبيهات أولًا، ثم الأكثر مشاريع
-  shown.sort((a,b)=>(b.hasAlerts-a.hasAlerts)||(b.list.length-a.list.length));
+  // الترتيب حسب اختيار المستخدم
+  const sorters={
+    alerts:(a,b)=>(b.hasAlerts-a.hasAlerts)||(b.list.length-a.list.length),
+    name:(a,b)=>a.c.name.localeCompare(b.c.name,'ar'),
+    progress:(a,b)=>b.pct-a.pct,
+    projects:(a,b)=>b.list.length-a.list.length
+  };
+  shown.sort(sorters[PSORT]||sorters.alerts);
 
-  $('#host').querySelector('.hintbar').insertAdjacentHTML('afterend',filterBar);
-  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{PFILTER=b.dataset.filter;renderPortfolio();});
+  // شرائح الفلاتر النشطة (قابلة للإزالة)
+  const activeChips=[];
+  if(PFILTER!=='all')activeChips.push({k:'status',label:(PFILTER==='active'?'نشطة':'مسوّدة')});
+  if(PALERTS.has('blocked'))activeChips.push({k:'alert:blocked',label:'متوقفة'});
+  if(PALERTS.has('reqs'))activeChips.push({k:'alert:reqs',label:'متطلبات'});
+  if(PALERTS.has('comments'))activeChips.push({k:'alert:comments',label:'نقاش'});
+  if(PSEARCH)activeChips.push({k:'search',label:'بحث: '+PSEARCH});
+  const chipsBar=activeChips.length?`<div class="pchips"><span class="pchips-lbl">مُفعّل:</span>${activeChips.map(c=>`<span class="pchip">${esc(c.label)}<button data-rmchip="${c.k}" aria-label="إزالة الفلتر">✕</button></span>`).join('')}<button class="pchips-clear" id="pClearAll">مسح الكل</button></div>`:'';
+
+  $('#host').querySelector('.hintbar').insertAdjacentHTML('afterend',filterBar+chipsBar);
+  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{PFILTER=b.dataset.filter;savePFilters();renderPortfolio();});
+  document.querySelectorAll('[data-alertfilter]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.alertfilter; if(PALERTS.has(k))PALERTS.delete(k);else PALERTS.add(k);
+    savePFilters();renderPortfolio();});
+  const pSortEl=$('#pSort'); if(pSortEl)pSortEl.onchange=()=>{PSORT=pSortEl.value;savePFilters();renderPortfolio();};
+  document.querySelectorAll('[data-rmchip]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.rmchip;
+    if(k==='status')PFILTER='all'; else if(k==='search')PSEARCH=''; else if(k.startsWith('alert:'))PALERTS.delete(k.split(':')[1]);
+    savePFilters();renderPortfolio();});
+  const pClearBtn=$('#pClearAll'); if(pClearBtn)pClearBtn.onclick=()=>{PFILTER='all';PSEARCH='';PALERTS.clear();savePFilters();renderPortfolio();};
   const sIn=$('#pSearch');
   if(sIn){ sIn.oninput=()=>{PSEARCH=sIn.value; clearTimeout(sIn._t); sIn._t=setTimeout(renderPortfolio,300);};
     // إبقاء التركيز بعد إعادة العرض
     if(PSEARCH){ setTimeout(()=>{const el=$('#pSearch');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}},0); } }
 
-  if(!shown.length){grid.innerHTML='<p class="pempty">لا شركات مطابقة.</p>';return;}
+  if(!shown.length){grid.innerHTML='<div class="empty-cta"><div class="ico">🔍</div><h3>لا نتائج مطابقة</h3><p>جرّب تعديل الفلاتر أو مسحها.</p><button class="hbtn" id="pEmptyClear" style="background:var(--gold);border-color:var(--gold)">مسح الفلاتر</button></div>';
+    const pec=$('#pEmptyClear');if(pec)pec.onclick=()=>{PFILTER='all';PSEARCH='';PALERTS.clear();savePFilters();renderPortfolio();};
+    return;}
   grid.className='pcompany-grid';
 
   // صف مشروع مدمج (داخل التوسيع)
@@ -248,6 +295,7 @@ async function renderPortfolio(){
   document.querySelectorAll('[data-addproj]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();newProjectDialog(b.dataset.addproj);});
 }
 async function openProject(){
+  TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};
   $('#loader').classList.remove('hidden');
   await loadProject(CID,PID);
   $('#loader').classList.add('hidden');
@@ -318,34 +366,51 @@ async function openProjectMenu(projectId, projectName){
   }
 }
 
-// مدير المراحل الديناميكية (PMO): تعديل أسماء/ألوان أو إضافة مراحل
-async function openTracksManager(){
+// مدير المراحل: لوحة تعديل مباشر (اسم + لون في مكانهما)
+function openTracksManager(){
   if(!PROJECT)return;
+  $('#trkOverlay').style.display='flex';
+  renderTrkPanel();
+}
+function renderTrkPanel(){
   const list=PROJECT.tracks||[];
-  const opts=list.map(t=>({v:t.id,t:t.key+' — '+t.name})).concat([{v:'__add',t:'+ إضافة مرحلة جديدة'}]);
-  const r=await dialog({title:'إدارة مراحل المشروع',
-    message:'المراحل تحدد تجميع البنود وألوانها في الجدول والجانت وداشبورد العميل.',
-    fields:[{key:'sel',label:'اختر مرحلة أو أضف',type:'select',value:opts[0].v,options:opts}],confirmText:'متابعة'});
-  if(!r)return;
-  if(r.sel==='__add'){
-    const a=await dialog({title:'مرحلة جديدة',fields:[
-      {key:'key',label:'الرمز (حرف/رقم فريد، مثل D)',placeholder:'D'},
-      {key:'name',label:'اسم المرحلة',placeholder:'مثل: التحليل بالموجات'},
-      {key:'color',label:'اللون',type:'color',value:'#C8A06B'}],confirmText:'إضافة'});
-    if(!a||!a.key||!a.name)return;
-    try{await addTrack(PROJECT._dbId,a.key.trim().toUpperCase(),a.name,a.color,list.length);
-      PROJECT.tracks=await fetchTracks(PROJECT._dbId);toast('أُضيفت المرحلة «'+a.name+'»','ok');render();
-    }catch(e){toast('تعذّر (الرمز مكرر؟): '+e.message,'err');}
-  }else{
-    const t=list.find(x=>x.id===r.sel);if(!t)return;
-    const e=await dialog({title:'تعديل المرحلة: '+t.key,fields:[
-      {key:'name',label:'الاسم',value:t.name},
-      {key:'color',label:'اللون',type:'color',value:t.color}],confirmText:'حفظ'});
-    if(!e||!e.name)return;
-    try{await updateTrack(t.id,{name:e.name,color:e.color});
-      PROJECT.tracks=await fetchTracks(PROJECT._dbId);toast('حُدّثت المرحلة','ok');render();
-    }catch(err){toast('تعذّر التحديث','err');}
-  }
+  $('#trkBody').innerHTML=`
+    <p class="trk-hint">عدّل الاسم أو اللون مباشرة ثم اضغط «حفظ». التغييرات تنعكس فورًا على الجدول والجانت وداشبورد العميل.</p>
+    ${list.map(t=>`<div class="trk-row" data-tid="${t.id}">
+      <input type="color" class="trk-color" value="${t.color}" aria-label="لون المرحلة ${esc(t.name)}">
+      <span class="trk-key" title="رمز المرحلة">${esc(t.key)}</span>
+      <input class="trk-name" value="${esc(t.name)}" aria-label="اسم المرحلة">
+    </div>`).join('')}
+    <div class="trk-row trk-new">
+      <input type="color" class="trk-color" id="trkNewColor" value="#C8A06B" aria-label="لون المرحلة الجديدة">
+      <input class="trk-key-in" id="trkNewKey" placeholder="رمز" maxlength="2" aria-label="رمز المرحلة الجديدة">
+      <input class="trk-name" id="trkNewName" placeholder="+ اسم مرحلة جديدة (اختياري)" aria-label="اسم المرحلة الجديدة">
+    </div>
+    <div class="imp-actions">
+      <button class="hbtn" id="trkSave" style="background:var(--gold);border-color:var(--gold)">حفظ التعديلات</button>
+      <button class="hbtn ghost" id="trkClose">إغلاق</button>
+    </div>`;
+  $('#trkClose').onclick=()=>{$('#trkOverlay').style.display='none';};
+  $('#trkSave').onclick=saveTracks;
+}
+async function saveTracks(){
+  const list=PROJECT.tracks||[];let changed=0;
+  const btn=$('#trkSave');if(btn)btn.disabled=true;
+  try{
+    for(const row of document.querySelectorAll('#trkBody .trk-row[data-tid]')){
+      const t=list.find(x=>x.id===row.dataset.tid);if(!t)continue;
+      const name=row.querySelector('.trk-name').value.trim();
+      const color=row.querySelector('.trk-color').value;
+      if(name&&(name!==t.name||color!==t.color)){await updateTrack(t.id,{name,color});changed++;}
+    }
+    const nk=($('#trkNewKey').value||'').trim().toUpperCase();
+    const nn=($('#trkNewName').value||'').trim();
+    if(nk&&nn){await addTrack(PROJECT._dbId,nk,nn,$('#trkNewColor').value,list.length);changed++;}
+    else if(nn&&!nk){toast('أدخل رمزًا للمرحلة الجديدة (حرف أو رقم)','warn');if(btn)btn.disabled=false;return;}
+    PROJECT.tracks=await fetchTracks(PROJECT._dbId);
+    toast(changed?('حُفظت المراحل ('+changed+' تغيير)'):'لا تغييرات','ok');
+    $('#trkOverlay').style.display='none';render();
+  }catch(e){toast('تعذّر الحفظ (الرمز مكرر؟): '+e.message,'err');if(btn)btn.disabled=false;}
 }
 
 // إنشاء عميل جديد مباشرة (سدّ فجوة الرحلة الأولى)
@@ -703,13 +768,15 @@ async function handleAddTask(){
     fields:[
       {key:'ref',label:'المعرّف (فريد، مثل B10)',placeholder:'B10'},
       {key:'name',label:'اسم البند',value:'بند جديد'},
-      {key:'track',label:'المسار',type:'select',value:'0',options:Object.keys(TRACKS).map(k=>({v:k,t:TRACKS[k].code+' — '+TRACKS[k].name}))},
+      {key:'track',label:'المسار',type:'select',value:'0',options:projTrackList().map(x=>({v:x.key,t:(x.code||x.key)+' — '+x.name}))},
       {key:'type',label:'النوع',type:'select',value:'task',options:Object.keys(TYPES).map(k=>({v:k,t:TYPES[k]}))},
       {key:'duration',label:'المدة (أيام عمل)',type:'number',value:'1'}
     ],confirmText:'إضافة'});
   if(!r)return;
   if(!r.ref){toast('المعرّف مطلوب','warn');return;}
   if(PROJECT.tasks.some(t=>t.id===r.ref)){toast('المعرّف مستخدم بالفعل','warn');return;}
+  const _d=parseInt(r.duration||'1',10);
+  if(r.type==='task'&&(!_d||_d<1)){toast('مدة المهمة لا تقل عن يوم واحد — للأحداث اللحظية استخدم نوع «معلم»','warn');return;}
   try{
     await addTask(PROJECT._dbId,{ref:r.ref,name:r.name||'بند جديد',track:r.track,type:r.type,duration:parseInt(r.duration||'1',10)});
     await loadProject(CID);
@@ -837,3 +904,16 @@ document.addEventListener('keydown',e=>{
 
 // انطلاق
 boot();
+// طباعة احترافية: الجدول (كل مرحلة صفحة) أو الجانت (مصغّر ليطابق الصفحة، بلا تداخل)
+function printProject(mode){
+  if(mode==='gantt'){
+    const prevPX=PX; PX=6; render();
+    setTimeout(()=>{
+      window.print();
+      const restore=()=>{PX=prevPX;render();window.removeEventListener('afterprint',restore);};
+      window.addEventListener('afterprint',restore);
+    },80);
+  }else{
+    window.print();
+  }
+}
