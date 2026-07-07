@@ -38,13 +38,15 @@ function render(){
     const canBuild=can('editStruct');
     host.innerHTML=`<div class="empty-cta"><div class="ico">${I.clipboard}</div><h3>لا توجد خطة بعد لهذا المشروع</h3>
       <p>${canBuild?'ابدأ ببناء خطة المشروع بإضافة أول بند، ثم عرّف المسارات والتبعيات.':'لم تُبنَ خطة هذا المشروع بعد. سيظهر المحتوى فور إعدادها من فريق إدارة المشاريع.'}</p>
-      ${canBuild?'<button id="emptyAdd">+ إضافة أول بند</button>':''}</div>`;
+      ${canBuild?`<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px"><button id="emptyImport" class="hbtn" style="background:var(--blue);border-color:var(--blue)">${I.upload} استيراد خطة من Excel</button><button id="emptyAdd" class="hbtn" style="background:var(--ok);border-color:var(--ok)">+ إضافة أول بند</button></div>`:''}</div>`;
     const ea=$('#emptyAdd');if(ea)ea.onclick=()=>{VIEW='table';handleAddTask();};
+    const ei=$('#emptyImport');if(ei)ei.onclick=openImporter;
     return;
   }
   if(VIEW==='dashboard')host.innerHTML=(ROLE==='client')?vClientDash():vDashboard();
   else if(VIEW==='table'){host.innerHTML='<div class="hintbar">تحديث الحالة والتقدّم يُحفظ مباشرة في القاعدة. المسار الحرج مظلّل.</div>'+vTable();bindTable();}
-  else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(10,PX-4);render();};}
+  else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();bindProjFilterBar();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(10,PX-4);render();};
+    const pgb=$('#printGanttBtn');if(pgb)pgb.onclick=()=>printProject('gantt');}
   else if(VIEW==='deliv')host.innerHTML=vDeliv();
   else if(VIEW==='cr'){host.innerHTML=vCR();bindCR();}
   else if(VIEW==='discuss'){
@@ -93,6 +95,52 @@ function vDashboard(){
   return h;
 }
 
+
+// ===== فلترة الجدول والجانت (مدمجة، تُطبَّق على الاثنين معًا) =====
+let TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};
+function taskMatchesFilter(t){
+  const k=TRACK&&TRACK[t.id];
+  if(TFILTER.phases.size&&!TFILTER.phases.has(t.track))return false;
+  if(TFILTER.statuses.size&&!TFILTER.statuses.has(k?k.effStatus:t.status))return false;
+  if(TFILTER.smart.has('critical')&&!(SCHED.R[t.id]&&SCHED.R[t.id].critical))return false;
+  if(TFILTER.smart.has('late')&&!(k&&(k.delay||k.effStatus==='blocked')&&t.status!=='done'))return false;
+  if(TFILTER.smart.has('client')&&!(k&&k.delay==='client'))return false;
+  if(TFILTER.q){const q=TFILTER.q.trim();
+    if(!(t.name||'').includes(q)&&!(t.id||'').includes(q))return false;}
+  return true;
+}
+function filteredTasks(){return PROJECT.tasks.filter(taskMatchesFilter);}
+function projFilterBar(){
+  const total=PROJECT.tasks.length, shown=filteredTasks().length;
+  const phaseChips=projTrackList().map(x=>`<button class="tfchip" data-tf-phase="${x.key}" style="--tc:${x.color}" aria-pressed="${TFILTER.phases.has(x.key)}">${esc(x.name)}</button>`).join('');
+  const stAr={notstarted:'لم تبدأ',inprogress:'جارية',blocked:'متوقفة',done:'مكتملة'};
+  const statusChips=Object.keys(stAr).map(k=>`<button class="tfchip st-${k}" data-tf-status="${k}" aria-pressed="${TFILTER.statuses.has(k)}">${stAr[k]}</button>`).join('');
+  const smartChips=[['critical','حرجة فقط'],['late','متأخرة'],['client','بانتظار العميل']]
+    .map(([k,l])=>`<button class="tfchip smart" data-tf-smart="${k}" aria-pressed="${TFILTER.smart.has(k)}">${l}</button>`).join('');
+  const anyActive=TFILTER.phases.size||TFILTER.statuses.size||TFILTER.smart.size||TFILTER.q;
+  return `<div class="tfilter-bar">
+    <div class="tfilter-row"><span class="tfacet-lbl">المرحلة:</span>${phaseChips}</div>
+    <div class="tfilter-row"><span class="tfacet-lbl">الحالة:</span>${statusChips}<span class="tfacet-lbl">مرشّحات:</span>${smartChips}
+      <input id="tfSearch" class="psearch tfsearch" placeholder="🔍 بحث بالاسم/المعرّف…" value="${esc(TFILTER.q)}">
+      ${anyActive?'<button class="pchips-clear" id="tfClear">مسح الفلاتر</button>':''}
+    </div>
+    <div class="tfilter-count">يعرض <b>${shown}</b> من <b>${total}</b> بندًا</div>
+  </div>`;
+}
+function bindProjFilterBar(){
+  document.querySelectorAll('[data-tf-phase]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.tfPhase; TFILTER.phases.has(k)?TFILTER.phases.delete(k):TFILTER.phases.add(k); render();});
+  document.querySelectorAll('[data-tf-status]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.tfStatus; TFILTER.statuses.has(k)?TFILTER.statuses.delete(k):TFILTER.statuses.add(k); render();});
+  document.querySelectorAll('[data-tf-smart]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.tfSmart; TFILTER.smart.has(k)?TFILTER.smart.delete(k):TFILTER.smart.add(k); render();});
+  const tfs=document.getElementById('tfSearch');
+  if(tfs){tfs.oninput=()=>{TFILTER.q=tfs.value;clearTimeout(tfs._t);tfs._t=setTimeout(render,300);};
+    if(TFILTER.q){setTimeout(()=>{tfs.focus();tfs.setSelectionRange(tfs.value.length,tfs.value.length);},0);}}
+  const tfc=document.getElementById('tfClear');
+  if(tfc)tfc.onclick=()=>{TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};render();};
+}
+
 function vTable(){
   const S=SCHED,T=TRACK;const editStruct=can('editStruct')&&PROJECT.status!=='baselined';const editProg=can('editProg');
   const colspan=editStruct?12:11;
@@ -129,9 +177,11 @@ function vTable(){
   });
   const editHead=editStruct?'<th>تحرير</th>':'';
   const addBar=editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button>${ROLE==='pmo'?'<button class="reqbtn" id="tracksBtn" style="background:var(--ink);border-color:var(--ink);color:#fff">إدارة المراحل</button>':''}<span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'';
-  return addBar+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  const printBtn=`<div class="lockbar" style="border-inline-start-color:var(--line)"><button class="hbtn print-btn" id="printTableBtn">🖨 طباعة الجدول</button><span style="color:var(--muted);font-weight:400;font-size:.78rem">تُطبع كل مرحلة في صفحة، والأعمدة مصغّرة للقراءة.</span></div>`;
+  return addBar+printBtn+projFilterBar()+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function bindTable(){
+  bindProjFilterBar();
   const editStruct=can('editStruct')&&PROJECT.status!=='baselined';
   $$('#tbl tr[data-id]').forEach(tr=>{
     const id=tr.dataset.id,t=PROJECT.tasks.find(x=>x.id===id);
@@ -156,9 +206,10 @@ function bindTable(){
     const tb=$('#tracksBtn');if(tb)tb.onclick=openTracksManager;
     const ib=$('#importXlsxBtn');if(ib)ib.onclick=openImporter;
   }
+  const ptb=$('#printTableBtn');if(ptb)ptb.onclick=()=>printProject('table');
 }
 
-function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div><span style="margin-inline-start:auto"></span><div class="zoom"><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
+function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div><button class="hbtn print-btn" id="printGanttBtn" style="margin-inline-start:auto">🖨 طباعة الجانت</button><div class="zoom"><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
 function vGantt(){
   const S=SCHED,T=TRACK,start=S.pStart,end=S.pEnd,oneDay=86400000,dd=D(DATA_DATE);
   const lo=start<dd?start:dd,hi=end>dd?end:dd,totalDays=Math.round((hi-lo)/oneDay)+3,W=totalDays*PX;
@@ -168,8 +219,8 @@ function vGantt(){
   while(d<=hi){const ms=off(d);const nx=new Date(d.getFullYear(),d.getMonth()+1,1);const se=nx>hi?hi:new Date(nx-oneDay);const days=Math.round((se-d)/oneDay)+1;months+=`<div class="mhead" style="right:${ms*PX}px;width:${days*PX}px">${MN[d.getMonth()]} ${d.getFullYear()}</div>`;d=nx;}
   let wk=new Date(lo),wi=1;while(wk<=hi){weeks+=`<div class="whead" style="right:${off(wk)*PX}px;width:${7*PX}px"><b>أسبوع ${wi}</b><s>${fmt(wk)}</s></div>`;grid+=`<div class="vg" style="right:${off(wk)*PX}px"></div>`;wk=new Date(wk.getTime()+7*oneDay);wi++;}
   const today=`<div class="today" style="right:${off(dd)*PX}px"><span>اليوم ${fmt(dd)}</span></div>`;
-  const BL=PROJECT.baseline?PROJECT.baseline.snapshot:null;let rows='',last=null;
-  PROJECT.tasks.forEach(t=>{const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
+  const BL=PROJECT.baseline?PROJECT.baseline.snapshot:null;let rows='',last=null; const _fg=filteredTasks();
+  _fg.forEach(t=>{const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
     if(t.track!==last){last=t.track;rows+=`<div class="grow grp"><div class="glbl">${trackMeta(t.track).code} — ${esc(trackMeta(t.track).name)}</div><div class="glane"></div></div>`;}
     const o=off(r.ES);const tip=`${esc(t.name)} — ${fmt(r.ES)}–${fmt(r.EF)} | ${STATUS[k.effStatus]}`;
     let lane='';
@@ -181,7 +232,7 @@ function vGantt(){
       const durEl=inside?`<div class="gdur inside" style="right:${o*PX+6}px">${durTxt}</div>`:`<div class="gdur" style="right:${(o+len)*PX+4}px">${durTxt}</div>`;
       lane+=`<div class="gbar ${cls} ${r.critical?'crit':''}" style="right:${o*PX}px;width:${wpx}px;background:${tc}" title="${tip}">${fill}</div>${durEl}`;}
     rows+=`<div class="grow"><div class="glbl"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
-  return `<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
+  return projFilterBar()+`<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
     <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${months}${weeks}</div></div>
     <div style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${grid}${today}</div>${rows}</div></div></div>
     <div class="glegend"><span><span class="di"></span>معلم</span><span><span class="ci"></span>حرج</span>${BL?'<span><i class="blleg"></i>الأساس المعتمد</span>':''}<span><span class="dot" style="background:#cbbfa6"></span>لم تبدأ</span><span><span class="dot" style="background:var(--blue)"></span>جارية</span><span><span class="dot" style="background:var(--crit)"></span>متوقفة</span><span><span class="dot" style="background:var(--ok)"></span>مكتملة</span></div></div>`;
