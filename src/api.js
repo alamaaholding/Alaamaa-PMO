@@ -33,7 +33,7 @@ async function loadProject(clientId, projectId){
   CID=clientId;
   let q=sb.from('pmo_projects').select('*').eq('client_id',clientId);
   if(projectId) q=q.eq('id',projectId);
-  else q=q.order('start_date').limit(1);
+  else q=q.eq('lifecycle_state','active').order('start_date').limit(1);
   const {data:projects}=await q;
   if(!projects||!projects.length){PROJECT=null;return;}
   const p=projects[0];
@@ -54,6 +54,7 @@ async function loadProject(clientId, projectId){
   PROJECT={_dbId:p.id,name:p.name,start:p.start_date,status:p.status,lifecycle:p.lifecycle,contractValue:p.contract_value,
     baseline:(bl&&bl.length)?{snapshot:bl[0].snapshot}:null,
     tasks:tasks.map(t=>({id:t.ref,_dbId:t.id,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],requirements:reqMap[t.id]||[]}))};
+  PROJECT.tracks=(await sb.from('pmo_project_tracks').select('*').eq('project_id',p.id).order('sort')).data||[];
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
 
@@ -262,3 +263,16 @@ async function insertProjectForClient(clientId, name, startDate){
     .select().single();
   if(error) throw error; return data;
 }
+
+// ===== دورة حياة المشروع + المراحل الديناميكية =====
+async function rpcArchiveProject(id){return await sb.rpc('pmo_archive_project',{p_project:id});}
+async function rpcRestoreProject(id){return await sb.rpc('pmo_restore_project',{p_project:id});}
+async function rpcRequestProjectDeletion(id){return await sb.rpc('pmo_request_project_deletion',{p_project:id});}
+async function rpcPurgeProject(id){return await sb.rpc('pmo_purge_project',{p_project:id});}
+async function renameProject(id,name){const{error}=await sb.from('pmo_projects').update({name}).eq('id',id);if(error)throw error;}
+async function fetchArchivedProjects(){
+  const{data}=await sb.from('pmo_projects').select('id,name,lifecycle_state,deletion_scheduled_at,client_id')
+    .neq('lifecycle_state','active');return data||[];}
+async function fetchTracks(projectId){const{data}=await sb.from('pmo_project_tracks').select('*').eq('project_id',projectId).order('sort');return data||[];}
+async function addTrack(projectId,key,name,color,sort){const{error}=await sb.from('pmo_project_tracks').insert({project_id:projectId,key,name,color,sort});if(error)throw error;}
+async function updateTrack(id,patch){const{error}=await sb.from('pmo_project_tracks').update(patch).eq('id',id);if(error)throw error;}
