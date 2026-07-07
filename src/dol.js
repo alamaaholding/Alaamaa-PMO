@@ -30,7 +30,7 @@ function renderDOL(){
 
   const toolbar=`<div class="lockbar" style="border-inline-start-color:var(--crit)">
     <span>الحوكمة:</span>
-    <button class="reqbtn" id="dolAddGate" style="background:var(--crit);border-color:var(--crit);color:#fff">+ بوابة قرار</button>
+    ${ROLE==='pmo'?'<button class="reqbtn" id="dolAddGate" style="background:var(--crit);border-color:var(--crit);color:#fff">+ بوابة قرار</button>':''}
     <span style="color:var(--muted);font-weight:400;font-size:.78rem">البوابات تضع الحدود · القرارات التشغيلية تعمل داخلها · الانحراف يُقيَّم آليًا.</span>
   </div>`;
 
@@ -51,9 +51,9 @@ function renderDOL(){
             <b class="gate-title">${esc(g.title)}</b>
             <span class="crstate ${g.status==='approved'?'approved':g.status==='rejected'?'rejected':'pending'}">${DEC_STATUS[g.status]}</span></div>
           <div class="gate-acts">
-            <button class="reqbtn" data-addop="${g.id}">+ قرار تشغيلي</button>
+            ${ROLE==='pmo'?`<button class="reqbtn" data-addop="${g.id}">+ قرار تشغيلي</button>`:''}
             <button class="reqbtn" data-trace="${g.id}" title="التتبّع" aria-label="التتبع العكسي">${I.link}</button>
-            <button class="ib" data-deldec="${g.id}" style="color:var(--crit)">${I.trash}</button>
+            ${ROLE==='pmo'?`<button class="ib" data-deldec="${g.id}" style="color:var(--crit)">${I.trash}</button>`:''}
           </div>
         </div>
         ${g.rationale?`<div class="gate-rationale">${esc(g.rationale)}</div>`:''}
@@ -77,7 +77,7 @@ function opCard(o){
     <b>${esc(o.title)}</b>
     <span class="crstate ${o.status==='approved'?'approved':o.status==='executed'?'approved':'pending'}" style="font-size:.66rem">${DEC_STATUS[o.status]}</span>
     ${badge}
-    <button class="ib" data-deldec="${o.id}" style="color:var(--crit);margin-inline-start:auto">${I.trash}</button>
+    ${ROLE==='pmo'?`<button class="ib" data-deldec="${o.id}" style="color:var(--crit);margin-inline-start:auto">${I.trash}</button>`:''}
   </div>`;
 }
 
