@@ -480,6 +480,61 @@ html[dir="rtl"] .tabs::after{--fade-dir:right}
 .gantt .corner{position:sticky;right:0;z-index:9;background:var(--soft)}
 @media(max-width:760px){.tablewrap,.gscroll{max-height:calc(100vh - 190px)}
   #tbl th:nth-child(2),#tbl td:nth-child(2){position:static;min-width:120px}}
+/* لوحة إدارة المراحل - تعديل مباشر */
+.trk-hint{font-size:var(--fs-sm);color:var(--muted);margin-bottom:14px;line-height:1.7}
+.trk-row{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--line-soft)}
+.trk-color{width:30px;height:30px;border:none;border-radius:8px;padding:0;cursor:pointer;flex-shrink:0}
+.trk-key{font-weight:700;font-size:var(--fs-sm);min-width:22px;text-align:center;color:var(--muted)}
+.trk-key-in{width:44px;text-align:center;border:1.5px solid var(--line);border-radius:7px;padding:6px 4px;font-family:inherit}
+.trk-name{flex:1;border:1.5px solid var(--line);border-radius:7px;padding:7px 10px;font-family:inherit;font-size:var(--fs-md)}
+.trk-name:focus,.trk-key-in:focus{outline:none;border-color:var(--gold)}
+.trk-new{background:var(--soft-2);border-radius:9px;margin-top:6px;border-bottom:none}
+/* فلترة المحفظة (أبعاد متعددة + شرائح نشطة) */
+.pfilters-wrap{margin-bottom:10px}
+.pfilters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pfacet-lbl{font-size:var(--fs-xs);color:var(--muted);font-weight:600;margin-inline-start:6px}
+.pfacet-lbl:first-child{margin-inline-start:0}
+.chip-red.active{background:var(--crit);border-color:var(--crit);color:#fff}
+.chip-amber.active{background:var(--warn);border-color:var(--warn);color:#fff}
+.chip-blue.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.psort{border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-family:inherit;font-size:var(--fs-sm);background:var(--paper)}
+.pchips{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 14px;padding:8px 12px;background:var(--soft-2);border-radius:9px}
+.pchips-lbl{font-size:var(--fs-xs);color:var(--muted)}
+.pchip{display:inline-flex;align-items:center;gap:6px;background:var(--paper);border:1px solid var(--gold);color:var(--gold-dark);border-radius:999px;padding:3px 6px 3px 12px;font-size:var(--fs-xs);font-weight:600}
+.pchip button{background:none;border:none;color:var(--gold-dark);cursor:pointer;font-size:.8rem;padding:2px}
+.pchips-clear{margin-inline-start:auto;background:none;border:none;color:var(--crit);font-size:var(--fs-xs);font-weight:700;cursor:pointer;text-decoration:underline}
+
+/* فلترة الجدول/الجانت داخل المشروع */
+.tfilter-bar{background:var(--soft-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.tfilter-row{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+.tfilter-row:last-of-type{margin-bottom:8px}
+.tfchip{border:1.5px solid var(--tc,var(--line));background:#fff;color:var(--ink-soft);border-radius:999px;padding:4px 12px;font-size:var(--fs-xs);font-weight:600;cursor:pointer;font-family:inherit;transition:var(--t)}
+.tfchip[aria-pressed="true"]{background:var(--tc,var(--gold));border-color:var(--tc,var(--gold));color:#fff}
+.tfchip.smart{border-color:var(--gold-dark)}
+.tfchip.smart[aria-pressed="true"]{background:var(--gold-dark);border-color:var(--gold-dark);color:#fff}
+.tfsearch{width:200px;padding:5px 14px}
+.tfilter-count{font-size:var(--fs-xs);color:var(--muted)}
+
+/* الطباعة: جدول الخطة وجانت */
+@media print{
+  header,.bar2,.tabs,.portfolio-tools,.pfilters-wrap,.pchips,.tfilter-bar,.lockbar,.hintbar,
+  .kstart-edit,#projMenuBtn,#manageAccess,.gctrl .zoom,.reqbtn,.pcard-menu,.ib,#dataDate,.print-btn{display:none!important}
+  body{background:#fff}
+  .tablewrap,.gscroll{max-height:none!important;overflow:visible!important}
+  #tbl{width:100%;font-size:9pt}
+  #tbl th{position:static!important;background:#eee!important;color:#000!important}
+  #tbl td:nth-child(1),#tbl td:nth-child(2){position:static!important;background:#fff!important}
+  #tbl tr.grp{break-before:page;background:#ddd!important;color:#000!important}
+  #tbl tr.grp:first-child{break-before:auto}
+  #tbl tr{break-inside:avoid}
+  .gantt .thead{position:static!important}
+  .gantt .corner{position:static!important}
+  .gscroll>div{min-width:0!important;width:100%!important}
+  .gantt{break-inside:avoid}
+  .grow{break-inside:avoid}
+  @page{size:landscape;margin:12mm}
+}
+.print-btn{background:#fff;color:var(--ink);border-color:var(--line)}
 
 </style>
 </head><body>
@@ -578,6 +633,13 @@ html[dir="rtl"] .tabs::after{--fade-dir:right}
 </div>
 
 <!-- نافذة التبعيات -->
+<!-- لوحة إدارة المراحل -->
+<div id="trkOverlay" class="rqoverlay" style="align-items:flex-start">
+  <div class="rqmodal" style="max-width:520px">
+    <div class="rqhd"><h3 style="font-size:1.02rem">إدارة مراحل المشروع</h3><button onclick="document.getElementById('trkOverlay').style.display='none'" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
+    <div id="trkBody" style="padding:18px"></div>
+  </div>
+</div>
 <!-- نافذة الاستيراد -->
 <div id="impOverlay" class="rqoverlay" style="align-items:flex-start">
   <div class="rqmodal" style="max-width:680px">
@@ -666,9 +728,11 @@ function scheduleTasks(tasks,projectStartStr){
     if(t.type==='fixed'&&t.fixedDate){ES=ensureWD(new Date(t.fixedDate+'T00:00:00'));}
     else if(t.type==='milestone'){let mx=null;deps.forEach(d=>{const ef=R[d]?R[d].EF:start;if(mx===null||ef>mx)mx=ef;});ES=ensureWD(mx||start);}
     else if(deps.length===0)ES=addWD(start,t.lag||0);
-    else{let mx=null;deps.forEach(d=>{const ef=R[d]?R[d].EF:start;if(mx===null||ef>mx)mx=ef;});ES=addWD(nextWD(mx),t.lag||0);}
-    const dur=t.type==='milestone'?0:(t.type==='cont'?null:Math.max(1,t.duration||1));let EF;
-    if(t.type==='milestone')EF=clone(ES);else if(t.type==='cont')EF=clone(ES);else EF=addWD(ES,dur-1);
+    else{let mx=null;deps.forEach(d=>{const ef=R[d]?R[d].EF:start;if(mx===null||ef>mx)mx=ef;});
+      const zero=(t.duration||0)<=0; // مهمة بمدة 0: تلتصق بنهاية سابقتها ولا تستهلك يومًا
+      ES=zero?ensureWD(mx||start):addWD(nextWD(mx),t.lag||0);}
+    const dur=t.type==='milestone'?0:(t.type==='cont'?null:((t.duration||0)<=0?0:Math.max(1,t.duration)));let EF;
+    if(t.type==='milestone'||t.type==='cont'||dur===0)EF=clone(ES);else EF=addWD(ES,dur-1);
     R[id]={ES,EF,dur};});
   let pEnd=start;tasks.forEach(t=>{if(t.type!=='cont'&&R[t.id].EF>pEnd)pEnd=R[t.id].EF;});
   tasks.forEach(t=>{if(t.type==='cont')R[t.id].EF=clone(pEnd);});
@@ -1033,13 +1097,15 @@ function render(){
     const canBuild=can('editStruct');
     host.innerHTML=`<div class="empty-cta"><div class="ico">${I.clipboard}</div><h3>لا توجد خطة بعد لهذا المشروع</h3>
       <p>${canBuild?'ابدأ ببناء خطة المشروع بإضافة أول بند، ثم عرّف المسارات والتبعيات.':'لم تُبنَ خطة هذا المشروع بعد. سيظهر المحتوى فور إعدادها من فريق إدارة المشاريع.'}</p>
-      ${canBuild?'<button id="emptyAdd">+ إضافة أول بند</button>':''}</div>`;
+      ${canBuild?`<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px"><button id="emptyImport" class="hbtn" style="background:var(--blue);border-color:var(--blue)">${I.upload} استيراد خطة من Excel</button><button id="emptyAdd" class="hbtn" style="background:var(--ok);border-color:var(--ok)">+ إضافة أول بند</button></div>`:''}</div>`;
     const ea=$('#emptyAdd');if(ea)ea.onclick=()=>{VIEW='table';handleAddTask();};
+    const ei=$('#emptyImport');if(ei)ei.onclick=openImporter;
     return;
   }
   if(VIEW==='dashboard')host.innerHTML=(ROLE==='client')?vClientDash():vDashboard();
   else if(VIEW==='table'){host.innerHTML='<div class="hintbar">تحديث الحالة والتقدّم يُحفظ مباشرة في القاعدة. المسار الحرج مظلّل.</div>'+vTable();bindTable();}
-  else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(10,PX-4);render();};}
+  else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();bindProjFilterBar();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(10,PX-4);render();};
+    const pgb=$('#printGanttBtn');if(pgb)pgb.onclick=()=>printProject('gantt');}
   else if(VIEW==='deliv')host.innerHTML=vDeliv();
   else if(VIEW==='cr'){host.innerHTML=vCR();bindCR();}
   else if(VIEW==='discuss'){
@@ -1088,6 +1154,52 @@ function vDashboard(){
   return h;
 }
 
+
+// ===== فلترة الجدول والجانت (مدمجة، تُطبَّق على الاثنين معًا) =====
+let TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};
+function taskMatchesFilter(t){
+  const k=TRACK&&TRACK[t.id];
+  if(TFILTER.phases.size&&!TFILTER.phases.has(t.track))return false;
+  if(TFILTER.statuses.size&&!TFILTER.statuses.has(k?k.effStatus:t.status))return false;
+  if(TFILTER.smart.has('critical')&&!(SCHED.R[t.id]&&SCHED.R[t.id].critical))return false;
+  if(TFILTER.smart.has('late')&&!(k&&(k.delay||k.effStatus==='blocked')&&t.status!=='done'))return false;
+  if(TFILTER.smart.has('client')&&!(k&&k.delay==='client'))return false;
+  if(TFILTER.q){const q=TFILTER.q.trim();
+    if(!(t.name||'').includes(q)&&!(t.id||'').includes(q))return false;}
+  return true;
+}
+function filteredTasks(){return PROJECT.tasks.filter(taskMatchesFilter);}
+function projFilterBar(){
+  const total=PROJECT.tasks.length, shown=filteredTasks().length;
+  const phaseChips=projTrackList().map(x=>`<button class="tfchip" data-tf-phase="${x.key}" style="--tc:${x.color}" aria-pressed="${TFILTER.phases.has(x.key)}">${esc(x.name)}</button>`).join('');
+  const stAr={notstarted:'لم تبدأ',inprogress:'جارية',blocked:'متوقفة',done:'مكتملة'};
+  const statusChips=Object.keys(stAr).map(k=>`<button class="tfchip st-${k}" data-tf-status="${k}" aria-pressed="${TFILTER.statuses.has(k)}">${stAr[k]}</button>`).join('');
+  const smartChips=[['critical','حرجة فقط'],['late','متأخرة'],['client','بانتظار العميل']]
+    .map(([k,l])=>`<button class="tfchip smart" data-tf-smart="${k}" aria-pressed="${TFILTER.smart.has(k)}">${l}</button>`).join('');
+  const anyActive=TFILTER.phases.size||TFILTER.statuses.size||TFILTER.smart.size||TFILTER.q;
+  return `<div class="tfilter-bar">
+    <div class="tfilter-row"><span class="tfacet-lbl">المرحلة:</span>${phaseChips}</div>
+    <div class="tfilter-row"><span class="tfacet-lbl">الحالة:</span>${statusChips}<span class="tfacet-lbl">مرشّحات:</span>${smartChips}
+      <input id="tfSearch" class="psearch tfsearch" placeholder="🔍 بحث بالاسم/المعرّف…" value="${esc(TFILTER.q)}">
+      ${anyActive?'<button class="pchips-clear" id="tfClear">مسح الفلاتر</button>':''}
+    </div>
+    <div class="tfilter-count">يعرض <b>${shown}</b> من <b>${total}</b> بندًا</div>
+  </div>`;
+}
+function bindProjFilterBar(){
+  document.querySelectorAll('[data-tf-phase]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.tfPhase; TFILTER.phases.has(k)?TFILTER.phases.delete(k):TFILTER.phases.add(k); render();});
+  document.querySelectorAll('[data-tf-status]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.tfStatus; TFILTER.statuses.has(k)?TFILTER.statuses.delete(k):TFILTER.statuses.add(k); render();});
+  document.querySelectorAll('[data-tf-smart]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.tfSmart; TFILTER.smart.has(k)?TFILTER.smart.delete(k):TFILTER.smart.add(k); render();});
+  const tfs=document.getElementById('tfSearch');
+  if(tfs){tfs.oninput=()=>{TFILTER.q=tfs.value;clearTimeout(tfs._t);tfs._t=setTimeout(render,300);};
+    if(TFILTER.q){setTimeout(()=>{tfs.focus();tfs.setSelectionRange(tfs.value.length,tfs.value.length);},0);}}
+  const tfc=document.getElementById('tfClear');
+  if(tfc)tfc.onclick=()=>{TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};render();};
+}
+
 function vTable(){
   const S=SCHED,T=TRACK;const editStruct=can('editStruct')&&PROJECT.status!=='baselined';const editProg=can('editProg');
   const colspan=editStruct?12:11;
@@ -1124,9 +1236,11 @@ function vTable(){
   });
   const editHead=editStruct?'<th>تحرير</th>':'';
   const addBar=editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button>${ROLE==='pmo'?'<button class="reqbtn" id="tracksBtn" style="background:var(--ink);border-color:var(--ink);color:#fff">إدارة المراحل</button>':''}<span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'';
-  return addBar+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  const printBtn=`<div class="lockbar" style="border-inline-start-color:var(--line)"><button class="hbtn print-btn" id="printTableBtn">🖨 طباعة الجدول</button><span style="color:var(--muted);font-weight:400;font-size:.78rem">تُطبع كل مرحلة في صفحة، والأعمدة مصغّرة للقراءة.</span></div>`;
+  return addBar+printBtn+projFilterBar()+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function bindTable(){
+  bindProjFilterBar();
   const editStruct=can('editStruct')&&PROJECT.status!=='baselined';
   $$('#tbl tr[data-id]').forEach(tr=>{
     const id=tr.dataset.id,t=PROJECT.tasks.find(x=>x.id===id);
@@ -1151,9 +1265,10 @@ function bindTable(){
     const tb=$('#tracksBtn');if(tb)tb.onclick=openTracksManager;
     const ib=$('#importXlsxBtn');if(ib)ib.onclick=openImporter;
   }
+  const ptb=$('#printTableBtn');if(ptb)ptb.onclick=()=>printProject('table');
 }
 
-function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div><span style="margin-inline-start:auto"></span><div class="zoom"><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
+function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div><button class="hbtn print-btn" id="printGanttBtn" style="margin-inline-start:auto">🖨 طباعة الجانت</button><div class="zoom"><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
 function vGantt(){
   const S=SCHED,T=TRACK,start=S.pStart,end=S.pEnd,oneDay=86400000,dd=D(DATA_DATE);
   const lo=start<dd?start:dd,hi=end>dd?end:dd,totalDays=Math.round((hi-lo)/oneDay)+3,W=totalDays*PX;
@@ -1163,8 +1278,8 @@ function vGantt(){
   while(d<=hi){const ms=off(d);const nx=new Date(d.getFullYear(),d.getMonth()+1,1);const se=nx>hi?hi:new Date(nx-oneDay);const days=Math.round((se-d)/oneDay)+1;months+=`<div class="mhead" style="right:${ms*PX}px;width:${days*PX}px">${MN[d.getMonth()]} ${d.getFullYear()}</div>`;d=nx;}
   let wk=new Date(lo),wi=1;while(wk<=hi){weeks+=`<div class="whead" style="right:${off(wk)*PX}px;width:${7*PX}px"><b>أسبوع ${wi}</b><s>${fmt(wk)}</s></div>`;grid+=`<div class="vg" style="right:${off(wk)*PX}px"></div>`;wk=new Date(wk.getTime()+7*oneDay);wi++;}
   const today=`<div class="today" style="right:${off(dd)*PX}px"><span>اليوم ${fmt(dd)}</span></div>`;
-  const BL=PROJECT.baseline?PROJECT.baseline.snapshot:null;let rows='',last=null;
-  PROJECT.tasks.forEach(t=>{const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
+  const BL=PROJECT.baseline?PROJECT.baseline.snapshot:null;let rows='',last=null; const _fg=filteredTasks();
+  _fg.forEach(t=>{const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
     if(t.track!==last){last=t.track;rows+=`<div class="grow grp"><div class="glbl">${trackMeta(t.track).code} — ${esc(trackMeta(t.track).name)}</div><div class="glane"></div></div>`;}
     const o=off(r.ES);const tip=`${esc(t.name)} — ${fmt(r.ES)}–${fmt(r.EF)} | ${STATUS[k.effStatus]}`;
     let lane='';
@@ -1176,7 +1291,7 @@ function vGantt(){
       const durEl=inside?`<div class="gdur inside" style="right:${o*PX+6}px">${durTxt}</div>`:`<div class="gdur" style="right:${(o+len)*PX+4}px">${durTxt}</div>`;
       lane+=`<div class="gbar ${cls} ${r.critical?'crit':''}" style="right:${o*PX}px;width:${wpx}px;background:${tc}" title="${tip}">${fill}</div>${durEl}`;}
     rows+=`<div class="grow"><div class="glbl"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
-  return `<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
+  return projFilterBar()+`<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
     <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${months}${weeks}</div></div>
     <div style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${grid}${today}</div>${rows}</div></div></div>
     <div class="glegend"><span><span class="di"></span>معلم</span><span><span class="ci"></span>حرج</span>${BL?'<span><i class="blleg"></i>الأساس المعتمد</span>':''}<span><span class="dot" style="background:#cbbfa6"></span>لم تبدأ</span><span><span class="dot" style="background:var(--blue)"></span>جارية</span><span><span class="dot" style="background:var(--crit)"></span>متوقفة</span><span><span class="dot" style="background:var(--ok)"></span>مكتملة</span></div></div>`;
@@ -1425,7 +1540,11 @@ function vClientDash(){
 
 /* ===== app.js ===== */
 // ===== الحالة =====
-let USER=null,ROLE=null,IS_OWNER=false,CLIENTS=[],CID=null,PID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[],PFILTER='all',PSEARCH='',PEXPANDED=new Set();
+let USER=null,ROLE=null,IS_OWNER=false,CLIENTS=[],CID=null,PID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[],PFILTER='all',PSEARCH='',PEXPANDED=new Set(),PALERTS=new Set(),PSORT='alerts';
+try{const sv=JSON.parse(localStorage.getItem('pmo_pfilters')||'{}');
+  if(sv.PFILTER)PFILTER=sv.PFILTER; if(sv.PSORT)PSORT=sv.PSORT; if(Array.isArray(sv.PALERTS))PALERTS=new Set(sv.PALERTS);
+}catch(e){}
+function savePFilters(){try{localStorage.setItem('pmo_pfilters',JSON.stringify({PFILTER,PSORT,PALERTS:[...PALERTS]}));}catch(e){}}
 let SCREEN='portfolio'; // portfolio | project — للطاقم؛ العميل دائمًا project
 
 // ===== الإشعارات (Toast) =====
@@ -1573,16 +1692,33 @@ async function renderPortfolio(){
   const counts={all:companies.length,
     active:companies.filter(x=>x.isActive).length,
     draft:companies.filter(x=>x.isDraft).length,
-    alerts:companies.filter(x=>x.hasAlerts).length};
+    blocked:companies.filter(x=>x.blocked>0).length,
+    reqs:companies.filter(x=>x.reqs>0).length,
+    comments:companies.filter(x=>x.comments>0).length};
   const fbtn=(k,lbl)=>`<button class="pfilter ${PFILTER===k?'active':''}" data-filter="${k}">${lbl} <span class="pfilter-n">${counts[k]}</span></button>`;
+  const abtn=(k,lbl,cls)=>`<button class="pfilter chip-${cls} ${PALERTS.has(k)?'active':''}" data-alertfilter="${k}">${lbl} <span class="pfilter-n">${counts[k]}</span></button>`;
   const searchBox=`<input id="pSearch" class="psearch" placeholder="🔍 بحث باسم الشركة أو المشروع…" value="${esc(PSEARCH)}">`;
-  const filterBar=`<div class="pfilters">${fbtn('all','الكل')}${fbtn('active','نشطة')}${fbtn('draft','مسوّدة')}${fbtn('alerts','بها تنبيهات')}${searchBox}</div>`;
+  const sortSel=`<select id="pSort" class="psort" aria-label="ترتيب">
+    <option value="alerts" ${PSORT==='alerts'?'selected':''}>ترتيب: التنبيهات أولًا</option>
+    <option value="name" ${PSORT==='name'?'selected':''}>ترتيب: الاسم</option>
+    <option value="progress" ${PSORT==='progress'?'selected':''}>ترتيب: الأعلى تقدّمًا</option>
+    <option value="projects" ${PSORT==='projects'?'selected':''}>ترتيب: عدد المشاريع</option>
+  </select>`;
+  const filterBar=`<div class="pfilters-wrap">
+    <div class="pfilters">
+      <span class="pfacet-lbl">الحالة:</span>${fbtn('all','الكل')}${fbtn('active','نشطة')}${fbtn('draft','مسوّدة')}
+      <span class="pfacet-lbl">تنبيهات:</span>${abtn('blocked','متوقفة','red')}${abtn('reqs','متطلبات','amber')}${abtn('comments','نقاش','blue')}
+      ${sortSel}${searchBox}
+    </div>
+  </div>`;
 
-  // تطبيق الفلتر والبحث
+  // تطبيق الفلاتر (تُدمج: حالة + تنبيهات متعددة + بحث)
   let shown=companies.filter(x=>{
     if(PFILTER==='active'&&!x.isActive)return false;
     if(PFILTER==='draft'&&!x.isDraft)return false;
-    if(PFILTER==='alerts'&&!x.hasAlerts)return false;
+    if(PALERTS.has('blocked')&&!(x.blocked>0))return false;
+    if(PALERTS.has('reqs')&&!(x.reqs>0))return false;
+    if(PALERTS.has('comments')&&!(x.comments>0))return false;
     if(PSEARCH){
       const q=PSEARCH.trim();
       const inName=x.c.name.includes(q);
@@ -1591,17 +1727,43 @@ async function renderPortfolio(){
     }
     return true;
   });
-  // الترتيب: ذات التنبيهات أولًا، ثم الأكثر مشاريع
-  shown.sort((a,b)=>(b.hasAlerts-a.hasAlerts)||(b.list.length-a.list.length));
+  // الترتيب حسب اختيار المستخدم
+  const sorters={
+    alerts:(a,b)=>(b.hasAlerts-a.hasAlerts)||(b.list.length-a.list.length),
+    name:(a,b)=>a.c.name.localeCompare(b.c.name,'ar'),
+    progress:(a,b)=>b.pct-a.pct,
+    projects:(a,b)=>b.list.length-a.list.length
+  };
+  shown.sort(sorters[PSORT]||sorters.alerts);
 
-  $('#host').querySelector('.hintbar').insertAdjacentHTML('afterend',filterBar);
-  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{PFILTER=b.dataset.filter;renderPortfolio();});
+  // شرائح الفلاتر النشطة (قابلة للإزالة)
+  const activeChips=[];
+  if(PFILTER!=='all')activeChips.push({k:'status',label:(PFILTER==='active'?'نشطة':'مسوّدة')});
+  if(PALERTS.has('blocked'))activeChips.push({k:'alert:blocked',label:'متوقفة'});
+  if(PALERTS.has('reqs'))activeChips.push({k:'alert:reqs',label:'متطلبات'});
+  if(PALERTS.has('comments'))activeChips.push({k:'alert:comments',label:'نقاش'});
+  if(PSEARCH)activeChips.push({k:'search',label:'بحث: '+PSEARCH});
+  const chipsBar=activeChips.length?`<div class="pchips"><span class="pchips-lbl">مُفعّل:</span>${activeChips.map(c=>`<span class="pchip">${esc(c.label)}<button data-rmchip="${c.k}" aria-label="إزالة الفلتر">✕</button></span>`).join('')}<button class="pchips-clear" id="pClearAll">مسح الكل</button></div>`:'';
+
+  $('#host').querySelector('.hintbar').insertAdjacentHTML('afterend',filterBar+chipsBar);
+  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{PFILTER=b.dataset.filter;savePFilters();renderPortfolio();});
+  document.querySelectorAll('[data-alertfilter]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.alertfilter; if(PALERTS.has(k))PALERTS.delete(k);else PALERTS.add(k);
+    savePFilters();renderPortfolio();});
+  const pSortEl=$('#pSort'); if(pSortEl)pSortEl.onchange=()=>{PSORT=pSortEl.value;savePFilters();renderPortfolio();};
+  document.querySelectorAll('[data-rmchip]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.rmchip;
+    if(k==='status')PFILTER='all'; else if(k==='search')PSEARCH=''; else if(k.startsWith('alert:'))PALERTS.delete(k.split(':')[1]);
+    savePFilters();renderPortfolio();});
+  const pClearBtn=$('#pClearAll'); if(pClearBtn)pClearBtn.onclick=()=>{PFILTER='all';PSEARCH='';PALERTS.clear();savePFilters();renderPortfolio();};
   const sIn=$('#pSearch');
   if(sIn){ sIn.oninput=()=>{PSEARCH=sIn.value; clearTimeout(sIn._t); sIn._t=setTimeout(renderPortfolio,300);};
     // إبقاء التركيز بعد إعادة العرض
     if(PSEARCH){ setTimeout(()=>{const el=$('#pSearch');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}},0); } }
 
-  if(!shown.length){grid.innerHTML='<p class="pempty">لا شركات مطابقة.</p>';return;}
+  if(!shown.length){grid.innerHTML='<div class="empty-cta"><div class="ico">🔍</div><h3>لا نتائج مطابقة</h3><p>جرّب تعديل الفلاتر أو مسحها.</p><button class="hbtn" id="pEmptyClear" style="background:var(--gold);border-color:var(--gold)">مسح الفلاتر</button></div>';
+    const pec=$('#pEmptyClear');if(pec)pec.onclick=()=>{PFILTER='all';PSEARCH='';PALERTS.clear();savePFilters();renderPortfolio();};
+    return;}
   grid.className='pcompany-grid';
 
   // صف مشروع مدمج (داخل التوسيع)
@@ -1674,6 +1836,7 @@ async function renderPortfolio(){
   document.querySelectorAll('[data-addproj]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();newProjectDialog(b.dataset.addproj);});
 }
 async function openProject(){
+  TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};
   $('#loader').classList.remove('hidden');
   await loadProject(CID,PID);
   $('#loader').classList.add('hidden');
@@ -1744,34 +1907,51 @@ async function openProjectMenu(projectId, projectName){
   }
 }
 
-// مدير المراحل الديناميكية (PMO): تعديل أسماء/ألوان أو إضافة مراحل
-async function openTracksManager(){
+// مدير المراحل: لوحة تعديل مباشر (اسم + لون في مكانهما)
+function openTracksManager(){
   if(!PROJECT)return;
+  $('#trkOverlay').style.display='flex';
+  renderTrkPanel();
+}
+function renderTrkPanel(){
   const list=PROJECT.tracks||[];
-  const opts=list.map(t=>({v:t.id,t:t.key+' — '+t.name})).concat([{v:'__add',t:'+ إضافة مرحلة جديدة'}]);
-  const r=await dialog({title:'إدارة مراحل المشروع',
-    message:'المراحل تحدد تجميع البنود وألوانها في الجدول والجانت وداشبورد العميل.',
-    fields:[{key:'sel',label:'اختر مرحلة أو أضف',type:'select',value:opts[0].v,options:opts}],confirmText:'متابعة'});
-  if(!r)return;
-  if(r.sel==='__add'){
-    const a=await dialog({title:'مرحلة جديدة',fields:[
-      {key:'key',label:'الرمز (حرف/رقم فريد، مثل D)',placeholder:'D'},
-      {key:'name',label:'اسم المرحلة',placeholder:'مثل: التحليل بالموجات'},
-      {key:'color',label:'اللون',type:'color',value:'#C8A06B'}],confirmText:'إضافة'});
-    if(!a||!a.key||!a.name)return;
-    try{await addTrack(PROJECT._dbId,a.key.trim().toUpperCase(),a.name,a.color,list.length);
-      PROJECT.tracks=await fetchTracks(PROJECT._dbId);toast('أُضيفت المرحلة «'+a.name+'»','ok');render();
-    }catch(e){toast('تعذّر (الرمز مكرر؟): '+e.message,'err');}
-  }else{
-    const t=list.find(x=>x.id===r.sel);if(!t)return;
-    const e=await dialog({title:'تعديل المرحلة: '+t.key,fields:[
-      {key:'name',label:'الاسم',value:t.name},
-      {key:'color',label:'اللون',type:'color',value:t.color}],confirmText:'حفظ'});
-    if(!e||!e.name)return;
-    try{await updateTrack(t.id,{name:e.name,color:e.color});
-      PROJECT.tracks=await fetchTracks(PROJECT._dbId);toast('حُدّثت المرحلة','ok');render();
-    }catch(err){toast('تعذّر التحديث','err');}
-  }
+  $('#trkBody').innerHTML=`
+    <p class="trk-hint">عدّل الاسم أو اللون مباشرة ثم اضغط «حفظ». التغييرات تنعكس فورًا على الجدول والجانت وداشبورد العميل.</p>
+    ${list.map(t=>`<div class="trk-row" data-tid="${t.id}">
+      <input type="color" class="trk-color" value="${t.color}" aria-label="لون المرحلة ${esc(t.name)}">
+      <span class="trk-key" title="رمز المرحلة">${esc(t.key)}</span>
+      <input class="trk-name" value="${esc(t.name)}" aria-label="اسم المرحلة">
+    </div>`).join('')}
+    <div class="trk-row trk-new">
+      <input type="color" class="trk-color" id="trkNewColor" value="#C8A06B" aria-label="لون المرحلة الجديدة">
+      <input class="trk-key-in" id="trkNewKey" placeholder="رمز" maxlength="2" aria-label="رمز المرحلة الجديدة">
+      <input class="trk-name" id="trkNewName" placeholder="+ اسم مرحلة جديدة (اختياري)" aria-label="اسم المرحلة الجديدة">
+    </div>
+    <div class="imp-actions">
+      <button class="hbtn" id="trkSave" style="background:var(--gold);border-color:var(--gold)">حفظ التعديلات</button>
+      <button class="hbtn ghost" id="trkClose">إغلاق</button>
+    </div>`;
+  $('#trkClose').onclick=()=>{$('#trkOverlay').style.display='none';};
+  $('#trkSave').onclick=saveTracks;
+}
+async function saveTracks(){
+  const list=PROJECT.tracks||[];let changed=0;
+  const btn=$('#trkSave');if(btn)btn.disabled=true;
+  try{
+    for(const row of document.querySelectorAll('#trkBody .trk-row[data-tid]')){
+      const t=list.find(x=>x.id===row.dataset.tid);if(!t)continue;
+      const name=row.querySelector('.trk-name').value.trim();
+      const color=row.querySelector('.trk-color').value;
+      if(name&&(name!==t.name||color!==t.color)){await updateTrack(t.id,{name,color});changed++;}
+    }
+    const nk=($('#trkNewKey').value||'').trim().toUpperCase();
+    const nn=($('#trkNewName').value||'').trim();
+    if(nk&&nn){await addTrack(PROJECT._dbId,nk,nn,$('#trkNewColor').value,list.length);changed++;}
+    else if(nn&&!nk){toast('أدخل رمزًا للمرحلة الجديدة (حرف أو رقم)','warn');if(btn)btn.disabled=false;return;}
+    PROJECT.tracks=await fetchTracks(PROJECT._dbId);
+    toast(changed?('حُفظت المراحل ('+changed+' تغيير)'):'لا تغييرات','ok');
+    $('#trkOverlay').style.display='none';render();
+  }catch(e){toast('تعذّر الحفظ (الرمز مكرر؟): '+e.message,'err');if(btn)btn.disabled=false;}
 }
 
 // إنشاء عميل جديد مباشرة (سدّ فجوة الرحلة الأولى)
@@ -2129,13 +2309,15 @@ async function handleAddTask(){
     fields:[
       {key:'ref',label:'المعرّف (فريد، مثل B10)',placeholder:'B10'},
       {key:'name',label:'اسم البند',value:'بند جديد'},
-      {key:'track',label:'المسار',type:'select',value:'0',options:Object.keys(TRACKS).map(k=>({v:k,t:TRACKS[k].code+' — '+TRACKS[k].name}))},
+      {key:'track',label:'المسار',type:'select',value:'0',options:projTrackList().map(x=>({v:x.key,t:(x.code||x.key)+' — '+x.name}))},
       {key:'type',label:'النوع',type:'select',value:'task',options:Object.keys(TYPES).map(k=>({v:k,t:TYPES[k]}))},
       {key:'duration',label:'المدة (أيام عمل)',type:'number',value:'1'}
     ],confirmText:'إضافة'});
   if(!r)return;
   if(!r.ref){toast('المعرّف مطلوب','warn');return;}
   if(PROJECT.tasks.some(t=>t.id===r.ref)){toast('المعرّف مستخدم بالفعل','warn');return;}
+  const _d=parseInt(r.duration||'1',10);
+  if(r.type==='task'&&(!_d||_d<1)){toast('مدة المهمة لا تقل عن يوم واحد — للأحداث اللحظية استخدم نوع «معلم»','warn');return;}
   try{
     await addTask(PROJECT._dbId,{ref:r.ref,name:r.name||'بند جديد',track:r.track,type:r.type,duration:parseInt(r.duration||'1',10)});
     await loadProject(CID);
@@ -2263,6 +2445,20 @@ document.addEventListener('keydown',e=>{
 
 // انطلاق
 boot();
+// طباعة احترافية: الجدول (كل مرحلة صفحة) أو الجانت (مصغّر ليطابق الصفحة، بلا تداخل)
+function printProject(mode){
+  if(mode==='gantt'){
+    const prevPX=PX; PX=6; render();
+    setTimeout(()=>{
+      window.print();
+      const restore=()=>{PX=prevPX;render();window.removeEventListener('afterprint',restore);};
+      window.addEventListener('afterprint',restore);
+    },80);
+  }else{
+    window.print();
+  }
+}
+
 
 /* ===== dol.js ===== */
 // dol.js — DOL Console: طبقة القرار الحاكمة (مستقلّة فوق المشاريع)
@@ -2604,6 +2800,7 @@ function parseWorkbook(arrayBuffer){
   }
   if(!tasks.length) throw {ar:`ورقة «${sheetName}» لا تحوي مهامًا صالحة تحت صف الرؤوس.`};
 
+  tasks.forEach(t=>{if(t.type==='task'&&(!t.duration||t.duration<=0))warnings.push(`«${t.ref}» مهمة بمدة 0 — ستلتصق بنهاية سابقتها دون استهلاك أيام (يُفضّل معلم أو مدة ≥ 1).`);});
   // تحقّق التبعيات: كل تبعية يجب أن تشير لمعرّف موجود
   const refs=new Set(tasks.map(t=>t.ref));
   const depPairs=[];
