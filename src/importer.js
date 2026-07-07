@@ -147,6 +147,7 @@ function parseWorkbook(arrayBuffer){
   }
   if(!tasks.length) throw {ar:`ورقة «${sheetName}» لا تحوي مهامًا صالحة تحت صف الرؤوس.`};
 
+  tasks.forEach(t=>{if(t.type==='task'&&(!t.duration||t.duration<=0))warnings.push(`«${t.ref}» مهمة بمدة 0 — ستلتصق بنهاية سابقتها دون استهلاك أيام (يُفضّل معلم أو مدة ≥ 1).`);});
   // تحقّق التبعيات: كل تبعية يجب أن تشير لمعرّف موجود
   const refs=new Set(tasks.map(t=>t.ref));
   const depPairs=[];
