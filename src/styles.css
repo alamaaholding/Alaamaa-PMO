@@ -472,3 +472,58 @@ html[dir="rtl"] .tabs::after{--fade-dir:right}
 .gantt .corner{position:sticky;right:0;z-index:9;background:var(--soft)}
 @media(max-width:760px){.tablewrap,.gscroll{max-height:calc(100vh - 190px)}
   #tbl th:nth-child(2),#tbl td:nth-child(2){position:static;min-width:120px}}
+/* لوحة إدارة المراحل - تعديل مباشر */
+.trk-hint{font-size:var(--fs-sm);color:var(--muted);margin-bottom:14px;line-height:1.7}
+.trk-row{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--line-soft)}
+.trk-color{width:30px;height:30px;border:none;border-radius:8px;padding:0;cursor:pointer;flex-shrink:0}
+.trk-key{font-weight:700;font-size:var(--fs-sm);min-width:22px;text-align:center;color:var(--muted)}
+.trk-key-in{width:44px;text-align:center;border:1.5px solid var(--line);border-radius:7px;padding:6px 4px;font-family:inherit}
+.trk-name{flex:1;border:1.5px solid var(--line);border-radius:7px;padding:7px 10px;font-family:inherit;font-size:var(--fs-md)}
+.trk-name:focus,.trk-key-in:focus{outline:none;border-color:var(--gold)}
+.trk-new{background:var(--soft-2);border-radius:9px;margin-top:6px;border-bottom:none}
+/* فلترة المحفظة (أبعاد متعددة + شرائح نشطة) */
+.pfilters-wrap{margin-bottom:10px}
+.pfilters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pfacet-lbl{font-size:var(--fs-xs);color:var(--muted);font-weight:600;margin-inline-start:6px}
+.pfacet-lbl:first-child{margin-inline-start:0}
+.chip-red.active{background:var(--crit);border-color:var(--crit);color:#fff}
+.chip-amber.active{background:var(--warn);border-color:var(--warn);color:#fff}
+.chip-blue.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.psort{border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-family:inherit;font-size:var(--fs-sm);background:var(--paper)}
+.pchips{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 14px;padding:8px 12px;background:var(--soft-2);border-radius:9px}
+.pchips-lbl{font-size:var(--fs-xs);color:var(--muted)}
+.pchip{display:inline-flex;align-items:center;gap:6px;background:var(--paper);border:1px solid var(--gold);color:var(--gold-dark);border-radius:999px;padding:3px 6px 3px 12px;font-size:var(--fs-xs);font-weight:600}
+.pchip button{background:none;border:none;color:var(--gold-dark);cursor:pointer;font-size:.8rem;padding:2px}
+.pchips-clear{margin-inline-start:auto;background:none;border:none;color:var(--crit);font-size:var(--fs-xs);font-weight:700;cursor:pointer;text-decoration:underline}
+
+/* فلترة الجدول/الجانت داخل المشروع */
+.tfilter-bar{background:var(--soft-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.tfilter-row{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+.tfilter-row:last-of-type{margin-bottom:8px}
+.tfchip{border:1.5px solid var(--tc,var(--line));background:#fff;color:var(--ink-soft);border-radius:999px;padding:4px 12px;font-size:var(--fs-xs);font-weight:600;cursor:pointer;font-family:inherit;transition:var(--t)}
+.tfchip[aria-pressed="true"]{background:var(--tc,var(--gold));border-color:var(--tc,var(--gold));color:#fff}
+.tfchip.smart{border-color:var(--gold-dark)}
+.tfchip.smart[aria-pressed="true"]{background:var(--gold-dark);border-color:var(--gold-dark);color:#fff}
+.tfsearch{width:200px;padding:5px 14px}
+.tfilter-count{font-size:var(--fs-xs);color:var(--muted)}
+
+/* الطباعة: جدول الخطة وجانت */
+@media print{
+  header,.bar2,.tabs,.portfolio-tools,.pfilters-wrap,.pchips,.tfilter-bar,.lockbar,.hintbar,
+  .kstart-edit,#projMenuBtn,#manageAccess,.gctrl .zoom,.reqbtn,.pcard-menu,.ib,#dataDate,.print-btn{display:none!important}
+  body{background:#fff}
+  .tablewrap,.gscroll{max-height:none!important;overflow:visible!important}
+  #tbl{width:100%;font-size:9pt}
+  #tbl th{position:static!important;background:#eee!important;color:#000!important}
+  #tbl td:nth-child(1),#tbl td:nth-child(2){position:static!important;background:#fff!important}
+  #tbl tr.grp{break-before:page;background:#ddd!important;color:#000!important}
+  #tbl tr.grp:first-child{break-before:auto}
+  #tbl tr{break-inside:avoid}
+  .gantt .thead{position:static!important}
+  .gantt .corner{position:static!important}
+  .gscroll>div{min-width:0!important;width:100%!important}
+  .gantt{break-inside:avoid}
+  .grow{break-inside:avoid}
+  @page{size:landscape;margin:12mm}
+}
+.print-btn{background:#fff;color:var(--ink);border-color:var(--line)}
