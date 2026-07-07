@@ -6,7 +6,7 @@ function render(){
   $('#manageAccess').style.display=(ROLE==='pmo')?'':'none';
   const pmb=$('#projMenuBtn');if(pmb)pmb.style.display=(ROLE==='pmo')?'':'none';
   $('#approveContract').style.display=(ROLE==='pmo'&&PROJECT.status!=='baselined')?'':'none';
-  $('#roleHint').textContent=can('editStruct')?'لديك صلاحية تعديل الخطة':(can('editProg')?'يمكنك تحديث الحالة والتقدم':'عرض فقط');
+  $('#roleHint').textContent=(typeof IS_OWNER!=='undefined'&&IS_OWNER)?'مالك المنصة — سلطة كاملة':(can('editStruct')?'لديك صلاحية تعديل الخطة':(can('editProg')?'يمكنك تحديث الحالة والتقدم':'عرض فقط'));
   compute();
   const _c=CLIENTS.find(x=>x.id===CID);
   $('#hProject').innerHTML=(_c?`<span class="ctx-dot" style="background:${_c.color}"></span>`:'')+esc(PROJECT.name);
@@ -223,7 +223,7 @@ function vAudit(rows){
 function vDiscuss(rows){
   const KIND={comment:'تعليق',question:'سؤال',suggestion:'مقترح'};
   const KCLR={comment:'var(--blue)',question:'var(--warn)',suggestion:'var(--gold-dark)'};
-  const ROLE_AR={pmo:'إدارة المشاريع',delivery:'فريق التسويق',client:'العميل'};
+  const ROLE_AR={pmo:'إدارة المشاريع',delivery:'الفريق',client:'العميل'};
   // الجذور (بلا أب) ثم ردودها
   const roots=rows.filter(r=>!r.parent_id);
   const childrenOf=id=>rows.filter(r=>r.parent_id===id);
@@ -290,7 +290,7 @@ const PRIO_AR={low:'منخفضة',normal:'عادية',high:'عالية',urgent:'
 const PRIO_CLR={low:'var(--muted)',normal:'var(--ink-soft)',high:'var(--warn)',urgent:'var(--crit)'};
 function vRequests(rows){
   const isStaff=(ROLE==='pmo'||ROLE==='delivery');
-  const ROLE_AR={pmo:'إدارة المشاريع',delivery:'فريق التسويق',client:'العميل'};
+  const ROLE_AR={pmo:'إدارة المشاريع',delivery:'الفريق',client:'العميل'};
   // نموذج تقديم طلب
   const composer=`<div class="crform" style="position:static;margin-bottom:16px">
     <h4>${ROLE==='client'?'تقديم طلب جديد':'تسجيل طلب نيابة عن العميل'}</h4>
@@ -344,7 +344,7 @@ function bindRequests(){
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
   document.querySelectorAll('[data-assign]').forEach(b=>b.onclick=async()=>{
-    const r=await dialog({title:'إسناد الطلب',fields:[{key:'who',label:'إلى مَن (شخص/فريق)',value:b.dataset.cur,placeholder:'مثل: فريق التسويق'}],confirmText:'إسناد'});
+    const r=await dialog({title:'إسناد الطلب',fields:[{key:'who',label:'إلى مَن (شخص/فريق)',value:b.dataset.cur,placeholder:'مثل: الفريق التقني'}],confirmText:'إسناد'});
     if(r&&r.who){try{ await updateClientRequest(b.dataset.assign,{assigned_to:r.who}); toast('تم الإسناد','ok'); render(); }catch(e){toast('تعذّر','err');}}
   });
   document.querySelectorAll('[data-delreq]').forEach(b=>b.onclick=async()=>{
