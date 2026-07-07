@@ -4,6 +4,7 @@ function render(){
   if(!PROJECT){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا يوجد مشروع لهذا العميل.</p>';return;}
   $('#backPortfolio').style.display=(ROLE!=='client')?'':'none';
   $('#manageAccess').style.display=(ROLE==='pmo')?'':'none';
+  const pmb=$('#projMenuBtn');if(pmb)pmb.style.display=(ROLE==='pmo')?'':'none';
   $('#approveContract').style.display=(ROLE==='pmo'&&PROJECT.status!=='baselined')?'':'none';
   $('#roleHint').textContent=can('editStruct')?'لديك صلاحية تعديل الخطة':(can('editProg')?'يمكنك تحديث الحالة والتقدم':'عرض فقط');
   compute();
@@ -76,7 +77,7 @@ function vDashboard(){
   const alerts=[];creqs.filter(x=>x.r._state==='overdue').forEach(x=>alerts.push(['client','متطلب متأخر من العميل: '+x.r.desc+' ('+x.t.id+')'+(x.r._late?' +'+x.r._late+'ي':'')]));
   tasks.filter(t=>T[t.id].delay==='alamah').forEach(t=>alerts.push(['alamah','تأخير على فريق علامة: '+t.id+' — '+t.name]));
   tasks.filter(t=>T[t.id].blocked).forEach(t=>alerts.push(['blocked','بند متوقف: '+t.id+' — '+t.name]));
-  const tl=t=>`<li><span class="tgw" style="--tc:${TRACKS[t.track].color}">${esc(t.id)}</span> ${esc(t.name)} <em>${fmt(S.R[t.id].ES)}–${fmt(S.R[t.id].EF)}</em> <span class="ministat s-${T[t.id].effStatus}">${STATUS[T[t.id].effStatus]}</span></li>`;
+  const tl=t=>`<li><span class="tgw" style="--tc:${trackMeta(t.track).color}">${esc(t.id)}</span> ${esc(t.name)} <em>${fmt(S.R[t.id].ES)}–${fmt(S.R[t.id].EF)}</em> <span class="ministat s-${T[t.id].effStatus}">${STATUS[T[t.id].effStatus]}</span></li>`;
   const card=(l,v,c)=>`<div class="dcard ${c||''}"><b>${v}</b><span>${l}</span></div>`;
   let h=`<div class="dgrid">${card('نسبة الإنجاز',pct+'%','ok')}${card('مكتملة',done)}${card('جارية',inprog,'blue')}${card('متبقية',total-done)}${card('متوقفة',blocked,'crit')}${card('متطلبات مطلوبة',creqs.length,'warn')}</div>
   <div class="dprog"><div class="dprog-fill" style="width:${pct}%"></div></div>
@@ -97,8 +98,8 @@ function vTable(){
   const colspan=editStruct?12:11;
   let rows='',last=null;
   PROJECT.tasks.forEach(t=>{
-    if(t.track!==last){last=t.track;rows+=`<tr class="grp"><td colspan="${colspan}">${TRACKS[t.track].code} — ${esc(TRACKS[t.track].name)}</td></tr>`;}
-    const r=S.R[t.id],k=T[t.id],tc=TRACKS[t.track].color;
+    if(t.track!==last){last=t.track;rows+=`<tr class="grp"><td colspan="${colspan}">${trackMeta(t.track).code} — ${esc(trackMeta(t.track).name)}</td></tr>`;}
+    const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
     const sopt=Object.keys(STATUS).map(x=>`<option value="${x}" ${x===t.status?'selected':''}>${STATUS[x]}</option>`).join('');
     const durDis=(t.type==='milestone'||t.type==='cont'||!editStruct)?'disabled':'';
     const delay=k.delay==='client'?'<span class="delay client">العميل</span>':k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>';
@@ -119,7 +120,7 @@ function vTable(){
       <td><span class="dt s">${fmt(r.ES)}</span></td>
       <td><span class="dt">${fmt(r.EF)}</span></td>
       <td><select class="st st-${k.effStatus}" data-f="status" ${editProg?'':'disabled'}>${sopt}</select></td>
-      <td><input class="cell iprog" type="number" min="0" max="100" data-f="progress" value="${t.progress||0}" ${editProg&&t.type!=='milestone'?'':'disabled'}></td>
+      <td><input class="cell iprog" type="number" min="0" max="100" data-f="progress" value="${(k&&k.dispPct)||t.progress||0}" ${editProg&&t.type!=='milestone'?'':'disabled'}></td>
       <td>${delay}</td>
       <td><button class="reqbtn" data-reqs="${esc(t.id)}">${reqs.length?(bad?bad+'⚠':reqs.length):'—'}</button></td>
       <td style="font-size:.74rem;color:var(--tC);text-align:right">${esc(t.deliverable||'—')}</td>
@@ -127,7 +128,7 @@ function vTable(){
     </tr>`;
   });
   const editHead=editStruct?'<th>تحرير</th>':'';
-  const addBar=editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button><span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'';
+  const addBar=editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button>${ROLE==='pmo'?'<button class="reqbtn" id="tracksBtn" style="background:var(--ink);border-color:var(--ink);color:#fff">إدارة المراحل</button>':''}<span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'';
   return addBar+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function bindTable(){
@@ -152,6 +153,7 @@ function bindTable(){
     $$('#tbl [data-del]').forEach(b=>b.onclick=()=>handleDeleteTask(b.dataset.del));
     $$('#tbl [data-deps]').forEach(b=>b.onclick=()=>openDeps(b.dataset.deps));
     const ab=$('#addTaskBtn');if(ab)ab.onclick=handleAddTask;
+    const tb=$('#tracksBtn');if(tb)tb.onclick=openTracksManager;
     const ib=$('#importXlsxBtn');if(ib)ib.onclick=openImporter;
   }
 }
@@ -167,13 +169,13 @@ function vGantt(){
   let wk=new Date(lo),wi=1;while(wk<=hi){weeks+=`<div class="whead" style="right:${off(wk)*PX}px;width:${7*PX}px"><b>أسبوع ${wi}</b><s>${fmt(wk)}</s></div>`;grid+=`<div class="vg" style="right:${off(wk)*PX}px"></div>`;wk=new Date(wk.getTime()+7*oneDay);wi++;}
   const today=`<div class="today" style="right:${off(dd)*PX}px"><span>اليوم ${fmt(dd)}</span></div>`;
   const BL=PROJECT.baseline?PROJECT.baseline.snapshot:null;let rows='',last=null;
-  PROJECT.tasks.forEach(t=>{const r=S.R[t.id],k=T[t.id],tc=TRACKS[t.track].color;
-    if(t.track!==last){last=t.track;rows+=`<div class="grow grp"><div class="glbl">${TRACKS[t.track].code} — ${esc(TRACKS[t.track].name)}</div><div class="glane"></div></div>`;}
+  PROJECT.tasks.forEach(t=>{const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
+    if(t.track!==last){last=t.track;rows+=`<div class="grow grp"><div class="glbl">${trackMeta(t.track).code} — ${esc(trackMeta(t.track).name)}</div><div class="glane"></div></div>`;}
     const o=off(r.ES);const tip=`${esc(t.name)} — ${fmt(r.ES)}–${fmt(r.EF)} | ${STATUS[k.effStatus]}`;
     let lane='';
     if(BL&&BL[t.id]&&t.type!=='milestone'){const bo=off(D(BL[t.id].ES)),bl=Math.max(1,Math.round((D(BL[t.id].EF)-D(BL[t.id].ES))/oneDay)+1);lane+=`<div class="blbar" style="right:${bo*PX}px;width:${bl*PX}px"></div>`;}
     if(t.type==='milestone')lane+=`<div class="gmile ${r.critical?'crit':''}" style="right:${o*PX-7}px" title="${tip}"><span class="md">◆</span><span class="ml">${esc(t.id)}</span></div>`;
-    else{const len=Math.max(1,Math.round((new Date(r.EF)-new Date(r.ES))/oneDay)+1),wpx=len*PX;const cls=(t.type==='cont')?'cont':k.effStatus;const prog=t.type==='cont'?0:(t.progress||0);
+    else{const len=Math.max(1,Math.round((new Date(r.EF)-new Date(r.ES))/oneDay)+1),wpx=len*PX;const cls=(t.type==='cont')?'cont':k.effStatus;const prog=t.type==='cont'?0:((k&&k.dispPct)||t.progress||0);
       const fill=(k.effStatus==='inprogress'&&prog>0)?`<div class="fill" style="width:${prog}%"></div>`:'';
       const durTxt=(t.type==='cont')?'مستمر':(t.duration+' ي'+(prog?' · '+prog+'%':''));const inside=wpx>56;
       const durEl=inside?`<div class="gdur inside" style="right:${o*PX+6}px">${durTxt}</div>`:`<div class="gdur" style="right:${(o+len)*PX+4}px">${durTxt}</div>`;
@@ -187,8 +189,8 @@ function vGantt(){
 
 function vDeliv(){
   const S=SCHED,T=TRACK;let rows='';
-  PROJECT.tasks.forEach(t=>{if(!t.deliverable)return;const r=S.R[t.id],k=T[t.id],tc=TRACKS[t.track].color,isM=t.type==='milestone';
-    rows+=`<tr class="${isM?'m':''}"><td style="font-weight:${isM?700:500}">${isM?'◆ ':''}${esc(t.deliverable)}</td><td><span class="idcell" style="--tc:${tc}">${esc(t.id)}</span> ${esc(t.name)}</td><td><span class="pill" style="background:${tc}">${esc(TRACKS[t.track].name)}</span></td><td>${fmt(r.EF)}/${new Date(r.EF).getFullYear()}</td><td><span class="ministat s-${k.effStatus}">${STATUS[k.effStatus]}</span></td></tr>`;});
+  PROJECT.tasks.forEach(t=>{if(!t.deliverable)return;const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color,isM=t.type==='milestone';
+    rows+=`<tr class="${isM?'m':''}"><td style="font-weight:${isM?700:500}">${isM?'◆ ':''}${esc(t.deliverable)}</td><td><span class="idcell" style="--tc:${tc}">${esc(t.id)}</span> ${esc(t.name)}</td><td><span class="pill" style="background:${tc}">${esc(trackMeta(t.track).name)}</span></td><td>${fmt(r.EF)}/${new Date(r.EF).getFullYear()}</td><td><span class="ministat s-${k.effStatus}">${STATUS[k.effStatus]}</span></td></tr>`;});
   return `<div class="dwrap"><table class="dtbl"><thead><tr><th>المخرج</th><th>البند</th><th>المسار</th><th>التسليم المتوقع</th><th>الحالة</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
@@ -358,18 +360,19 @@ function vClientDash(){
   const tasks=PROJECT.tasks, dd=new Date(DATA_DATE);
   const real=tasks.filter(t=>t.type!=='milestone'&&t.type!=='cont');
   const done=real.filter(t=>t.status==='done').length;
-  const pct=real.length?Math.round(done/real.length*100):0;
+  const _wsum=real.reduce((a,t)=>a+Math.max(1,t.duration||1),0);
+  const pct=_wsum?Math.round(real.reduce((a,t)=>a+((TRACK&&TRACK[t.id]&&TRACK[t.id].dispPct)||0)*Math.max(1,t.duration||1),0)/_wsum):0;
   const fmt=d=>d?`${d.getDate()}/${d.getMonth()+1}`:'—';
 
   // 1) تدفّق المراحل: منجزة / جارية (أول ناقصة) / قادمة
   let currentFound=false;
-  const flow=CD_PHASES.filter(([k])=>real.some(t=>t.track===k)).map(([k,name])=>{
+  const flow=projTrackList().map(x=>[x.key,x.name]).filter(([k])=>real.some(t=>t.track===k)).map(([k,name])=>{
     const pt=real.filter(t=>t.track===k);
     const allDone=pt.every(t=>t.status==='done');
     let state='upcoming';
     if(allDone)state='done';
     else if(!currentFound){state='current';currentFound=true;}
-    const clr=(TRACKS[k]&&TRACKS[k].color)||'var(--gold)';
+    const clr=trackMeta(k).color;
     const pdone=pt.filter(t=>t.status==='done').length;
     return `<div class="cd-phase ${state}" style="--pc:${clr}">
       <div class="cd-phase-dot">${state==='done'?'✓':(state==='current'?'●':'')}</div>
