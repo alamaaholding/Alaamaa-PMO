@@ -2,7 +2,8 @@
 async function loadIdentity(){
   const {data:{user}}=await sb.auth.getUser();USER=user;if(!user)return null;
   const {data:tm}=await sb.from('team_members').select('role,is_active,full_name').eq('id',user.id).maybeSingle();
-  if(tm&&tm.is_active){ROLE=(tm.role==='admin')?'pmo':(tm.role==='manager'?'delivery':'client');USER._name=tm.full_name||user.email;}
+  if(tm&&tm.is_active){ROLE=(tm.role==='admin')?'pmo':(tm.role==='manager'?'delivery':'client');USER._name=tm.full_name||user.email;
+    try{const {data:own}=await sb.rpc('pmo_is_owner');IS_OWNER=(own===true);if(IS_OWNER)ROLE='pmo';}catch(e){IS_OWNER=false;}}
   else{
     // عميل: نتحقق من التصريح بالإيميل (دالة pmo_my_client_ids)
     const {data:ids}=await sb.rpc('pmo_my_client_ids');
