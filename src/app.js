@@ -1,5 +1,5 @@
 // ===== الحالة =====
-let USER=null,ROLE=null,CLIENTS=[],CID=null,PID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[],PFILTER='all',PSEARCH='',PEXPANDED=new Set();
+let USER=null,ROLE=null,IS_OWNER=false,CLIENTS=[],CID=null,PID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[],PFILTER='all',PSEARCH='',PEXPANDED=new Set();
 let SCREEN='portfolio'; // portfolio | project — للطاقم؛ العميل دائمًا project
 
 // ===== الإشعارات (Toast) =====
