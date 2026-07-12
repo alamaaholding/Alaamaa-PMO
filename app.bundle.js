@@ -1,4 +1,4 @@
-const BUILD_V='3b023a20';
+const BUILD_V='b3a8bab3';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -6,7 +6,7 @@ const SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON);
 const TRACKS={"0":{name:"التأسيس المضغوط",code:"0",color:"#1A1A1A"},"A":{name:"النمو السريع والمواسم",code:"A",color:"#C8A06B"},"B":{name:"التحليل والتشخيص بالموجات",code:"B",color:"#7A8B6F"},"C":{name:"الاستراتيجية وبناء الأصول",code:"C",color:"#9C6B4A"}};
 const STATUS={notstarted:'لم تبدأ',inprogress:'جارية',blocked:'متوقفة',done:'مكتملة'};
-const TYPES={task:'مهمة',milestone:'معلم',fixed:'ثابت',cont:'مستمر'};
+const TYPES={task:'مهمة',milestone:'معلم',fixed:'ثابت',cont:'مستمر',package:'حزمة عمل'};
 const ROLE_NAMES={pmo:'مكتب إدارة المشاريع',delivery:'الفريق',client:'العميل'};
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 const fmt=d=>{const x=new Date(d);return('0'+x.getDate()).slice(-2)+'/'+('0'+(x.getMonth()+1)).slice(-2);};
@@ -58,12 +58,14 @@ function scheduleTasks(tasks,projectStartStr){
   const addWD=(d,n)=>{d=ensureWD(d);let c=0;while(c<n){d.setDate(d.getDate()+1);if(isWD(d))c++;}return d;};
   const subWD=(d,n)=>{d=clone(d);while(!isWD(d))d.setDate(d.getDate()-1);let c=0;while(c<n){d.setDate(d.getDate()-1);if(isWD(d))c++;}return d;};
   const wdB=(a,b)=>{let s=clone(a),e=clone(b),sg=1;if(e<s){const t=s;s=e;e=t;sg=-1;}let c=0,d=clone(s);while(d<e){d.setDate(d.getDate()+1);if(isWD(d))c++;}return c*sg;};
-  const map={};tasks.forEach(t=>map[t.id]=t);
-  const indeg={},adj={};tasks.forEach(t=>{indeg[t.id]=0;adj[t.id]=[];});
-  tasks.forEach(t=>(t.deps||[]).forEach(d=>{if(map[d]){adj[d].push(t.id);indeg[t.id]++;}}));
-  const q=tasks.filter(t=>indeg[t.id]===0).map(t=>t.id),order=[];
+  const _pkgSet=new Set(tasks.filter(t=>t.type==='package').map(t=>t.id));
+  const _leafs=tasks.filter(t=>t.type!=='package');
+  const map={};_leafs.forEach(t=>map[t.id]=t);
+  const indeg={},adj={};_leafs.forEach(t=>{indeg[t.id]=0;adj[t.id]=[];});
+  _leafs.forEach(t=>(t.deps||[]).forEach(d=>{if(map[d]){adj[d].push(t.id);indeg[t.id]++;}}));
+  const q=_leafs.filter(t=>indeg[t.id]===0).map(t=>t.id),order=[];
   while(q.length){const id=q.shift();order.push(id);adj[id].forEach(n=>{if(--indeg[n]===0)q.push(n);});}
-  const hasCycle=order.length!==tasks.length;const seq=hasCycle?tasks.map(t=>t.id):order;
+  const hasCycle=order.length!==_leafs.length;const seq=hasCycle?_leafs.map(t=>t.id):order;
   const start=new Date(projectStartStr+'T00:00:00');const R={},warnings=[];
   seq.forEach(id=>{const t=map[id];const deps=(t.deps||[]).filter(d=>map[d]);let ES;
     if(t.type==='fixed'&&t.fixedDate){ES=ensureWD(new Date(t.fixedDate+'T00:00:00'));}
@@ -75,12 +77,32 @@ function scheduleTasks(tasks,projectStartStr){
     const dur=t.type==='milestone'?0:(t.type==='cont'?null:((t.duration||0)<=0?0:Math.max(1,t.duration)));let EF;
     if(t.type==='milestone'||t.type==='cont'||dur===0)EF=clone(ES);else EF=addWD(ES,dur-1);
     R[id]={ES,EF,dur};});
-  let pEnd=start;tasks.forEach(t=>{if(t.type!=='cont'&&R[t.id].EF>pEnd)pEnd=R[t.id].EF;});
-  tasks.forEach(t=>{if(t.type==='cont')R[t.id].EF=clone(pEnd);});
-  seq.slice().reverse().forEach(id=>{const t=map[id];const succ=tasks.filter(s=>(s.deps||[]).includes(id));let LF;
+  let pEnd=start;_leafs.forEach(t=>{if(t.type!=='cont'&&R[t.id].EF>pEnd)pEnd=R[t.id].EF;});
+  _leafs.forEach(t=>{if(t.type==='cont')R[t.id].EF=clone(pEnd);});
+  seq.slice().reverse().forEach(id=>{const t=map[id];const succ=_leafs.filter(s=>(s.deps||[]).includes(id));let LF;
     if(succ.length===0)LF=clone(pEnd);else{let mn=null;succ.forEach(s=>{const ls=R[s.id].LS;if(mn===null||ls<mn)mn=ls;});LF=clone(mn);}
     const dur=R[id].dur;let LS;if(t.type==='milestone')LS=clone(LF);else if(t.type==='cont')LS=clone(R[id].ES);else LS=subWD(LF,Math.max(1,dur)-1);
     R[id].LF=LF;R[id].LS=LS;let slack=wdB(R[id].ES,LS);if(t.type==='fixed')slack=0;R[id].slack=slack;R[id].critical=(t.type!=='cont')&&slack<=0;});
+  // اشتقاق حزم العمل: البداية=أبكر ابن، النهاية=أقصى ابن، حرجة إن كان ابن حرجًا
+  const _kids={};tasks.forEach(t=>{if(t.parent)( _kids[t.parent]=_kids[t.parent]||[] ).push(t.id);});
+  let _pending=tasks.filter(t=>t.type==='package');let _g=0;
+  while(_pending.length&&_g++<8){
+    const _rest=[];
+    _pending.forEach(p=>{
+      const all=_kids[p.id]||[];
+      const ready=all.filter(id=>R[id]);
+      if(all.length&&ready.length===all.length){
+        let es=null,ef=null,crit=false,slk=null;
+        ready.forEach(id=>{const r=R[id];
+          if(es===null||r.ES<es)es=r.ES;if(ef===null||r.EF>ef)ef=r.EF;
+          if(r.critical)crit=true;if(slk===null||r.slack<slk)slk=r.slack;});
+        R[p.id]={ES:clone(es),EF:clone(ef),dur:wdB(es,ef)+1,LS:clone(es),LF:clone(ef),
+          slack:slk==null?0:slk,critical:crit,pkg:true};
+      }else if(all.length){_rest.push(p);}
+      else{R[p.id]={ES:clone(start),EF:clone(start),dur:0,LS:clone(start),LF:clone(start),slack:0,critical:false,pkg:true,empty:true};}
+    });
+    _pending=_rest;
+  }
   if(hasCycle)warnings.push('تحذير: توجد تبعية دائرية — الجدولة غير دقيقة.');
   return {R,pStart:start,pEnd,hasCycle,warnings,totalWD:wdB(start,pEnd)+1};
 }
@@ -90,7 +112,8 @@ function computeTracking(tasks,S,ddStr){
   const addWD=(d,n)=>{d=new Date(d.getTime());while(!isWD(d))d.setDate(d.getDate()+1);let c=0;while(c<n){d.setDate(d.getDate()+1);if(isWD(d))c++;}return d;};
   const wdB=(a,b)=>{let s=new Date(a),e=new Date(b),sg=1;if(e<s){const t=s;s=e;e=t;sg=-1;}let c=0,d=new Date(s);while(d<e){d.setDate(d.getDate()+1);if(isWD(d))c++;}return c*sg;};
   const dd=D(ddStr),T={};
-  tasks.forEach(t=>{const r=S.R[t.id];let blocked=false,co=false,ao=false;
+  const _leafs=tasks.filter(t=>t.type!=='package');
+  _leafs.forEach(t=>{const r=S.R[t.id];let blocked=false,co=false,ao=false;
     (t.requirements||[]).forEach(req=>{let st;
       if(req.received){st='received';if(req.requested){const due=addWD(D(req.requested),req.sla||0);if(D(req.received)>due)st='latejust';}}
       else if(req.requested){const due=addWD(D(req.requested),req.sla||0);if(dd>due){st='overdue';req._late=wdB(due,dd);}else st='pending';}
@@ -111,6 +134,29 @@ function computeTracking(tasks,S,ddStr){
     }
     const disp=t.status==='done'?100:Math.max(auto,t.progress||0);
     T[t.id]={blocked,delay,effStatus:eff,autoPct:auto,dispPct:disp};});
+  // اشتقاق حالة/تقدّم الحزم من أبنائها (موزونًا بالمدد)
+  const _kids={};tasks.forEach(t=>{if(t.parent)(_kids[t.parent]=_kids[t.parent]||[]).push(t);});
+  let _pend=tasks.filter(t=>t.type==='package');let _g=0;
+  while(_pend.length&&_g++<8){
+    const _rest=[];
+    _pend.forEach(p=>{
+      const ch=_kids[p.id]||[];
+      if(ch.length&&ch.every(c=>T[c.id])){
+        let ws=0,acc=0,blocked=false,anyStart=false,allDone=true,dl=null;
+        ch.forEach(c=>{const k=T[c.id];const w=Math.max(1,(S.R[c.id]&&S.R[c.id].dur)||c.duration||1);
+          ws+=w;acc+=(k.dispPct||0)*w;
+          if(k.blocked)blocked=true;
+          if(k.effStatus==='inprogress'||k.effStatus==='done')anyStart=true;
+          if(k.effStatus!=='done')allDone=false;
+          if(k.delay==='client')dl='client';else if(k.delay&&dl!=='client')dl=k.delay;});
+        const pct=ws?Math.round(acc/ws):0;
+        const eff=allDone?'done':(blocked?'blocked':(anyStart?'inprogress':'notstarted'));
+        T[p.id]={blocked,delay:dl,effStatus:eff,autoPct:pct,dispPct:pct,pkg:true};
+      }else if(ch.length){_rest.push(p);}
+      else{T[p.id]={blocked:false,delay:null,effStatus:'notstarted',autoPct:0,dispPct:0,pkg:true};}
+    });
+    _pend=_rest;
+  }
   return T;
 }
 
@@ -172,7 +218,8 @@ async function loadProject(clientId, projectId){
   const reqMap={};reqs.forEach(r=>{(reqMap[r.task_id]=reqMap[r.task_id]||[]).push({_id:r.id,desc:r.description,owner:r.owner,sla:r.sla_days,blocking:r.blocking,requested:r.requested_at||'',received:r.received_at||''});});
   PROJECT={_dbId:p.id,name:p.name,start:p.start_date,status:p.status,lifecycle:p.lifecycle,contractValue:p.contract_value,
     baseline:(bl&&bl.length)?{snapshot:bl[0].snapshot}:null,
-    tasks:tasks.map(t=>({id:t.ref,_dbId:t.id,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],requirements:reqMap[t.id]||[]}))};
+    tasks:(()=>{const _refOf={};tasks.forEach(x=>{_refOf[x.id]=x.ref;});
+      return tasks.map(t=>({id:t.ref,_dbId:t.id,parent:t.parent_id?(_refOf[t.parent_id]||null):null,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],requirements:reqMap[t.id]||[]}));})()};
   PROJECT.tracks=(await sb.from('pmo_project_tracks').select('*').eq('project_id',p.id).order('sort')).data||[];
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
@@ -203,6 +250,7 @@ async function addTask(projectId, fields){
   const maxSort=Math.max(0,...PROJECT.tasks.map(t=>t._sortOrder||0));
   const row={project_id:projectId,ref:fields.ref,name:fields.name||'بند جديد',track:fields.track||'0',
     type:fields.type||'task',duration:fields.duration||1,sort_order:maxSort+1};
+  if(fields.parent_id)row.parent_id=fields.parent_id;
   const {data,error}=await sb.from('pmo_tasks').insert(row).select().single();
   if(error) throw error;
   return data;
@@ -235,12 +283,25 @@ async function clearProjectPlan(projectId){
 }
 // إدخال مهام دفعة واحدة؛ يُرجع خريطة ref → id
 async function bulkInsertTasks(projectId, tasks){
-  const rows=tasks.map((t,i)=>({project_id:projectId,ref:t.ref,name:t.name||t.ref,
+  tasks.forEach((t,i)=>{t._ord=i+1;});
+  const mk=t=>{const r={project_id:projectId,ref:t.ref,name:t.name||t.ref,
     track:t.track||'0',type:t.type||'task',duration:t.duration||0,
-    deliverable:t.deliverable||null,owner:t.owner||null,sort_order:i+1}));
-  const {data,error}=await sb.from('pmo_tasks').insert(rows).select('id,ref');
-  if(error) throw error;
-  const map={};(data||[]).forEach(r=>{map[r.ref]=r.id;});
+    deliverable:t.deliverable||null,owner:t.owner||null,sort_order:t._ord};
+    return r;};
+  const map={};
+  let level=tasks.filter(t=>!t.parent), rest=tasks.filter(t=>t.parent), guard=0;
+  while(level.length&&guard++<8){
+    const rows=level.map(t=>{const r=mk(t);if(t.parent&&map[t.parent])r.parent_id=map[t.parent];return r;});
+    const {data,error}=await sb.from('pmo_tasks').insert(rows).select('id,ref');
+    if(error) throw error;
+    (data||[]).forEach(r=>{map[r.ref]=r.id;});
+    level=rest.filter(t=>map[t.parent]); rest=rest.filter(t=>!map[t.parent]);
+  }
+  if(rest.length){ // آباء مفقودون من الملف — تُدرج كمستوى أعلى بأمان
+    const rows=rest.map(mk);
+    const {data,error}=await sb.from('pmo_tasks').insert(rows).select('id,ref');
+    if(error) throw error;(data||[]).forEach(r=>{map[r.ref]=r.id;});
+  }
   return map;
 }
 // إدخال تبعيات دفعة واحدة (تأخذ خريطة ref→id)
@@ -541,9 +602,32 @@ function taskMatchesFilter(t){
     if(!(t.name||'').includes(q)&&!(t.id||'').includes(q))return false;}
   return true;
 }
-function filteredTasks(){return PROJECT.tasks.filter(taskMatchesFilter);}
+function filteredTasks(){return PROJECT.tasks.filter(t=>t.type!=='package'&&taskMatchesFilter(t));}
+// ===== هرمية WBS: ترتيب شجري + طيّ الحزم =====
+let PKG_COLLAPSED=new Set();
+function orderedTasks(){
+  const byP={};PROJECT.tasks.forEach(t=>{const p=t.parent||'';(byP[p]=byP[p]||[]).push(t);});
+  Object.values(byP).forEach(a=>a.sort((x,y)=>(x._sortOrder||0)-(y._sortOrder||0)));
+  const out=[];const walk=t=>{out.push(t);(byP[t.id]||[]).forEach(walk);};
+  (byP['']||[]).forEach(walk);return out;
+}
+function visibleTasks(){
+  const ord=orderedTasks();
+  const fA=TFILTER.phases.size||TFILTER.statuses.size||TFILTER.smart.size||TFILTER.q.trim();
+  if(fA){
+    const keep=new Set();
+    ord.forEach(t=>{if(t.type!=='package'&&taskMatchesFilter(t))keep.add(t.id);});
+    ord.forEach(t=>{if(keep.has(t.id)){let p=t.parent;
+      while(p&&!keep.has(p)){keep.add(p);const pp=PROJECT.tasks.find(x=>x.id===p);p=pp?pp.parent:null;}}});
+    return ord.filter(t=>keep.has(t.id));
+  }
+  return ord.filter(t=>{let p=t.parent;
+    while(p){if(PKG_COLLAPSED.has(p))return false;const pp=PROJECT.tasks.find(x=>x.id===p);p=pp?pp.parent:null;}
+    return true;});
+}
 function projFilterBar(){
-  const total=PROJECT.tasks.length, shown=filteredTasks().length;
+  const _lv=PROJECT.tasks.filter(t=>t.type!=='package');
+  const total=_lv.length, shown=filteredTasks().length;
   const phaseChips=projTrackList().map(x=>`<button class="tfchip" data-tf-phase="${x.key}" style="--tc:${x.color}" aria-pressed="${TFILTER.phases.has(x.key)}">${esc(x.name)}</button>`).join('');
   const stAr={notstarted:'لم تبدأ',inprogress:'جارية',blocked:'متوقفة',done:'مكتملة'};
   const statusChips=Object.keys(stAr).map(k=>`<button class="tfchip st-${k}" data-tf-status="${k}" aria-pressed="${TFILTER.statuses.has(k)}">${stAr[k]}</button>`).join('');
@@ -571,15 +655,38 @@ function bindProjFilterBar(){
     if(TFILTER.q){setTimeout(()=>{tfs.focus();tfs.setSelectionRange(tfs.value.length,tfs.value.length);},0);}}
   const tfc=document.getElementById('tfClear');
   if(tfc)tfc.onclick=()=>{TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};render();};
+  document.querySelectorAll('[data-pkgtoggle]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();
+    const id=b.dataset.pkgtoggle;PKG_COLLAPSED.has(id)?PKG_COLLAPSED.delete(id):PKG_COLLAPSED.add(id);render();});
 }
 
 function vTable(){
   const S=SCHED,T=TRACK;const editStruct=can('editStruct')&&PROJECT.status!=='baselined';const editProg=can('editProg');
   const colspan=editStruct?12:11;
   let rows='',last=null;
-  PROJECT.tasks.forEach(t=>{
-    if(t.track!==last){last=t.track;rows+=`<tr class="grp"><td colspan="${colspan}">${trackMeta(t.track).code} — ${esc(trackMeta(t.track).name)}</td></tr>`;}
+  visibleTasks().forEach(t=>{
+    if(t.track!==last){last=t.track;rows+=`<tr class="grp"><td colspan="${colspan}"><span class="grp-t">${trackMeta(t.track).code} — ${esc(trackMeta(t.track).name)}</span>${ROLE==='pmo'?`<button class="grp-edit" data-grpedit="${esc(t.track)}" aria-label="تعديل المرحلة مباشرة" title="تعديل المرحلة">${I.pencil}</button>`:''}</td></tr>`;}
     const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
+    // صف حزمة عمل: تجميعي مشتق، بطيّ/فتح
+    if(t.type==='package'){
+      const collapsed=PKG_COLLAPSED.has(t.id);
+      const kidsN=PROJECT.tasks.filter(x=>x.parent===t.id).length;
+      const pdelay=k&&k.delay==='client'?'<span class="delay client">العميل</span>':(k&&k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>');
+      rows+=`<tr data-id="${esc(t.id)}" class="row-pkg ${r&&r.critical?'crit':''}">
+        <td><button class="pkg-tg" data-pkgtoggle="${esc(t.id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'فتح':'طي'} الحزمة">${collapsed?'◂':'▾'}</button><span class="idcell" style="--tc:${tc}">${esc(t.id)}</span></td>
+        <td class="pkg-name">${esc(t.name)} <span class="pkg-n">${kidsN} بند</span></td>
+        <td>حزمة عمل</td>
+        <td><span class="dt">${r?r.dur:0}</span></td>
+        <td><span class="dt s">${r?fmt(r.ES):'—'}</span></td>
+        <td><span class="dt">${r?fmt(r.EF):'—'}</span></td>
+        <td><span class="ministat s-${k?k.effStatus:'notstarted'}">${STATUS[k?k.effStatus:'notstarted']}</span></td>
+        <td><span class="pkg-pct">${k?k.dispPct:0}%</span></td>
+        <td>${pdelay}</td>
+        <td>—</td>
+        <td style="font-size:.74rem;color:var(--muted)">تجميعي — يُشتق من أبنائه</td>
+        ${editStruct?`<td><button class="ib" data-del="${esc(t.id)}" title="حذف الحزمة (يصعد أبناؤها للمستوى الأعلى)" aria-label="حذف الحزمة" style="color:var(--crit)">${I.trash}</button></td>`:''}
+      </tr>`;
+      return;
+    }
     const sopt=Object.keys(STATUS).map(x=>`<option value="${x}" ${x===t.status?'selected':''}>${STATUS[x]}</option>`).join('');
     const durDis=(t.type==='milestone'||t.type==='cont'||!editStruct)?'disabled':'';
     const delay=k.delay==='client'?'<span class="delay client">العميل</span>':k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>';
@@ -594,7 +701,7 @@ function vTable(){
     const editCol=editStruct?`<td style="white-space:nowrap"><button class="reqbtn" data-deps="${esc(t.id)}" title="التبعيات" aria-label="تحرير التبعيات">${I.link} ${depCount||''}</button> <button class="ib" data-del="${esc(t.id)}" title="حذف" aria-label="حذف البند" style="color:var(--crit)">${I.trash}</button></td>`:'';
     rows+=`<tr data-id="${esc(t.id)}" class="${r.critical?'crit':''}">
       <td><span class="idcell" style="--tc:${tc}">${esc(t.id)}${r.critical?'<span class="critdot"></span>':''}</span></td>
-      <td>${nameCell}</td>
+      <td class="${t.parent?'child-cell':''}">${t.parent?'<span class="tree-ind" aria-hidden="true">└</span>':''}${nameCell}</td>
       <td>${typeCell}</td>
       <td><input class="cell inum" type="number" min="0" data-f="duration" value="${t.duration||0}" ${durDis}></td>
       <td><span class="dt s">${fmt(r.ES)}</span></td>
@@ -638,7 +745,31 @@ function bindTable(){
     const tb=$('#tracksBtn');if(tb)tb.onclick=openTracksManager;
     const ib=$('#importXlsxBtn');if(ib)ib.onclick=openImporter;
   }
+  $$('#tbl [data-pkgtoggle]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();
+    const id=b.dataset.pkgtoggle;PKG_COLLAPSED.has(id)?PKG_COLLAPSED.delete(id):PKG_COLLAPSED.add(id);render();});
+  $$('#tbl [data-grpedit]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();inlineTrackEdit(b.dataset.grpedit,b.closest('td'));});
   const ptb=$('#printTableBtn');if(ptb)ptb.onclick=()=>printProject('table');
+}
+// تعديل المرحلة مباشرة من عنوانها في الجدول (اسم + لون، حفظ فوري)
+function inlineTrackEdit(key,td){
+  const tr=(PROJECT.tracks||[]).find(x=>x.key===key);
+  if(!tr){if(typeof openTracksManager==='function')openTracksManager();return;}
+  td.innerHTML=`<span class="grp-inline">
+    <input type="color" class="gie-c" value="${tr.color}" aria-label="لون المرحلة">
+    <input class="gie-n" value="${esc(tr.name)}" aria-label="اسم المرحلة">
+    <button class="reqbtn gie-s" style="background:var(--gold);border-color:var(--gold);color:#fff">حفظ</button>
+    <button class="reqbtn gie-x" style="background:#fff;color:var(--ink)">إلغاء</button></span>`;
+  td.querySelector('.gie-x').onclick=()=>render();
+  td.querySelector('.gie-s').onclick=async()=>{
+    const name=td.querySelector('.gie-n').value.trim();
+    const color=td.querySelector('.gie-c').value;
+    if(!name){toast('الاسم مطلوب','warn');return;}
+    try{await updateTrack(tr.id,{name,color});
+      PROJECT.tracks=await fetchTracks(PROJECT._dbId);
+      toast('حُدّثت المرحلة','ok');render();
+    }catch(err){toast('تعذّر التحديث','err');}};
+  const n=td.querySelector('.gie-n');n.focus();n.setSelectionRange(n.value.length,n.value.length);
+  n.onkeydown=(e)=>{if(e.key==='Enter')td.querySelector('.gie-s').click();if(e.key==='Escape')render();};
 }
 
 function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div><button class="hbtn print-btn" id="printGanttBtn" style="margin-inline-start:auto">🖨 طباعة الجانت</button><div class="zoom"><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
@@ -651,19 +782,25 @@ function vGantt(){
   while(d<=hi){const ms=off(d);const nx=new Date(d.getFullYear(),d.getMonth()+1,1);const se=nx>hi?hi:new Date(nx-oneDay);const days=Math.round((se-d)/oneDay)+1;months+=`<div class="mhead" style="right:${ms*PX}px;width:${days*PX}px">${MN[d.getMonth()]} ${d.getFullYear()}</div>`;d=nx;}
   let wk=new Date(lo),wi=1;while(wk<=hi){weeks+=`<div class="whead" style="right:${off(wk)*PX}px;width:${7*PX}px"><b>أسبوع ${wi}</b><s>${fmt(wk)}</s></div>`;grid+=`<div class="vg" style="right:${off(wk)*PX}px"></div>`;wk=new Date(wk.getTime()+7*oneDay);wi++;}
   const today=`<div class="today" style="right:${off(dd)*PX}px"><span>اليوم ${fmt(dd)}</span></div>`;
-  const BL=PROJECT.baseline?PROJECT.baseline.snapshot:null;let rows='',last=null; const _fg=filteredTasks();
+  const BL=PROJECT.baseline?PROJECT.baseline.snapshot:null;let rows='',last=null; const _fg=visibleTasks();
   _fg.forEach(t=>{const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
     if(t.track!==last){last=t.track;rows+=`<div class="grow grp"><div class="glbl">${trackMeta(t.track).code} — ${esc(trackMeta(t.track).name)}</div><div class="glane"></div></div>`;}
     const o=off(r.ES);const tip=`${esc(t.name)} — ${fmt(r.ES)}–${fmt(r.EF)} | ${STATUS[k.effStatus]}`;
     let lane='';
     if(BL&&BL[t.id]&&t.type!=='milestone'){const bo=off(D(BL[t.id].ES)),bl=Math.max(1,Math.round((D(BL[t.id].EF)-D(BL[t.id].ES))/oneDay)+1);lane+=`<div class="blbar" style="right:${bo*PX}px;width:${bl*PX}px"></div>`;}
+    if(t.type==='package'){
+      const len=Math.max(1,Math.round((new Date(r.EF)-new Date(r.ES))/oneDay)+1),wpx=len*PX;
+      lane+=`<div class="gpkg ${r.critical?'crit':''}" style="right:${o*PX}px;width:${wpx}px;--pc:${tc}" title="${tip}"></div>`;
+      rows+=`<div class="grow row-gpkg"><div class="glbl"><button class="pkg-tg" data-pkgtoggle="${esc(t.id)}" aria-expanded="${!PKG_COLLAPSED.has(t.id)}">${PKG_COLLAPSED.has(t.id)?'◂':'▾'}</button><span class="gw" style="--tc:${tc}">${esc(t.id)}</span><b>${esc(t.name)}</b></div><div class="glane">${lane}</div></div>`;
+      return;
+    }
     if(t.type==='milestone')lane+=`<div class="gmile ${r.critical?'crit':''}" style="right:${o*PX-7}px" title="${tip}"><span class="md">◆</span><span class="ml">${esc(t.id)}</span></div>`;
     else{const len=Math.max(1,Math.round((new Date(r.EF)-new Date(r.ES))/oneDay)+1),wpx=len*PX;const cls=(t.type==='cont')?'cont':k.effStatus;const prog=t.type==='cont'?0:((k&&k.dispPct)||t.progress||0);
       const fill=(k.effStatus==='inprogress'&&prog>0)?`<div class="fill" style="width:${prog}%"></div>`:'';
       const durTxt=(t.type==='cont')?'مستمر':(t.duration+' ي'+(prog?' · '+prog+'%':''));const inside=wpx>56;
       const durEl=inside?`<div class="gdur inside" style="right:${o*PX+6}px">${durTxt}</div>`:`<div class="gdur" style="right:${(o+len)*PX+4}px">${durTxt}</div>`;
       lane+=`<div class="gbar ${cls} ${r.critical?'crit':''}" style="right:${o*PX}px;width:${wpx}px;background:${tc}" title="${tip}">${fill}</div>${durEl}`;}
-    rows+=`<div class="grow"><div class="glbl"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
+    rows+=`<div class="grow"><div class="glbl ${t.parent?'gchild':''}"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
   return projFilterBar()+`<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
     <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${months}${weeks}</div></div>
     <div style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${grid}${today}</div>${rows}</div></div></div>
@@ -1725,15 +1862,22 @@ async function handleAddTask(){
       {key:'name',label:'اسم البند',value:'بند جديد'},
       {key:'track',label:'المسار',type:'select',value:'0',options:projTrackList().map(x=>({v:x.key,t:(x.code||x.key)+' — '+x.name}))},
       {key:'type',label:'النوع',type:'select',value:'task',options:Object.keys(TYPES).map(k=>({v:k,t:TYPES[k]}))},
-      {key:'duration',label:'المدة (أيام عمل)',type:'number',value:'1'}
+      {key:'duration',label:'المدة (أيام عمل)',type:'number',value:'1'},
+      {key:'parent',label:'ضمن حزمة (اختياري)',type:'select',value:'',
+        options:[{v:'',t:'— بدون حزمة —'}].concat(PROJECT.tasks.filter(t=>t.type==='package').map(p=>({v:p.id,t:p.id+' — '+p.name})))}
     ],confirmText:'إضافة'});
   if(!r)return;
   if(!r.ref){toast('المعرّف مطلوب','warn');return;}
   if(PROJECT.tasks.some(t=>t.id===r.ref)){toast('المعرّف مستخدم بالفعل','warn');return;}
   const _d=parseInt(r.duration||'1',10);
   if(r.type==='task'&&(!_d||_d<1)){toast('مدة المهمة لا تقل عن يوم واحد — للأحداث اللحظية استخدم نوع «معلم»','warn');return;}
+  if(r.type==='package'&&r.parent){toast('حزمة العمل لا تكون داخل حزمة أخرى (مستويان: حزمة ← مهام)','warn');return;}
+  let _parentDb=null;
+  if(r.parent){const pk=PROJECT.tasks.find(t=>t.id===r.parent&&t.type==='package');
+    if(!pk){toast('الحزمة المحددة غير موجودة','warn');return;}
+    r.track=pk.track; _parentDb=pk._dbId;}
   try{
-    await addTask(PROJECT._dbId,{ref:r.ref,name:r.name||'بند جديد',track:r.track,type:r.type,duration:parseInt(r.duration||'1',10)});
+    await addTask(PROJECT._dbId,{ref:r.ref,name:r.name||'بند جديد',track:r.track,type:r.type,duration:r.type==='package'?0:parseInt(r.duration||'1',10),parent_id:_parentDb});
     await loadProject(CID);
     toast('أُضيف البند بنجاح','ok');
     render();
