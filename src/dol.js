@@ -8,7 +8,7 @@ const DIM_AR={budget:'الميزانية',time:'الزمن',scope:'النطاق'
 const ENF_AR={hard:'صارم',soft:'مرن',advisory:'إرشادي'};
 let DOL_DECISIONS=[], DOL_LINKS=[];
 
-async function openDOL(){
+async function dolOpen(){
   SCREEN='dol';
   $('#hProject').innerHTML='<span class="ctx-dot" style="background:var(--crit)"></span>طبقة تشغيل القرار — DOL Console';
   $('#barClient').style.display='none';hideChrome();
