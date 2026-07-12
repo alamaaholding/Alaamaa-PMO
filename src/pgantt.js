@@ -4,7 +4,7 @@
 
 const PHASE_NAMES={'0':'التأسيس','A':'التنفيذ','B':'الذكاء','C':'الاستراتيجية'};
 
-async function renderPortfolioGantt(){
+async function pganttOpen(){
   SCREEN='pgantt';
   $('#hProject').innerHTML='<span class="ctx-dot" style="background:var(--blue)"></span>الخط الزمني الشامل — كل المشاريع';
   $('#barClient').style.display='none';hideChrome();
