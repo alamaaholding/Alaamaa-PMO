@@ -54,7 +54,8 @@ async function loadProject(clientId, projectId){
   const reqMap={};reqs.forEach(r=>{(reqMap[r.task_id]=reqMap[r.task_id]||[]).push({_id:r.id,desc:r.description,owner:r.owner,sla:r.sla_days,blocking:r.blocking,requested:r.requested_at||'',received:r.received_at||''});});
   PROJECT={_dbId:p.id,name:p.name,start:p.start_date,status:p.status,lifecycle:p.lifecycle,contractValue:p.contract_value,
     baseline:(bl&&bl.length)?{snapshot:bl[0].snapshot}:null,
-    tasks:tasks.map(t=>({id:t.ref,_dbId:t.id,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],requirements:reqMap[t.id]||[]}))};
+    tasks:(()=>{const _refOf={};tasks.forEach(x=>{_refOf[x.id]=x.ref;});
+      return tasks.map(t=>({id:t.ref,_dbId:t.id,parent:t.parent_id?(_refOf[t.parent_id]||null):null,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],requirements:reqMap[t.id]||[]}));})()};
   PROJECT.tracks=(await sb.from('pmo_project_tracks').select('*').eq('project_id',p.id).order('sort')).data||[];
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
@@ -85,6 +86,7 @@ async function addTask(projectId, fields){
   const maxSort=Math.max(0,...PROJECT.tasks.map(t=>t._sortOrder||0));
   const row={project_id:projectId,ref:fields.ref,name:fields.name||'بند جديد',track:fields.track||'0',
     type:fields.type||'task',duration:fields.duration||1,sort_order:maxSort+1};
+  if(fields.parent_id)row.parent_id=fields.parent_id;
   const {data,error}=await sb.from('pmo_tasks').insert(row).select().single();
   if(error) throw error;
   return data;
@@ -117,12 +119,25 @@ async function clearProjectPlan(projectId){
 }
 // إدخال مهام دفعة واحدة؛ يُرجع خريطة ref → id
 async function bulkInsertTasks(projectId, tasks){
-  const rows=tasks.map((t,i)=>({project_id:projectId,ref:t.ref,name:t.name||t.ref,
+  tasks.forEach((t,i)=>{t._ord=i+1;});
+  const mk=t=>{const r={project_id:projectId,ref:t.ref,name:t.name||t.ref,
     track:t.track||'0',type:t.type||'task',duration:t.duration||0,
-    deliverable:t.deliverable||null,owner:t.owner||null,sort_order:i+1}));
-  const {data,error}=await sb.from('pmo_tasks').insert(rows).select('id,ref');
-  if(error) throw error;
-  const map={};(data||[]).forEach(r=>{map[r.ref]=r.id;});
+    deliverable:t.deliverable||null,owner:t.owner||null,sort_order:t._ord};
+    return r;};
+  const map={};
+  let level=tasks.filter(t=>!t.parent), rest=tasks.filter(t=>t.parent), guard=0;
+  while(level.length&&guard++<8){
+    const rows=level.map(t=>{const r=mk(t);if(t.parent&&map[t.parent])r.parent_id=map[t.parent];return r;});
+    const {data,error}=await sb.from('pmo_tasks').insert(rows).select('id,ref');
+    if(error) throw error;
+    (data||[]).forEach(r=>{map[r.ref]=r.id;});
+    level=rest.filter(t=>map[t.parent]); rest=rest.filter(t=>!map[t.parent]);
+  }
+  if(rest.length){ // آباء مفقودون من الملف — تُدرج كمستوى أعلى بأمان
+    const rows=rest.map(mk);
+    const {data,error}=await sb.from('pmo_tasks').insert(rows).select('id,ref');
+    if(error) throw error;(data||[]).forEach(r=>{map[r.ref]=r.id;});
+  }
   return map;
 }
 // إدخال تبعيات دفعة واحدة (تأخذ خريطة ref→id)
