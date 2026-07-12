@@ -109,9 +109,32 @@ function taskMatchesFilter(t){
     if(!(t.name||'').includes(q)&&!(t.id||'').includes(q))return false;}
   return true;
 }
-function filteredTasks(){return PROJECT.tasks.filter(taskMatchesFilter);}
+function filteredTasks(){return PROJECT.tasks.filter(t=>t.type!=='package'&&taskMatchesFilter(t));}
+// ===== هرمية WBS: ترتيب شجري + طيّ الحزم =====
+let PKG_COLLAPSED=new Set();
+function orderedTasks(){
+  const byP={};PROJECT.tasks.forEach(t=>{const p=t.parent||'';(byP[p]=byP[p]||[]).push(t);});
+  Object.values(byP).forEach(a=>a.sort((x,y)=>(x._sortOrder||0)-(y._sortOrder||0)));
+  const out=[];const walk=t=>{out.push(t);(byP[t.id]||[]).forEach(walk);};
+  (byP['']||[]).forEach(walk);return out;
+}
+function visibleTasks(){
+  const ord=orderedTasks();
+  const fA=TFILTER.phases.size||TFILTER.statuses.size||TFILTER.smart.size||TFILTER.q.trim();
+  if(fA){
+    const keep=new Set();
+    ord.forEach(t=>{if(t.type!=='package'&&taskMatchesFilter(t))keep.add(t.id);});
+    ord.forEach(t=>{if(keep.has(t.id)){let p=t.parent;
+      while(p&&!keep.has(p)){keep.add(p);const pp=PROJECT.tasks.find(x=>x.id===p);p=pp?pp.parent:null;}}});
+    return ord.filter(t=>keep.has(t.id));
+  }
+  return ord.filter(t=>{let p=t.parent;
+    while(p){if(PKG_COLLAPSED.has(p))return false;const pp=PROJECT.tasks.find(x=>x.id===p);p=pp?pp.parent:null;}
+    return true;});
+}
 function projFilterBar(){
-  const total=PROJECT.tasks.length, shown=filteredTasks().length;
+  const _lv=PROJECT.tasks.filter(t=>t.type!=='package');
+  const total=_lv.length, shown=filteredTasks().length;
   const phaseChips=projTrackList().map(x=>`<button class="tfchip" data-tf-phase="${x.key}" style="--tc:${x.color}" aria-pressed="${TFILTER.phases.has(x.key)}">${esc(x.name)}</button>`).join('');
   const stAr={notstarted:'لم تبدأ',inprogress:'جارية',blocked:'متوقفة',done:'مكتملة'};
   const statusChips=Object.keys(stAr).map(k=>`<button class="tfchip st-${k}" data-tf-status="${k}" aria-pressed="${TFILTER.statuses.has(k)}">${stAr[k]}</button>`).join('');
@@ -139,15 +162,38 @@ function bindProjFilterBar(){
     if(TFILTER.q){setTimeout(()=>{tfs.focus();tfs.setSelectionRange(tfs.value.length,tfs.value.length);},0);}}
   const tfc=document.getElementById('tfClear');
   if(tfc)tfc.onclick=()=>{TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};render();};
+  document.querySelectorAll('[data-pkgtoggle]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();
+    const id=b.dataset.pkgtoggle;PKG_COLLAPSED.has(id)?PKG_COLLAPSED.delete(id):PKG_COLLAPSED.add(id);render();});
 }
 
 function vTable(){
   const S=SCHED,T=TRACK;const editStruct=can('editStruct')&&PROJECT.status!=='baselined';const editProg=can('editProg');
   const colspan=editStruct?12:11;
   let rows='',last=null;
-  PROJECT.tasks.forEach(t=>{
-    if(t.track!==last){last=t.track;rows+=`<tr class="grp"><td colspan="${colspan}">${trackMeta(t.track).code} — ${esc(trackMeta(t.track).name)}</td></tr>`;}
+  visibleTasks().forEach(t=>{
+    if(t.track!==last){last=t.track;rows+=`<tr class="grp"><td colspan="${colspan}"><span class="grp-t">${trackMeta(t.track).code} — ${esc(trackMeta(t.track).name)}</span>${ROLE==='pmo'?`<button class="grp-edit" data-grpedit="${esc(t.track)}" aria-label="تعديل المرحلة مباشرة" title="تعديل المرحلة">${I.pencil}</button>`:''}</td></tr>`;}
     const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
+    // صف حزمة عمل: تجميعي مشتق، بطيّ/فتح
+    if(t.type==='package'){
+      const collapsed=PKG_COLLAPSED.has(t.id);
+      const kidsN=PROJECT.tasks.filter(x=>x.parent===t.id).length;
+      const pdelay=k&&k.delay==='client'?'<span class="delay client">العميل</span>':(k&&k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>');
+      rows+=`<tr data-id="${esc(t.id)}" class="row-pkg ${r&&r.critical?'crit':''}">
+        <td><button class="pkg-tg" data-pkgtoggle="${esc(t.id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'فتح':'طي'} الحزمة">${collapsed?'◂':'▾'}</button><span class="idcell" style="--tc:${tc}">${esc(t.id)}</span></td>
+        <td class="pkg-name">${esc(t.name)} <span class="pkg-n">${kidsN} بند</span></td>
+        <td>حزمة عمل</td>
+        <td><span class="dt">${r?r.dur:0}</span></td>
+        <td><span class="dt s">${r?fmt(r.ES):'—'}</span></td>
+        <td><span class="dt">${r?fmt(r.EF):'—'}</span></td>
+        <td><span class="ministat s-${k?k.effStatus:'notstarted'}">${STATUS[k?k.effStatus:'notstarted']}</span></td>
+        <td><span class="pkg-pct">${k?k.dispPct:0}%</span></td>
+        <td>${pdelay}</td>
+        <td>—</td>
+        <td style="font-size:.74rem;color:var(--muted)">تجميعي — يُشتق من أبنائه</td>
+        ${editStruct?`<td><button class="ib" data-del="${esc(t.id)}" title="حذف الحزمة (يصعد أبناؤها للمستوى الأعلى)" aria-label="حذف الحزمة" style="color:var(--crit)">${I.trash}</button></td>`:''}
+      </tr>`;
+      return;
+    }
     const sopt=Object.keys(STATUS).map(x=>`<option value="${x}" ${x===t.status?'selected':''}>${STATUS[x]}</option>`).join('');
     const durDis=(t.type==='milestone'||t.type==='cont'||!editStruct)?'disabled':'';
     const delay=k.delay==='client'?'<span class="delay client">العميل</span>':k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>';
@@ -162,7 +208,7 @@ function vTable(){
     const editCol=editStruct?`<td style="white-space:nowrap"><button class="reqbtn" data-deps="${esc(t.id)}" title="التبعيات" aria-label="تحرير التبعيات">${I.link} ${depCount||''}</button> <button class="ib" data-del="${esc(t.id)}" title="حذف" aria-label="حذف البند" style="color:var(--crit)">${I.trash}</button></td>`:'';
     rows+=`<tr data-id="${esc(t.id)}" class="${r.critical?'crit':''}">
       <td><span class="idcell" style="--tc:${tc}">${esc(t.id)}${r.critical?'<span class="critdot"></span>':''}</span></td>
-      <td>${nameCell}</td>
+      <td class="${t.parent?'child-cell':''}">${t.parent?'<span class="tree-ind" aria-hidden="true">└</span>':''}${nameCell}</td>
       <td>${typeCell}</td>
       <td><input class="cell inum" type="number" min="0" data-f="duration" value="${t.duration||0}" ${durDis}></td>
       <td><span class="dt s">${fmt(r.ES)}</span></td>
@@ -206,7 +252,31 @@ function bindTable(){
     const tb=$('#tracksBtn');if(tb)tb.onclick=openTracksManager;
     const ib=$('#importXlsxBtn');if(ib)ib.onclick=openImporter;
   }
+  $$('#tbl [data-pkgtoggle]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();
+    const id=b.dataset.pkgtoggle;PKG_COLLAPSED.has(id)?PKG_COLLAPSED.delete(id):PKG_COLLAPSED.add(id);render();});
+  $$('#tbl [data-grpedit]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();inlineTrackEdit(b.dataset.grpedit,b.closest('td'));});
   const ptb=$('#printTableBtn');if(ptb)ptb.onclick=()=>printProject('table');
+}
+// تعديل المرحلة مباشرة من عنوانها في الجدول (اسم + لون، حفظ فوري)
+function inlineTrackEdit(key,td){
+  const tr=(PROJECT.tracks||[]).find(x=>x.key===key);
+  if(!tr){if(typeof openTracksManager==='function')openTracksManager();return;}
+  td.innerHTML=`<span class="grp-inline">
+    <input type="color" class="gie-c" value="${tr.color}" aria-label="لون المرحلة">
+    <input class="gie-n" value="${esc(tr.name)}" aria-label="اسم المرحلة">
+    <button class="reqbtn gie-s" style="background:var(--gold);border-color:var(--gold);color:#fff">حفظ</button>
+    <button class="reqbtn gie-x" style="background:#fff;color:var(--ink)">إلغاء</button></span>`;
+  td.querySelector('.gie-x').onclick=()=>render();
+  td.querySelector('.gie-s').onclick=async()=>{
+    const name=td.querySelector('.gie-n').value.trim();
+    const color=td.querySelector('.gie-c').value;
+    if(!name){toast('الاسم مطلوب','warn');return;}
+    try{await updateTrack(tr.id,{name,color});
+      PROJECT.tracks=await fetchTracks(PROJECT._dbId);
+      toast('حُدّثت المرحلة','ok');render();
+    }catch(err){toast('تعذّر التحديث','err');}};
+  const n=td.querySelector('.gie-n');n.focus();n.setSelectionRange(n.value.length,n.value.length);
+  n.onkeydown=(e)=>{if(e.key==='Enter')td.querySelector('.gie-s').click();if(e.key==='Escape')render();};
 }
 
 function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div><button class="hbtn print-btn" id="printGanttBtn" style="margin-inline-start:auto">🖨 طباعة الجانت</button><div class="zoom"><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
@@ -219,19 +289,25 @@ function vGantt(){
   while(d<=hi){const ms=off(d);const nx=new Date(d.getFullYear(),d.getMonth()+1,1);const se=nx>hi?hi:new Date(nx-oneDay);const days=Math.round((se-d)/oneDay)+1;months+=`<div class="mhead" style="right:${ms*PX}px;width:${days*PX}px">${MN[d.getMonth()]} ${d.getFullYear()}</div>`;d=nx;}
   let wk=new Date(lo),wi=1;while(wk<=hi){weeks+=`<div class="whead" style="right:${off(wk)*PX}px;width:${7*PX}px"><b>أسبوع ${wi}</b><s>${fmt(wk)}</s></div>`;grid+=`<div class="vg" style="right:${off(wk)*PX}px"></div>`;wk=new Date(wk.getTime()+7*oneDay);wi++;}
   const today=`<div class="today" style="right:${off(dd)*PX}px"><span>اليوم ${fmt(dd)}</span></div>`;
-  const BL=PROJECT.baseline?PROJECT.baseline.snapshot:null;let rows='',last=null; const _fg=filteredTasks();
+  const BL=PROJECT.baseline?PROJECT.baseline.snapshot:null;let rows='',last=null; const _fg=visibleTasks();
   _fg.forEach(t=>{const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
     if(t.track!==last){last=t.track;rows+=`<div class="grow grp"><div class="glbl">${trackMeta(t.track).code} — ${esc(trackMeta(t.track).name)}</div><div class="glane"></div></div>`;}
     const o=off(r.ES);const tip=`${esc(t.name)} — ${fmt(r.ES)}–${fmt(r.EF)} | ${STATUS[k.effStatus]}`;
     let lane='';
     if(BL&&BL[t.id]&&t.type!=='milestone'){const bo=off(D(BL[t.id].ES)),bl=Math.max(1,Math.round((D(BL[t.id].EF)-D(BL[t.id].ES))/oneDay)+1);lane+=`<div class="blbar" style="right:${bo*PX}px;width:${bl*PX}px"></div>`;}
+    if(t.type==='package'){
+      const len=Math.max(1,Math.round((new Date(r.EF)-new Date(r.ES))/oneDay)+1),wpx=len*PX;
+      lane+=`<div class="gpkg ${r.critical?'crit':''}" style="right:${o*PX}px;width:${wpx}px;--pc:${tc}" title="${tip}"></div>`;
+      rows+=`<div class="grow row-gpkg"><div class="glbl"><button class="pkg-tg" data-pkgtoggle="${esc(t.id)}" aria-expanded="${!PKG_COLLAPSED.has(t.id)}">${PKG_COLLAPSED.has(t.id)?'◂':'▾'}</button><span class="gw" style="--tc:${tc}">${esc(t.id)}</span><b>${esc(t.name)}</b></div><div class="glane">${lane}</div></div>`;
+      return;
+    }
     if(t.type==='milestone')lane+=`<div class="gmile ${r.critical?'crit':''}" style="right:${o*PX-7}px" title="${tip}"><span class="md">◆</span><span class="ml">${esc(t.id)}</span></div>`;
     else{const len=Math.max(1,Math.round((new Date(r.EF)-new Date(r.ES))/oneDay)+1),wpx=len*PX;const cls=(t.type==='cont')?'cont':k.effStatus;const prog=t.type==='cont'?0:((k&&k.dispPct)||t.progress||0);
       const fill=(k.effStatus==='inprogress'&&prog>0)?`<div class="fill" style="width:${prog}%"></div>`:'';
       const durTxt=(t.type==='cont')?'مستمر':(t.duration+' ي'+(prog?' · '+prog+'%':''));const inside=wpx>56;
       const durEl=inside?`<div class="gdur inside" style="right:${o*PX+6}px">${durTxt}</div>`:`<div class="gdur" style="right:${(o+len)*PX+4}px">${durTxt}</div>`;
       lane+=`<div class="gbar ${cls} ${r.critical?'crit':''}" style="right:${o*PX}px;width:${wpx}px;background:${tc}" title="${tip}">${fill}</div>${durEl}`;}
-    rows+=`<div class="grow"><div class="glbl"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
+    rows+=`<div class="grow"><div class="glbl ${t.parent?'gchild':''}"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
   return projFilterBar()+`<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
     <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${months}${weeks}</div></div>
     <div style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${grid}${today}</div>${rows}</div></div></div>
