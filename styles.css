@@ -528,3 +528,31 @@ html[dir="rtl"] .tabs::after{--fade-dir:right}
   @page{size:landscape;margin:12mm}
 }
 .print-btn{background:#fff;color:var(--ink);border-color:var(--line)}
+/* WBS: حزم العمل والشجرة */
+.row-pkg{background:color-mix(in srgb,var(--gold) 7%,var(--paper))}
+.row-pkg td{font-weight:700;border-top:1.5px solid var(--line)}
+.row-pkg .pkg-name{font-size:var(--fs-md)}
+.pkg-n{font-weight:500;font-size:var(--fs-xs);color:var(--muted);background:var(--soft-2);border-radius:999px;padding:1px 9px;margin-inline-start:6px}
+.pkg-pct{font-weight:800;color:var(--gold-dark)}
+.pkg-tg{background:none;border:none;cursor:pointer;font-size:.8rem;color:var(--gold-dark);padding:2px 6px;margin-inline-end:2px;border-radius:5px;min-width:26px;min-height:26px}
+.pkg-tg:hover{background:var(--soft-2)}
+.child-cell .iname{padding-inline-start:4px}
+.tree-ind{color:var(--line);margin-inline-start:14px;margin-inline-end:2px;font-size:.9rem}
+#tbl tr.row-pkg td:nth-child(1),#tbl tr.row-pkg td:nth-child(2){background:color-mix(in srgb,var(--gold) 7%,var(--paper))}
+/* الجانت: شريط الحزمة التجميعي */
+.gpkg{position:absolute;top:10px;height:9px;background:var(--pc,var(--ink));border-radius:2px;opacity:.85}
+.gpkg::before,.gpkg::after{content:'';position:absolute;bottom:-5px;border-style:solid;border-width:6px 5px 0 5px;border-color:var(--pc,var(--ink)) transparent transparent transparent}
+.gpkg::before{right:-1px}.gpkg::after{left:-1px}
+.gpkg.crit{outline:2px solid var(--crit);outline-offset:1px}
+.row-gpkg .glbl b{font-size:var(--fs-md)}
+.glbl.gchild{padding-inline-start:34px}
+.glbl.gchild::before{content:'└';color:var(--line);margin-inline-end:4px}
+/* تعديل المرحلة المباشر من عنوانها */
+.grp-edit{background:none;border:none;cursor:pointer;color:var(--gold-dark);padding:3px 7px;border-radius:6px;opacity:0;transition:var(--t);vertical-align:middle;min-height:26px}
+tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
+.grp-edit:hover{background:var(--paper)}
+.grp-inline{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap}
+.gie-c{width:34px;height:30px;border:none;border-radius:6px;padding:0;cursor:pointer}
+.gie-n{border:1.5px solid var(--gold);border-radius:7px;padding:5px 11px;font-family:inherit;font-size:var(--fs-md);min-width:220px}
+.gie-n:focus{outline:none}
+@media print{.pkg-tg,.grp-edit{display:none!important}.row-pkg{background:#eee!important}}
