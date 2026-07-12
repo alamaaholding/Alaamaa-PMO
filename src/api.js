@@ -277,3 +277,35 @@ async function fetchArchivedProjects(){
 async function fetchTracks(projectId){const{data}=await sb.from('pmo_project_tracks').select('*').eq('project_id',projectId).order('sort');return data||[];}
 async function addTrack(projectId,key,name,color,sort){const{error}=await sb.from('pmo_project_tracks').insert({project_id:projectId,key,name,color,sort});if(error)throw error;}
 async function updateTrack(id,patch){const{error}=await sb.from('pmo_project_tracks').update(patch).eq('id',id);if(error)throw error;}
+
+// ===== التحميل الكسول للوحدات الثقيلة (أداء) =====
+const _lazy={};
+function loadScript(src){
+  return _lazy[src]||(_lazy[src]=new Promise((res,rej)=>{
+    const s=document.createElement('script');s.src=src;
+    s.onload=()=>res();s.onerror=()=>{delete _lazy[src];rej(new Error('load fail: '+src));};
+    document.head.appendChild(s);
+  }));
+}
+async function ensureXLSX(){
+  if(window.XLSX)return;
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+}
+// مغلّفات: تُحمّل الوحدة عند أول استخدام فقط ثم تنفّذ
+async function openDOL(){
+  try{await loadScript('dol.js?v='+BUILD_V);await window.dolOpen();}
+  catch(e){toast('تعذّر تحميل طبقة القرار — تحقق من الاتصال','err');}
+}
+async function openImporter(){
+  const l=$('#loader');
+  try{
+    if(l)l.classList.remove('hidden');
+    await Promise.all([loadScript('importer.js?v='+BUILD_V),ensureXLSX()]);
+    if(l)l.classList.add('hidden');
+    window.importerOpen();
+  }catch(e){if(l)l.classList.add('hidden');toast('تعذّر تحميل أداة الاستيراد — تحقق من الاتصال','err');}
+}
+async function renderPortfolioGantt(){
+  try{await loadScript('pgantt.js?v='+BUILD_V);await window.pganttOpen();}
+  catch(e){toast('تعذّر تحميل الخط الزمني الشامل','err');}
+}
