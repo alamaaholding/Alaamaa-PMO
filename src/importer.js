@@ -147,6 +147,16 @@ function parseWorkbook(arrayBuffer){
   }
   if(!tasks.length) throw {ar:`ورقة «${sheetName}» لا تحوي مهامًا صالحة تحت صف الرؤوس.`};
 
+  // استنتاج هرمية WBS من الترقيم: 0.1.1 ابن 0.1 إن وُجد؛ الأب يُرقّى لحزمة عمل
+  {const refSet=new Set(tasks.map(t=>String(t.ref)));
+   tasks.forEach(t=>{const parts=String(t.ref).split('.');
+     if(parts.length>1){const cand=parts.slice(0,-1).join('.');
+       if(refSet.has(cand)&&cand!==String(t.ref))t.parent=cand;}});
+   const pkgRefs=new Set(tasks.filter(t=>t.parent).map(t=>String(t.parent)));
+   tasks.forEach(t=>{if(pkgRefs.has(String(t.ref))){
+     if(t.type==='milestone')warnings.push(`«${t.ref}» معلم لكنه أب لبنود — حُوّل لحزمة عمل.`);
+     t.type='package';}});
+  }
   tasks.forEach(t=>{if(t.type==='task'&&(!t.duration||t.duration<=0))warnings.push(`«${t.ref}» مهمة بمدة 0 — ستلتصق بنهاية سابقتها دون استهلاك أيام (يُفضّل معلم أو مدة ≥ 1).`);});
   // تحقّق التبعيات: كل تبعية يجب أن تشير لمعرّف موجود
   const refs=new Set(tasks.map(t=>t.ref));
@@ -218,7 +228,7 @@ function renderImpPreview(p){
   const warns=p.warnings.length
     ? `<div class="imp-warn"><b>ملاحظات (${p.warnings.length}):</b><ul>${p.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul></div>`
     : '<div class="imp-ok">لا تحذيرات — الملف سليم.</div>';
-  const sample=p.tasks.slice(0,6).map(t=>`<tr><td>${esc(t.ref)}</td><td>${esc(t.name)}</td><td>${esc(t.track)}</td><td>${TYPES[t.type]||t.type}</td><td>${t.duration||'—'}</td><td>${esc(t.deps.join('، ')||'—')}</td></tr>`).join('');
+  const sample=p.tasks.slice(0,6).map(t=>`<tr><td>${esc(t.ref)}</td><td>${t.parent?'<span style="color:var(--muted)">└ </span>':''}${esc(t.name)}</td><td>${esc(t.track)}</td><td>${TYPES[t.type]||t.type}</td><td>${t.duration||'—'}</td><td>${esc(t.deps.join('، ')||'—')}</td></tr>`).join('');
   $('#impResult').innerHTML=`
     <div class="imp-summary">
       ✓ قُرئت ورقة «${esc(p.sheetName)}»: <b>${tcount}</b> مهمة · <b>${mcount}</b> معلم · <b>${dcount}</b> تبعية.
