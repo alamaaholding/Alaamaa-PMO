@@ -287,15 +287,22 @@ async function handleAddTask(){
       {key:'name',label:'اسم البند',value:'بند جديد'},
       {key:'track',label:'المسار',type:'select',value:'0',options:projTrackList().map(x=>({v:x.key,t:(x.code||x.key)+' — '+x.name}))},
       {key:'type',label:'النوع',type:'select',value:'task',options:Object.keys(TYPES).map(k=>({v:k,t:TYPES[k]}))},
-      {key:'duration',label:'المدة (أيام عمل)',type:'number',value:'1'}
+      {key:'duration',label:'المدة (أيام عمل)',type:'number',value:'1'},
+      {key:'parent',label:'ضمن حزمة (اختياري)',type:'select',value:'',
+        options:[{v:'',t:'— بدون حزمة —'}].concat(PROJECT.tasks.filter(t=>t.type==='package').map(p=>({v:p.id,t:p.id+' — '+p.name})))}
     ],confirmText:'إضافة'});
   if(!r)return;
   if(!r.ref){toast('المعرّف مطلوب','warn');return;}
   if(PROJECT.tasks.some(t=>t.id===r.ref)){toast('المعرّف مستخدم بالفعل','warn');return;}
   const _d=parseInt(r.duration||'1',10);
   if(r.type==='task'&&(!_d||_d<1)){toast('مدة المهمة لا تقل عن يوم واحد — للأحداث اللحظية استخدم نوع «معلم»','warn');return;}
+  if(r.type==='package'&&r.parent){toast('حزمة العمل لا تكون داخل حزمة أخرى (مستويان: حزمة ← مهام)','warn');return;}
+  let _parentDb=null;
+  if(r.parent){const pk=PROJECT.tasks.find(t=>t.id===r.parent&&t.type==='package');
+    if(!pk){toast('الحزمة المحددة غير موجودة','warn');return;}
+    r.track=pk.track; _parentDb=pk._dbId;}
   try{
-    await addTask(PROJECT._dbId,{ref:r.ref,name:r.name||'بند جديد',track:r.track,type:r.type,duration:parseInt(r.duration||'1',10)});
+    await addTask(PROJECT._dbId,{ref:r.ref,name:r.name||'بند جديد',track:r.track,type:r.type,duration:r.type==='package'?0:parseInt(r.duration||'1',10),parent_id:_parentDb});
     await loadProject(CID);
     toast('أُضيف البند بنجاح','ok');
     render();
