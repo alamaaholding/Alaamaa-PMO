@@ -179,7 +179,7 @@ function detectCycle(tasks, depPairs){
 }
 
 // ===== واجهة الاستيراد =====
-function openImporter(){
+function importerOpen(){
   if(!PROJECT){ toast('افتح مشروعًا أولًا','warn'); return; }
   if(PROJECT.status==='baselined'){ toast('الخطة مثبّتة — لا يمكن الاستيراد. يتطلب طلب تغيير.','warn'); return; }
   const ov=$('#impOverlay'); ov.style.display='flex';
