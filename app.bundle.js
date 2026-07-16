@@ -1,4 +1,4 @@
-const BUILD_V='b3a8bab3';
+const BUILD_V='384cbd37';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -492,7 +492,7 @@ async function renderPortfolioGantt(){
 
 /* ===== views.js ===== */
 // ===== العرض =====
-const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',cr:'طلبات التغيير',requests:'طلبات العميل',discuss:'النقاش',audit:'سجل التدقيق'};
+const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',cr:'طلبات تعديل الخطة',requests:'طلبات الخدمة',discuss:'النقاش',audit:'سجل التدقيق'};
 function render(){
   if(!PROJECT){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا يوجد مشروع لهذا العميل.</p>';return;}
   $('#backPortfolio').style.display=(ROLE!=='client')?'':'none';
@@ -541,7 +541,7 @@ function render(){
   else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();bindProjFilterBar();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(10,PX-4);render();};
     const pgb=$('#printGanttBtn');if(pgb)pgb.onclick=()=>printProject('gantt');}
   else if(VIEW==='deliv')host.innerHTML=vDeliv();
-  else if(VIEW==='cr'){host.innerHTML=vCR();bindCR();}
+  else if(VIEW==='cr'){host.innerHTML='<div class="hintbar exp-cr">📐 <b>طلبات تعديل الخطة:</b> تغييرات رسمية على بنود الخطة (مدد، تبعيات، إضافة/حذف). يقدّمها العميل أو الفريق، ويعتمدها مكتب إدارة المشاريع — وتُطبَّق على الجدول بعد الموافقة.</div>'+vCR();bindCR();}
   else if(VIEW==='discuss'){
     host.innerHTML='<div id="discussWrap"><div class="skeleton" style="height:80px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
     loadComments(PROJECT._dbId).then(rows=>{const el=document.getElementById('discussWrap');if(el){el.innerHTML=vDiscuss(rows);bindDiscuss();}});
@@ -551,7 +551,7 @@ function render(){
     loadClientRequests(PROJECT._dbId).then(rows=>{const el=document.getElementById('reqWrap');if(el){el.innerHTML=vRequests(rows);bindRequests();}});
   }
   else if(VIEW==='audit'){
-    host.innerHTML='<div class="hintbar">آخر 60 تغييرًا مسجّلًا تلقائيًا (الحالة، التقدّم، المدة، طلبات التغيير).</div><div id="auditList"><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px"></div></div>';
+    host.innerHTML='<div class="hintbar">آخر 60 تغييرًا مسجّلًا تلقائيًا (الحالة، التقدّم، المدة، طلبات تعديل الخطة).</div><div id="auditList"><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px"></div></div>';
     loadAudit(PROJECT._dbId).then(rows=>{const el=document.getElementById('auditList');if(el)el.innerHTML=vAudit(rows);});
   }
 }
@@ -816,8 +816,8 @@ function vDeliv(){
 
 function vAudit(rows){
   if(!rows||!rows.length)return '<p class="empty" style="padding:20px;text-align:center">لا تغييرات مسجّلة بعد.</p>';
-  const ACT={status_change:'تغيير الحالة',progress_change:'تحديث التقدّم',duration_change:'تغيير المدة',cr_created:'طلب تغيير جديد',cr_approved:'الموافقة على طلب',cr_rejected:'رفض طلب',cr_pending:'طلب معلّق'};
-  const ENT={task:'بند',change_request:'طلب تغيير'};
+  const ACT={status_change:'تغيير الحالة',progress_change:'تحديث التقدّم',duration_change:'تغيير المدة',cr_created:'طلب تعديل خطة جديد',cr_approved:'الموافقة على طلب تعديل',cr_rejected:'رفض طلب تعديل',cr_pending:'طلب تعديل معلّق'};
+  const ENT={task:'بند',change_request:'طلب تعديل خطة'};
   // خريطة معرّف البند → اسمه (للعرض المفهوم)
   const taskById={};PROJECT.tasks.forEach(t=>{taskById[t._dbId]=t;});
   const rowsHtml=rows.map(a=>{
@@ -910,6 +910,7 @@ const PRIO_AR={low:'منخفضة',normal:'عادية',high:'عالية',urgent:'
 const PRIO_CLR={low:'var(--muted)',normal:'var(--ink-soft)',high:'var(--warn)',urgent:'var(--crit)'};
 function vRequests(rows){
   const isStaff=(ROLE==='pmo'||ROLE==='delivery');
+  const explainer='<div class="hintbar exp-rq">🛎 <b>طلبات الخدمة:</b> احتياجات تشغيلية تُوجَّه لقسم مختص (تسويق، تقني، استراتيجية…) — مثل تصميم أو محتوى أو دعم. <b>لا تعدّل الخطة</b>؛ لتعديل الخطة استخدم «طلبات تعديل الخطة».</div>';
   const ROLE_AR={pmo:'إدارة المشاريع',delivery:'الفريق',client:'العميل'};
   // نموذج تقديم طلب
   const composer=`<div class="crform" style="position:static;margin-bottom:16px">
@@ -946,7 +947,7 @@ function vRequests(rows){
       <div class="cract">${assignBtn}${delBtn}</div>
     </div>`;
   }).join('');
-  return composer+'<div class="crlist">'+cards+'</div>';
+  return explainer+composer+'<div class="crlist">'+cards+'</div>';
 }
 function bindRequests(){
   const send=document.getElementById('rqSend');
@@ -1627,7 +1628,7 @@ async function openProject(){
 // تعديل تاريخ بدء المشروع — المصدر الوحيد للحقيقة، يعيد حساب كل التواريخ
 
 async function editStartDate(){
-  if(PROJECT.status==='baselined'){ toast('الخطة مثبّتة — تعديل التاريخ يتطلب طلب تغيير','warn'); return; }
+  if(PROJECT.status==='baselined'){ toast('الخطة مثبّتة — تعديل التاريخ يتطلب طلب تعديل خطة معتمدًا','warn'); return; }
   const cur=PROJECT.start||'';
   const r=await dialog({title:'تعديل تاريخ بدء المشروع',
     message:'هذا التاريخ هو الأساس الذي تُحسب منه كل تواريخ المهام تلقائيًا (CPM). تغييره يعيد جدولة المشروع بالكامل.',
@@ -1734,7 +1735,7 @@ const _pmb=$('#projMenuBtn');if(_pmb)_pmb.onclick=()=>{if(PROJECT)openProjectMen
 // ===== اعتماد العقد + تثبيت الأساس =====
 $('#approveContract').onclick=async()=>{
   const r=await dialog({title:'اعتماد العقد وتثبيت الأساس',
-    message:'سيتحوّل المشروع إلى «نشط» وتُجمّد الخطة كخط أساس. بعدها أي تعديل على البنية يتطلب طلب تغيير رسمي.',
+    message:'سيتحوّل المشروع إلى «نشط» وتُجمّد الخطة كخط أساس. بعدها أي تعديل على البنية يتطلب طلب تعديل خطة رسميًا (من تبويب طلبات تعديل الخطة).',
     fields:[{key:'val',label:'قيمة العقد (ر.س) — اختياري',type:'number',value:'',placeholder:'مثال: 571400'}],
     confirmText:'اعتماد وتثبيت'});
   if(!r)return;
@@ -1753,7 +1754,7 @@ function vCR(){
   const canRequest=!!PERMS[ROLE].crAction;
   const taskOpts=PROJECT.tasks.filter(t=>t.type!=='milestone').map(t=>`<option value="${esc(t.id)}">${esc(t.id)} — ${esc(t.name)}</option>`).join('');
   const form=canRequest?`<div class="crform">
-    <h4>رفع طلب تغيير</h4>
+    <h4>رفع طلب تعديل على الخطة</h4>
     <select id="crTask">${taskOpts}</select>
     <select id="crKind"><option value="duration">تغيير المدة</option><option value="deps">تغيير التبعيات</option><option value="add">إضافة بند</option><option value="remove">حذف بند</option><option value="other">أخرى</option></select>
     <input id="crVal" placeholder="القيمة المقترحة (مثل: 12)">
@@ -1802,7 +1803,7 @@ let REQ_TASK=null;
 
 async function openReqs(refId){
   REQ_TASK=PROJECT.tasks.find(t=>t.id===refId);if(!REQ_TASK)return;
-  $('#reqTitle').textContent='متطلبات: '+REQ_TASK.name;
+  $('#reqTitle').textContent='متطلبات البند: '+REQ_TASK.name;
   renderReqs();
   $('#reqOverlay').style.display='flex';
 }
