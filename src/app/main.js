@@ -52,7 +52,7 @@ async function openProject(){
 // تعديل تاريخ بدء المشروع — المصدر الوحيد للحقيقة، يعيد حساب كل التواريخ
 
 async function editStartDate(){
-  if(PROJECT.status==='baselined'){ toast('الخطة مثبّتة — تعديل التاريخ يتطلب طلب تغيير','warn'); return; }
+  if(PROJECT.status==='baselined'){ toast('الخطة مثبّتة — تعديل التاريخ يتطلب طلب تعديل خطة معتمدًا','warn'); return; }
   const cur=PROJECT.start||'';
   const r=await dialog({title:'تعديل تاريخ بدء المشروع',
     message:'هذا التاريخ هو الأساس الذي تُحسب منه كل تواريخ المهام تلقائيًا (CPM). تغييره يعيد جدولة المشروع بالكامل.',
@@ -159,7 +159,7 @@ const _pmb=$('#projMenuBtn');if(_pmb)_pmb.onclick=()=>{if(PROJECT)openProjectMen
 // ===== اعتماد العقد + تثبيت الأساس =====
 $('#approveContract').onclick=async()=>{
   const r=await dialog({title:'اعتماد العقد وتثبيت الأساس',
-    message:'سيتحوّل المشروع إلى «نشط» وتُجمّد الخطة كخط أساس. بعدها أي تعديل على البنية يتطلب طلب تغيير رسمي.',
+    message:'سيتحوّل المشروع إلى «نشط» وتُجمّد الخطة كخط أساس. بعدها أي تعديل على البنية يتطلب طلب تعديل خطة رسميًا (من تبويب طلبات تعديل الخطة).',
     fields:[{key:'val',label:'قيمة العقد (ر.س) — اختياري',type:'number',value:'',placeholder:'مثال: 571400'}],
     confirmText:'اعتماد وتثبيت'});
   if(!r)return;
@@ -178,7 +178,7 @@ function vCR(){
   const canRequest=!!PERMS[ROLE].crAction;
   const taskOpts=PROJECT.tasks.filter(t=>t.type!=='milestone').map(t=>`<option value="${esc(t.id)}">${esc(t.id)} — ${esc(t.name)}</option>`).join('');
   const form=canRequest?`<div class="crform">
-    <h4>رفع طلب تغيير</h4>
+    <h4>رفع طلب تعديل على الخطة</h4>
     <select id="crTask">${taskOpts}</select>
     <select id="crKind"><option value="duration">تغيير المدة</option><option value="deps">تغيير التبعيات</option><option value="add">إضافة بند</option><option value="remove">حذف بند</option><option value="other">أخرى</option></select>
     <input id="crVal" placeholder="القيمة المقترحة (مثل: 12)">
@@ -227,7 +227,7 @@ let REQ_TASK=null;
 
 async function openReqs(refId){
   REQ_TASK=PROJECT.tasks.find(t=>t.id===refId);if(!REQ_TASK)return;
-  $('#reqTitle').textContent='متطلبات: '+REQ_TASK.name;
+  $('#reqTitle').textContent='متطلبات البند: '+REQ_TASK.name;
   renderReqs();
   $('#reqOverlay').style.display='flex';
 }
