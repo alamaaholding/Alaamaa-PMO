@@ -1,4 +1,4 @@
-const BUILD_V='384cbd37';
+const BUILD_V='e3a66e10';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -487,6 +487,46 @@ async function openImporter(){
 async function renderPortfolioGantt(){
   try{await loadScript('pgantt.js?v='+BUILD_V);await window.pganttOpen();}
   catch(e){toast('تعذّر تحميل الخط الزمني الشامل','err');}
+}
+
+// ===== التعافي: لقطات الخطة والاسترجاع =====
+function _planPayload(){
+  return {tasks:PROJECT.tasks.map(t=>({ref:t.id,name:t.name,track:t.track,type:t.type,
+    duration:t.duration||0,deliverable:t.deliverable||null,owner:t.owner||null,
+    status:t.status,progress:t.progress||0,parent:t.parent||null,deps:(t.deps||[]).slice(),
+    requirements:(t.requirements||[]).map(q=>({description:q.desc,owner:q.owner,sla_days:q.sla,
+      blocking:q.blocking,requested_at:q.requested||null,received_at:q.received||null}))}))};
+}
+async function savePlanSnapshot(projectId,reason){
+  const {error}=await sb.from('pmo_plan_snapshots')
+    .insert({project_id:projectId,reason,payload:_planPayload(),created_by:USER?USER.id:null});
+  if(error)throw error;
+  const {data}=await sb.from('pmo_plan_snapshots').select('id').eq('project_id',projectId)
+    .order('created_at',{ascending:false});
+  const extra=(data||[]).slice(5).map(r=>r.id);
+  if(extra.length)await sb.from('pmo_plan_snapshots').delete().in('id',extra);
+}
+async function fetchLatestSnapshot(projectId){
+  const {data}=await sb.from('pmo_plan_snapshots').select('*').eq('project_id',projectId)
+    .order('created_at',{ascending:false}).limit(1);
+  return (data&&data[0])||null;
+}
+async function restorePlanSnapshot(projectId,snap){
+  await clearProjectPlan(projectId);
+  const tasks=(snap.payload&&snap.payload.tasks)||[];
+  const map=await bulkInsertTasks(projectId,tasks.map(t=>({ref:t.ref,name:t.name,track:t.track,
+    type:t.type,duration:t.duration,deliverable:t.deliverable,owner:t.owner,parent:t.parent})));
+  for(const t of tasks){
+    if((t.status&&t.status!=='notstarted')||t.progress){
+      await sb.from('pmo_tasks').update({status:t.status||'notstarted',progress:t.progress||0}).eq('id',map[t.ref]);
+    }
+  }
+  const pairs=[];tasks.forEach(t=>(t.deps||[]).forEach(d=>pairs.push([t.ref,d])));
+  await bulkInsertDeps(projectId,pairs,map);
+  const reqRows=[];tasks.forEach(t=>(t.requirements||[]).forEach(q=>{
+    if(map[t.ref])reqRows.push({task_id:map[t.ref],description:q.description,owner:q.owner,
+      sla_days:q.sla_days,blocking:q.blocking,requested_at:q.requested_at,received_at:q.received_at});}));
+  if(reqRows.length)await sb.from('pmo_requirements').insert(reqRows);
 }
 
 
@@ -1142,6 +1182,7 @@ async function openProjectMenu(projectId, projectName){
   const r=await dialog({title:'إجراءات المشروع: '+(projectName||''),
     fields:[{key:'action',label:'الإجراء',type:'select',value:'rename',options:[
       {v:'rename',t:'إعادة تسمية المشروع'},
+      {v:'restore_snap',t:'استرجاع نسخة أمان (ما قبل آخر استبدال)'},
       {v:'archive',t:'أرشفة المشروع'},
       {v:'delete',t:'طلب حذف المشروع (مهلة 30 يومًا)'}
     ]}],confirmText:'متابعة'});
@@ -1153,6 +1194,22 @@ async function openProjectMenu(projectId, projectName){
       if(PROJECT&&PROJECT._dbId===projectId){PROJECT.name=e.name;render();}
       toast('أُعيدت التسمية','ok');if(SCREEN==='portfolio')renderPortfolio();
     }catch(err){toast('تعذّر: '+err.message,'err');}
+  }else if(r.action==='restore_snap'){
+    // حوكمة: لا استرجاع فوق خطة مثبّتة
+    const {data:pst}=await sb.from('pmo_projects').select('status').eq('id',projectId).single();
+    if(pst&&pst.status==='baselined'){toast('الخطة مثبّتة — الاسترجاع يتطلب طلب تعديل خطة معتمدًا','warn');return;}
+    const snap=await fetchLatestSnapshot(projectId);
+    if(!snap){toast('لا توجد لقطات أمان محفوظة لهذا المشروع بعد','warn');return;}
+    const when=(snap.created_at||'').slice(0,16).replace('T',' ');
+    if(!await confirmDialog('استرجاع نسخة أمان',
+      'سيُستبدل الوضع الحالي للخطة كاملًا بنسخة:\n'+when+' — '+(snap.reason||'لقطة')+'\n\nسيُحفظ الوضع الحالي كلقطة أيضًا قبل الاسترجاع.',true))return;
+    try{
+      if(PROJECT&&PROJECT._dbId===projectId&&PROJECT.tasks.length)
+        await savePlanSnapshot(projectId,'الوضع قبل استرجاع لقطة سابقة');
+      await restorePlanSnapshot(projectId,snap);
+      toast('استُرجعت الخطة من نسخة الأمان','ok');
+      if(PROJECT&&PROJECT._dbId===projectId){await loadProject(CID,PID);render();}
+    }catch(e){toast('تعذّر الاسترجاع: '+e.message,'err');}
   }else if(r.action==='archive'){
     if(!await confirmDialog('أرشفة المشروع','أرشفة «'+(projectName||'')+'»؟ يختفي من المحفظة والخط الزمني، ويُسترجع من المؤرشفة.',false))return;
     const {data}=await rpcArchiveProject(projectId);
@@ -1274,6 +1331,22 @@ async function openClientMenu(clientId){
   }else if(r.action==='access'){
     CID=clientId;PID=null;await openProject();
     if(typeof openAccess==='function')openAccess();
+  }else if(r.action==='restore_snap'){
+    // حوكمة: لا استرجاع فوق خطة مثبّتة
+    const {data:pst}=await sb.from('pmo_projects').select('status').eq('id',projectId).single();
+    if(pst&&pst.status==='baselined'){toast('الخطة مثبّتة — الاسترجاع يتطلب طلب تعديل خطة معتمدًا','warn');return;}
+    const snap=await fetchLatestSnapshot(projectId);
+    if(!snap){toast('لا توجد لقطات أمان محفوظة لهذا المشروع بعد','warn');return;}
+    const when=(snap.created_at||'').slice(0,16).replace('T',' ');
+    if(!await confirmDialog('استرجاع نسخة أمان',
+      'سيُستبدل الوضع الحالي للخطة كاملًا بنسخة:\n'+when+' — '+(snap.reason||'لقطة')+'\n\nسيُحفظ الوضع الحالي كلقطة أيضًا قبل الاسترجاع.',true))return;
+    try{
+      if(PROJECT&&PROJECT._dbId===projectId&&PROJECT.tasks.length)
+        await savePlanSnapshot(projectId,'الوضع قبل استرجاع لقطة سابقة');
+      await restorePlanSnapshot(projectId,snap);
+      toast('استُرجعت الخطة من نسخة الأمان','ok');
+      if(PROJECT&&PROJECT._dbId===projectId){await loadProject(CID,PID);render();}
+    }catch(e){toast('تعذّر الاسترجاع: '+e.message,'err');}
   }else if(r.action==='archive'){
     if(!await confirmDialog('تأكيد الأرشفة','أرشفة «'+c.name+'»؟ سيُخفى من المحفظة النشطة ويمكن استرجاعه لاحقًا.',false))return;
     const {data}=await rpcArchiveClient(clientId);
@@ -1588,6 +1661,16 @@ function toast(msg, kind){ // kind: ok | err | warn | (افتراضي)
   wrap.appendChild(t);
   setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),300);},3200);
 }
+// توست بزر تراجع (يبقى 8 ثوانٍ)
+function toastUndo(msg,onUndo){
+  const wrap=document.getElementById('toastWrap'); if(!wrap)return;
+  const t=document.createElement('div'); t.className='toast undo';
+  t.innerHTML='<span>🗑</span><span>'+msg+'</span><button class="undo-btn">تراجع</button>';
+  wrap.appendChild(t);
+  const tm=setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),300);},8000);
+  t.querySelector('.undo-btn').onclick=async()=>{clearTimeout(tm);t.remove();
+    try{await onUndo();}catch(e){toast('تعذّر التراجع: '+e.message,'err');}};
+}
 
 // ===== نوافذ الحوار المخصّصة (بديل prompt/confirm المتصفح) =====
 
@@ -1891,11 +1974,35 @@ async function handleDeleteTask(refId){
   let msg='حذف البند «'+t.name+'» ('+refId+')؟';
   if(dependents.length)msg+='\n\nتنبيه: تعتمد عليه البنود: '+dependents.join('، ')+' — ستُزال هذه الروابط.';
   if(!await confirmDialog('تأكيد الحذف',msg,true))return;
+  // لقطة كاملة للتراجع: الحقول + الروابط بالاتجاهين + المتطلبات
+  const snap={ref:t.id,name:t.name,track:t.track,type:t.type,duration:t.duration||0,
+    deliverable:t.deliverable||null,owner:t.owner||null,status:t.status,progress:t.progress||0,
+    parent:t.parent||null,deps:(t.deps||[]).slice(),dependents:dependents.slice(),
+    sort:t._sortOrder||999,
+    requirements:(t.requirements||[]).map(q=>({description:q.desc,owner:q.owner,sla_days:q.sla,
+      blocking:q.blocking,requested_at:q.requested||null,received_at:q.received||null}))};
   try{
     await deleteTask(t._dbId);
     await loadProject(CID);
-    toast('حُذف البند','ok');
     render();
+    toastUndo('حُذف «'+snap.ref+' — '+snap.name+'»',async()=>{
+      const parentDb=snap.parent?((PROJECT.tasks.find(x=>x.id===snap.parent)||{})._dbId||null):null;
+      const row={project_id:PROJECT._dbId,ref:snap.ref,name:snap.name,track:snap.track,type:snap.type,
+        duration:snap.duration,deliverable:snap.deliverable,owner:snap.owner,
+        status:snap.status,progress:snap.progress,sort_order:snap.sort};
+      if(parentDb)row.parent_id=parentDb;
+      const {data,error}=await sb.from('pmo_tasks').insert(row).select().single();
+      if(error)throw error;
+      const refDb={};PROJECT.tasks.forEach(x=>refDb[x.id]=x._dbId);refDb[snap.ref]=data.id;
+      const depRows=[];
+      snap.deps.forEach(d=>{if(refDb[d])depRows.push({project_id:PROJECT._dbId,task_id:data.id,depends_on_id:refDb[d]});});
+      snap.dependents.forEach(d=>{if(refDb[d])depRows.push({project_id:PROJECT._dbId,task_id:refDb[d],depends_on_id:data.id});});
+      if(depRows.length)await sb.from('pmo_dependencies').insert(depRows);
+      if(snap.requirements.length)
+        await sb.from('pmo_requirements').insert(snap.requirements.map(q=>Object.assign({task_id:data.id},q)));
+      await loadProject(CID,PID);render();
+      toast('استُعيد البند بكامل روابطه ومتطلباته','ok');
+    });
   }catch(e){toast('تعذّر الحذف: '+e.message,'err');}
 }
 let DEP_TASK=null;
