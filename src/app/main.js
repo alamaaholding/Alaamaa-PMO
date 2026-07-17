@@ -12,6 +12,16 @@ function toast(msg, kind){ // kind: ok | err | warn | (افتراضي)
   wrap.appendChild(t);
   setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),300);},3200);
 }
+// توست بزر تراجع (يبقى 8 ثوانٍ)
+function toastUndo(msg,onUndo){
+  const wrap=document.getElementById('toastWrap'); if(!wrap)return;
+  const t=document.createElement('div'); t.className='toast undo';
+  t.innerHTML='<span>🗑</span><span>'+msg+'</span><button class="undo-btn">تراجع</button>';
+  wrap.appendChild(t);
+  const tm=setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),300);},8000);
+  t.querySelector('.undo-btn').onclick=async()=>{clearTimeout(tm);t.remove();
+    try{await onUndo();}catch(e){toast('تعذّر التراجع: '+e.message,'err');}};
+}
 
 // ===== نوافذ الحوار المخصّصة (بديل prompt/confirm المتصفح) =====
 
@@ -315,11 +325,35 @@ async function handleDeleteTask(refId){
   let msg='حذف البند «'+t.name+'» ('+refId+')؟';
   if(dependents.length)msg+='\n\nتنبيه: تعتمد عليه البنود: '+dependents.join('، ')+' — ستُزال هذه الروابط.';
   if(!await confirmDialog('تأكيد الحذف',msg,true))return;
+  // لقطة كاملة للتراجع: الحقول + الروابط بالاتجاهين + المتطلبات
+  const snap={ref:t.id,name:t.name,track:t.track,type:t.type,duration:t.duration||0,
+    deliverable:t.deliverable||null,owner:t.owner||null,status:t.status,progress:t.progress||0,
+    parent:t.parent||null,deps:(t.deps||[]).slice(),dependents:dependents.slice(),
+    sort:t._sortOrder||999,
+    requirements:(t.requirements||[]).map(q=>({description:q.desc,owner:q.owner,sla_days:q.sla,
+      blocking:q.blocking,requested_at:q.requested||null,received_at:q.received||null}))};
   try{
     await deleteTask(t._dbId);
     await loadProject(CID);
-    toast('حُذف البند','ok');
     render();
+    toastUndo('حُذف «'+snap.ref+' — '+snap.name+'»',async()=>{
+      const parentDb=snap.parent?((PROJECT.tasks.find(x=>x.id===snap.parent)||{})._dbId||null):null;
+      const row={project_id:PROJECT._dbId,ref:snap.ref,name:snap.name,track:snap.track,type:snap.type,
+        duration:snap.duration,deliverable:snap.deliverable,owner:snap.owner,
+        status:snap.status,progress:snap.progress,sort_order:snap.sort};
+      if(parentDb)row.parent_id=parentDb;
+      const {data,error}=await sb.from('pmo_tasks').insert(row).select().single();
+      if(error)throw error;
+      const refDb={};PROJECT.tasks.forEach(x=>refDb[x.id]=x._dbId);refDb[snap.ref]=data.id;
+      const depRows=[];
+      snap.deps.forEach(d=>{if(refDb[d])depRows.push({project_id:PROJECT._dbId,task_id:data.id,depends_on_id:refDb[d]});});
+      snap.dependents.forEach(d=>{if(refDb[d])depRows.push({project_id:PROJECT._dbId,task_id:refDb[d],depends_on_id:data.id});});
+      if(depRows.length)await sb.from('pmo_dependencies').insert(depRows);
+      if(snap.requirements.length)
+        await sb.from('pmo_requirements').insert(snap.requirements.map(q=>Object.assign({task_id:data.id},q)));
+      await loadProject(CID,PID);render();
+      toast('استُعيد البند بكامل روابطه ومتطلباته','ok');
+    });
   }catch(e){toast('تعذّر الحذف: '+e.message,'err');}
 }
 let DEP_TASK=null;
