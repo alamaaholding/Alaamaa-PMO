@@ -79,6 +79,11 @@ async function editStartDate(){
 // ===== دورة حياة العميل (المرحلة 1) =====
 // حوار مشروع جديد (يُستدعى من قائمة العميل وزر البطاقة)
 
+async function renderPortfolioTimeline(){
+  SCREEN='ptimeline';$('#hProject').textContent='خط التسليمات — كل المشاريع';hideChrome();
+  $('#host').innerHTML='<div id="ptlWrap"><div class="skeleton" style="height:120px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
+  openTimelinePortfolio('ptlWrap');
+}
 async function renderAuditLog(){
   SCREEN='audit';$('#hProject').textContent='سجل المكتب — كل المشاريع';hideChrome();
   $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">🗂 <b>سجل المكتب:</b> كل الأفعال الحسّاسة عبر <b>كل المشاريع والعملاء</b> — من فعل، ماذا، ومتى. (سجل مشروع واحد: تبويب «سجل المشروع» داخله)</span></div><div id="auditList"><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px"></div></div>';
