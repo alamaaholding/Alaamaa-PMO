@@ -49,6 +49,8 @@ function render(){
     const pgb=$('#printGanttBtn');if(pgb)pgb.onclick=()=>printProject('gantt');
     const gt=$('#glToggle');if(gt){gt.classList.toggle('on',GLINKS_ON);gt.onclick=()=>{GLINKS_ON=!GLINKS_ON;try{localStorage.setItem('pmo_glinks',GLINKS_ON?'1':'0');}catch(_e){}render();};}
     const zf=$('#zfit');if(zf)zf.onclick=fitGantt;
+    document.querySelectorAll('[data-scale]').forEach(b=>{b.classList.toggle('on',b.dataset.scale===GSCALE);
+      b.onclick=()=>{GSCALE=b.dataset.scale;try{localStorage.setItem('pmo_gscale',GSCALE);}catch(_e){}PX=GSCALE_PX[GSCALE]||16;render();};});
     bindGanttHover();drawGanttLinks();}
   else if(VIEW==='deliv')host.innerHTML=vDeliv();
   else if(VIEW==='cr'){host.innerHTML='<div class="hintbar exp-cr">📐 <b>طلبات تعديل الخطة:</b> تغييرات رسمية على بنود الخطة (مدد، تبعيات، إضافة/حذف). يقدّمها العميل أو الفريق، ويعتمدها مكتب إدارة المشاريع — وتُطبَّق على الجدول بعد الموافقة.</div>'+vCR();bindCR();}
@@ -333,20 +335,44 @@ function inlineTrackEdit(key,td){
   n.onkeydown=(e)=>{if(e.key==='Enter')td.querySelector('.gie-s').click();if(e.key==='Escape')render();};
 }
 
-function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div><button class="hbtn print-btn" id="printGanttBtn" style="margin-inline-start:auto">🖨 طباعة الجانت</button><div class="zoom"><button class="zb" id="glToggle" title="إظهار/إخفاء روابط التبعية" aria-label="روابط التبعية">⇄</button><button class="zb" id="zfit" title="ملاءمة العرض للشاشة" aria-label="ملاءمة العرض">⤢</button><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
+function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div><div class="gscale" role="group" aria-label="مقياس الزمن" style="margin-inline-start:auto"><button class="gsc" data-scale="day">يوم</button><button class="gsc" data-scale="week">أسبوع</button><button class="gsc" data-scale="month">شهر</button><button class="gsc" data-scale="quarter">ربع</button></div><button class="hbtn print-btn" id="printGanttBtn">🖨 طباعة الجانت</button><div class="zoom"><button class="zb" id="glToggle" title="إظهار/إخفاء روابط التبعية" aria-label="روابط التبعية">⇄</button><button class="zb" id="zfit" title="ملاءمة العرض للشاشة" aria-label="ملاءمة العرض">⤢</button><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
+// ===== مقياس الزمن متعدد المستويات (يوم/أسبوع/شهر/ربع) =====
+let GSCALE='week';try{const _gs=localStorage.getItem('pmo_gscale');if(_gs)GSCALE=_gs;}catch(_e){}
+const GSCALE_PX={day:30,week:16,month:6,quarter:3};
+const _MNAR=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+function ganttScaleHeader(lo,hi,off,px,scale,fmt){
+  const oneDay=86400000;let top='',bot='',grid='',wkends='';
+  const T=(x,w,t)=>`<div class="mhead" style="right:${x}px;width:${w}px">${t}</div>`;
+  if(scale==='day'){
+    let d=new Date(lo);
+    while(d<=hi){const nx=new Date(d.getFullYear(),d.getMonth()+1,1);const se=nx>hi?hi:new Date(nx-oneDay);const days=Math.round((se-d)/oneDay)+1;top+=T(off(d)*px,days*px,_MNAR[d.getMonth()]+' '+d.getFullYear());d=nx;}
+    let dd=new Date(lo);
+    while(dd<=hi){const g=dd.getDay(),we=(g===5||g===6);bot+=`<div class="dhead${we?' we':''}" style="right:${off(dd)*px}px;width:${px}px">${dd.getDate()}</div>`;if(dd.getDay()===0)grid+=`<div class="vg" style="right:${off(dd)*px}px"></div>`;if(we)wkends+=`<div class="wkend" style="right:${off(dd)*px}px;width:${px}px"></div>`;dd=new Date(dd.getTime()+oneDay);}
+  }else if(scale==='month'){
+    let q=new Date(lo.getFullYear(),Math.floor(lo.getMonth()/3)*3,1);
+    while(q<=hi){const qs=q<lo?lo:q;const nq=new Date(q.getFullYear(),q.getMonth()+3,1);const qe=nq>hi?hi:new Date(nq-oneDay);const w=Math.round((qe-qs)/oneDay)+1;top+=T(off(qs)*px,w*px,'الربع '+(Math.floor(q.getMonth()/3)+1)+' — '+q.getFullYear());q=nq;}
+    let m=new Date(lo.getFullYear(),lo.getMonth(),1);
+    while(m<=hi){const ms=m<lo?lo:m;const nm=new Date(m.getFullYear(),m.getMonth()+1,1);const me=nm>hi?hi:new Date(nm-oneDay);const w=Math.round((me-ms)/oneDay)+1;bot+=`<div class="whead" style="right:${off(ms)*px}px;width:${w*px}px"><b>${_MNAR[m.getMonth()]}</b></div>`;grid+=`<div class="vg" style="right:${off(ms)*px}px"></div>`;m=nm;}
+  }else if(scale==='quarter'){
+    let y=new Date(lo.getFullYear(),0,1);
+    while(y<=hi){const ys=y<lo?lo:y;const ny=new Date(y.getFullYear()+1,0,1);const ye=ny>hi?hi:new Date(ny-oneDay);const w=Math.round((ye-ys)/oneDay)+1;top+=T(off(ys)*px,w*px,''+y.getFullYear());y=ny;}
+    let q=new Date(lo.getFullYear(),Math.floor(lo.getMonth()/3)*3,1);
+    while(q<=hi){const qs=q<lo?lo:q;const nq=new Date(q.getFullYear(),q.getMonth()+3,1);const qe=nq>hi?hi:new Date(nq-oneDay);const w=Math.round((qe-qs)/oneDay)+1;bot+=`<div class="whead" style="right:${off(qs)*px}px;width:${w*px}px"><b>ربع ${Math.floor(q.getMonth()/3)+1}</b></div>`;grid+=`<div class="vg" style="right:${off(qs)*px}px"></div>`;q=nq;}
+  }else{ // week (افتراضي)
+    let d=new Date(lo);
+    while(d<=hi){const nx=new Date(d.getFullYear(),d.getMonth()+1,1);const se=nx>hi?hi:new Date(nx-oneDay);const days=Math.round((se-d)/oneDay)+1;top+=T(off(d)*px,days*px,_MNAR[d.getMonth()]+' '+d.getFullYear());d=nx;}
+    let wk=new Date(lo),wi=1;
+    while(wk<=hi){bot+=`<div class="whead" style="right:${off(wk)*px}px;width:${7*px}px"><b>أسبوع ${wi}</b><s>${fmt(wk)}</s></div>`;grid+=`<div class="vg" style="right:${off(wk)*px}px"></div>`;wk=new Date(wk.getTime()+7*oneDay);wi++;}
+    let wd=new Date(lo);
+    while(wd<=hi){const g=wd.getDay();if(g===5){wkends+=`<div class="wkend" style="right:${off(wd)*px}px;width:${2*px}px"></div>`;wd=new Date(wd.getTime()+2*oneDay);continue;}if(g===6){wkends+=`<div class="wkend" style="right:${off(wd)*px}px;width:${px}px"></div>`;}wd=new Date(wd.getTime()+oneDay);}
+  }
+  return {top,bot,grid,wkends};
+}
 function vGantt(){
   const S=SCHED,T=TRACK,start=S.pStart,end=S.pEnd,oneDay=86400000,dd=D(DATA_DATE);
   const lo=start<dd?start:dd,hi=end>dd?end:dd,totalDays=Math.round((hi-lo)/oneDay)+3,W=totalDays*PX;
   const off=d=>Math.round((new Date(d)-lo)/oneDay);
-  const MN=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-  let months='',weeks='',grid='';let d=new Date(lo);
-  while(d<=hi){const ms=off(d);const nx=new Date(d.getFullYear(),d.getMonth()+1,1);const se=nx>hi?hi:new Date(nx-oneDay);const days=Math.round((se-d)/oneDay)+1;months+=`<div class="mhead" style="right:${ms*PX}px;width:${days*PX}px">${MN[d.getMonth()]} ${d.getFullYear()}</div>`;d=nx;}
-  let wk=new Date(lo),wi=1;while(wk<=hi){weeks+=`<div class="whead" style="right:${off(wk)*PX}px;width:${7*PX}px"><b>أسبوع ${wi}</b><s>${fmt(wk)}</s></div>`;grid+=`<div class="vg" style="right:${off(wk)*PX}px"></div>`;wk=new Date(wk.getTime()+7*oneDay);wi++;}
-  let wkends='';{let wd=new Date(lo);
-    while(wd<=hi){const g=wd.getDay();
-      if(g===5){wkends+=`<div class="wkend" style="right:${off(wd)*PX}px;width:${2*PX}px"></div>`;wd=new Date(wd.getTime()+2*oneDay);continue;}
-      if(g===6){wkends+=`<div class="wkend" style="right:${off(wd)*PX}px;width:${PX}px"></div>`;}
-      wd=new Date(wd.getTime()+oneDay);}}
+  const HD=ganttScaleHeader(lo,hi,off,PX,GSCALE,fmt);
   const today=`<div class="today" style="right:${off(dd)*PX}px"><span>اليوم ${fmt(dd)}</span></div>`;
   const BL=PROJECT.baseline?PROJECT.baseline.snapshot:null;let rows='',last=null; const _fg=visibleTasks();
   _fg.forEach(t=>{const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
@@ -377,8 +403,8 @@ function vGantt(){
       lane+=`<div class="gbar ${cls} ${r.critical?'crit':''} ${overdue?'late late-'+who:''}" data-gid="${esc(t.id)}" style="right:${o*PX}px;width:${wpx}px;background:${tc}" title="${tip}">${fill}</div>${tail}${durEl}`;}
     rows+=`<div class="grow" data-grow="${esc(t.id)}"><div class="glbl ${t.parent?'gchild':''}"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
   return projFilterBar()+`<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
-    <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${months}${weeks}</div></div>
-    <div id="gcanvas" style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${wkends}${grid}${today}</div>${rows}</div></div></div>
+    <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${HD.top}${HD.bot}</div></div>
+    <div id="gcanvas" style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${HD.wkends}${HD.grid}${today}</div>${rows}</div></div></div>
     <div class="glegend"><span><span class="di"></span>معلم</span><span><span class="ci"></span>حرج</span>${BL?'<span><i class="blleg"></i>الأساس المعتمد</span>':''}<span><span class="dot" style="background:#cbbfa6"></span>لم تبدأ</span><span><span class="dot" style="background:var(--blue)"></span>جارية</span><span><span class="dot" style="background:var(--crit)"></span>متوقفة</span><span><span class="dot" style="background:var(--ok)"></span>مكتملة ✓</span><span><i class="tleg cl"></i>تأخير بانتظار العميل</span><span><i class="tleg al"></i>تأخير علامة</span><span><i class="wkleg"></i>عطلة الأسبوع</span><span><i class="lkleg">⟵</i>رابط تبعية</span></div></div>`;
 }
 
