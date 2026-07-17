@@ -6,7 +6,7 @@ async function renderPortfolio(){
   const isStaff=(ROLE==='pmo'||ROLE==='delivery');
   const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads">'+I.users+' العملاء المحتملون</button>':'';
   const dolBtn=isStaff?'<button class="reqbtn" id="showDOL" style="background:var(--crit);border-color:var(--crit);color:#fff">'+I.scale+' طبقة القرار (DOL)</button>':'';
-  const auditBtn=isStaff?'<button class="reqbtn" id="showAudit">'+I.clipboard+' سجل التدقيق</button>':'';
+  const auditBtn=isStaff?'<button class="reqbtn" id="showAudit">'+I.clipboard+' سجل المكتب</button>':'';
   const pgBtn=isStaff?'<button class="reqbtn" id="showPGantt" style="background:var(--blue);border-color:var(--blue);color:#fff">'+I.calendar+' الخط الزمني الشامل</button>':'';
   const archBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showArchived">'+I.archive+' المؤرشفة</button>':'';
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
