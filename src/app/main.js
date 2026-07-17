@@ -80,8 +80,8 @@ async function editStartDate(){
 // حوار مشروع جديد (يُستدعى من قائمة العميل وزر البطاقة)
 
 async function renderAuditLog(){
-  SCREEN='audit';$('#hProject').textContent='سجل التدقيق';hideChrome();
-  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">كل الأفعال الحسّاسة عبر المكتب — من فعل، ماذا، ومتى.</span></div><div id="auditList"><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px"></div></div>';
+  SCREEN='audit';$('#hProject').textContent='سجل المكتب — كل المشاريع';hideChrome();
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">🗂 <b>سجل المكتب:</b> كل الأفعال الحسّاسة عبر <b>كل المشاريع والعملاء</b> — من فعل، ماذا، ومتى. (سجل مشروع واحد: تبويب «سجل المشروع» داخله)</span></div><div id="auditList"><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px"></div></div>';
   $('#backP').onclick=renderPortfolio;
   const rows=await fetchAuditLog(150);
   const list=$('#auditList');
