@@ -1,4 +1,4 @@
-const BUILD_V='6c58401a';
+const BUILD_V='059fbae5';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -16,8 +16,8 @@ function todayISO(){return fmtY(new Date());}
 
 
 // ===== الصلاحيات =====
-const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:true,crAction:'approve',views:['dashboard','table','gantt','deliv','cr','requests','discuss','audit']},
-  delivery:{editStruct:true,editProg:true,editReqs:true,approveContract:false,crAction:'request',views:['dashboard','table','gantt','deliv','cr','requests','discuss','audit']},
+const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:true,crAction:'approve',views:['dashboard','table','gantt','deliv','timeline','cr','requests','discuss','audit']},
+  delivery:{editStruct:true,editProg:true,editReqs:true,approveContract:false,crAction:'request',views:['dashboard','table','gantt','deliv','timeline','cr','requests','discuss','audit']},
   client:{editStruct:false,editProg:false,editReqs:false,approveContract:false,crAction:'request',views:['dashboard','gantt','deliv','cr','requests','discuss']}};
 function can(p){return PERMS[ROLE]&&PERMS[ROLE][p];}
 
@@ -47,6 +47,17 @@ function trackMeta(k){
   if(TRACKS[k])return{key:k,name:TRACKS[k].name,color:TRACKS[k].color,code:TRACKS[k].code||k};
   return{key:k,name:k,color:'#C8A06B',code:k};
 }
+
+// خط التسليمات: المصادر والأنواع والحالات
+const DELIV_SRC={
+  client:{t:'العميل',c:'#a8442f'},
+  pmo:{t:'إدارة المشاريع',c:'#4B3F72'},
+  marketing:{t:'التسويق',c:'#B28E67'},
+  tech:{t:'التقني',c:'#35608F'},
+  consulting:{t:'الاستشارات',c:'#5B8266'}
+};
+const DELIV_KIND={file:{t:'تسليم ملف',i:'📎'},request:{t:'طلب',i:'📤'},reply:{t:'رد',i:'↩'},approval:{t:'اعتماد',i:'✅'},note:{t:'ملاحظة',i:'📝'}};
+const DELIV_STATUS={sent:'مُرسل',awaiting:'بانتظار الرد',received:'مُستلم',approved:'معتمد'};
 
 
 /* ===== engine.js ===== */
@@ -532,10 +543,36 @@ async function restorePlanSnapshot(projectId,snap){
   if(reqRows.length)await sb.from('pmo_requirements').insert(reqRows);
 }
 
+// ===== خط التسليمات =====
+async function fetchDeliveries(projectId){
+  const {data}=await sb.from('pmo_deliveries').select('*').eq('project_id',projectId).order('event_date');
+  return data||[];
+}
+async function fetchAllDeliveries(){
+  const {data}=await sb.from('pmo_deliveries').select('*').order('event_date');
+  return data||[];
+}
+async function addDelivery(row){
+  const r={...row,created_by:USER?USER.id:null};
+  const {data,error}=await sb.from('pmo_deliveries').insert(r).select().single();
+  if(error)throw error;return data;
+}
+async function updateDelivery(id,patch){const {error}=await sb.from('pmo_deliveries').update(patch).eq('id',id);if(error)throw error;}
+async function deleteDelivery(id){const {error}=await sb.from('pmo_deliveries').delete().eq('id',id);if(error)throw error;}
+// مغلّفات كسولة
+async function openTimeline(hostId,projectId){
+  try{await loadScript('timeline.js?v='+BUILD_V);await window.timelineRender(hostId,projectId);}
+  catch(e){const h=document.getElementById(hostId);if(h)h.innerHTML='<p class="pempty">تعذّر تحميل خط التسليمات</p>';}
+}
+async function openTimelinePortfolio(hostId){
+  try{await loadScript('timeline.js?v='+BUILD_V);await window.timelinePortfolio(hostId);}
+  catch(e){const h=document.getElementById(hostId);if(h)h.innerHTML='<p class="pempty">تعذّر التحميل</p>';}
+}
+
 
 /* ===== views.js ===== */
 // ===== العرض =====
-const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',cr:'طلبات تعديل الخطة',requests:'طلبات الخدمة',discuss:'النقاش',audit:'سجل المشروع'};
+const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',timeline:'خط التسليمات',cr:'طلبات تعديل الخطة',requests:'طلبات الخدمة',discuss:'النقاش',audit:'سجل المشروع'};
 function render(){
   if(!PROJECT){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا يوجد مشروع لهذا العميل.</p>';return;}
   $('#backPortfolio').style.display=(ROLE!=='client')?'':'none';
@@ -589,6 +626,10 @@ function render(){
       b.onclick=()=>{GSCALE=b.dataset.scale;try{localStorage.setItem('pmo_gscale',GSCALE);}catch(_e){}PX=GSCALE_PX[GSCALE]||16;render();};});
     bindGanttHover();drawGanttLinks();}
   else if(VIEW==='deliv')host.innerHTML=vDeliv();
+  else if(VIEW==='timeline'){
+    host.innerHTML='<div id="tlWrap"><div class="skeleton" style="height:120px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
+    openTimeline('tlWrap',PROJECT._dbId);
+  }
   else if(VIEW==='cr'){host.innerHTML='<div class="hintbar exp-cr">📐 <b>طلبات تعديل الخطة:</b> تغييرات رسمية على بنود الخطة (مدد، تبعيات، إضافة/حذف). يقدّمها العميل أو الفريق، ويعتمدها مكتب إدارة المشاريع — وتُطبَّق على الجدول بعد الموافقة.</div>'+vCR();bindCR();}
   else if(VIEW==='discuss'){
     host.innerHTML='<div id="discussWrap"><div class="skeleton" style="height:80px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
@@ -1609,17 +1650,19 @@ async function renderPortfolio(){
   const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads">'+I.users+' العملاء المحتملون</button>':'';
   const dolBtn=isStaff?'<button class="reqbtn" id="showDOL" style="background:var(--crit);border-color:var(--crit);color:#fff">'+I.scale+' طبقة القرار (DOL)</button>':'';
   const auditBtn=isStaff?'<button class="reqbtn" id="showAudit">'+I.clipboard+' سجل المكتب</button>':'';
+  const tlBtn=isStaff?'<button class="reqbtn" id="showTimeline" style="background:var(--ink);border-color:var(--ink);color:#fff">📦 خط التسليمات الشامل</button>':'';
   const pgBtn=isStaff?'<button class="reqbtn" id="showPGantt" style="background:var(--blue);border-color:var(--blue);color:#fff">'+I.calendar+' الخط الزمني الشامل</button>':'';
   const archBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showArchived">'+I.archive+' المؤرشفة</button>':'';
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
   const skel=CLIENTS.map(()=>'<div class="pcard"><div class="skeleton" style="height:22px;width:55%;margin-bottom:14px"></div><div class="skeleton" style="height:8px;margin-bottom:12px"></div><div class="skeleton" style="height:36px"></div></div>').join('');
   const addClientBtn=(ROLE==='pmo')?'<button class="reqbtn" id="addClientBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ عميل جديد</button>':'';
-  const toolbar=isStaff?`<div class="portfolio-tools">${addClientBtn}${pgBtn}${dolBtn}${auditBtn}${archBtn}${leadsBtn}</div>`:'';
+  const toolbar=isStaff?`<div class="portfolio-tools">${addClientBtn}${pgBtn}${dolBtn}${auditBtn}${tlBtn}${archBtn}${leadsBtn}</div>`:'';
   $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
   if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;
     const ac=$('#addClientBtn');if(ac)ac.onclick=addNewClient;}
   {const db=$('#showDOL');if(db)db.onclick=openDOL;}
   {const ab=$('#showAudit');if(ab)ab.onclick=renderAuditLog;}
+  {const tb=$('#showTimeline');if(tb)tb.onclick=renderPortfolioTimeline;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
   {const pg=$('#showPGantt');if(pg)pg.onclick=renderPortfolioGantt;}
   // استعلام واحد لكل الملخّصات (صف لكل مشروع)
@@ -1886,6 +1929,11 @@ async function editStartDate(){
 // ===== دورة حياة العميل (المرحلة 1) =====
 // حوار مشروع جديد (يُستدعى من قائمة العميل وزر البطاقة)
 
+async function renderPortfolioTimeline(){
+  SCREEN='ptimeline';$('#hProject').textContent='خط التسليمات — كل المشاريع';hideChrome();
+  $('#host').innerHTML='<div id="ptlWrap"><div class="skeleton" style="height:120px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
+  openTimelinePortfolio('ptlWrap');
+}
 async function renderAuditLog(){
   SCREEN='audit';$('#hProject').textContent='سجل المكتب — كل المشاريع';hideChrome();
   $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">🗂 <b>سجل المكتب:</b> كل الأفعال الحسّاسة عبر <b>كل المشاريع والعملاء</b> — من فعل، ماذا، ومتى. (سجل مشروع واحد: تبويب «سجل المشروع» داخله)</span></div><div id="auditList"><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px"></div></div>';
