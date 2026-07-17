@@ -647,12 +647,19 @@ tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
 .tl-axis-lbl.up{color:var(--violet)}.tl-axis-lbl.dn{color:var(--crit)}
 .tl-today{position:absolute;top:-9999px;bottom:-9999px;width:2px;background:var(--blue);z-index:6}
 .tl-today span{position:absolute;top:-20px;right:-14px;font-size:.56rem;background:var(--blue);color:#fff;padding:1px 5px;border-radius:4px}
-.tl-ev{position:absolute;top:calc(var(--lvl) * 74px + 6px);width:158px;margin-inline-start:-158px}
-.tl-top .tl-ev{bottom:6px;top:auto;top:calc(var(--lvl) * 74px + 6px)}
-.tl-dot{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--c);box-shadow:0 0 0 2px #fff}
-.tl-top .tl-ev .tl-dot{bottom:-6px;inset-inline-end:-5px}
-.tl-bot .tl-ev .tl-dot{top:-6px;inset-inline-end:-5px}
-.tl-card{background:#fff;border:1px solid var(--line);border-inline-start:3px solid var(--c);border-radius:9px;padding:7px 9px;box-shadow:var(--e1);cursor:pointer;transition:var(--t)}
+.tl-ev{position:absolute;width:0}
+.tl-top .tl-ev{bottom:0}
+.tl-bot .tl-ev{top:0}
+.tl-dot{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--c);box-shadow:0 0 0 2px #fff;inset-inline-end:-5.5px;z-index:3}
+.tl-top .tl-ev .tl-dot{bottom:-5.5px}
+.tl-bot .tl-ev .tl-dot{top:-5.5px}
+.tl-stem{position:absolute;width:2px;background:var(--c);opacity:.45;inset-inline-end:-1px;height:calc(var(--lvl) * 72px + 16px)}
+.tl-top .tl-ev .tl-stem{bottom:0}
+.tl-bot .tl-ev .tl-stem{top:0}
+.tl-card{position:absolute;width:158px;inset-inline-end:-79px;background:#fff;border:1px solid var(--line);border-inline-start:3px solid var(--c);border-radius:9px;padding:7px 9px;box-shadow:var(--e1);cursor:pointer;transition:var(--t)}
+.tl-top .tl-ev .tl-card{bottom:calc(var(--lvl) * 72px + 16px)}
+.tl-bot .tl-ev .tl-card{top:calc(var(--lvl) * 72px + 16px)}
+.tl-card:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .tl-card:hover{box-shadow:var(--e2);transform:translateY(-1px)}
 .tl-card.late{border-color:var(--crit);background:var(--crit-bg)}
 .tl-card-top{display:flex;gap:5px;align-items:flex-start;font-size:.72rem;line-height:1.35}
