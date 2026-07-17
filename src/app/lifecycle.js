@@ -21,6 +21,7 @@ async function openProjectMenu(projectId, projectName){
   const r=await dialog({title:'إجراءات المشروع: '+(projectName||''),
     fields:[{key:'action',label:'الإجراء',type:'select',value:'rename',options:[
       {v:'rename',t:'إعادة تسمية المشروع'},
+      {v:'restore_snap',t:'استرجاع نسخة أمان (ما قبل آخر استبدال)'},
       {v:'archive',t:'أرشفة المشروع'},
       {v:'delete',t:'طلب حذف المشروع (مهلة 30 يومًا)'}
     ]}],confirmText:'متابعة'});
@@ -32,6 +33,22 @@ async function openProjectMenu(projectId, projectName){
       if(PROJECT&&PROJECT._dbId===projectId){PROJECT.name=e.name;render();}
       toast('أُعيدت التسمية','ok');if(SCREEN==='portfolio')renderPortfolio();
     }catch(err){toast('تعذّر: '+err.message,'err');}
+  }else if(r.action==='restore_snap'){
+    // حوكمة: لا استرجاع فوق خطة مثبّتة
+    const {data:pst}=await sb.from('pmo_projects').select('status').eq('id',projectId).single();
+    if(pst&&pst.status==='baselined'){toast('الخطة مثبّتة — الاسترجاع يتطلب طلب تعديل خطة معتمدًا','warn');return;}
+    const snap=await fetchLatestSnapshot(projectId);
+    if(!snap){toast('لا توجد لقطات أمان محفوظة لهذا المشروع بعد','warn');return;}
+    const when=(snap.created_at||'').slice(0,16).replace('T',' ');
+    if(!await confirmDialog('استرجاع نسخة أمان',
+      'سيُستبدل الوضع الحالي للخطة كاملًا بنسخة:\n'+when+' — '+(snap.reason||'لقطة')+'\n\nسيُحفظ الوضع الحالي كلقطة أيضًا قبل الاسترجاع.',true))return;
+    try{
+      if(PROJECT&&PROJECT._dbId===projectId&&PROJECT.tasks.length)
+        await savePlanSnapshot(projectId,'الوضع قبل استرجاع لقطة سابقة');
+      await restorePlanSnapshot(projectId,snap);
+      toast('استُرجعت الخطة من نسخة الأمان','ok');
+      if(PROJECT&&PROJECT._dbId===projectId){await loadProject(CID,PID);render();}
+    }catch(e){toast('تعذّر الاسترجاع: '+e.message,'err');}
   }else if(r.action==='archive'){
     if(!await confirmDialog('أرشفة المشروع','أرشفة «'+(projectName||'')+'»؟ يختفي من المحفظة والخط الزمني، ويُسترجع من المؤرشفة.',false))return;
     const {data}=await rpcArchiveProject(projectId);
@@ -153,6 +170,22 @@ async function openClientMenu(clientId){
   }else if(r.action==='access'){
     CID=clientId;PID=null;await openProject();
     if(typeof openAccess==='function')openAccess();
+  }else if(r.action==='restore_snap'){
+    // حوكمة: لا استرجاع فوق خطة مثبّتة
+    const {data:pst}=await sb.from('pmo_projects').select('status').eq('id',projectId).single();
+    if(pst&&pst.status==='baselined'){toast('الخطة مثبّتة — الاسترجاع يتطلب طلب تعديل خطة معتمدًا','warn');return;}
+    const snap=await fetchLatestSnapshot(projectId);
+    if(!snap){toast('لا توجد لقطات أمان محفوظة لهذا المشروع بعد','warn');return;}
+    const when=(snap.created_at||'').slice(0,16).replace('T',' ');
+    if(!await confirmDialog('استرجاع نسخة أمان',
+      'سيُستبدل الوضع الحالي للخطة كاملًا بنسخة:\n'+when+' — '+(snap.reason||'لقطة')+'\n\nسيُحفظ الوضع الحالي كلقطة أيضًا قبل الاسترجاع.',true))return;
+    try{
+      if(PROJECT&&PROJECT._dbId===projectId&&PROJECT.tasks.length)
+        await savePlanSnapshot(projectId,'الوضع قبل استرجاع لقطة سابقة');
+      await restorePlanSnapshot(projectId,snap);
+      toast('استُرجعت الخطة من نسخة الأمان','ok');
+      if(PROJECT&&PROJECT._dbId===projectId){await loadProject(CID,PID);render();}
+    }catch(e){toast('تعذّر الاسترجاع: '+e.message,'err');}
   }else if(r.action==='archive'){
     if(!await confirmDialog('تأكيد الأرشفة','أرشفة «'+c.name+'»؟ سيُخفى من المحفظة النشطة ويمكن استرجاعه لاحقًا.',false))return;
     const {data}=await rpcArchiveClient(clientId);
