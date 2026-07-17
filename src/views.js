@@ -221,15 +221,66 @@ function vTable(){
       ${editCol}
     </tr>`;
   });
+  const MOBILE=(typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(max-width:700px)').matches);
   const editHead=editStruct?'<th>تحرير</th>':'';
   const addBar=editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button>${ROLE==='pmo'?'<button class="reqbtn" id="tracksBtn" style="background:var(--ink);border-color:var(--ink);color:#fff">إدارة المراحل</button>':''}<span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'';
   const printBtn=`<div class="lockbar" style="border-inline-start-color:var(--line)"><button class="hbtn print-btn" id="printTableBtn">🖨 طباعة الجدول</button><span style="color:var(--muted);font-weight:400;font-size:.78rem">تُطبع كل مرحلة في صفحة، والأعمدة مصغّرة للقراءة.</span></div>`;
+  if(MOBILE)return addBar+projFilterBar()+vCards(editStruct,editProg);
   return addBar+printBtn+projFilterBar()+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+// عرض البطاقات للجوّال: نفس البيانات والفلاتر والربط، بلا تمرير أفقي
+function vCards(editStruct,editProg){
+  const S=SCHED,T=TRACK;let out='',last=null;
+  visibleTasks().forEach(t=>{
+    const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
+    if(t.track!==last){last=t.track;
+      out+=`<div class="tc-grp"><span class="grp-t">${trackMeta(t.track).code} — ${esc(trackMeta(t.track).name)}</span>${ROLE==='pmo'?`<button class="grp-edit" data-grpedit="${esc(t.track)}" aria-label="تعديل المرحلة">${I.pencil}</button>`:''}</div>`;}
+    if(t.type==='package'){
+      const collapsed=PKG_COLLAPSED.has(t.id);
+      const kidsN=PROJECT.tasks.filter(x=>x.parent===t.id).length;
+      out+=`<div class="tcard pkg ${r&&r.critical?'crit':''}" data-id="${esc(t.id)}">
+        <div class="tc-top">
+          <button class="pkg-tg" data-pkgtoggle="${esc(t.id)}" aria-expanded="${!collapsed}">${collapsed?'◂':'▾'}</button>
+          <span class="idcell" style="--tc:${tc}">${esc(t.id)}</span>
+          <span class="tc-name"><b>${esc(t.name)}</b></span>
+          <span class="pkg-pct">${k?k.dispPct:0}%</span>
+        </div>
+        <div class="tc-meta"><span>${r?fmt(r.ES):'—'} ← ${r?fmt(r.EF):'—'}</span><span>${kidsN} بند</span><span class="ministat s-${k?k.effStatus:'notstarted'}">${STATUS[k?k.effStatus:'notstarted']}</span></div>
+        <div class="pbar mini"><div class="pbar-fill" style="width:${k?k.dispPct:0}%"></div></div>
+      </div>`;
+      return;
+    }
+    const sopt=Object.keys(STATUS).map(x=>`<option value="${x}" ${x===t.status?'selected':''}>${STATUS[x]}</option>`).join('');
+    const pct=(k&&k.dispPct)||t.progress||0;
+    const reqs=(t.requirements||[]);const bad=reqs.filter(x=>x._state==='overdue').length;
+    const badges=[];
+    if(r&&r.critical)badges.push('<span class="tc-b crit">حرج</span>');
+    if(k&&k.delay==='client')badges.push('<span class="tc-b cl">بانتظار العميل</span>');
+    else if(k&&k.delay==='alamah')badges.push('<span class="tc-b al">تأخير علامة</span>');
+    if(t.type==='milestone')badges.push('<span class="tc-b ms">◆ معلم</span>');
+    out+=`<div class="tcard ${r&&r.critical?'crit':''} ${t.parent?'child':''}" data-id="${esc(t.id)}">
+      <div class="tc-top">
+        <span class="idcell" style="--tc:${tc}">${esc(t.id)}</span>
+        <span class="tc-name">${esc(t.name)}</span>
+      </div>
+      ${badges.length?`<div class="tc-badges">${badges.join('')}</div>`:''}
+      <div class="tc-meta"><span>${fmt(r.ES)} ← ${fmt(r.EF)}</span><span>${t.type==='cont'?'مستمر':(t.duration||0)+' ي'}</span></div>
+      ${t.type!=='milestone'?`<div class="tc-prog"><div class="pbar mini"><div class="pbar-fill" style="width:${pct}%"></div></div><span>${pct}%</span></div>`:''}
+      <div class="tc-acts">
+        <select class="st st-${k.effStatus}" data-f="status" ${editProg?'':'disabled'}>${sopt}</select>
+        <button class="reqbtn" data-reqs="${esc(t.id)}">${reqs.length?(bad?bad+'⚠ متطلبات':reqs.length+' متطلبات'):'متطلبات'}</button>
+        ${editStruct?`<button class="reqbtn" data-deps="${esc(t.id)}" aria-label="التبعيات">${I.link} ${(t.deps||[]).length||''}</button><button class="ib" data-del="${esc(t.id)}" aria-label="حذف" style="color:var(--crit)">${I.trash}</button>`:''}
+      </div>
+    </div>`;
+  });
+  const _lv2=PROJECT.tasks.filter(t=>t.type!=='package');
+  if(!out)out='<p class="pempty">لا بنود مطابقة.</p>';
+  return `<div id="tbl" class="cardwrap">${out}</div>`;
 }
 function bindTable(){
   bindProjFilterBar();
   const editStruct=can('editStruct')&&PROJECT.status!=='baselined';
-  $$('#tbl tr[data-id]').forEach(tr=>{
+  $$('#tbl [data-id]').forEach(tr=>{
     const id=tr.dataset.id,t=PROJECT.tasks.find(x=>x.id===id);
     tr.querySelectorAll('[data-f]').forEach(inp=>{
       inp.addEventListener('change',async()=>{
@@ -254,7 +305,7 @@ function bindTable(){
   }
   $$('#tbl [data-pkgtoggle]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();
     const id=b.dataset.pkgtoggle;PKG_COLLAPSED.has(id)?PKG_COLLAPSED.delete(id):PKG_COLLAPSED.add(id);render();});
-  $$('#tbl [data-grpedit]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();inlineTrackEdit(b.dataset.grpedit,b.closest('td'));});
+  $$('#tbl [data-grpedit]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();inlineTrackEdit(b.dataset.grpedit,b.closest('td')||b.closest('.tc-grp'));});
   const ptb=$('#printTableBtn');if(ptb)ptb.onclick=()=>printProject('table');
 }
 // تعديل المرحلة مباشرة من عنوانها في الجدول (اسم + لون، حفظ فوري)
