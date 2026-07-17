@@ -1,3 +1,6 @@
+// عدّاد أيام العمل بين تاريخين (شامل الطرفين، الجمعة/السبت عطلة) — عام للواجهات
+function wdBetween(a,b){let c=0,d=new Date(a);const e=new Date(b);
+  while(d<=e){const g=d.getDay();if(g!==5&&g!==6)c++;d=new Date(d.getTime()+86400000);}return c;}
 // ===== محرك CPM (مختبَر) =====
 function scheduleTasks(tasks,projectStartStr){
   const WE=new Set([5,6]);const isWD=d=>!WE.has(d.getDay());const clone=d=>new Date(d.getTime());
