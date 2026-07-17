@@ -1,4 +1,4 @@
-const BUILD_V='68b6adad';
+const BUILD_V='f3d52403';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -50,6 +50,9 @@ function trackMeta(k){
 
 
 /* ===== engine.js ===== */
+// عدّاد أيام العمل بين تاريخين (شامل الطرفين، الجمعة/السبت عطلة) — عام للواجهات
+function wdBetween(a,b){let c=0,d=new Date(a);const e=new Date(b);
+  while(d<=e){const g=d.getDay();if(g!==5&&g!==6)c++;d=new Date(d.getTime()+86400000);}return c;}
 // ===== محرك CPM (مختبَر) =====
 function scheduleTasks(tasks,projectStartStr){
   const WE=new Set([5,6]);const isWD=d=>!WE.has(d.getDay());const clone=d=>new Date(d.getTime());
@@ -579,7 +582,8 @@ function render(){
   if(VIEW==='dashboard')host.innerHTML=(ROLE==='client')?vClientDash():vDashboard();
   else if(VIEW==='table'){host.innerHTML='<div class="hintbar">تحديث الحالة والتقدّم يُحفظ مباشرة في القاعدة. المسار الحرج مظلّل.</div>'+vTable();bindTable();}
   else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();bindProjFilterBar();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(10,PX-4);render();};
-    const pgb=$('#printGanttBtn');if(pgb)pgb.onclick=()=>printProject('gantt');}
+    const pgb=$('#printGanttBtn');if(pgb)pgb.onclick=()=>printProject('gantt');
+    bindGanttHover();}
   else if(VIEW==='deliv')host.innerHTML=vDeliv();
   else if(VIEW==='cr'){host.innerHTML='<div class="hintbar exp-cr">📐 <b>طلبات تعديل الخطة:</b> تغييرات رسمية على بنود الخطة (مدد، تبعيات، إضافة/حذف). يقدّمها العميل أو الفريق، ويعتمدها مكتب إدارة المشاريع — وتُطبَّق على الجدول بعد الموافقة.</div>'+vCR();bindCR();}
   else if(VIEW==='discuss'){
@@ -872,32 +876,64 @@ function vGantt(){
   let months='',weeks='',grid='';let d=new Date(lo);
   while(d<=hi){const ms=off(d);const nx=new Date(d.getFullYear(),d.getMonth()+1,1);const se=nx>hi?hi:new Date(nx-oneDay);const days=Math.round((se-d)/oneDay)+1;months+=`<div class="mhead" style="right:${ms*PX}px;width:${days*PX}px">${MN[d.getMonth()]} ${d.getFullYear()}</div>`;d=nx;}
   let wk=new Date(lo),wi=1;while(wk<=hi){weeks+=`<div class="whead" style="right:${off(wk)*PX}px;width:${7*PX}px"><b>أسبوع ${wi}</b><s>${fmt(wk)}</s></div>`;grid+=`<div class="vg" style="right:${off(wk)*PX}px"></div>`;wk=new Date(wk.getTime()+7*oneDay);wi++;}
+  let wkends='';{let wd=new Date(lo);
+    while(wd<=hi){const g=wd.getDay();
+      if(g===5){wkends+=`<div class="wkend" style="right:${off(wd)*PX}px;width:${2*PX}px"></div>`;wd=new Date(wd.getTime()+2*oneDay);continue;}
+      if(g===6){wkends+=`<div class="wkend" style="right:${off(wd)*PX}px;width:${PX}px"></div>`;}
+      wd=new Date(wd.getTime()+oneDay);}}
   const today=`<div class="today" style="right:${off(dd)*PX}px"><span>اليوم ${fmt(dd)}</span></div>`;
   const BL=PROJECT.baseline?PROJECT.baseline.snapshot:null;let rows='',last=null; const _fg=visibleTasks();
   _fg.forEach(t=>{const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
     if(t.track!==last){last=t.track;rows+=`<div class="grow grp"><div class="glbl">${trackMeta(t.track).code} — ${esc(trackMeta(t.track).name)}</div><div class="glane"></div></div>`;}
-    const o=off(r.ES);const tip=`${esc(t.name)} — ${fmt(r.ES)}–${fmt(r.EF)} | ${STATUS[k.effStatus]}`;
+    const o=off(r.ES);
+    const overdue=(t.status!=='done'&&t.type!=='cont'&&t.type!=='package'&&r&&dd>r.EF);
+    const lateDays=overdue?Math.max(1,wdBetween(r.EF,dd)-1):0;
+    const who=(k&&k.delay==='client')?'client':'alamah';
+    const tip=`${esc(t.name)} — ${fmt(r.ES)}–${fmt(r.EF)} | ${STATUS[k.effStatus]}${overdue?` | متأخر ${lateDays} يوم عمل`:''}`;
     let lane='';
     if(BL&&BL[t.id]&&t.type!=='milestone'){const bo=off(D(BL[t.id].ES)),bl=Math.max(1,Math.round((D(BL[t.id].EF)-D(BL[t.id].ES))/oneDay)+1);lane+=`<div class="blbar" style="right:${bo*PX}px;width:${bl*PX}px"></div>`;}
     if(t.type==='package'){
       const len=Math.max(1,Math.round((new Date(r.EF)-new Date(r.ES))/oneDay)+1),wpx=len*PX;
-      lane+=`<div class="gpkg ${r.critical?'crit':''}" style="right:${o*PX}px;width:${wpx}px;--pc:${tc}" title="${tip}"></div>`;
-      rows+=`<div class="grow row-gpkg"><div class="glbl"><button class="pkg-tg" data-pkgtoggle="${esc(t.id)}" aria-expanded="${!PKG_COLLAPSED.has(t.id)}">${PKG_COLLAPSED.has(t.id)?'◂':'▾'}</button><span class="gw" style="--tc:${tc}">${esc(t.id)}</span><b>${esc(t.name)}</b></div><div class="glane">${lane}</div></div>`;
+      lane+=`<div class="gpkg ${r.critical?'crit':''}" data-gid="${esc(t.id)}" style="right:${o*PX}px;width:${wpx}px;--pc:${tc}" title="${tip}"></div>`;
+      rows+=`<div class="grow row-gpkg" data-grow="${esc(t.id)}"><div class="glbl"><button class="pkg-tg" data-pkgtoggle="${esc(t.id)}" aria-expanded="${!PKG_COLLAPSED.has(t.id)}">${PKG_COLLAPSED.has(t.id)?'◂':'▾'}</button><span class="gw" style="--tc:${tc}">${esc(t.id)}</span><b>${esc(t.name)}</b></div><div class="glane">${lane}</div></div>`;
       return;
     }
-    if(t.type==='milestone')lane+=`<div class="gmile ${r.critical?'crit':''}" style="right:${o*PX-7}px" title="${tip}"><span class="md">◆</span><span class="ml">${esc(t.id)}</span></div>`;
+    if(t.type==='milestone')lane+=`<div class="gmile ${r.critical?'crit':''} ${overdue?'late':''}" data-gid="${esc(t.id)}" style="right:${o*PX-7}px" title="${tip}"><span class="md">◆</span><span class="ml">${esc(t.id)}</span>${overdue?`<span class="ml lt">+${lateDays}ي</span>`:''}</div>`;
     else{const len=Math.max(1,Math.round((new Date(r.EF)-new Date(r.ES))/oneDay)+1),wpx=len*PX;const cls=(t.type==='cont')?'cont':k.effStatus;const prog=t.type==='cont'?0:((k&&k.dispPct)||t.progress||0);
       const fill=(k.effStatus==='inprogress'&&prog>0)?`<div class="fill" style="width:${prog}%"></div>`:'';
       const durTxt=(t.type==='cont')?'مستمر':(t.duration+' ي'+(prog?' · '+prog+'%':''));const inside=wpx>56;
-      const durEl=inside?`<div class="gdur inside" style="right:${o*PX+6}px">${durTxt}</div>`:`<div class="gdur" style="right:${(o+len)*PX+4}px">${durTxt}</div>`;
-      lane+=`<div class="gbar ${cls} ${r.critical?'crit':''}" style="right:${o*PX}px;width:${wpx}px;background:${tc}" title="${tip}">${fill}</div>${durEl}`;}
-    rows+=`<div class="grow"><div class="glbl ${t.parent?'gchild':''}"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
+      const durEl=inside?`<div class="gdur inside" style="right:${o*PX+6}px">${durTxt}</div>`:(overdue?'':`<div class="gdur" style="right:${(o+len)*PX+4}px">${durTxt}</div>`);
+      let tail='';
+      if(overdue){
+        const to=o+len,tl=Math.max(1,off(dd)-to);
+        tail=`<div class="gtail ${who}" style="right:${to*PX}px;width:${tl*PX}px" title="امتداد التأخير حتى اليوم"></div><div class="glate ${who}" style="right:${(to+tl)*PX+5}px">${who==='client'?'بانتظار العميل':'متأخر'} +${lateDays}ي</div>`;
+      }
+      lane+=`<div class="gbar ${cls} ${r.critical?'crit':''} ${overdue?'late late-'+who:''}" data-gid="${esc(t.id)}" style="right:${o*PX}px;width:${wpx}px;background:${tc}" title="${tip}">${fill}</div>${tail}${durEl}`;}
+    rows+=`<div class="grow" data-grow="${esc(t.id)}"><div class="glbl ${t.parent?'gchild':''}"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
   return projFilterBar()+`<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
     <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${months}${weeks}</div></div>
-    <div style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${grid}${today}</div>${rows}</div></div></div>
-    <div class="glegend"><span><span class="di"></span>معلم</span><span><span class="ci"></span>حرج</span>${BL?'<span><i class="blleg"></i>الأساس المعتمد</span>':''}<span><span class="dot" style="background:#cbbfa6"></span>لم تبدأ</span><span><span class="dot" style="background:var(--blue)"></span>جارية</span><span><span class="dot" style="background:var(--crit)"></span>متوقفة</span><span><span class="dot" style="background:var(--ok)"></span>مكتملة</span></div></div>`;
+    <div style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${wkends}${grid}${today}</div>${rows}</div></div></div>
+    <div class="glegend"><span><span class="di"></span>معلم</span><span><span class="ci"></span>حرج</span>${BL?'<span><i class="blleg"></i>الأساس المعتمد</span>':''}<span><span class="dot" style="background:#cbbfa6"></span>لم تبدأ</span><span><span class="dot" style="background:var(--blue)"></span>جارية</span><span><span class="dot" style="background:var(--crit)"></span>متوقفة</span><span><span class="dot" style="background:var(--ok)"></span>مكتملة ✓</span><span><i class="tleg cl"></i>تأخير بانتظار العميل</span><span><i class="tleg al"></i>تأخير علامة</span><span><i class="wkleg"></i>عطلة الأسبوع</span></div></div>`;
 }
 
+// تحويم على شريط: يبقي سلسلته (تبعيات + معتمدون عليه + حزمته) ويخفت الباقي
+function bindGanttHover(){
+  const cont=document.querySelector('.gantt');if(!cont||cont._hoverBound)return;cont._hoverBound=true;
+  const chain=id=>{
+    const t=PROJECT.tasks.find(x=>x.id===id);const s=new Set([id]);if(!t)return s;
+    (t.deps||[]).forEach(d=>s.add(d));
+    PROJECT.tasks.forEach(x=>{if((x.deps||[]).includes(id))s.add(x.id);});
+    if(t.parent)s.add(t.parent);
+    if(t.type==='package')PROJECT.tasks.forEach(x=>{if(x.parent===id)s.add(x.id);});
+    return s;};
+  cont.addEventListener('mouseover',e=>{
+    const b=e.target.closest('[data-gid]');if(!b)return;
+    const s=chain(b.dataset.gid);
+    cont.querySelectorAll('.grow[data-grow]').forEach(rw=>rw.classList.toggle('gdim',!s.has(rw.dataset.grow)));});
+  cont.addEventListener('mouseout',e=>{
+    if(e.target.closest&&e.target.closest('[data-gid]'))
+      cont.querySelectorAll('.grow.gdim').forEach(rw=>rw.classList.remove('gdim'));});
+}
 function vDeliv(){
   const S=SCHED,T=TRACK;let rows='';
   PROJECT.tasks.forEach(t=>{if(!t.deliverable)return;const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color,isM=t.type==='milestone';
