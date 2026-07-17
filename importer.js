@@ -255,6 +255,7 @@ async function runImport(mode){
   try{
     let tasks=IMP_DATA.tasks, depPairs=IMP_DATA.depPairs;
     if(mode==='replace'){
+      if(PROJECT.tasks.length){try{await savePlanSnapshot(PROJECT._dbId,'نسخة أمان تلقائية قبل الاستبدال بالاستيراد');}catch(_e){}}
       await clearProjectPlan(PROJECT._dbId);
     }else{
       // دمج: نتجاهل المهام التي معرّفها موجود (نُبقي الموجود)
