@@ -324,3 +324,43 @@ async function renderPortfolioGantt(){
   try{await loadScript('pgantt.js?v='+BUILD_V);await window.pganttOpen();}
   catch(e){toast('تعذّر تحميل الخط الزمني الشامل','err');}
 }
+
+// ===== التعافي: لقطات الخطة والاسترجاع =====
+function _planPayload(){
+  return {tasks:PROJECT.tasks.map(t=>({ref:t.id,name:t.name,track:t.track,type:t.type,
+    duration:t.duration||0,deliverable:t.deliverable||null,owner:t.owner||null,
+    status:t.status,progress:t.progress||0,parent:t.parent||null,deps:(t.deps||[]).slice(),
+    requirements:(t.requirements||[]).map(q=>({description:q.desc,owner:q.owner,sla_days:q.sla,
+      blocking:q.blocking,requested_at:q.requested||null,received_at:q.received||null}))}))};
+}
+async function savePlanSnapshot(projectId,reason){
+  const {error}=await sb.from('pmo_plan_snapshots')
+    .insert({project_id:projectId,reason,payload:_planPayload(),created_by:USER?USER.id:null});
+  if(error)throw error;
+  const {data}=await sb.from('pmo_plan_snapshots').select('id').eq('project_id',projectId)
+    .order('created_at',{ascending:false});
+  const extra=(data||[]).slice(5).map(r=>r.id);
+  if(extra.length)await sb.from('pmo_plan_snapshots').delete().in('id',extra);
+}
+async function fetchLatestSnapshot(projectId){
+  const {data}=await sb.from('pmo_plan_snapshots').select('*').eq('project_id',projectId)
+    .order('created_at',{ascending:false}).limit(1);
+  return (data&&data[0])||null;
+}
+async function restorePlanSnapshot(projectId,snap){
+  await clearProjectPlan(projectId);
+  const tasks=(snap.payload&&snap.payload.tasks)||[];
+  const map=await bulkInsertTasks(projectId,tasks.map(t=>({ref:t.ref,name:t.name,track:t.track,
+    type:t.type,duration:t.duration,deliverable:t.deliverable,owner:t.owner,parent:t.parent})));
+  for(const t of tasks){
+    if((t.status&&t.status!=='notstarted')||t.progress){
+      await sb.from('pmo_tasks').update({status:t.status||'notstarted',progress:t.progress||0}).eq('id',map[t.ref]);
+    }
+  }
+  const pairs=[];tasks.forEach(t=>(t.deps||[]).forEach(d=>pairs.push([t.ref,d])));
+  await bulkInsertDeps(projectId,pairs,map);
+  const reqRows=[];tasks.forEach(t=>(t.requirements||[]).forEach(q=>{
+    if(map[t.ref])reqRows.push({task_id:map[t.ref],description:q.description,owner:q.owner,
+      sla_days:q.sla_days,blocking:q.blocking,requested_at:q.requested_at,received_at:q.received_at});}));
+  if(reqRows.length)await sb.from('pmo_requirements').insert(reqRows);
+}
