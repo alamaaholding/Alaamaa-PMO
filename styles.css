@@ -124,7 +124,7 @@ select.st:hover{border-color:var(--gold)}
 .corner{position:absolute;right:0;top:0;width:280px;height:100%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-weight:600;font-size:var(--fs-md);z-index:6}
 .corner .dir{font-size:.58rem;color:var(--gold);opacity:.9}
 .tl{position:absolute;right:280px;top:0;left:0;height:100%}
-.mhead{position:absolute;top:0;height:25px;border-inline-start:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--fs-sm);color:#4a4233}
+.mhead{position:absolute;top:0;height:25px;border-inline-start:1px solid var(--line);border-inline-end:1.5px solid #d9cdb4;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--fs-sm);color:#4a4233}
 .whead{position:absolute;top:25px;height:25px;border-inline-start:1px solid var(--line-soft);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1}
 .whead b{font-size:.58rem;color:var(--muted)}.whead s{font-size:.54rem;color:#b8a988;text-decoration:none}
 .grow{position:relative;display:flex;height:38px;border-bottom:1px solid var(--line-soft);transition:background var(--t)}
@@ -139,7 +139,7 @@ select.st:hover{border-color:var(--gold)}
 .glane{position:relative;flex:1}
 .gbar{position:absolute;top:8px;height:22px;border-radius:7px;overflow:hidden;box-shadow:var(--e1);min-width:6px;transition:filter var(--t)}
 .gbar:hover{filter:brightness(1.06) saturate(1.1)}
-.gbar .fill{position:absolute;inset:0 auto 0 0;height:100%;background:rgba(0,0,0,.26)}
+.gbar .fill{position:absolute;inset:0 0 0 auto;height:100%;background:rgba(0,0,0,.26);border-radius:0 7px 7px 0}
 .gbar.notstarted{opacity:.5}.gbar.blocked{box-shadow:0 0 0 2px var(--crit),var(--e1)}
 .gbar.cont{background:repeating-linear-gradient(90deg,var(--tC),var(--tC) 7px,#b98a64 7px,#b98a64 14px)!important}
 .blbar{position:absolute;bottom:1px;height:4px;background:#a99;opacity:.55;border-radius:2px}
@@ -607,3 +607,13 @@ tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
 .tleg.al{background:repeating-linear-gradient(-45deg,var(--blue),var(--blue) 4px,#fff 4px,#fff 8px)}
 .wkleg{display:inline-block;width:16px;height:12px;background:rgba(120,105,80,.15);border-radius:3px;vertical-align:middle}
 @media print{.wkend{background:#eee!important}.gtail,.glate{-webkit-print-color-adjust:exact;print-color-adjust:exact}.grow.gdim{opacity:1}}
+
+/* روابط التبعية والملاءمة وإضاءة الصف */
+.glink{fill:none;stroke:#b7a98c;stroke-width:1.5;transition:opacity .15s,stroke .15s}
+.glink.crit{stroke:var(--crit);stroke-width:2}
+.glink.gdimL{opacity:.1}
+.grow[data-grow]:hover{background:rgba(120,105,80,.07)}
+.zb#glToggle,.zb#zfit{font-size:.95rem;line-height:1}
+.zb#glToggle.on{background:var(--gold);color:#fff;border-color:var(--gold)}
+.lkleg{display:inline-block;color:#a08d68;font-weight:800;font-size:.85rem;vertical-align:middle}
+@media print{#glinks{display:block}.glink{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
