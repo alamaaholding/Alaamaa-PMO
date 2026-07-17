@@ -364,3 +364,29 @@ async function restorePlanSnapshot(projectId,snap){
       sla_days:q.sla_days,blocking:q.blocking,requested_at:q.requested_at,received_at:q.received_at});}));
   if(reqRows.length)await sb.from('pmo_requirements').insert(reqRows);
 }
+
+// ===== خط التسليمات =====
+async function fetchDeliveries(projectId){
+  const {data}=await sb.from('pmo_deliveries').select('*').eq('project_id',projectId).order('event_date');
+  return data||[];
+}
+async function fetchAllDeliveries(){
+  const {data}=await sb.from('pmo_deliveries').select('*').order('event_date');
+  return data||[];
+}
+async function addDelivery(row){
+  const r={...row,created_by:USER?USER.id:null};
+  const {data,error}=await sb.from('pmo_deliveries').insert(r).select().single();
+  if(error)throw error;return data;
+}
+async function updateDelivery(id,patch){const {error}=await sb.from('pmo_deliveries').update(patch).eq('id',id);if(error)throw error;}
+async function deleteDelivery(id){const {error}=await sb.from('pmo_deliveries').delete().eq('id',id);if(error)throw error;}
+// مغلّفات كسولة
+async function openTimeline(hostId,projectId){
+  try{await loadScript('timeline.js?v='+BUILD_V);await window.timelineRender(hostId,projectId);}
+  catch(e){const h=document.getElementById(hostId);if(h)h.innerHTML='<p class="pempty">تعذّر تحميل خط التسليمات</p>';}
+}
+async function openTimelinePortfolio(hostId){
+  try{await loadScript('timeline.js?v='+BUILD_V);await window.timelinePortfolio(hostId);}
+  catch(e){const h=document.getElementById(hostId);if(h)h.innerHTML='<p class="pempty">تعذّر التحميل</p>';}
+}
