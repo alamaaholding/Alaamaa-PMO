@@ -617,3 +617,20 @@ tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
 .zb#glToggle.on{background:var(--gold);color:#fff;border-color:var(--gold)}
 .lkleg{display:inline-block;color:#a08d68;font-weight:800;font-size:.85rem;vertical-align:middle}
 @media print{#glinks{display:block}.glink{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+/* مقياس الزمن: شريط التبديل ورأس اليوم */
+.gscale{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.gsc{background:#fff;border:none;border-inline-start:1px solid var(--line);padding:5px 13px;font-family:inherit;font-size:.72rem;font-weight:700;color:var(--muted);cursor:pointer;transition:var(--t)}
+.gsc:first-child{border-inline-start:none}
+.gsc:hover{background:var(--soft-2)}
+.gsc.on{background:var(--ink);color:#fff}
+.dhead{position:absolute;top:25px;height:25px;display:flex;align-items:center;justify-content:center;font-size:.58rem;font-weight:600;color:#6b6250;border-inline-start:1px solid var(--line-soft)}
+.dhead.we{color:#b09a72;background:rgba(120,105,80,.10)}
+/* ضبط السماكة/الهوفر/الألوان/وضوح المحور */
+.gbar:hover{filter:brightness(1.08) saturate(1.12);box-shadow:0 3px 10px rgba(0,0,0,.20),var(--e1);z-index:5}
+.glink{stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.glink.crit{stroke-width:2.4}
+.wkend{background:rgba(120,105,80,.11)}
+.today{width:2.5px;box-shadow:0 0 6px rgba(53,96,143,.5)}
+.mhead{border-inline-end:1.5px solid #d3c6ac}
+.vg{background:rgba(120,105,80,.13)}
+@media print{.gscale,.gsc{display:none!important}.dhead.we,.wkend{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
