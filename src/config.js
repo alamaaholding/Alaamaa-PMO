@@ -14,8 +14,8 @@ function todayISO(){return fmtY(new Date());}
 
 
 // ===== الصلاحيات =====
-const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:true,crAction:'approve',views:['dashboard','table','gantt','deliv','cr','requests','discuss','audit']},
-  delivery:{editStruct:true,editProg:true,editReqs:true,approveContract:false,crAction:'request',views:['dashboard','table','gantt','deliv','cr','requests','discuss','audit']},
+const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:true,crAction:'approve',views:['dashboard','table','gantt','deliv','timeline','cr','requests','discuss','audit']},
+  delivery:{editStruct:true,editProg:true,editReqs:true,approveContract:false,crAction:'request',views:['dashboard','table','gantt','deliv','timeline','cr','requests','discuss','audit']},
   client:{editStruct:false,editProg:false,editReqs:false,approveContract:false,crAction:'request',views:['dashboard','gantt','deliv','cr','requests','discuss']}};
 function can(p){return PERMS[ROLE]&&PERMS[ROLE][p];}
 
@@ -45,3 +45,14 @@ function trackMeta(k){
   if(TRACKS[k])return{key:k,name:TRACKS[k].name,color:TRACKS[k].color,code:TRACKS[k].code||k};
   return{key:k,name:k,color:'#C8A06B',code:k};
 }
+
+// خط التسليمات: المصادر والأنواع والحالات
+const DELIV_SRC={
+  client:{t:'العميل',c:'#a8442f'},
+  pmo:{t:'إدارة المشاريع',c:'#4B3F72'},
+  marketing:{t:'التسويق',c:'#B28E67'},
+  tech:{t:'التقني',c:'#35608F'},
+  consulting:{t:'الاستشارات',c:'#5B8266'}
+};
+const DELIV_KIND={file:{t:'تسليم ملف',i:'📎'},request:{t:'طلب',i:'📤'},reply:{t:'رد',i:'↩'},approval:{t:'اعتماد',i:'✅'},note:{t:'ملاحظة',i:'📝'}};
+const DELIV_STATUS={sent:'مُرسل',awaiting:'بانتظار الرد',received:'مُستلم',approved:'معتمد'};
