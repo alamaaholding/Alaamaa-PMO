@@ -582,3 +582,28 @@ tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
 .tc-prog span{font-size:var(--fs-sm);font-weight:700;min-width:34px}
 .tc-acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
 .tc-acts .st{flex:1;min-width:110px}
+/* تطوير الجانت: التأخير والعطلة والحرج والسلسلة */
+.wkend{position:absolute;top:0;bottom:0;background:rgba(120,105,80,.08);pointer-events:none}
+.gtail{position:absolute;top:11px;height:16px;border-radius:0 4px 4px 0;opacity:.9;z-index:2}
+.gtail.alamah{background:repeating-linear-gradient(-45deg,var(--blue),var(--blue) 4px,rgba(255,255,255,.55) 4px,rgba(255,255,255,.55) 8px)}
+.gtail.cl,.gtail.client{background:repeating-linear-gradient(-45deg,var(--crit),var(--crit) 4px,rgba(255,255,255,.55) 4px,rgba(255,255,255,.55) 8px)}
+.glate{position:absolute;top:9px;z-index:3;font-size:.64rem;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap;color:#fff;box-shadow:var(--e1)}
+.glate.client{background:var(--crit)}
+.glate.alamah{background:var(--blue)}
+.gbar.late{box-shadow:0 0 0 2px currentColor,var(--e1)}
+.gbar.late-client{color:var(--crit)}
+.gbar.late-alamah{color:var(--blue)}
+.gbar.crit{box-shadow:0 0 0 2px var(--crit),var(--e2)}
+.gbar.done{opacity:.55}
+.gbar.done::before{content:'✓';position:absolute;inset-inline-start:5px;top:1px;color:#fff;font-weight:800;font-size:.78rem;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.gbar.blocked::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(168,68,47,.45) 5px,rgba(168,68,47,.45) 9px)}
+.gmile.late .md{color:var(--crit);animation:mlpulse 1.4s ease-in-out infinite}
+@keyframes mlpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
+.gmile .ml.lt{background:var(--crit);color:#fff}
+.grow{transition:opacity .15s}
+.grow.gdim{opacity:.22}
+.tleg{display:inline-block;width:22px;height:10px;border-radius:3px;vertical-align:middle}
+.tleg.cl{background:repeating-linear-gradient(-45deg,var(--crit),var(--crit) 4px,#fff 4px,#fff 8px)}
+.tleg.al{background:repeating-linear-gradient(-45deg,var(--blue),var(--blue) 4px,#fff 4px,#fff 8px)}
+.wkleg{display:inline-block;width:16px;height:12px;background:rgba(120,105,80,.15);border-radius:3px;vertical-align:middle}
+@media print{.wkend{background:#eee!important}.gtail,.glate{-webkit-print-color-adjust:exact;print-color-adjust:exact}.grow.gdim{opacity:1}}
