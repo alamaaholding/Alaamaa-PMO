@@ -68,7 +68,7 @@ function _tlHtml(ctx){
   dates.push(today);
   const oneDay=86400000;
   let minD=new Date(Math.min.apply(null,dates)),maxD=new Date(Math.max.apply(null,dates));
-  minD=new Date(minD.getTime()-4*oneDay);maxD=new Date(maxD.getTime()+4*oneDay);
+  minD=new Date(minD.getTime()-7*oneDay);maxD=new Date(maxD.getTime()+7*oneDay);
   const days=Math.max(1,Math.round((maxD-minD)/oneDay));
   const PXD=Math.max(7,Math.min(30,Math.floor(1100/days)));
   const W=days*PXD;
@@ -92,9 +92,10 @@ function _tlHtml(ctx){
       const late=_tlLate(r,today),ld=_tlLateDays(r,today);
       const pj=ctx.mode==='portfolio'?`<span class="tl-proj">${esc((ctx.projMap&&ctx.projMap[r.project_id])||'')}</span>`:'';
       const exp=r.expected_reply?`<span class="tl-exp ${late?'late':''}">${late?('متأخر +'+ld+'ي'):('متوقّع '+fmt(new Date(r.expected_reply+'T00:00:00')))}</span>`:'';
-      out+=`<div class="tl-ev" data-ev="${r.id}" style="right:${x}px;--lvl:${lvl};--c:${src.c}" title="${esc(r.title)} — ${esc(src.t)} · ${esc(kind.t)} · ${DELIV_STATUS[r.status]||r.status}">
+      out+=`<div class="tl-ev" style="right:${x}px;--lvl:${lvl};--c:${src.c}">
         <span class="tl-dot"></span>
-        <div class="tl-card ${late?'late':''}">
+        <span class="tl-stem"></span>
+        <div class="tl-card ${late?'late':''}" data-ev="${r.id}" role="button" tabindex="0" aria-label="${esc(r.title)} — ${esc(src.t)}، ${esc(kind.t)}، ${DELIV_STATUS[r.status]||r.status}" title="${esc(r.title)} — ${esc(src.t)} · ${esc(kind.t)} · ${DELIV_STATUS[r.status]||r.status}">
           <div class="tl-card-top"><span class="tl-kind">${kind.i}</span><b>${esc(r.title)}</b></div>
           <div class="tl-card-meta"><span class="tl-src" style="background:${src.c}">${esc(src.t)}</span><span class="tl-date">${fmt(new Date(r.event_date+'T00:00:00'))}</span></div>
           ${pj}${exp?('<div>'+exp+'</div>'):''}
@@ -105,7 +106,7 @@ function _tlHtml(ctx){
   }
   const internal=lay(shown.filter(r=>r.source!=='client'));
   const client=lay(shown.filter(r=>r.source==='client'));
-  const topH=Math.max(1,internal.levels)*74+10, botH=Math.max(1,client.levels)*74+10;
+  const topH=Math.max(1,internal.levels)*72+24, botH=Math.max(1,client.levels)*72+24;
 
   const band=`<div class="tl-scroll"><div class="tl-band" style="width:${W}px;--toph:${topH}px;--both:${botH}px">
     <div class="tl-head" style="width:${W}px">${months}</div>
@@ -150,7 +151,11 @@ function _tlBind(host,ctx){
     const k=b.dataset.tlsrc;_TL_SRCFILTER.has(k)?_TL_SRCFILTER.delete(k):_TL_SRCFILTER.add(k);_tlPaint();});
   const editById=id=>{const r=(ctx.rows||[]).find(x=>x.id===id);if(r)_tlDialog(r.project_id,r);};
   host.querySelectorAll('[data-tledit]').forEach(b=>b.onclick=()=>editById(b.dataset.tledit));
-  host.querySelectorAll('.tl-ev[data-ev]').forEach(b=>b.onclick=()=>editById(b.dataset.ev));
+  host.querySelectorAll('.tl-card[data-ev]').forEach(c=>{
+    const open=()=>editById(c.dataset.ev);
+    c.onclick=open;
+    c.onkeydown=(e)=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}};
+  });
   host.querySelectorAll('[data-tldel]').forEach(b=>b.onclick=async()=>{
     if(!await confirmDialog('حذف الحدث','حذف هذا الحدث من خط التسليمات؟',true))return;
     try{await deleteDelivery(b.dataset.tldel);toast('حُذف الحدث','ok');await _tlReload();}
