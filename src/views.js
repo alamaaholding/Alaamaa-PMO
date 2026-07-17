@@ -47,7 +47,9 @@ function render(){
   else if(VIEW==='table'){host.innerHTML='<div class="hintbar">تحديث الحالة والتقدّم يُحفظ مباشرة في القاعدة. المسار الحرج مظلّل.</div>'+vTable();bindTable();}
   else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();bindProjFilterBar();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(10,PX-4);render();};
     const pgb=$('#printGanttBtn');if(pgb)pgb.onclick=()=>printProject('gantt');
-    bindGanttHover();}
+    const gt=$('#glToggle');if(gt){gt.classList.toggle('on',GLINKS_ON);gt.onclick=()=>{GLINKS_ON=!GLINKS_ON;try{localStorage.setItem('pmo_glinks',GLINKS_ON?'1':'0');}catch(_e){}render();};}
+    const zf=$('#zfit');if(zf)zf.onclick=fitGantt;
+    bindGanttHover();drawGanttLinks();}
   else if(VIEW==='deliv')host.innerHTML=vDeliv();
   else if(VIEW==='cr'){host.innerHTML='<div class="hintbar exp-cr">📐 <b>طلبات تعديل الخطة:</b> تغييرات رسمية على بنود الخطة (مدد، تبعيات، إضافة/حذف). يقدّمها العميل أو الفريق، ويعتمدها مكتب إدارة المشاريع — وتُطبَّق على الجدول بعد الموافقة.</div>'+vCR();bindCR();}
   else if(VIEW==='discuss'){
@@ -331,7 +333,7 @@ function inlineTrackEdit(key,td){
   n.onkeydown=(e)=>{if(e.key==='Enter')td.querySelector('.gie-s').click();if(e.key==='Escape')render();};
 }
 
-function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div><button class="hbtn print-btn" id="printGanttBtn" style="margin-inline-start:auto">🖨 طباعة الجانت</button><div class="zoom"><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
+function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div><button class="hbtn print-btn" id="printGanttBtn" style="margin-inline-start:auto">🖨 طباعة الجانت</button><div class="zoom"><button class="zb" id="glToggle" title="إظهار/إخفاء روابط التبعية" aria-label="روابط التبعية">⇄</button><button class="zb" id="zfit" title="ملاءمة العرض للشاشة" aria-label="ملاءمة العرض">⤢</button><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
 function vGantt(){
   const S=SCHED,T=TRACK,start=S.pStart,end=S.pEnd,oneDay=86400000,dd=D(DATA_DATE);
   const lo=start<dd?start:dd,hi=end>dd?end:dd,totalDays=Math.round((hi-lo)/oneDay)+3,W=totalDays*PX;
@@ -376,10 +378,51 @@ function vGantt(){
     rows+=`<div class="grow" data-grow="${esc(t.id)}"><div class="glbl ${t.parent?'gchild':''}"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
   return projFilterBar()+`<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
     <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${months}${weeks}</div></div>
-    <div style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${wkends}${grid}${today}</div>${rows}</div></div></div>
-    <div class="glegend"><span><span class="di"></span>معلم</span><span><span class="ci"></span>حرج</span>${BL?'<span><i class="blleg"></i>الأساس المعتمد</span>':''}<span><span class="dot" style="background:#cbbfa6"></span>لم تبدأ</span><span><span class="dot" style="background:var(--blue)"></span>جارية</span><span><span class="dot" style="background:var(--crit)"></span>متوقفة</span><span><span class="dot" style="background:var(--ok)"></span>مكتملة ✓</span><span><i class="tleg cl"></i>تأخير بانتظار العميل</span><span><i class="tleg al"></i>تأخير علامة</span><span><i class="wkleg"></i>عطلة الأسبوع</span></div></div>`;
+    <div id="gcanvas" style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${wkends}${grid}${today}</div>${rows}</div></div></div>
+    <div class="glegend"><span><span class="di"></span>معلم</span><span><span class="ci"></span>حرج</span>${BL?'<span><i class="blleg"></i>الأساس المعتمد</span>':''}<span><span class="dot" style="background:#cbbfa6"></span>لم تبدأ</span><span><span class="dot" style="background:var(--blue)"></span>جارية</span><span><span class="dot" style="background:var(--crit)"></span>متوقفة</span><span><span class="dot" style="background:var(--ok)"></span>مكتملة ✓</span><span><i class="tleg cl"></i>تأخير بانتظار العميل</span><span><i class="tleg al"></i>تأخير علامة</span><span><i class="wkleg"></i>عطلة الأسبوع</span><span><i class="lkleg">⟵</i>رابط تبعية</span></div></div>`;
 }
 
+// ===== أسهم التبعيات (SVG كوعية بأسهم — معيار MS Project) =====
+let GLINKS_ON=true;try{GLINKS_ON=(localStorage.getItem('pmo_glinks')!=='0');}catch(_e){}
+function drawGanttLinks(){
+  const canvas=document.getElementById('gcanvas');if(!canvas)return;
+  const old=document.getElementById('glinks');if(old)old.remove();
+  if(!GLINKS_ON)return;
+  const bars={};
+  canvas.querySelectorAll('[data-gid]').forEach(b=>{bars[b.dataset.gid]=b;});
+  const cr=canvas.getBoundingClientRect();
+  let paths='';
+  PROJECT.tasks.forEach(t=>{
+    (t.deps||[]).forEach(d=>{
+      const A=bars[d],B=bars[t.id];if(!A||!B)return;
+      const ra=A.getBoundingClientRect(),rb=B.getBoundingClientRect();
+      // الزمن يتقدم يسارًا: نهاية السابق = حافته اليسرى، بداية اللاحق = حافته اليمنى
+      const x1=ra.left-cr.left, y1=ra.top-cr.top+ra.height/2;
+      const x2=rb.right-cr.left, y2=rb.top-cr.top+rb.height/2;
+      const crit=A.classList.contains('crit')&&B.classList.contains('crit');
+      const bend=Math.min(x1,x2)-9;
+      paths+=`<path d="M ${x1} ${y1} L ${bend} ${y1} L ${bend} ${y2} L ${x2-1} ${y2}" class="glink ${crit?'crit':''}" marker-end="url(#${crit?'garrc':'garr'})" data-lfrom="${esc(d)}" data-lto="${esc(t.id)}"/>`;
+    });
+  });
+  if(!paths)return;
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.id='glinks';svg.setAttribute('aria-hidden','true');
+  svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;overflow:visible';
+  svg.innerHTML=`<defs>
+    <marker id="garr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#a08d68"/></marker>
+    <marker id="garrc" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#a8442f"/></marker>
+  </defs>`+paths;
+  canvas.appendChild(svg);
+}
+// ملاءمة المقياس لعرض الشاشة (Fit-to-width)
+function fitGantt(){
+  const sc=document.querySelector('.gscroll');if(!sc||!SCHED)return;
+  const dd=D(DATA_DATE);
+  const lo=SCHED.pStart<dd?SCHED.pStart:dd, hi=SCHED.pEnd>dd?SCHED.pEnd:dd;
+  const days=Math.round((hi-lo)/86400000)+3;
+  PX=Math.max(4,Math.min(40,Math.floor((sc.clientWidth-300)/Math.max(1,days))));
+  render();
+}
 // تحويم على شريط: يبقي سلسلته (تبعيات + معتمدون عليه + حزمته) ويخفت الباقي
 function bindGanttHover(){
   const cont=document.querySelector('.gantt');if(!cont||cont._hoverBound)return;cont._hoverBound=true;
@@ -393,10 +436,12 @@ function bindGanttHover(){
   cont.addEventListener('mouseover',e=>{
     const b=e.target.closest('[data-gid]');if(!b)return;
     const s=chain(b.dataset.gid);
-    cont.querySelectorAll('.grow[data-grow]').forEach(rw=>rw.classList.toggle('gdim',!s.has(rw.dataset.grow)));});
+    cont.querySelectorAll('.grow[data-grow]').forEach(rw=>rw.classList.toggle('gdim',!s.has(rw.dataset.grow)));
+    cont.querySelectorAll('.glink').forEach(p=>p.classList.toggle('gdimL',!(s.has(p.dataset.lfrom)&&s.has(p.dataset.lto))));});
   cont.addEventListener('mouseout',e=>{
     if(e.target.closest&&e.target.closest('[data-gid]'))
-      cont.querySelectorAll('.grow.gdim').forEach(rw=>rw.classList.remove('gdim'));});
+      {cont.querySelectorAll('.grow.gdim').forEach(rw=>rw.classList.remove('gdim'));
+       cont.querySelectorAll('.glink.gdimL').forEach(p=>p.classList.remove('gdimL'));}});
 }
 function vDeliv(){
   const S=SCHED,T=TRACK;let rows='';
