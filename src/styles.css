@@ -556,3 +556,7 @@ tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
 .gie-n{border:1.5px solid var(--gold);border-radius:7px;padding:5px 11px;font-family:inherit;font-size:var(--fs-md);min-width:220px}
 .gie-n:focus{outline:none}
 @media print{.pkg-tg,.grp-edit{display:none!important}.row-pkg{background:#eee!important}}
+/* توست التراجع */
+.toast.undo{background:var(--ink);color:#fff;display:flex;align-items:center;gap:10px;padding-inline-end:8px}
+.undo-btn{background:var(--gold);border:none;color:#1c1710;font-weight:800;font-family:inherit;border-radius:999px;padding:5px 16px;cursor:pointer;font-size:var(--fs-sm);min-height:30px}
+.undo-btn:hover{background:var(--gold-dark);color:#fff}
