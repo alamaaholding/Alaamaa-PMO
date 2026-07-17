@@ -1,5 +1,5 @@
 // ===== العرض =====
-const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',cr:'طلبات تعديل الخطة',requests:'طلبات الخدمة',discuss:'النقاش',audit:'سجل المشروع'};
+const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',timeline:'خط التسليمات',cr:'طلبات تعديل الخطة',requests:'طلبات الخدمة',discuss:'النقاش',audit:'سجل المشروع'};
 function render(){
   if(!PROJECT){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا يوجد مشروع لهذا العميل.</p>';return;}
   $('#backPortfolio').style.display=(ROLE!=='client')?'':'none';
@@ -53,6 +53,10 @@ function render(){
       b.onclick=()=>{GSCALE=b.dataset.scale;try{localStorage.setItem('pmo_gscale',GSCALE);}catch(_e){}PX=GSCALE_PX[GSCALE]||16;render();};});
     bindGanttHover();drawGanttLinks();}
   else if(VIEW==='deliv')host.innerHTML=vDeliv();
+  else if(VIEW==='timeline'){
+    host.innerHTML='<div id="tlWrap"><div class="skeleton" style="height:120px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
+    openTimeline('tlWrap',PROJECT._dbId);
+  }
   else if(VIEW==='cr'){host.innerHTML='<div class="hintbar exp-cr">📐 <b>طلبات تعديل الخطة:</b> تغييرات رسمية على بنود الخطة (مدد، تبعيات، إضافة/حذف). يقدّمها العميل أو الفريق، ويعتمدها مكتب إدارة المشاريع — وتُطبَّق على الجدول بعد الموافقة.</div>'+vCR();bindCR();}
   else if(VIEW==='discuss'){
     host.innerHTML='<div id="discussWrap"><div class="skeleton" style="height:80px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
