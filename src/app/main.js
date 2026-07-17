@@ -464,6 +464,13 @@ document.addEventListener('keydown',e=>{
   }
 });
 
+// إعادة العرض عند تبدّل عرض الشاشة (جوال ↔ سطح مكتب)
+if(typeof window!=='undefined'&&window.matchMedia){
+  const _mq=window.matchMedia('(max-width:700px)');
+  const _onMQ=()=>{if(typeof SCREEN!=='undefined'&&SCREEN==='project'&&VIEW==='table')render();};
+  if(_mq.addEventListener)_mq.addEventListener('change',_onMQ);
+  else if(_mq.addListener)_mq.addListener(_onMQ);
+}
 // انطلاق
 boot();
 // طباعة احترافية: الجدول (كل مرحلة صفحة) أو الجانت (مصغّر ليطابق الصفحة، بلا تداخل)
