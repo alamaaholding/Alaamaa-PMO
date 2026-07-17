@@ -8,7 +8,14 @@ const DIM_AR={budget:'الميزانية',time:'الزمن',scope:'النطاق'
 const ENF_AR={hard:'صارم',soft:'مرن',advisory:'إرشادي'};
 let DOL_DECISIONS=[], DOL_LINKS=[];
 
+const DOL_INTRO={title:'ما هي طبقة القرار (DOL)؟',
+ message:'الحاكم فوق الخطط: هنا تُوثَّق القرارات الكبرى كبوابات لها حدود صريحة (ميزانية، زمن، نطاق)، وأي إجراء لاحق يُقاس عليها آليًا:\n\n• ضمن الحدود ← يمضي (سماح)\n• قرب الحد ← تحذير\n• تجاوز حدًّا صارمًا ← حجب\n\n«بوابة القرار» تضع الحدود، و«القرار التشغيلي» يعمل داخلها ويرث سقفها، و«التتبّع العكسي» 🔗 يصل أي تنفيذ بالقرار الذي أجازه.\n\nالإنشاء والتعديل بيد مكتب إدارة المشاريع — والفريق يطّلع.',
+ confirmText:'فهمت — الدخول للطبقة'};
 async function dolOpen(){
+  if(!localStorage.getItem('pmo_dol_intro')){
+    localStorage.setItem('pmo_dol_intro','1');
+    await dialog(DOL_INTRO);
+  }
   SCREEN='dol';
   $('#hProject').innerHTML='<span class="ctx-dot" style="background:var(--crit)"></span>طبقة تشغيل القرار — DOL Console';
   $('#barClient').style.display='none';hideChrome();
@@ -32,6 +39,7 @@ function renderDOL(){
     <span>الحوكمة:</span>
     ${ROLE==='pmo'?'<button class="reqbtn" id="dolAddGate" style="background:var(--crit);border-color:var(--crit);color:#fff">+ بوابة قرار</button>':''}
     <span style="color:var(--muted);font-weight:400;font-size:.78rem">البوابات تضع الحدود · القرارات التشغيلية تعمل داخلها · الانحراف يُقيَّم آليًا.</span>
+    <button class="reqbtn" id="dolHelp" style="background:#fff;color:var(--ink);margin-inline-start:auto" aria-label="شرح طبقة القرار">؟ عن الطبقة</button>
   </div>`;
 
   let body='';
@@ -83,6 +91,7 @@ function opCard(o){
 
 function bindDOL(opsByGate){
   const ag=$('#dolAddGate');if(ag)ag.onclick=addGate;
+  const dh=$('#dolHelp');if(dh)dh.onclick=()=>dialog(DOL_INTRO);
   document.querySelectorAll('[data-addop]').forEach(b=>b.onclick=()=>addOperational(b.dataset.addop));
   document.querySelectorAll('[data-deldec]').forEach(b=>b.onclick=()=>delDecision(b.dataset.deldec));
   document.querySelectorAll('[data-trace]').forEach(b=>b.onclick=()=>openTrace(b.dataset.trace));
