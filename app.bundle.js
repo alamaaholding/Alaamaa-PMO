@@ -1,4 +1,4 @@
-const BUILD_V='0a2f1549';
+const BUILD_V='68b6adad';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -532,7 +532,7 @@ async function restorePlanSnapshot(projectId,snap){
 
 /* ===== views.js ===== */
 // ===== العرض =====
-const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',cr:'طلبات تعديل الخطة',requests:'طلبات الخدمة',discuss:'النقاش',audit:'سجل التدقيق'};
+const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',cr:'طلبات تعديل الخطة',requests:'طلبات الخدمة',discuss:'النقاش',audit:'سجل المشروع'};
 function render(){
   if(!PROJECT){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا يوجد مشروع لهذا العميل.</p>';return;}
   $('#backPortfolio').style.display=(ROLE!=='client')?'':'none';
@@ -591,7 +591,7 @@ function render(){
     loadClientRequests(PROJECT._dbId).then(rows=>{const el=document.getElementById('reqWrap');if(el){el.innerHTML=vRequests(rows);bindRequests();}});
   }
   else if(VIEW==='audit'){
-    host.innerHTML='<div class="hintbar">آخر 60 تغييرًا مسجّلًا تلقائيًا (الحالة، التقدّم، المدة، طلبات تعديل الخطة).</div><div id="auditList"><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px"></div></div>';
+    host.innerHTML='<div class="hintbar">📋 <b>سجل المشروع:</b> آخر 60 تغييرًا على <b>هذا المشروع فقط</b> (الحالة، التقدّم، المدة، طلبات تعديل الخطة). للسجل الشامل لكل المشاريع والعملاء: «سجل المكتب» من شريط المحفظة.</div><div id="auditList"><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px"></div></div>';
     loadAudit(PROJECT._dbId).then(rows=>{const el=document.getElementById('auditList');if(el)el.innerHTML=vAudit(rows);});
   }
 }
@@ -1501,7 +1501,7 @@ async function renderPortfolio(){
   const isStaff=(ROLE==='pmo'||ROLE==='delivery');
   const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads">'+I.users+' العملاء المحتملون</button>':'';
   const dolBtn=isStaff?'<button class="reqbtn" id="showDOL" style="background:var(--crit);border-color:var(--crit);color:#fff">'+I.scale+' طبقة القرار (DOL)</button>':'';
-  const auditBtn=isStaff?'<button class="reqbtn" id="showAudit">'+I.clipboard+' سجل التدقيق</button>':'';
+  const auditBtn=isStaff?'<button class="reqbtn" id="showAudit">'+I.clipboard+' سجل المكتب</button>':'';
   const pgBtn=isStaff?'<button class="reqbtn" id="showPGantt" style="background:var(--blue);border-color:var(--blue);color:#fff">'+I.calendar+' الخط الزمني الشامل</button>':'';
   const archBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showArchived">'+I.archive+' المؤرشفة</button>':'';
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
@@ -1780,8 +1780,8 @@ async function editStartDate(){
 // حوار مشروع جديد (يُستدعى من قائمة العميل وزر البطاقة)
 
 async function renderAuditLog(){
-  SCREEN='audit';$('#hProject').textContent='سجل التدقيق';hideChrome();
-  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">كل الأفعال الحسّاسة عبر المكتب — من فعل، ماذا، ومتى.</span></div><div id="auditList"><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px"></div></div>';
+  SCREEN='audit';$('#hProject').textContent='سجل المكتب — كل المشاريع';hideChrome();
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">🗂 <b>سجل المكتب:</b> كل الأفعال الحسّاسة عبر <b>كل المشاريع والعملاء</b> — من فعل، ماذا، ومتى. (سجل مشروع واحد: تبويب «سجل المشروع» داخله)</span></div><div id="auditList"><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px"></div></div>';
   $('#backP').onclick=renderPortfolio;
   const rows=await fetchAuditLog(150);
   const list=$('#auditList');
