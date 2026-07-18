@@ -157,6 +157,9 @@ async function trelloSetupBoard(existingBoardId){
   }catch(e){if(L)L.classList.add('hidden');toast('تعذّر: '+e.message,'err');}
 }
 
+// هل الخطأ يعني أن البطاقة لم تعد موجودة على اللوحة؟
+function trIsMissing(e){return /\b404\b|invalid id|not found/i.test((e&&e.message)||'');}
+
 // ---------- الدفع: المنصة ← Trello ----------
 async function trelloPush(){
   await trelloLoadCreds();
@@ -170,7 +173,15 @@ async function trelloPush(){
     const listIds={};TR_LISTS.forEach(l=>{listIds[l.key]=byName[l.name];});
     const {data:rows}=await sb.from('pmo_tasks').select('id,ref,trello_card_id').eq('project_id',PROJECT._dbId);
     const cardOf={};(rows||[]).forEach(r=>{cardOf[r.ref]=r.trello_card_id;});
-    let upd=0,created=0;
+    let upd=0,created=0,recreated=0,failed=0;const failedRefs=[];
+    // إنشاء بطاقة جديدة لبند وربطها بالقاعدة
+    const mkCard=async(t,due)=>{
+      let p='name='+encodeURIComponent(trCardTitle(t))+'&desc='+encodeURIComponent(trCardDesc(t))
+        +'&idList='+listIds[trListForTask(t)]+'&pos=bottom';
+      if(due)p+='&due='+due;
+      const card=await trFetch('/cards','POST',p);
+      await sb.from('pmo_tasks').update({trello_card_id:card.id}).eq('id',t._dbId);
+    };
     for(const t of trExportable()){
       const r=SCHED.R[t.id];
       const due=r?encodeURIComponent(isoLocal(r.EF)+'T12:00:00.000Z'):'';
@@ -178,18 +189,32 @@ async function trelloPush(){
       if(cid){
         let p='name='+encodeURIComponent(trCardTitle(t))+'&desc='+encodeURIComponent(trCardDesc(t));
         if(due)p+='&due='+due;
-        try{await trFetch('/cards/'+cid,'PUT',p);upd++;}catch(_e){}
+        try{ await trFetch('/cards/'+cid,'PUT',p); upd++; }
+        catch(e){
+          // البطاقة حُذفت من اللوحة: نظّف المعرّف المعطّل وأعد إنشاءها بدل الفشل الصامت
+          if(trIsMissing(e)){
+            try{
+              await sb.from('pmo_tasks').update({trello_card_id:null}).eq('id',t._dbId);
+              await mkCard(t,due); recreated++;
+            }catch(e2){ failed++; failedRefs.push(t.id); }
+          }else{ failed++; failedRefs.push(t.id); }
+        }
       }else{
-        let p='name='+encodeURIComponent(trCardTitle(t))+'&desc='+encodeURIComponent(trCardDesc(t))
-          +'&idList='+listIds[trListForTask(t)]+'&pos=bottom';
-        if(due)p+='&due='+due;
-        const card=await trFetch('/cards','POST',p);
-        await sb.from('pmo_tasks').update({trello_card_id:card.id}).eq('id',t._dbId);
-        created++;
+        try{ await mkCard(t,due); created++; }
+        catch(e){ failed++; failedRefs.push(t.id); }
       }
     }
     if(L)L.classList.add('hidden');
-    toast('اكتمل الدفع: '+upd+' تحديثًا · '+created+' بطاقة جديدة','ok');
+    // التقرير يذكر الفشل صراحة — لا «اكتمل الدفع» فوق أخطاء صامتة
+    const parts=[upd+' تحديثًا'];
+    if(created)parts.push(created+' بطاقة جديدة');
+    if(recreated)parts.push(recreated+' بطاقة أُعيد إنشاؤها (كانت محذوفة)');
+    if(failed)parts.push(failed+' فشلت');
+    toast((failed?'اكتمل الدفع مع أخطاء: ':'اكتمل الدفع: ')+parts.join(' · '),failed?'warn':'ok');
+    if(failed)await dialog({title:'بنود تعذّر دفعها',
+      message:'لم تُحدَّث البنود التالية على اللوحة:\n\n'+failedRefs.slice(0,20).join('، ')+
+      (failedRefs.length>20?('\n… و'+(failedRefs.length-20)+' غيرها'):'')+
+      '\n\nجرّب «فحص صحة اللوحة» لمعرفة السبب.',confirmText:'تمام'});
   }catch(e){if(L)L.classList.add('hidden');toast('تعذّر الدفع: '+e.message,'err');}
 }
 
@@ -207,7 +232,6 @@ async function trelloPull(){
     ]);
     const listName={};lists.forEach(l=>{listName[l.id]=l.name;});
     const keyOf={};TR_LISTS.forEach(l=>{keyOf[l.name]=l.key;});
-    const byCard={};PROJECT.tasks.forEach(t=>{});
     const {data:rows}=await sb.from('pmo_tasks').select('id,ref,status,trello_card_id').eq('project_id',PROJECT._dbId);
     const taskOfCard={};(rows||[]).forEach(r=>{if(r.trello_card_id)taskOfCard[r.trello_card_id]={db:r.id,ref:r.ref,status:r.status};});
     const props=[];
@@ -236,6 +260,59 @@ async function trelloPull(){
   }catch(e){if(L)L.classList.add('hidden');toast('تعذّر السحب: '+e.message,'err');}
 }
 
+// ---------- فحص صحة اللوحة (قراءة فقط — لا يعدّل شيئًا) ----------
+function trListNameOf(key){const l=TR_LISTS.find(x=>x.key===key);return l?l.name:key;}
+async function trelloHealth(){
+  await trelloLoadCreds();
+  if(!PROJECT)return;
+  const {data:pr}=await sb.from('pmo_projects').select('trello_board_id').eq('id',PROJECT._dbId).single();
+  if(!pr||!pr.trello_board_id){toast('لا توجد لوحة مرتبطة','warn');return;}
+  const L=$('#loader');if(L)L.classList.remove('hidden');
+  try{
+    const [lists,cards,res]=await Promise.all([
+      trFetch('/boards/'+pr.trello_board_id+'/lists','GET','fields=id,name'),
+      trFetch('/boards/'+pr.trello_board_id+'/cards','GET','fields=id,name,idList,closed'),
+      sb.from('pmo_tasks').select('id,ref,trello_card_id').eq('project_id',PROJECT._dbId)
+    ]);
+    const rows=(res&&res.data)||[];
+    const listName={};(lists||[]).forEach(l=>{listName[l.id]=l.name;});
+    const keyOf={};TR_LISTS.forEach(l=>{keyOf[l.name]=l.key;});
+    const live={};(cards||[]).forEach(c=>{if(!c.closed)live[c.id]=c;});
+    const rowByRef={};rows.forEach(r=>{rowByRef[r.ref]=r;});
+
+    const missingLists=TR_LISTS.filter(l=>!Object.values(listName).includes(l.name)).map(l=>l.name);
+    const noCard=[],broken=[],mismatch=[];
+    trExportable().forEach(t=>{
+      const r=rowByRef[t.id];
+      if(!r||!r.trello_card_id){noCard.push(t.id);return;}
+      const c=live[r.trello_card_id];
+      if(!c){broken.push(t.id);return;}
+      const want=trListForTask(t),got=keyOf[listName[c.idList]];
+      // «للمراجعة» تُعامل كقيد التنفيذ عند السحب، فلا تُحسب تعارضًا
+      if(got&&got!==want&&!(want==='doing'&&got==='review'))
+        mismatch.push(t.id+': المنصة «'+trListNameOf(want)+'» ← اللوحة «'+listName[c.idList]+'»');
+    });
+    const known={};rows.forEach(r=>{if(r.trello_card_id)known[r.trello_card_id]=1;});
+    const orphan=Object.keys(live).filter(id=>!known[id]).map(id=>live[id].name);
+
+    if(L)L.classList.add('hidden');
+    const list=(arr,n)=>arr.slice(0,n||8).join('، ')+(arr.length>(n||8)?(' … و'+(arr.length-(n||8))+' غيرها'):'');
+    const S=[];
+    S.push('البنود القابلة للتصدير: '+trExportable().length+' · البطاقات الحيّة على اللوحة: '+Object.keys(live).length);
+    S.push('');
+    if(missingLists.length)S.push('⚠ قوائم ناقصة على اللوحة ('+missingLists.length+'): '+missingLists.join('، ')+'\n   ستُنشأ تلقائيًا عند الدفع القادم.');
+    if(noCard.length)S.push('• بنود بلا بطاقة ('+noCard.length+'): '+list(noCard)+'\n   العلاج: «دفع التحديثات» ينشئها.');
+    if(broken.length)S.push('⚠ معرّفات معطّلة ('+broken.length+'): '+list(broken)+'\n   البطاقة حُذفت من تريلو. العلاج: «دفع التحديثات» يعيد إنشاءها تلقائيًا.');
+    if(orphan.length)S.push('• بطاقات يتيمة ('+orphan.length+'): '+list(orphan,6)+'\n   بطاقات على اللوحة لا تقابل أي بند — أنشأها الفريق يدويًا. لا تُحذف تلقائيًا.');
+    if(mismatch.length)S.push('• اختلاف حالة ('+mismatch.length+'):\n   '+mismatch.slice(0,8).join('\n   ')+(mismatch.length>8?('\n   … و'+(mismatch.length-8)+' غيرها'):'')+'\n   العلاج: «سحب الحالات» يعتمد ما على اللوحة.');
+    if(!missingLists.length&&!noCard.length&&!broken.length&&!orphan.length&&!mismatch.length)
+      S.push('✅ اللوحة مطابقة تمامًا للخطة — لا فروقات.');
+
+    await dialog({title:'فحص صحة اللوحة — '+PROJECT.name,
+      message:S.join('\n\n'),confirmText:'تمام'});
+  }catch(e){if(L)L.classList.add('hidden');toast('تعذّر الفحص: '+e.message,'err');}
+}
+
 // ---------- القائمة ----------
 async function trelloMenu(mode){
   if(mode==='settings')return trelloSettings();
@@ -252,6 +329,7 @@ async function trelloMenu(mode){
   if(linked){try{const b=await trFetch('/boards/'+linked,'GET','fields=name,url');bname=b.name;TRELLO_CREDS._url=b.url;}catch(_e){bname='(تعذّر قراءة اسم اللوحة)';}}
   const opts=linked
     ? [{v:'push',t:'دفع التحديثات إلى اللوحة'},{v:'pull',t:'سحب الحالات من اللوحة'},
+       {v:'health',t:'فحص صحة اللوحة (قراءة فقط)'},
        {v:'open',t:'فتح اللوحة في Trello'},{v:'unlink',t:'فكّ الارتباط بهذه اللوحة'}]
     : [{v:'new',t:'إنشاء لوحة جديدة لهذا المشروع'},{v:'link',t:'الربط بلوحة موجودة في حسابي'}];
   const r=await dialog({title:'لوحة Trello — '+PROJECT.name,
@@ -263,6 +341,7 @@ async function trelloMenu(mode){
   if(r.a==='link')return trelloLinkExisting();
   if(r.a==='push')return trelloPush();
   if(r.a==='pull')return trelloPull();
+  if(r.a==='health')return trelloHealth();
   if(r.a==='open'){
     try{const b=await trFetch('/boards/'+linked,'GET','fields=url');
       await dialog({title:'رابط اللوحة',message:b.url,confirmText:'تمام'});}catch(e){toast('تعذّر','err');}
@@ -294,4 +373,5 @@ async function trelloLinkExisting(){
 }
 
 window.trelloMenu=trelloMenu;
+window.trelloHealth=trelloHealth;
 window.trelloSettings=trelloSettings;
