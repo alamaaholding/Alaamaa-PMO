@@ -714,3 +714,32 @@ tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
 .sc-i.plan{background:var(--gold-dark)}
 .sc-i.earn{background:var(--blue);height:8px;width:8px;border-radius:50%}
 .sc-note{color:var(--line);font-style:italic}
+/* ===== إعادة ضبط شريط أدوات المحفظة (هرمية بصرية) ===== */
+.portfolio-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.primary-cta{background:var(--gold)!important;border-color:var(--gold)!important;color:#fff!important;font-weight:800;box-shadow:var(--e1)}
+.primary-cta:hover{background:var(--gold-dark)!important;border-color:var(--gold-dark)!important}
+.tools-wrap{position:relative}
+.tools-btn{background:#fff;color:var(--ink);border-color:var(--line)}
+.tools-btn:hover{background:var(--soft-2)}
+.tools-caret{font-size:.7rem;opacity:.6;margin-inline-start:3px}
+.tools-pop{position:absolute;top:calc(100% + 6px);inset-inline-start:0;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--e2);padding:6px;min-width:230px;display:none;z-index:40}
+.tools-pop.open{display:block}
+.tools-pop button{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;text-align:right;padding:9px 12px;border-radius:8px;font-family:inherit;font-size:var(--fs-sm);color:var(--ink);cursor:pointer}
+.tools-pop button:hover{background:var(--soft-2)}
+.tools-pop .ti{font-size:.95rem;width:20px;text-align:center}
+/* شبكة البطاقات */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;align-items:start}
+.pgrid .empty-sec{grid-column:1/-1}
+/* قسم العملاء بلا مشاريع */
+.empty-sec{margin-top:8px;border-top:1px dashed var(--line);padding-top:10px}
+.empty-sec-hd{display:flex;align-items:center;gap:9px;width:100%;background:none;border:none;font-family:inherit;font-size:var(--fs-sm);font-weight:700;color:var(--muted);cursor:pointer;padding:7px 4px}
+.empty-sec-hd:hover{color:var(--ink)}
+.es-chev{font-size:.72rem}
+.es-n{background:var(--soft-2);border-radius:999px;padding:1px 9px;font-size:var(--fs-xs)}
+.es-hint{margin-inline-start:auto;font-weight:400;font-size:var(--fs-xs);color:var(--line)}
+.empty-sec-body{display:flex;flex-wrap:wrap;gap:8px;padding:8px 2px}
+.ecard{display:flex;align-items:center;gap:9px;background:var(--paper);border:1px solid var(--line);border-inline-start:3px solid var(--cc,var(--gold));border-radius:10px;padding:8px 13px;font-family:inherit;font-size:var(--fs-sm);cursor:pointer;transition:var(--t)}
+.ecard:hover{box-shadow:var(--e1);transform:translateY(-1px)}
+.edot{width:7px;height:7px;border-radius:50%;background:var(--cc,var(--gold))}
+.eadd{color:var(--gold-dark);font-size:var(--fs-xs);font-weight:700;margin-inline-start:4px}
+@media(max-width:700px){.pgrid{grid-template-columns:1fr}.tools-pop{inset-inline-start:auto;inset-inline-end:0}}
