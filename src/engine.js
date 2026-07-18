@@ -1,9 +1,14 @@
-// عدّاد أيام العمل بين تاريخين (شامل الطرفين، الجمعة/السبت عطلة) — عام للواجهات
+// تقويم العمل: الجمعة/السبت + العطلات الرسمية (تُحمَّل من القاعدة)
+let HOLIDAYS=new Set();
+function setHolidays(list){HOLIDAYS=new Set((list||[]).map(h=>typeof h==='string'?h:h.hdate));}
+function isoLocal(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function isWorkday(d){const g=d.getDay();return g!==5&&g!==6&&!HOLIDAYS.has(isoLocal(d));}
+// عدّاد أيام العمل بين تاريخين (شامل الطرفين)
 function wdBetween(a,b){let c=0,d=new Date(a);const e=new Date(b);
-  while(d<=e){const g=d.getDay();if(g!==5&&g!==6)c++;d=new Date(d.getTime()+86400000);}return c;}
+  while(d<=e){if(isWorkday(d))c++;d=new Date(d.getTime()+86400000);}return c;}
 // ===== محرك CPM (مختبَر) =====
 function scheduleTasks(tasks,projectStartStr){
-  const WE=new Set([5,6]);const isWD=d=>!WE.has(d.getDay());const clone=d=>new Date(d.getTime());
+  const isWD=isWorkday;const clone=d=>new Date(d.getTime());
   const ensureWD=d=>{d=clone(d);while(!isWD(d))d.setDate(d.getDate()+1);return d;};
   const nextWD=d=>{d=clone(d);d.setDate(d.getDate()+1);while(!isWD(d))d.setDate(d.getDate()+1);return d;};
   const addWD=(d,n)=>{d=ensureWD(d);let c=0;while(c<n){d.setDate(d.getDate()+1);if(isWD(d))c++;}return d;};
@@ -22,9 +27,20 @@ function scheduleTasks(tasks,projectStartStr){
     if(t.type==='fixed'&&t.fixedDate){ES=ensureWD(new Date(t.fixedDate+'T00:00:00'));}
     else if(t.type==='milestone'){let mx=null;deps.forEach(d=>{const ef=R[d]?R[d].EF:start;if(mx===null||ef>mx)mx=ef;});ES=ensureWD(mx||start);}
     else if(deps.length===0)ES=addWD(start,t.lag||0);
-    else{let mx=null;deps.forEach(d=>{const ef=R[d]?R[d].EF:start;if(mx===null||ef>mx)mx=ef;});
-      const zero=(t.duration||0)<=0; // مهمة بمدة 0: تلتصق بنهاية سابقتها ولا تستهلك يومًا
-      ES=zero?ensureWD(mx||start):addWD(nextWD(mx),t.lag||0);}
+    else{
+      const zero=(t.duration||0)<=0;
+      const durW=t.type==='milestone'?0:Math.max(zero?0:1,t.duration||1);
+      const lagAdd=(base,L)=>L>=0?addWD(base,L):subWD(base,-L);
+      const dx=(t.depsX&&t.depsX.length)?t.depsX:deps.map(d=>({ref:d,type:'FS',lag:0}));
+      let cand=null;
+      dx.forEach(x=>{if(!R[x.ref])return;const rp=R[x.ref];let c;
+        if(x.type==='SS')c=lagAdd(ensureWD(rp.ES),x.lag||0);
+        else if(x.type==='FF'){const fe=lagAdd(ensureWD(rp.EF),x.lag||0);c=durW>0?subWD(fe,durW-1):ensureWD(fe);}
+        else c=zero?lagAdd(ensureWD(rp.EF),x.lag||0):lagAdd(nextWD(rp.EF),x.lag||0); // FS
+        if(cand===null||c>cand)cand=c;});
+      ES=ensureWD(cand||start);
+      if(t.lag)ES=addWD(ES,t.lag); // إزاحة البند العامة (توافق قديم)
+    }
     const dur=t.type==='milestone'?0:(t.type==='cont'?null:((t.duration||0)<=0?0:Math.max(1,t.duration)));let EF;
     if(t.type==='milestone'||t.type==='cont'||dur===0)EF=clone(ES);else EF=addWD(ES,dur-1);
     R[id]={ES,EF,dur};});
@@ -59,7 +75,7 @@ function scheduleTasks(tasks,projectStartStr){
 }
 // ===== المتابعة =====
 function computeTracking(tasks,S,ddStr){
-  const WE=new Set([5,6]),isWD=d=>!WE.has(d.getDay());
+  const isWD=isWorkday;
   const addWD=(d,n)=>{d=new Date(d.getTime());while(!isWD(d))d.setDate(d.getDate()+1);let c=0;while(c<n){d.setDate(d.getDate()+1);if(isWD(d))c++;}return d;};
   const wdB=(a,b)=>{let s=new Date(a),e=new Date(b),sg=1;if(e<s){const t=s;s=e;e=t;sg=-1;}let c=0,d=new Date(s);while(d<e){d.setDate(d.getDate()+1);if(isWD(d))c++;}return c*sg;};
   const dd=D(ddStr),T={};
