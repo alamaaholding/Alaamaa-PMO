@@ -1,4 +1,4 @@
-const BUILD_V='4cb70c64';
+const BUILD_V='3f46b1f9';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -61,12 +61,17 @@ const DELIV_STATUS={sent:'مُرسل',awaiting:'بانتظار الرد',receive
 
 
 /* ===== engine.js ===== */
-// عدّاد أيام العمل بين تاريخين (شامل الطرفين، الجمعة/السبت عطلة) — عام للواجهات
+// تقويم العمل: الجمعة/السبت + العطلات الرسمية (تُحمَّل من القاعدة)
+let HOLIDAYS=new Set();
+function setHolidays(list){HOLIDAYS=new Set((list||[]).map(h=>typeof h==='string'?h:h.hdate));}
+function isoLocal(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function isWorkday(d){const g=d.getDay();return g!==5&&g!==6&&!HOLIDAYS.has(isoLocal(d));}
+// عدّاد أيام العمل بين تاريخين (شامل الطرفين)
 function wdBetween(a,b){let c=0,d=new Date(a);const e=new Date(b);
-  while(d<=e){const g=d.getDay();if(g!==5&&g!==6)c++;d=new Date(d.getTime()+86400000);}return c;}
+  while(d<=e){if(isWorkday(d))c++;d=new Date(d.getTime()+86400000);}return c;}
 // ===== محرك CPM (مختبَر) =====
 function scheduleTasks(tasks,projectStartStr){
-  const WE=new Set([5,6]);const isWD=d=>!WE.has(d.getDay());const clone=d=>new Date(d.getTime());
+  const isWD=isWorkday;const clone=d=>new Date(d.getTime());
   const ensureWD=d=>{d=clone(d);while(!isWD(d))d.setDate(d.getDate()+1);return d;};
   const nextWD=d=>{d=clone(d);d.setDate(d.getDate()+1);while(!isWD(d))d.setDate(d.getDate()+1);return d;};
   const addWD=(d,n)=>{d=ensureWD(d);let c=0;while(c<n){d.setDate(d.getDate()+1);if(isWD(d))c++;}return d;};
@@ -85,9 +90,20 @@ function scheduleTasks(tasks,projectStartStr){
     if(t.type==='fixed'&&t.fixedDate){ES=ensureWD(new Date(t.fixedDate+'T00:00:00'));}
     else if(t.type==='milestone'){let mx=null;deps.forEach(d=>{const ef=R[d]?R[d].EF:start;if(mx===null||ef>mx)mx=ef;});ES=ensureWD(mx||start);}
     else if(deps.length===0)ES=addWD(start,t.lag||0);
-    else{let mx=null;deps.forEach(d=>{const ef=R[d]?R[d].EF:start;if(mx===null||ef>mx)mx=ef;});
-      const zero=(t.duration||0)<=0; // مهمة بمدة 0: تلتصق بنهاية سابقتها ولا تستهلك يومًا
-      ES=zero?ensureWD(mx||start):addWD(nextWD(mx),t.lag||0);}
+    else{
+      const zero=(t.duration||0)<=0;
+      const durW=t.type==='milestone'?0:Math.max(zero?0:1,t.duration||1);
+      const lagAdd=(base,L)=>L>=0?addWD(base,L):subWD(base,-L);
+      const dx=(t.depsX&&t.depsX.length)?t.depsX:deps.map(d=>({ref:d,type:'FS',lag:0}));
+      let cand=null;
+      dx.forEach(x=>{if(!R[x.ref])return;const rp=R[x.ref];let c;
+        if(x.type==='SS')c=lagAdd(ensureWD(rp.ES),x.lag||0);
+        else if(x.type==='FF'){const fe=lagAdd(ensureWD(rp.EF),x.lag||0);c=durW>0?subWD(fe,durW-1):ensureWD(fe);}
+        else c=zero?lagAdd(ensureWD(rp.EF),x.lag||0):lagAdd(nextWD(rp.EF),x.lag||0); // FS
+        if(cand===null||c>cand)cand=c;});
+      ES=ensureWD(cand||start);
+      if(t.lag)ES=addWD(ES,t.lag); // إزاحة البند العامة (توافق قديم)
+    }
     const dur=t.type==='milestone'?0:(t.type==='cont'?null:((t.duration||0)<=0?0:Math.max(1,t.duration)));let EF;
     if(t.type==='milestone'||t.type==='cont'||dur===0)EF=clone(ES);else EF=addWD(ES,dur-1);
     R[id]={ES,EF,dur};});
@@ -122,7 +138,7 @@ function scheduleTasks(tasks,projectStartStr){
 }
 // ===== المتابعة =====
 function computeTracking(tasks,S,ddStr){
-  const WE=new Set([5,6]),isWD=d=>!WE.has(d.getDay());
+  const isWD=isWorkday;
   const addWD=(d,n)=>{d=new Date(d.getTime());while(!isWD(d))d.setDate(d.getDate()+1);let c=0;while(c<n){d.setDate(d.getDate()+1);if(isWD(d))c++;}return d;};
   const wdB=(a,b)=>{let s=new Date(a),e=new Date(b),sg=1;if(e<s){const t=s;s=e;e=t;sg=-1;}let c=0,d=new Date(s);while(d<e){d.setDate(d.getDate()+1);if(isWD(d))c++;}return c*sg;};
   const dd=D(ddStr),T={};
@@ -217,23 +233,30 @@ async function loadProject(clientId, projectId){
   if(!projects||!projects.length){PROJECT=null;return;}
   const p=projects[0];
   // tasks/deps/baseline/CRs تعتمد على project_id فقط → نطلبها بالتوازي
-  const [tasksR,depsR,blR,crR]=await Promise.all([
-    sb.from('pmo_tasks').select('id,ref,wbs,name,track,type,duration,lag,fixed_date,owner,deliverable,status,progress,sort_order').eq('project_id',p.id).order('sort_order'),
-    sb.from('pmo_dependencies').select('task_id,depends_on_id').eq('project_id',p.id),
-    sb.from('pmo_baselines').select('snapshot').eq('project_id',p.id).order('approved_at',{ascending:false}).limit(1),
-    sb.from('pmo_change_requests').select('*').eq('project_id',p.id).order('created_at',{ascending:false})
+  const [tasksR,depsR,blR,crR,holR]=await Promise.all([
+    sb.from('pmo_tasks').select('id,ref,wbs,name,track,type,duration,lag,fixed_date,owner,deliverable,status,progress,sort_order,parent_id').eq('project_id',p.id).order('sort_order'),
+    sb.from('pmo_dependencies').select('id,task_id,depends_on_id,dep_type,lag').eq('project_id',p.id),
+    sb.from('pmo_baselines').select('id,label,snapshot,approved_at').eq('project_id',p.id).order('approved_at',{ascending:true}),
+    sb.from('pmo_change_requests').select('*').eq('project_id',p.id).order('created_at',{ascending:false}),
+    sb.from('pmo_holidays').select('hdate,name').order('hdate')
   ]);
   const tasks=tasksR.data||[],deps=depsR.data||[],bl=blR.data||[];
+  setHolidays(holR?holR.data:[]);
+  window.HOLIDAY_NAMES={};(holR&&holR.data||[]).forEach(h=>{window.HOLIDAY_NAMES[h.hdate]=h.name;});
   CRS=crR.data||[];
   const ids=tasks.map(t=>t.id);let reqs=[];
   if(ids.length){const r=await sb.from('pmo_requirements').select('*').in('task_id',ids);reqs=r.data||[];}
   const refById={};tasks.forEach(t=>refById[t.id]=t.ref);
-  const depMap={};deps.forEach(d=>{(depMap[d.task_id]=depMap[d.task_id]||[]).push(refById[d.depends_on_id]);});
+  const depMap={},depMapX={};
+  deps.forEach(d=>{const rf=refById[d.depends_on_id];
+    (depMap[d.task_id]=depMap[d.task_id]||[]).push(rf);
+    (depMapX[d.task_id]=depMapX[d.task_id]||[]).push({_id:d.id,ref:rf,type:d.dep_type||'FS',lag:d.lag||0});});
   const reqMap={};reqs.forEach(r=>{(reqMap[r.task_id]=reqMap[r.task_id]||[]).push({_id:r.id,desc:r.description,owner:r.owner,sla:r.sla_days,blocking:r.blocking,requested:r.requested_at||'',received:r.received_at||''});});
   PROJECT={_dbId:p.id,name:p.name,start:p.start_date,status:p.status,lifecycle:p.lifecycle,contractValue:p.contract_value,
-    baseline:(bl&&bl.length)?{snapshot:bl[0].snapshot}:null,
+    baseline:(bl&&bl.length)?{snapshot:bl[bl.length-1].snapshot}:null,
+    baselines:bl||[],
     tasks:(()=>{const _refOf={};tasks.forEach(x=>{_refOf[x.id]=x.ref;});
-      return tasks.map(t=>({id:t.ref,_dbId:t.id,parent:t.parent_id?(_refOf[t.parent_id]||null):null,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],requirements:reqMap[t.id]||[]}));})()};
+      return tasks.map(t=>({id:t.ref,_dbId:t.id,parent:t.parent_id?(_refOf[t.parent_id]||null):null,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],depsX:depMapX[t.id]||[],requirements:reqMap[t.id]||[]}));})()};
   PROJECT.tracks=(await sb.from('pmo_project_tracks').select('*').eq('project_id',p.id).order('sort')).data||[];
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
@@ -275,11 +298,12 @@ async function deleteTask(taskDbId){
   const {error}=await sb.from('pmo_tasks').delete().eq('id',taskDbId);
   if(error) throw error;
 }
-async function setDependencies(projectId, taskDbId, dependsOnDbIds){
-  // نحذف القديمة ثم نضيف الجديدة
+async function setDependencies(projectId, taskDbId, links){
+  // links: [{db, type, lag}] أو مصفوفة dbIds (توافق خلفي)
   await sb.from('pmo_dependencies').delete().eq('task_id',taskDbId);
-  if(dependsOnDbIds.length){
-    const rows=dependsOnDbIds.map(d=>({project_id:projectId,task_id:taskDbId,depends_on_id:d}));
+  const norm=(links||[]).map(l=>typeof l==='object'?l:{db:l,type:'FS',lag:0});
+  if(norm.length){
+    const rows=norm.map(l=>({project_id:projectId,task_id:taskDbId,depends_on_id:l.db,dep_type:l.type||'FS',lag:l.lag||0}));
     const {error}=await sb.from('pmo_dependencies').insert(rows);
     if(error) throw error;
   }
@@ -569,6 +593,32 @@ async function openTimelinePortfolio(hostId){
   catch(e){const h=document.getElementById(hostId);if(h)h.innerHTML='<p class="pempty">تعذّر التحميل</p>';}
 }
 
+// ===== حفظ أساس جديد (v2, v3...) من الجدولة الحالية =====
+async function saveNewBaseline(projectId){
+  const snap={};PROJECT.tasks.forEach(t=>{const r=SCHED.R[t.id];if(r&&t.type!=='cont')snap[t.id]={ES:isoLocal(r.ES),EF:isoLocal(r.EF)};});
+  const n=(PROJECT.baselines||[]).length+1;
+  const {data,error}=await sb.from('pmo_baselines')
+    .insert({project_id:projectId,snapshot:snap,start_date:PROJECT.start,approved_by:USER?USER.id:null,label:'الأساس '+n})
+    .select('id,label,snapshot,approved_at').single();
+  if(error)throw error;
+  PROJECT.baselines=(PROJECT.baselines||[]).concat([data]);
+  return data;
+}
+// ===== العطلات =====
+async function fetchHolidays(){const {data}=await sb.from('pmo_holidays').select('*').order('hdate');return data||[];}
+async function addHolidayRow(hdate,name){const {error}=await sb.from('pmo_holidays').insert({hdate,name});if(error)throw error;}
+async function delHolidayRow(id){const {error}=await sb.from('pmo_holidays').delete().eq('id',id);if(error)throw error;}
+// ===== الفريق والإسناد (داخلي — لا يراه العميل) =====
+async function fetchTeamMembers(){const {data}=await sb.from('team_members').select('id,full_name,email,role').eq('is_active',true).order('full_name');return data||[];}
+async function fetchProjectStaff(projectId){const {data}=await sb.from('pmo_project_staff').select('member_id').eq('project_id',projectId);return (data||[]).map(r=>r.member_id);}
+async function saveProjectStaff(projectId,memberIds){
+  await sb.from('pmo_project_staff').delete().eq('project_id',projectId);
+  if(memberIds.length){
+    const rows=memberIds.map(m=>({project_id:projectId,member_id:m}));
+    const {error}=await sb.from('pmo_project_staff').insert(rows);if(error)throw error;
+  }
+}
+
 
 /* ===== views.js ===== */
 // ===== العرض =====
@@ -622,6 +672,9 @@ function render(){
     const pgb=$('#printGanttBtn');if(pgb)pgb.onclick=()=>printProject('gantt');
     const gt=$('#glToggle');if(gt){gt.classList.toggle('on',GLINKS_ON);gt.onclick=()=>{GLINKS_ON=!GLINKS_ON;try{localStorage.setItem('pmo_glinks',GLINKS_ON?'1':'0');}catch(_e){}render();};}
     const zf=$('#zfit');if(zf)zf.onclick=fitGantt;
+    const bs=$('#blSel');if(bs)bs.onchange=()=>{GBASE=bs.value;
+      const b=(PROJECT.baselines||[]).find(x=>x.id===GBASE);
+      if(b)PROJECT.baseline={snapshot:b.snapshot};render();};
     document.querySelectorAll('[data-scale]').forEach(b=>{const on=b.dataset.scale===GSCALE;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false');
       b.onclick=()=>{GSCALE=b.dataset.scale;try{localStorage.setItem('pmo_gscale',GSCALE);}catch(_e){}PX=GSCALE_PX[GSCALE]||16;render();};});
     bindGanttHover();drawGanttLinks();}
@@ -674,6 +727,7 @@ function vDashboard(){
     <div class="dbox"><h4>المعالم القادمة</h4><ul class="tlist">${miles.length?miles.map(m=>`<li><span class="md">◆</span> ${esc(m.t.name.replace('معلم: ',''))} <em>${fmt(m.ef)}</em></li>`).join(''):'<li class="empty">—</li>'}</ul></div>
   </div>
   <div class="dbox alerts"><h4>التنبيهات (${alerts.length})</h4><ul class="tlist">${alerts.length?alerts.map(a=>`<li class="alert a-${a[0]}">⚠ ${esc(a[1])}</li>`).join(''):'<li class="empty">لا تنبيهات.</li>'}</ul></div>`;
+  h+=sCurveSVG();
   return h;
 }
 
@@ -912,7 +966,7 @@ function inlineTrackEdit(key,td){
   n.onkeydown=(e)=>{if(e.key==='Enter')td.querySelector('.gie-s').click();if(e.key==='Escape')render();};
 }
 
-function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div><div class="gscale" role="group" aria-label="مقياس الزمن" style="margin-inline-start:auto"><button class="gsc" data-scale="day">يوم</button><button class="gsc" data-scale="week">أسبوع</button><button class="gsc" data-scale="month">شهر</button><button class="gsc" data-scale="quarter">ربع</button></div><button class="hbtn print-btn" id="printGanttBtn">🖨 طباعة الجانت</button><div class="zoom"><button class="zb" id="glToggle" title="إظهار/إخفاء روابط التبعية" aria-label="روابط التبعية">⇄</button><button class="zb" id="zfit" title="ملاءمة العرض للشاشة" aria-label="ملاءمة العرض">⤢</button><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
+function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div>${(PROJECT.baselines&&PROJECT.baselines.length)?`<select id="blSel" class="pfsort" aria-label="اختيار الأساس" style="font-size:.72rem">${PROJECT.baselines.map((b,i)=>`<option value="${b.id}" ${(!GBASE&&i===PROJECT.baselines.length-1)||GBASE===b.id?'selected':''}>${esc(b.label||("الأساس "+(i+1)))}</option>`).join('')}</select>`:''}<div class="gscale" role="group" aria-label="مقياس الزمن" style="margin-inline-start:auto"><button class="gsc" data-scale="day">يوم</button><button class="gsc" data-scale="week">أسبوع</button><button class="gsc" data-scale="month">شهر</button><button class="gsc" data-scale="quarter">ربع</button></div><button class="hbtn print-btn" id="printGanttBtn">🖨 طباعة الجانت</button><div class="zoom"><button class="zb" id="glToggle" title="إظهار/إخفاء روابط التبعية" aria-label="روابط التبعية">⇄</button><button class="zb" id="zfit" title="ملاءمة العرض للشاشة" aria-label="ملاءمة العرض">⤢</button><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
 // ===== مقياس الزمن متعدد المستويات (يوم/أسبوع/شهر/ربع) =====
 let GSCALE='week';try{const _gs=localStorage.getItem('pmo_gscale');if(_gs)GSCALE=_gs;}catch(_e){}
 const GSCALE_PX={day:30,week:16,month:6,quarter:3};
@@ -924,7 +978,9 @@ function ganttScaleHeader(lo,hi,off,px,scale,fmt){
     let d=new Date(lo);
     while(d<=hi){const nx=new Date(d.getFullYear(),d.getMonth()+1,1);const se=nx>hi?hi:new Date(nx-oneDay);const days=Math.round((se-d)/oneDay)+1;top+=T(off(d)*px,days*px,_MNAR[d.getMonth()]+' '+d.getFullYear());d=nx;}
     let dd=new Date(lo);
-    while(dd<=hi){const g=dd.getDay(),we=(g===5||g===6);bot+=`<div class="dhead${we?' we':''}" style="right:${off(dd)*px}px;width:${px}px">${dd.getDate()}</div>`;if(dd.getDay()===0)grid+=`<div class="vg" style="right:${off(dd)*px}px"></div>`;if(we)wkends+=`<div class="wkend" style="right:${off(dd)*px}px;width:${px}px"></div>`;dd=new Date(dd.getTime()+oneDay);}
+    while(dd<=hi){const g=dd.getDay(),iso=isoLocal(dd),hol=(typeof HOLIDAYS!=='undefined'&&HOLIDAYS.has(iso)),we=(g===5||g===6)||hol;
+      if(hol)wkends+=`<div class="wkend hol" style="right:${off(dd)*px}px;width:${px}px" title="${(window.HOLIDAY_NAMES&&window.HOLIDAY_NAMES[iso])||'عطلة'}"></div>`;
+      bot+=`<div class="dhead${we?' we':''}${hol?' hd':''}" title="${hol?((window.HOLIDAY_NAMES&&window.HOLIDAY_NAMES[iso])||'عطلة'):''}" style="right:${off(dd)*px}px;width:${px}px">${dd.getDate()}</div>`;if(dd.getDay()===0)grid+=`<div class="vg" style="right:${off(dd)*px}px"></div>`;if(we)wkends+=`<div class="wkend" style="right:${off(dd)*px}px;width:${px}px"></div>`;dd=new Date(dd.getTime()+oneDay);}
   }else if(scale==='month'){
     let q=new Date(lo.getFullYear(),Math.floor(lo.getMonth()/3)*3,1);
     while(q<=hi){const qs=q<lo?lo:q;const nq=new Date(q.getFullYear(),q.getMonth()+3,1);const qe=nq>hi?hi:new Date(nq-oneDay);const w=Math.round((qe-qs)/oneDay)+1;top+=T(off(qs)*px,w*px,'الربع '+(Math.floor(q.getMonth()/3)+1)+' — '+q.getFullYear());q=nq;}
@@ -941,7 +997,10 @@ function ganttScaleHeader(lo,hi,off,px,scale,fmt){
     let wk=new Date(lo),wi=1;
     while(wk<=hi){bot+=`<div class="whead" style="right:${off(wk)*px}px;width:${7*px}px"><b>أسبوع ${wi}</b><s>${fmt(wk)}</s></div>`;grid+=`<div class="vg" style="right:${off(wk)*px}px"></div>`;wk=new Date(wk.getTime()+7*oneDay);wi++;}
     let wd=new Date(lo);
-    while(wd<=hi){const g=wd.getDay();if(g===5){wkends+=`<div class="wkend" style="right:${off(wd)*px}px;width:${2*px}px"></div>`;wd=new Date(wd.getTime()+2*oneDay);continue;}if(g===6){wkends+=`<div class="wkend" style="right:${off(wd)*px}px;width:${px}px"></div>`;}wd=new Date(wd.getTime()+oneDay);}
+    while(wd<=hi){const g=wd.getDay(),iso=isoLocal(wd);
+      if(typeof HOLIDAYS!=='undefined'&&HOLIDAYS.has(iso)){wkends+=`<div class="wkend hol" style="right:${off(wd)*px}px;width:${px}px" title="${(window.HOLIDAY_NAMES&&window.HOLIDAY_NAMES[iso])||'عطلة'}"></div>`;wd=new Date(wd.getTime()+oneDay);continue;}
+      if(g===5){wkends+=`<div class="wkend" style="right:${off(wd)*px}px;width:${2*px}px"></div>`;wd=new Date(wd.getTime()+2*oneDay);continue;}
+      if(g===6){wkends+=`<div class="wkend" style="right:${off(wd)*px}px;width:${px}px"></div>`;}wd=new Date(wd.getTime()+oneDay);}
   }
   return {top,bot,grid,wkends};
 }
@@ -979,12 +1038,59 @@ function vGantt(){
       }
       lane+=`<div class="gbar ${cls} ${r.critical?'crit':''} ${overdue?'late late-'+who:''}" data-gid="${esc(t.id)}" style="right:${o*PX}px;width:${wpx}px;background:${tc}" title="${tip}">${fill}</div>${tail}${durEl}`;}
     rows+=`<div class="grow" data-grow="${esc(t.id)}"><div class="glbl ${t.parent?'gchild':''}"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
-  return projFilterBar()+`<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
+  return projFilterBar()+baselineDeviation(BL)+`<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
     <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${HD.top}${HD.bot}</div></div>
     <div id="gcanvas" style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${HD.wkends}${HD.grid}${today}</div>${rows}</div></div></div>
     <div class="glegend"><span><span class="di"></span>معلم</span><span><span class="ci"></span>حرج</span>${BL?'<span><i class="blleg"></i>الأساس المعتمد</span>':''}<span><span class="dot" style="background:#cbbfa6"></span>لم تبدأ</span><span><span class="dot" style="background:var(--blue)"></span>جارية</span><span><span class="dot" style="background:var(--crit)"></span>متوقفة</span><span><span class="dot" style="background:var(--ok)"></span>مكتملة ✓</span><span><i class="tleg cl"></i>تأخير بانتظار العميل</span><span><i class="tleg al"></i>تأخير علامة</span><span><i class="wkleg"></i>عطلة الأسبوع</span><span><i class="lkleg">⟵</i>رابط تبعية</span></div></div>`;
 }
 
+// ===== منحنى S: المخطط تراكميًا من CPM + نقطة المكتسب الحالية =====
+function sCurveSVG(){
+  const leafs=PROJECT.tasks.filter(t=>t.type!=='package'&&t.type!=='cont'&&SCHED.R[t.id]);
+  if(!leafs.length)return '';
+  const lo=SCHED.pStart,hi=SCHED.pEnd,oneDay=86400000;
+  const days=Math.max(2,Math.round((hi-lo)/oneDay)+1);
+  const daily=new Array(days).fill(0);let total=0;
+  leafs.forEach(t=>{const r=SCHED.R[t.id];const w=Math.max(1,r.dur||1);total+=w;
+    const span=Math.max(1,wdBetween(r.ES,r.EF));const per=w/span;
+    let d=new Date(r.ES);
+    while(d<=r.EF){if(isWorkday(d)){const i=Math.round((d-lo)/oneDay);if(i>=0&&i<days)daily[i]+=per;}d=new Date(d.getTime()+oneDay);}});
+  let acc=0;const pts=[];
+  for(let i=0;i<days;i++){acc+=daily[i];pts.push(Math.min(100,acc/Math.max(1,total)*100));}
+  let ews=0,ea=0;leafs.forEach(t=>{const k=TRACK[t.id];const w=Math.max(1,SCHED.R[t.id].dur||1);ews+=w;ea+=((k&&k.dispPct)||0)*w;});
+  const earned=ews?ea/ews:0;
+  const dd=D(DATA_DATE);const ti=Math.max(0,Math.min(days-1,Math.round((dd-lo)/oneDay)));
+  const plannedNow=pts[ti]||0;
+  const W=640,H=175,PL=40,PB=24;
+  const X=i=>PL+((days-1-i)/(days-1))*(W-PL-10);
+  const Y=p=>10+(100-p)/100*(H-PB-10);
+  const line=pts.map((p,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(p).toFixed(1)).join(' ');
+  const grid=[0,25,50,75,100].map(g=>`<line x1="${PL}" x2="${W-10}" y1="${Y(g)}" y2="${Y(g)}" class="sc-grid"/><text x="${PL-6}" y="${Y(g)+3}" class="sc-lbl">${g}%</text>`).join('');
+  const varAbs=Math.round(earned-plannedNow);
+  return `<div class="card scurve"><div class="ch">منحنى S — المخطط مقابل المكتسب
+      <span class="sc-var ${varAbs>=0?'ok':'bad'}">${varAbs>=0?'+':''}${varAbs}% عن المخطط</span></div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="منحنى التقدم المخطط والمكتسب">
+      ${grid}
+      <path d="${line}" class="sc-plan"/>
+      <line x1="${X(ti)}" x2="${X(ti)}" y1="10" y2="${H-PB}" class="sc-today"/>
+      <circle cx="${X(ti)}" cy="${Y(plannedNow)}" r="4" class="sc-pdot"/>
+      <circle cx="${X(ti)}" cy="${Y(earned)}" r="5.5" class="sc-edot"/>
+      <text x="${X(ti)+8}" y="${Y(earned)-9}" class="sc-elbl">مكتسب ${Math.round(earned)}%</text>
+    </svg>
+    <div class="sc-leg"><span><i class="sc-i plan"></i>المخطط (تراكمي CPM)</span><span><i class="sc-i earn"></i>المكتسب بتاريخ الحالة</span><span class="sc-note">القراءة التاريخية للمكتسب تتعمّق مع الاستخدام</span></div>
+  </div>`;
+}
+let GBASE=null; // الأساس المختار للعرض
+function baselineDeviation(BL){
+  if(!BL)return '';
+  let slipped=0,net=0;
+  PROJECT.tasks.forEach(t=>{const b=BL[t.id],r=SCHED.R[t.id];
+    if(!b||!r||t.type==='cont'||t.type==='package')return;
+    const dv=wdBetween(new Date(b.EF+'T00:00:00'),r.EF)-1;
+    if(dv>0){slipped++;net+=dv;}else if(dv<0)net+=dv;});
+  if(!slipped&&net===0)return '<div class="bl-dev ok">✓ مطابق للأساس المختار — لا انحراف</div>';
+  return `<div class="bl-dev ${net>0?'bad':'ok'}">الانحراف عن الأساس: <b>${slipped}</b> بندًا منزلقًا · صافي <b>${net>0?'+':''}${net}</b> يوم عمل</div>`;
+}
 // ===== أسهم التبعيات (SVG كوعية بأسهم — معيار MS Project) =====
 let GLINKS_ON=true;try{GLINKS_ON=(localStorage.getItem('pmo_glinks')!=='0');}catch(_e){}
 function drawGanttLinks(){
@@ -996,15 +1102,16 @@ function drawGanttLinks(){
   const cr=canvas.getBoundingClientRect();
   let paths='';
   PROJECT.tasks.forEach(t=>{
-    (t.deps||[]).forEach(d=>{
-      const A=bars[d],B=bars[t.id];if(!A||!B)return;
+    ((t.depsX&&t.depsX.length)?t.depsX:(t.deps||[])).forEach(d=>{
+      const A=bars[d.ref||d],B=bars[t.id];if(!A||!B)return;
+      const dtype=(d.type||'FS');
       const ra=A.getBoundingClientRect(),rb=B.getBoundingClientRect();
-      // الزمن يتقدم يسارًا: نهاية السابق = حافته اليسرى، بداية اللاحق = حافته اليمنى
-      const x1=ra.left-cr.left, y1=ra.top-cr.top+ra.height/2;
-      const x2=rb.right-cr.left, y2=rb.top-cr.top+rb.height/2;
+      // مراسي حسب النوع: FS نهاية←بداية · SS بداية←بداية · FF نهاية←نهاية
+      const x1=(dtype==='SS'?ra.right:ra.left)-cr.left, y1=ra.top-cr.top+ra.height/2;
+      const x2=(dtype==='FF'?rb.left:rb.right)-cr.left, y2=rb.top-cr.top+rb.height/2;
       const crit=A.classList.contains('crit')&&B.classList.contains('crit');
       const bend=Math.min(x1,x2)-9;
-      paths+=`<path d="M ${x1} ${y1} L ${bend} ${y1} L ${bend} ${y2} L ${x2-1} ${y2}" class="glink ${crit?'crit':''}" marker-end="url(#${crit?'garrc':'garr'})" data-lfrom="${esc(d)}" data-lto="${esc(t.id)}"/>`;
+      paths+=`<path d="M ${x1} ${y1} L ${bend} ${y1} L ${bend} ${y2} L ${x2-1} ${y2}" class="glink ${crit?'crit':''} lt-${dtype}" marker-end="url(#${crit?'garrc':'garr'})" data-lfrom="${esc(d.ref||d)}" data-lto="${esc(t.id)}"/>`;
     });
   });
   if(!paths)return;
@@ -1382,6 +1489,8 @@ async function openProjectMenu(projectId, projectName){
     fields:[{key:'action',label:'الإجراء',type:'select',value:'rename',options:[
       {v:'rename',t:'إعادة تسمية المشروع'},
       {v:'restore_snap',t:'استرجاع نسخة أمان (ما قبل آخر استبدال)'},
+      {v:'assign',t:'إسناد الفريق للمشروع'},
+      {v:'newbl',t:'حفظ أساس جديد (Baseline v'+(((PROJECT&&PROJECT.baselines)||[]).length+1)+')'},
       {v:'archive',t:'أرشفة المشروع'},
       {v:'delete',t:'طلب حذف المشروع (مهلة 30 يومًا)'}
     ]}],confirmText:'متابعة'});
@@ -1393,6 +1502,13 @@ async function openProjectMenu(projectId, projectName){
       if(PROJECT&&PROJECT._dbId===projectId){PROJECT.name=e.name;render();}
       toast('أُعيدت التسمية','ok');if(SCREEN==='portfolio')renderPortfolio();
     }catch(err){toast('تعذّر: '+err.message,'err');}
+  }else if(r.action==='assign'){
+    openAssignPanel(projectId,projectName);
+  }else if(r.action==='newbl'){
+    if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا لحفظ أساس من جدولته الحالية','warn');return;}
+    if(!await confirmDialog('حفظ أساس جديد','سيُحفظ الوضع المجدول الحالي كأساس مرجعي جديد (v'+(((PROJECT.baselines)||[]).length+1)+') للمقارنة في الجانت. يُستخدم عادة بعد اعتماد طلب تعديل خطة.',false))return;
+    try{const b=await saveNewBaseline(projectId);toast('حُفظ '+b.label,'ok');render();}
+    catch(e){toast('تعذّر: '+e.message,'err');}
   }else if(r.action==='restore_snap'){
     // حوكمة: لا استرجاع فوق خطة مثبّتة
     const {data:pst}=await sb.from('pmo_projects').select('status').eq('id',projectId).single();
@@ -1530,6 +1646,13 @@ async function openClientMenu(clientId){
   }else if(r.action==='access'){
     CID=clientId;PID=null;await openProject();
     if(typeof openAccess==='function')openAccess();
+  }else if(r.action==='assign'){
+    openAssignPanel(projectId,projectName);
+  }else if(r.action==='newbl'){
+    if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا لحفظ أساس من جدولته الحالية','warn');return;}
+    if(!await confirmDialog('حفظ أساس جديد','سيُحفظ الوضع المجدول الحالي كأساس مرجعي جديد (v'+(((PROJECT.baselines)||[]).length+1)+') للمقارنة في الجانت. يُستخدم عادة بعد اعتماد طلب تعديل خطة.',false))return;
+    try{const b=await saveNewBaseline(projectId);toast('حُفظ '+b.label,'ok');render();}
+    catch(e){toast('تعذّر: '+e.message,'err');}
   }else if(r.action==='restore_snap'){
     // حوكمة: لا استرجاع فوق خطة مثبّتة
     const {data:pst}=await sb.from('pmo_projects').select('status').eq('id',projectId).single();
@@ -1639,6 +1762,56 @@ const AUDIT_LABELS={
   task_update:'تعديل مهمة',cr_create:'طلب تغيير',cr_decision:'قرار تغيير'
 };
 
+// ===== إسناد الفريق (داخلي — لا يظهر للعميل بأي شكل) =====
+async function openAssignPanel(projectId,projectName){
+  $('#assignOverlay').style.display='flex';
+  $('#assignTitle').textContent='إسناد الفريق: '+(projectName||'');
+  const body=$('#assignBody');body.innerHTML='<div class="skeleton" style="height:100px"></div>';
+  try{
+    const [members,assigned]=await Promise.all([fetchTeamMembers(),fetchProjectStaff(projectId)]);
+    const aset=new Set(assigned);
+    const roleAr={admin:'إدارة المشاريع',manager:'فريق'};
+    body.innerHTML=`
+      <p class="trk-hint">أعضاء الطاقم المسندون يرون هذا المشروع في محفظتهم وخط تسليماته. المالك وإدارة المشاريع يرون الكل دائمًا. <b>العميل لا يرى الإسناد إطلاقًا.</b></p>
+      ${members.map(u=>`<label class="assign-row"><input type="checkbox" data-assign="${u.id}" ${aset.has(u.id)?'checked':''}>
+        <b>${esc(u.full_name||u.email)}</b><span class="assign-role">${roleAr[u.role]||u.role}</span></label>`).join('')||'<p class="pempty">لا أعضاء طاقم نشطين بعد.</p>'}
+      <div class="imp-actions">
+        <button class="hbtn" id="assignSave" style="background:var(--gold);border-color:var(--gold)">حفظ الإسناد</button>
+        <button class="hbtn ghost" id="assignClose">إغلاق</button>
+      </div>`;
+    $('#assignClose').onclick=()=>{$('#assignOverlay').style.display='none';};
+    $('#assignSave').onclick=async()=>{
+      const ids=[...document.querySelectorAll('#assignBody [data-assign]:checked')].map(c=>c.dataset.assign);
+      try{await saveProjectStaff(projectId,ids);toast('حُفظ الإسناد ('+ids.length+')','ok');$('#assignOverlay').style.display='none';}
+      catch(e){toast('تعذّر: '+e.message,'err');}
+    };
+  }catch(e){body.innerHTML='<p class="pempty">تعذّر التحميل</p>';}
+}
+// ===== مدير العطلات الرسمية =====
+async function openHolidaysManager(){
+  $('#holOverlay').style.display='flex';
+  const body=$('#holBody');body.innerHTML='<div class="skeleton" style="height:100px"></div>';
+  const paint=async()=>{
+    const rows=await fetchHolidays();
+    body.innerHTML=`
+      <p class="trk-hint">العطلات الرسمية (فوق الجمعة/السبت) — تُستثنى من كل الجدولة والمدد والتأخيرات. حدّثها عند إعلان التواريخ الرسمية.</p>
+      ${rows.map(h=>`<div class="hol-row"><b>${esc(h.name)}</b><span>${h.hdate}</span><button class="ib" data-holdel="${h.id}" aria-label="حذف" style="color:var(--crit)">🗑</button></div>`).join('')||'<p class="pempty">لا عطلات مسجلة.</p>'}
+      <div class="hol-row new">
+        <input id="holName" placeholder="اسم العطلة" class="trk-name">
+        <input id="holDate" type="date" class="trk-name" style="max-width:160px">
+        <button class="hbtn" id="holAdd" style="background:var(--ok);border-color:var(--ok)">+ إضافة</button>
+      </div>`;
+    body.querySelectorAll('[data-holdel]').forEach(b=>b.onclick=async()=>{
+      try{await delHolidayRow(b.dataset.holdel);toast('حُذفت','ok');paint();}catch(e){toast('تعذّر','err');}});
+    $('#holAdd').onclick=async()=>{
+      const n=$('#holName').value.trim(),d=$('#holDate').value;
+      if(!n||!d){toast('الاسم والتاريخ مطلوبان','warn');return;}
+      try{await addHolidayRow(d,n);toast('أُضيفت','ok');paint();}catch(e){toast('تعذّر (مكررة؟)','err');}
+    };
+  };
+  paint();
+}
+
 
 /* ===== portfolio.js ===== */
 // ===== app/portfolio.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
@@ -1650,19 +1823,21 @@ async function renderPortfolio(){
   const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads">'+I.users+' العملاء المحتملون</button>':'';
   const dolBtn=isStaff?'<button class="reqbtn" id="showDOL" style="background:var(--crit);border-color:var(--crit);color:#fff">'+I.scale+' طبقة القرار (DOL)</button>':'';
   const auditBtn=isStaff?'<button class="reqbtn" id="showAudit">'+I.clipboard+' سجل المكتب</button>':'';
+  const holBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showHolidays">🗓 العطلات</button>':'';
   const tlBtn=isStaff?'<button class="reqbtn" id="showTimeline" style="background:var(--ink);border-color:var(--ink);color:#fff">📦 خط التسليمات الشامل</button>':'';
   const pgBtn=isStaff?'<button class="reqbtn" id="showPGantt" style="background:var(--blue);border-color:var(--blue);color:#fff">'+I.calendar+' الخط الزمني الشامل</button>':'';
   const archBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showArchived">'+I.archive+' المؤرشفة</button>':'';
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
   const skel=CLIENTS.map(()=>'<div class="pcard"><div class="skeleton" style="height:22px;width:55%;margin-bottom:14px"></div><div class="skeleton" style="height:8px;margin-bottom:12px"></div><div class="skeleton" style="height:36px"></div></div>').join('');
   const addClientBtn=(ROLE==='pmo')?'<button class="reqbtn" id="addClientBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ عميل جديد</button>':'';
-  const toolbar=isStaff?`<div class="portfolio-tools">${addClientBtn}${pgBtn}${dolBtn}${auditBtn}${tlBtn}${archBtn}${leadsBtn}</div>`:'';
+  const toolbar=isStaff?`<div class="portfolio-tools">${addClientBtn}${pgBtn}${dolBtn}${auditBtn}${tlBtn}${holBtn}${archBtn}${leadsBtn}</div>`:'';
   $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
   if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;
     const ac=$('#addClientBtn');if(ac)ac.onclick=addNewClient;}
   {const db=$('#showDOL');if(db)db.onclick=openDOL;}
   {const ab=$('#showAudit');if(ab)ab.onclick=renderAuditLog;}
   {const tb=$('#showTimeline');if(tb)tb.onclick=renderPortfolioTimeline;}
+  {const hb=$('#showHolidays');if(hb)hb.onclick=openHolidaysManager;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
   {const pg=$('#showPGantt');if(pg)pg.onclick=renderPortfolioGantt;}
   // استعلام واحد لكل الملخّصات (صف لكل مشروع)
@@ -2228,14 +2403,30 @@ function renderDeps(){
   function collectDependents(ref){PROJECT.tasks.forEach(t=>{if((t.deps||[]).includes(ref)&&!dependents.has(t.id)){dependents.add(t.id);collectDependents(t.id);}});}
   collectDependents(DEP_TASK.id);
   const opts=PROJECT.tasks.filter(t=>t.id!==DEP_TASK.id&&!dependents.has(t.id));
-  $('#depList').innerHTML=opts.map(t=>`<label style="display:flex;align-items:center;gap:9px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;cursor:pointer;font-size:.84rem">
-    <input type="checkbox" data-dep="${esc(t.id)}" ${current.has(t.id)?'checked':''}>
-    <span class="idcell" style="--tc:${TRACKS[t.track].color}">${esc(t.id)}</span> ${esc(t.name)}</label>`).join('')||'<p class="empty">لا بنود متاحة.</p>';
+  const xmap={};(DEP_TASK.depsX||[]).forEach(x=>{xmap[x.ref]=x;});
+  $('#depList').innerHTML=opts.map(t=>{const on=current.has(t.id),x=xmap[t.id]||{type:'FS',lag:0};
+    return `<div class="dep-row" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;font-size:.84rem">
+    <input type="checkbox" data-dep="${esc(t.id)}" ${on?'checked':''} id="dp_${esc(t.id)}">
+    <label for="dp_${esc(t.id)}" style="cursor:pointer;flex:1;display:flex;align-items:center;gap:8px"><span class="idcell" style="--tc:${trackMeta(t.track).color}">${esc(t.id)}</span> ${esc(t.name)}</label>
+    <select data-deptype="${esc(t.id)}" class="dep-type" aria-label="نوع التبعية" ${on?'':'disabled'}>
+      <option value="FS" ${x.type==='FS'?'selected':''}>بعد انتهاء (FS)</option>
+      <option value="SS" ${x.type==='SS'?'selected':''}>مع بداية (SS)</option>
+      <option value="FF" ${x.type==='FF'?'selected':''}>مع نهاية (FF)</option>
+    </select>
+    <input type="number" data-deplag="${esc(t.id)}" class="dep-lag" value="${x.lag||0}" title="إزاحة بأيام العمل (سالبة=تداخل)" aria-label="الإزاحة" ${on?'':'disabled'}>
+  </div>`;}).join('')||'<p class="empty">لا بنود متاحة.</p>';
+  document.querySelectorAll('#depList [data-dep]').forEach(cb=>cb.onchange=()=>{
+    const r=cb.dataset.dep;
+    const s=document.querySelector(`[data-deptype="${r}"]`),l=document.querySelector(`[data-deplag="${r}"]`);
+    if(s)s.disabled=!cb.checked;if(l)l.disabled=!cb.checked;});
 }
 $('#depSave').onclick=async()=>{
-  const checked=[...document.querySelectorAll('#depList [data-dep]:checked')].map(c=>c.dataset.dep);
-  // تحويل المعرّفات (ref) إلى dbIds
-  const dbIds=checked.map(ref=>{const t=PROJECT.tasks.find(x=>x.id===ref);return t?t._dbId:null;}).filter(Boolean);
+  const links=[...document.querySelectorAll('#depList [data-dep]:checked')].map(c=>{
+    const ref=c.dataset.dep;const t=PROJECT.tasks.find(x=>x.id===ref);if(!t)return null;
+    const s=document.querySelector(`[data-deptype="${ref}"]`),l=document.querySelector(`[data-deplag="${ref}"]`);
+    return {db:t._dbId,type:(s&&s.value)||'FS',lag:parseInt((l&&l.value)||'0',10)||0};
+  }).filter(Boolean);
+  const dbIds=links;
   try{
     await setDependencies(PROJECT._dbId,DEP_TASK._dbId,dbIds);
     await loadProject(CID);
