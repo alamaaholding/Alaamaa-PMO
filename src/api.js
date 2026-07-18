@@ -424,3 +424,9 @@ async function saveProjectStaff(projectId,memberIds){
     const {error}=await sb.from('pmo_project_staff').insert(rows);if(error)throw error;
   }
 }
+
+// ===== تكامل Trello (كسول) =====
+async function openTrello(){
+  try{await loadScript('trello.js?v='+BUILD_V);await window.trelloMenu();}
+  catch(e){toast('تعذّر تحميل وحدة Trello','err');}
+}
