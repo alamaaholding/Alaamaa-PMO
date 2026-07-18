@@ -1,4 +1,4 @@
-const BUILD_V='dff30394';
+const BUILD_V='f1982cd0';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -21,6 +21,33 @@ const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:tr
   client:{editStruct:false,editProg:false,editReqs:false,approveContract:false,crAction:'request',views:['dashboard','gantt','deliv','cr','requests','discuss']}};
 function can(p){return PERMS[ROLE]&&PERMS[ROLE][p];}
 
+// ===== سجل التدقيق: قاموس موحّد (مصدر وحيد لسجل المشروع وسجل المكتب) =====
+// المفاتيح مطابقة لأسماء الأفعال التي تكتبها دوال القاعدة (pmo_audit_*) فعليًا.
+const AUDIT_ACTIONS={
+  // البنود
+  status_change:'تغيير الحالة',progress_change:'تحديث التقدّم',duration_change:'تغيير المدة',
+  data_correction:'تصحيح بيانات',task_update:'تعديل بند',
+  // طلبات تعديل الخطة
+  cr_created:'طلب تعديل خطة جديد',cr_pending:'طلب تعديل معلّق',
+  cr_approved:'الموافقة على طلب تعديل',cr_rejected:'رفض طلب تعديل',
+  cr_create:'طلب تعديل خطة جديد',cr_decision:'قرار على طلب تعديل',
+  // المتطلبات
+  requirement_add:'إضافة متطلب',requirement_delete:'حذف متطلب',
+  // النقاش
+  comment_add:'إضافة تعليق',comment_delete:'حذف تعليق',
+  comment_resolve:'حلّ تعليق',comment_reopen:'إعادة فتح تعليق',
+  // طلبات الخدمة
+  client_request_add:'طلب خدمة جديد',client_request_status:'تغيير حالة طلب خدمة',
+  // المشاريع والعملاء
+  project_create:'إنشاء مشروع',project_delete:'حذف مشروع',
+  archive_project:'أرشفة مشروع',restore_project:'استرجاع مشروع',
+  request_project_deletion:'طلب حذف مشروع',purge_project:'حذف نهائي لمشروع',
+  archive_client:'أرشفة عميل',restore_client:'استرجاع عميل',
+  request_deletion:'طلب حذف عميل',purge_client:'حذف نهائي لعميل'
+};
+const AUDIT_ENTITIES={task:'بند',change_request:'طلب تعديل خطة',requirement:'متطلب',
+  comment:'تعليق',client_request:'طلب خدمة',project:'مشروع',client:'عميل'};
+
 // ===== أيقونات SVG موحّدة (خطية، ترث لون النص) =====
 const I={
  scale:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 21h18M6 7l-3 6h6l-3-6zM18 7l-3 6h6l-3-6zM7 7h10"/></svg>',
@@ -34,6 +61,24 @@ const I={
  link:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>',
  users:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4.5-6"/></svg>'
 };
+
+// ===== أيقونات التبويبات =====
+// ملاحظة تصميمية: «تعديل الخطة» (لوح مستطيل + قلم) و«طلبات الخدمة» (جرس دائري)
+// أُعطيا شكلين ظاهريين مختلفين تمامًا — لا لونين فقط — لأنهما أكثر تبويبين يقع فيهما اللبس.
+const _sv=p=>'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
+const VIEW_ICONS={
+  dashboard:_sv('<rect x="3" y="3" width="7.5" height="8" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="5" rx="1.5"/><rect x="3" y="14" width="7.5" height="7" rx="1.5"/><rect x="13.5" y="11" width="7.5" height="10" rx="1.5"/>'),
+  table:_sv('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14.5h18M9 9v11"/>'),
+  gantt:_sv('<path d="M4 4v16M8 7h9M6.5 12h11M10 17h7"/>'),
+  deliv:_sv('<path d="M5 3v18M5 4h11l-2 3.5L16 11H5"/>'),
+  timeline:_sv('<path d="M3 8h13l-3-3M21 16H8l3 3"/>'),
+  cr:_sv('<path d="M15.5 4H6a1.5 1.5 0 0 0-1.5 1.5v13A1.5 1.5 0 0 0 6 20h7M8.5 8h6M8.5 12h3"/><path d="M18.5 13.5l2.5 2.5-4.5 4.5H14v-2.5z"/>'),
+  requests:_sv('<path d="M18 9a6 6 0 1 0-12 0c0 5-2 6.5-2 6.5h16S18 14 18 9z"/><path d="M13.7 20a2 2 0 0 1-3.4 0"/>'),
+  discuss:_sv('<path d="M20 14a2 2 0 0 1-2 2H8l-4 3.5V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/><path d="M8.5 9h7M8.5 12.5h4"/>'),
+  audit:_sv('<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3.5 4.5V9H8"/><path d="M12 8v4.5l3 1.8"/>')
+};
+// التابات التي تحتاج تمييزًا لونيًا إضافيًا لتقارب معناها
+const VIEW_TONE={cr:'plan',requests:'service'};
 
 // المراحل الديناميكية: قائمة مراحل المشروع الحالي (أو الافتراضية)
 function projTrackList(){
@@ -659,7 +704,7 @@ function render(){
   if(arr.length){w.classList.add('show');w.innerHTML=arr.map(x=>'⚠ '+x).join('<br>');}else w.classList.remove('show');
   const views=PERMS[ROLE].views;if(!views.includes(VIEW))VIEW=views[0];
   $('#tabs').setAttribute('role','tablist');
-  $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''}" role="tab" aria-selected="${v===VIEW}" data-v="${v}">${VIEW_LABELS[v]}</button>`).join('');
+  $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''} ${VIEW_TONE[v]?'tab-'+VIEW_TONE[v]:''}" role="tab" aria-selected="${v===VIEW}" data-v="${v}">${VIEW_ICONS[v]||''}<span>${VIEW_LABELS[v]}</span></button>`).join('');
   $$('#tabs .tab').forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render();});
   const host=$('#host');
   // حالة فارغة: مشروع بلا بنود — دعوة فعل واضحة (لا تبويبات فارغة)
@@ -1166,25 +1211,38 @@ function vDeliv(){
   return `<div class="dwrap"><table class="dtbl"><thead><tr><th>المخرج</th><th>البند</th><th>المسار</th><th>التسليم المتوقع</th><th>الحالة</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
+// نغمة الحدث في السجل: أخضر للاعتماد/الاسترجاع، أحمر للحذف/الرفض، محايد لغيرها
+function auditTone(action){
+  if(/purge|_delete$|^request_deletion|^request_project_deletion|cr_rejected/.test(action))return 'rejected';
+  if(/cr_approved|^restore_|comment_resolve/.test(action))return 'approved';
+  return 'pending';
+}
 function vAudit(rows){
   if(!rows||!rows.length)return '<p class="empty" style="padding:20px;text-align:center">لا تغييرات مسجّلة بعد.</p>';
-  const ACT={status_change:'تغيير الحالة',progress_change:'تحديث التقدّم',duration_change:'تغيير المدة',cr_created:'طلب تعديل خطة جديد',cr_approved:'الموافقة على طلب تعديل',cr_rejected:'رفض طلب تعديل',cr_pending:'طلب تعديل معلّق'};
-  const ENT={task:'بند',change_request:'طلب تعديل خطة'};
+  // القاموس موحّد مع سجل المكتب (AUDIT_ACTIONS في config.js) — لا تعريف محلي مكرّر
+  const ACT=AUDIT_ACTIONS,ENT=AUDIT_ENTITIES;
   // خريطة معرّف البند → اسمه (للعرض المفهوم)
   const taskById={};PROJECT.tasks.forEach(t=>{taskById[t._dbId]=t;});
   const rowsHtml=rows.map(a=>{
     const act=ACT[a.action]||a.action;
+    const nv=a.new_value||null,ov=a.old_value||null;
     let detail='';
-    if(a.action==='status_change'&&a.old_value&&a.new_value){detail=`${STATUS[a.old_value.status]||a.old_value.status} ← ${STATUS[a.new_value.status]||a.new_value.status}`;}
-    else if(a.action==='progress_change'&&a.new_value){detail=`${a.old_value?a.old_value.progress:0}% ← ${a.new_value.progress}%`;}
-    else if(a.action==='duration_change'&&a.new_value){detail=`${a.old_value?a.old_value.duration:'?'} ← ${a.new_value.duration} يوم`;}
-    else if(a.action==='cr_created'&&a.new_value){detail=esc(a.new_value.reason||a.new_value.kind||'');}
+    if(a.action==='status_change'&&ov&&nv){detail=`${STATUS[ov.status]||ov.status} ← ${STATUS[nv.status]||nv.status}`;}
+    else if(a.action==='progress_change'&&nv){detail=`${ov?ov.progress:0}% ← ${nv.progress}%`;}
+    else if(a.action==='duration_change'&&nv){detail=`${ov?ov.duration:'?'} ← ${nv.duration} يوم`;}
+    else if(a.action==='client_request_status'&&nv){detail=`${(ov&&ov.status)||'—'} ← ${nv.status||'—'}`;}
+    else{
+      // احتياطي عام: أول حقل نصّي ذي معنى من القيمة الجديدة ثم القديمة
+      const pick=o=>o&&(o.reason||o.description||o.title||o.body||o.name||o.kind||o.task_ref||null);
+      const v=pick(nv)||pick(ov)||'';
+      if(v)detail=esc(String(v).slice(0,90));
+    }
     const t=a.entity==='task'?taskById[a.entity_id]:null;
-    const target=t?(esc(t.id)+' — '+esc(t.name)):(ENT[a.entity]||a.entity);
+    const target=t?(esc(t.id)+' — '+esc(t.name)):(ENT[a.entity]||a.entity||'—');
     const when=new Date(a.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
     return `<tr>
       <td style="white-space:nowrap;font-size:.76rem;color:var(--muted)">${when}</td>
-      <td><span class="crstate ${a.action.startsWith('cr_')?(a.action==='cr_approved'?'approved':a.action==='cr_rejected'?'rejected':'pending'):'pending'}" style="font-size:.7rem">${act}</span></td>
+      <td><span class="crstate ${auditTone(a.action)}" style="font-size:.7rem">${act}</span></td>
       <td>${target}</td>
       <td style="font-size:.8rem;color:#4a4233">${detail}</td>
     </tr>`;
@@ -1767,13 +1825,7 @@ async function renderArchived(){
 }
 
 // ===== سجل التدقيق على مستوى المكتب =====
-const AUDIT_LABELS={
-  archive_client:'أرشفة عميل',restore_client:'استرجاع عميل',request_deletion:'طلب حذف',purge_client:'حذف نهائي',
-  comment_add:'إضافة تعليق',comment_delete:'حذف تعليق',comment_resolve:'حلّ تعليق',comment_reopen:'إعادة فتح تعليق',
-  requirement_add:'إضافة متطلب',requirement_delete:'حذف متطلب',
-  project_create:'إنشاء مشروع',project_delete:'حذف مشروع',
-  task_update:'تعديل مهمة',cr_create:'طلب تغيير',cr_decision:'قرار تغيير'
-};
+// القاموس موحّد في config.js (AUDIT_ACTIONS) ويشترك فيه سجل المكتب وسجل المشروع.
 
 // ===== إسناد الفريق (داخلي — لا يظهر للعميل بأي شكل) =====
 async function openAssignPanel(projectId,projectName){
@@ -2168,10 +2220,10 @@ async function renderAuditLog(){
   if(!rows.length){list.innerHTML='<div class="empty-cta"><div class="ico">'+I.clipboard+'</div><h3>السجل فارغ</h3><p>الأفعال الحسّاسة (حذف، أرشفة، تعليقات، طلبات) ستظهر هنا.</p></div>';return;}
   const fmt=ts=>{const d=new Date(ts);return d.toLocaleDateString('ar-SA-u-ca-gregory',{year:'numeric',month:'short',day:'numeric'})+' · '+d.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});};
   list.innerHTML='<div class="audit-table">'+rows.map(r=>{
-    const label=AUDIT_LABELS[r.action]||r.action;
+    const label=AUDIT_ACTIONS[r.action]||r.action;
     const detail=(r.new_value&&(r.new_value.name||r.new_value.body||r.new_value.description||r.new_value.title))||(r.old_value&&(r.old_value.name||r.old_value.body||r.old_value.description))||'';
     const isCrit=/purge|delete/.test(r.action);
-    return `<div class="audit-row"><span class="audit-act ${isCrit?'crit':''}">${label}</span><span class="audit-ent">${r.entity||''}</span><span class="audit-detail">${detail?esc(String(detail).slice(0,80)):''}</span><span class="audit-time">${fmt(r.created_at)}</span></div>`;
+    return `<div class="audit-row"><span class="audit-act ${isCrit?'crit':''}">${label}</span><span class="audit-ent">${AUDIT_ENTITIES[r.entity]||r.entity||''}</span><span class="audit-detail">${detail?esc(String(detail).slice(0,80)):''}</span><span class="audit-time">${fmt(r.created_at)}</span></div>`;
   }).join('')+'</div>';
 }
 
@@ -2263,14 +2315,26 @@ $('#approveContract').onclick=async()=>{
 
 // ===== تبويب طلبات التغيير =====
 
+// أنواع طلبات تعديل الخطة — و«وضع التطبيق»: هل يطبّقه النظام آليًا عند الموافقة أم يحتاج تنفيذًا يدويًا؟
+const CR_KIND={
+  duration:{t:'تغيير المدة',auto:true},
+  deps:{t:'تغيير التبعيات',auto:false},
+  add:{t:'إضافة بند',auto:false},
+  remove:{t:'حذف بند',auto:false},
+  other:{t:'أخرى',auto:false}
+};
+const crAutoNote='<span class="cr-mode auto">⚡ يُطبَّق على الجدول تلقائيًا عند الموافقة</span>';
+const crManualNote='<span class="cr-mode manual">✋ يتطلب تنفيذًا يدويًا في تبويب «الجدول» بعد الموافقة</span>';
 function vCR(){
   const canApprove=PERMS[ROLE].crAction==='approve';
   const canRequest=!!PERMS[ROLE].crAction;
   const taskOpts=PROJECT.tasks.filter(t=>t.type!=='milestone').map(t=>`<option value="${esc(t.id)}">${esc(t.id)} — ${esc(t.name)}</option>`).join('');
+  const kindOpts=Object.keys(CR_KIND).map(k=>`<option value="${k}">${CR_KIND[k].t}</option>`).join('');
   const form=canRequest?`<div class="crform">
     <h4>رفع طلب تعديل على الخطة</h4>
     <select id="crTask">${taskOpts}</select>
-    <select id="crKind"><option value="duration">تغيير المدة</option><option value="deps">تغيير التبعيات</option><option value="add">إضافة بند</option><option value="remove">حذف بند</option><option value="other">أخرى</option></select>
+    <select id="crKind">${kindOpts}</select>
+    <div id="crModeHint" class="cr-modehint">${crAutoNote}</div>
     <input id="crVal" placeholder="القيمة المقترحة (مثل: 12)">
     <textarea id="crReason" placeholder="المبرر..."></textarea>
     <button class="hbtn" id="crSubmit" style="background:var(--gold);border-color:var(--gold);width:100%">إرسال الطلب</button>
@@ -2279,16 +2343,27 @@ function vCR(){
     const t=PROJECT.tasks.find(x=>x.id===c.task_ref);
     const stcls=c.status==='pending'?'pending':c.status==='approved'?'approved':'rejected';
     const sttxt=c.status==='pending'?'معلّق':c.status==='approved'?'موافق عليه':'مرفوض';
-    const KIND={duration:'تغيير المدة',deps:'تغيير التبعيات',add:'إضافة بند',remove:'حذف بند',other:'أخرى'};
-    const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn" data-ap="${c.id}" style="background:var(--ok);border-color:var(--ok)">موافقة وتطبيق</button><button class="hbtn" data-rj="${c.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc">رفض</button></div>`:'';
-    return `<div class="crcard">
+    const kd=CR_KIND[c.kind]||{t:c.kind,auto:false};
+    // زر الموافقة يقول بصدق ما سيفعله النظام فعلًا
+    const apText=kd.auto?'موافقة وتطبيق':'موافقة (تنفيذ يدوي)';
+    const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn" data-ap="${c.id}" style="background:var(--ok);border-color:var(--ok)">${apText}</button><button class="hbtn" data-rj="${c.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc">رفض</button></div>`:'';
+    // تنبيه تنفيذ معلّق: وافق عليه ولم يُطبَّق آليًا ⇒ الخطة لم تتغيّر بعد
+    const pendingExec=(c.status==='approved'&&!kd.auto)?'<div class="cr-pendexec">⚠ معتمد — لكن الخطة لم تتغيّر تلقائيًا. نفّذ التعديل يدويًا في تبويب «الجدول».</div>':'';
+    return `<div class="crcard cr-plan">
       <div class="crhd"><span class="crid">${esc(c.id.slice(0,12))}</span><span class="crstate ${stcls}">${sttxt}</span></div>
-      <div class="crbody"><b>البند:</b> ${esc(c.task_ref||'—')}${t?' — '+esc(t.name):''} · <b>النوع:</b> ${KIND[c.kind]||c.kind}${c.new_value?' · <b>القيمة:</b> '+esc(c.new_value):''}<br><b>المبرر:</b> ${esc(c.reason||'—')}<br><small>${new Date(c.created_at).toLocaleDateString('ar')}</small>${c.decision_note?'<br><small>القرار: '+esc(c.decision_note)+'</small>':''}</div>${actions}</div>`;
+      <div class="crbody"><b>البند:</b> ${esc(c.task_ref||'—')}${t?' — '+esc(t.name):''} · <b>النوع:</b> ${kd.t}${c.new_value?' · <b>القيمة:</b> '+esc(c.new_value):''}<br><b>المبرر:</b> ${esc(c.reason||'—')}<br><small>${new Date(c.created_at).toLocaleDateString('ar')}</small>${c.decision_note?'<br><small>القرار: '+esc(c.decision_note)+'</small>':''}</div>
+      <div class="cr-modewrap">${kd.auto?crAutoNote:crManualNote}</div>${pendingExec}${actions}</div>`;
   }).join(''):'<p class="empty" style="color:var(--muted);font-style:italic">لا طلبات تغيير.</p>';
   return `<div class="crwrap">${form}<div class="crlist">${list}</div></div>`;
 }
 
 function bindCR(){
+  // تلميح حيّ: يوضّح قبل الإرسال هل سيُطبَّق الطلب آليًا أم يدويًا
+  const kindSel=$('#crKind'),modeHint=$('#crModeHint');
+  if(kindSel&&modeHint){
+    const paint=()=>{const kd=CR_KIND[kindSel.value]||{auto:false};modeHint.innerHTML=kd.auto?crAutoNote:crManualNote;};
+    kindSel.onchange=paint;paint();
+  }
   const sub=$('#crSubmit');
   if(sub)sub.onclick=async()=>{
     const reason=$('#crReason').value.trim();if(!reason){toast('اكتب المبرر','warn');return;}
@@ -2299,11 +2374,21 @@ function bindCR(){
   };
   $$('[data-ap]').forEach(b=>b.onclick=async()=>{
     const c=CRS.find(x=>x.id===b.dataset.ap);
-    // تطبيق آلي لتغيير المدة
-    if(c.kind==='duration'&&c.task_ref){const t=PROJECT.tasks.find(x=>x.id===c.task_ref);
-      if(t&&t._dbId){const nv=parseInt(c.new_value||t.duration,10);await updateTaskFields(t._dbId,{duration:nv});}}
-    await decideCR(c.id,{status:'approved',decision_note:'طُبّق',decided_at:new Date().toISOString()});
+    const kd=CR_KIND[c.kind]||{t:c.kind,auto:false};
+    let applied=false;
+    // تطبيق آلي لتغيير المدة فقط — بقية الأنواع تحتاج تنفيذًا يدويًا
+    if(kd.auto&&c.kind==='duration'&&c.task_ref){
+      const t=PROJECT.tasks.find(x=>x.id===c.task_ref);
+      const nv=parseInt(c.new_value,10);
+      if(t&&t._dbId&&!isNaN(nv)){await updateTaskFields(t._dbId,{duration:nv});applied=true;}
+    }
+    // ملاحظة القرار تسجّل ما حدث فعلًا — لا «طُبّق» في كل الحالات
+    const note=applied?'معتمد وطُبّق آليًا على الجدول'
+      :(kd.auto?'معتمد — تعذّر التطبيق الآلي (قيمة غير صالحة)، يتطلب تنفيذًا يدويًا'
+               :'معتمد — يتطلب تنفيذًا يدويًا في الجدول');
+    await decideCR(c.id,{status:'approved',decision_note:note,decided_at:new Date().toISOString()});
     await loadProject(CID);render();
+    toast(applied?'اعتُمد الطلب وطُبّق على الجدول':'اعتُمد الطلب — نفّذ التعديل يدويًا في تبويب «الجدول»',applied?'ok':'warn');
   });
   $$('[data-rj]').forEach(b=>b.onclick=async()=>{
     await decideCR(b.dataset.rj,{status:'rejected',decided_at:new Date().toISOString()});
