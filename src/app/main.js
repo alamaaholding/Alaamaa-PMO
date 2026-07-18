@@ -93,10 +93,10 @@ async function renderAuditLog(){
   if(!rows.length){list.innerHTML='<div class="empty-cta"><div class="ico">'+I.clipboard+'</div><h3>السجل فارغ</h3><p>الأفعال الحسّاسة (حذف، أرشفة، تعليقات، طلبات) ستظهر هنا.</p></div>';return;}
   const fmt=ts=>{const d=new Date(ts);return d.toLocaleDateString('ar-SA-u-ca-gregory',{year:'numeric',month:'short',day:'numeric'})+' · '+d.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});};
   list.innerHTML='<div class="audit-table">'+rows.map(r=>{
-    const label=AUDIT_LABELS[r.action]||r.action;
+    const label=AUDIT_ACTIONS[r.action]||r.action;
     const detail=(r.new_value&&(r.new_value.name||r.new_value.body||r.new_value.description||r.new_value.title))||(r.old_value&&(r.old_value.name||r.old_value.body||r.old_value.description))||'';
     const isCrit=/purge|delete/.test(r.action);
-    return `<div class="audit-row"><span class="audit-act ${isCrit?'crit':''}">${label}</span><span class="audit-ent">${r.entity||''}</span><span class="audit-detail">${detail?esc(String(detail).slice(0,80)):''}</span><span class="audit-time">${fmt(r.created_at)}</span></div>`;
+    return `<div class="audit-row"><span class="audit-act ${isCrit?'crit':''}">${label}</span><span class="audit-ent">${AUDIT_ENTITIES[r.entity]||r.entity||''}</span><span class="audit-detail">${detail?esc(String(detail).slice(0,80)):''}</span><span class="audit-time">${fmt(r.created_at)}</span></div>`;
   }).join('')+'</div>';
 }
 
@@ -188,14 +188,26 @@ $('#approveContract').onclick=async()=>{
 
 // ===== تبويب طلبات التغيير =====
 
+// أنواع طلبات تعديل الخطة — و«وضع التطبيق»: هل يطبّقه النظام آليًا عند الموافقة أم يحتاج تنفيذًا يدويًا؟
+const CR_KIND={
+  duration:{t:'تغيير المدة',auto:true},
+  deps:{t:'تغيير التبعيات',auto:false},
+  add:{t:'إضافة بند',auto:false},
+  remove:{t:'حذف بند',auto:false},
+  other:{t:'أخرى',auto:false}
+};
+const crAutoNote='<span class="cr-mode auto">⚡ يُطبَّق على الجدول تلقائيًا عند الموافقة</span>';
+const crManualNote='<span class="cr-mode manual">✋ يتطلب تنفيذًا يدويًا في تبويب «الجدول» بعد الموافقة</span>';
 function vCR(){
   const canApprove=PERMS[ROLE].crAction==='approve';
   const canRequest=!!PERMS[ROLE].crAction;
   const taskOpts=PROJECT.tasks.filter(t=>t.type!=='milestone').map(t=>`<option value="${esc(t.id)}">${esc(t.id)} — ${esc(t.name)}</option>`).join('');
+  const kindOpts=Object.keys(CR_KIND).map(k=>`<option value="${k}">${CR_KIND[k].t}</option>`).join('');
   const form=canRequest?`<div class="crform">
     <h4>رفع طلب تعديل على الخطة</h4>
     <select id="crTask">${taskOpts}</select>
-    <select id="crKind"><option value="duration">تغيير المدة</option><option value="deps">تغيير التبعيات</option><option value="add">إضافة بند</option><option value="remove">حذف بند</option><option value="other">أخرى</option></select>
+    <select id="crKind">${kindOpts}</select>
+    <div id="crModeHint" class="cr-modehint">${crAutoNote}</div>
     <input id="crVal" placeholder="القيمة المقترحة (مثل: 12)">
     <textarea id="crReason" placeholder="المبرر..."></textarea>
     <button class="hbtn" id="crSubmit" style="background:var(--gold);border-color:var(--gold);width:100%">إرسال الطلب</button>
@@ -204,16 +216,27 @@ function vCR(){
     const t=PROJECT.tasks.find(x=>x.id===c.task_ref);
     const stcls=c.status==='pending'?'pending':c.status==='approved'?'approved':'rejected';
     const sttxt=c.status==='pending'?'معلّق':c.status==='approved'?'موافق عليه':'مرفوض';
-    const KIND={duration:'تغيير المدة',deps:'تغيير التبعيات',add:'إضافة بند',remove:'حذف بند',other:'أخرى'};
-    const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn" data-ap="${c.id}" style="background:var(--ok);border-color:var(--ok)">موافقة وتطبيق</button><button class="hbtn" data-rj="${c.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc">رفض</button></div>`:'';
-    return `<div class="crcard">
+    const kd=CR_KIND[c.kind]||{t:c.kind,auto:false};
+    // زر الموافقة يقول بصدق ما سيفعله النظام فعلًا
+    const apText=kd.auto?'موافقة وتطبيق':'موافقة (تنفيذ يدوي)';
+    const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn" data-ap="${c.id}" style="background:var(--ok);border-color:var(--ok)">${apText}</button><button class="hbtn" data-rj="${c.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc">رفض</button></div>`:'';
+    // تنبيه تنفيذ معلّق: وافق عليه ولم يُطبَّق آليًا ⇒ الخطة لم تتغيّر بعد
+    const pendingExec=(c.status==='approved'&&!kd.auto)?'<div class="cr-pendexec">⚠ معتمد — لكن الخطة لم تتغيّر تلقائيًا. نفّذ التعديل يدويًا في تبويب «الجدول».</div>':'';
+    return `<div class="crcard cr-plan">
       <div class="crhd"><span class="crid">${esc(c.id.slice(0,12))}</span><span class="crstate ${stcls}">${sttxt}</span></div>
-      <div class="crbody"><b>البند:</b> ${esc(c.task_ref||'—')}${t?' — '+esc(t.name):''} · <b>النوع:</b> ${KIND[c.kind]||c.kind}${c.new_value?' · <b>القيمة:</b> '+esc(c.new_value):''}<br><b>المبرر:</b> ${esc(c.reason||'—')}<br><small>${new Date(c.created_at).toLocaleDateString('ar')}</small>${c.decision_note?'<br><small>القرار: '+esc(c.decision_note)+'</small>':''}</div>${actions}</div>`;
+      <div class="crbody"><b>البند:</b> ${esc(c.task_ref||'—')}${t?' — '+esc(t.name):''} · <b>النوع:</b> ${kd.t}${c.new_value?' · <b>القيمة:</b> '+esc(c.new_value):''}<br><b>المبرر:</b> ${esc(c.reason||'—')}<br><small>${new Date(c.created_at).toLocaleDateString('ar')}</small>${c.decision_note?'<br><small>القرار: '+esc(c.decision_note)+'</small>':''}</div>
+      <div class="cr-modewrap">${kd.auto?crAutoNote:crManualNote}</div>${pendingExec}${actions}</div>`;
   }).join(''):'<p class="empty" style="color:var(--muted);font-style:italic">لا طلبات تغيير.</p>';
   return `<div class="crwrap">${form}<div class="crlist">${list}</div></div>`;
 }
 
 function bindCR(){
+  // تلميح حيّ: يوضّح قبل الإرسال هل سيُطبَّق الطلب آليًا أم يدويًا
+  const kindSel=$('#crKind'),modeHint=$('#crModeHint');
+  if(kindSel&&modeHint){
+    const paint=()=>{const kd=CR_KIND[kindSel.value]||{auto:false};modeHint.innerHTML=kd.auto?crAutoNote:crManualNote;};
+    kindSel.onchange=paint;paint();
+  }
   const sub=$('#crSubmit');
   if(sub)sub.onclick=async()=>{
     const reason=$('#crReason').value.trim();if(!reason){toast('اكتب المبرر','warn');return;}
@@ -224,11 +247,21 @@ function bindCR(){
   };
   $$('[data-ap]').forEach(b=>b.onclick=async()=>{
     const c=CRS.find(x=>x.id===b.dataset.ap);
-    // تطبيق آلي لتغيير المدة
-    if(c.kind==='duration'&&c.task_ref){const t=PROJECT.tasks.find(x=>x.id===c.task_ref);
-      if(t&&t._dbId){const nv=parseInt(c.new_value||t.duration,10);await updateTaskFields(t._dbId,{duration:nv});}}
-    await decideCR(c.id,{status:'approved',decision_note:'طُبّق',decided_at:new Date().toISOString()});
+    const kd=CR_KIND[c.kind]||{t:c.kind,auto:false};
+    let applied=false;
+    // تطبيق آلي لتغيير المدة فقط — بقية الأنواع تحتاج تنفيذًا يدويًا
+    if(kd.auto&&c.kind==='duration'&&c.task_ref){
+      const t=PROJECT.tasks.find(x=>x.id===c.task_ref);
+      const nv=parseInt(c.new_value,10);
+      if(t&&t._dbId&&!isNaN(nv)){await updateTaskFields(t._dbId,{duration:nv});applied=true;}
+    }
+    // ملاحظة القرار تسجّل ما حدث فعلًا — لا «طُبّق» في كل الحالات
+    const note=applied?'معتمد وطُبّق آليًا على الجدول'
+      :(kd.auto?'معتمد — تعذّر التطبيق الآلي (قيمة غير صالحة)، يتطلب تنفيذًا يدويًا'
+               :'معتمد — يتطلب تنفيذًا يدويًا في الجدول');
+    await decideCR(c.id,{status:'approved',decision_note:note,decided_at:new Date().toISOString()});
     await loadProject(CID);render();
+    toast(applied?'اعتُمد الطلب وطُبّق على الجدول':'اعتُمد الطلب — نفّذ التعديل يدويًا في تبويب «الجدول»',applied?'ok':'warn');
   });
   $$('[data-rj]').forEach(b=>b.onclick=async()=>{
     await decideCR(b.dataset.rj,{status:'rejected',decided_at:new Date().toISOString()});
