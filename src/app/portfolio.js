@@ -7,19 +7,21 @@ async function renderPortfolio(){
   const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads">'+I.users+' العملاء المحتملون</button>':'';
   const dolBtn=isStaff?'<button class="reqbtn" id="showDOL" style="background:var(--crit);border-color:var(--crit);color:#fff">'+I.scale+' طبقة القرار (DOL)</button>':'';
   const auditBtn=isStaff?'<button class="reqbtn" id="showAudit">'+I.clipboard+' سجل المكتب</button>':'';
+  const holBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showHolidays">🗓 العطلات</button>':'';
   const tlBtn=isStaff?'<button class="reqbtn" id="showTimeline" style="background:var(--ink);border-color:var(--ink);color:#fff">📦 خط التسليمات الشامل</button>':'';
   const pgBtn=isStaff?'<button class="reqbtn" id="showPGantt" style="background:var(--blue);border-color:var(--blue);color:#fff">'+I.calendar+' الخط الزمني الشامل</button>':'';
   const archBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showArchived">'+I.archive+' المؤرشفة</button>':'';
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
   const skel=CLIENTS.map(()=>'<div class="pcard"><div class="skeleton" style="height:22px;width:55%;margin-bottom:14px"></div><div class="skeleton" style="height:8px;margin-bottom:12px"></div><div class="skeleton" style="height:36px"></div></div>').join('');
   const addClientBtn=(ROLE==='pmo')?'<button class="reqbtn" id="addClientBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ عميل جديد</button>':'';
-  const toolbar=isStaff?`<div class="portfolio-tools">${addClientBtn}${pgBtn}${dolBtn}${auditBtn}${tlBtn}${archBtn}${leadsBtn}</div>`:'';
+  const toolbar=isStaff?`<div class="portfolio-tools">${addClientBtn}${pgBtn}${dolBtn}${auditBtn}${tlBtn}${holBtn}${archBtn}${leadsBtn}</div>`:'';
   $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
   if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;
     const ac=$('#addClientBtn');if(ac)ac.onclick=addNewClient;}
   {const db=$('#showDOL');if(db)db.onclick=openDOL;}
   {const ab=$('#showAudit');if(ab)ab.onclick=renderAuditLog;}
   {const tb=$('#showTimeline');if(tb)tb.onclick=renderPortfolioTimeline;}
+  {const hb=$('#showHolidays');if(hb)hb.onclick=openHolidaysManager;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
   {const pg=$('#showPGantt');if(pg)pg.onclick=renderPortfolioGantt;}
   // استعلام واحد لكل الملخّصات (صف لكل مشروع)
