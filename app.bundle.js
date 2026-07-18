@@ -1,4 +1,4 @@
-const BUILD_V='f1982cd0';
+const BUILD_V='3b8c1a20';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1530,6 +1530,24 @@ async function confirmDialog(title,message,danger){
 
 /* ===== lifecycle.js ===== */
 // ===== app/lifecycle.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
+
+// منفّذ موحّد لإجراءات دورة الحياة (أرشفة/حذف/استرجاع/حذف نهائي).
+// كان النمط نفسه مكررًا 12 مرة: تأكيد → استدعاء RPC → قراءة data.ok → toast → تحديث.
+// التوحيد يضمن أيضًا التقاط الأخطاء الشبكية التي كانت تمرّ صامتة في النسخ السابقة.
+async function runLifecycleAction(o){
+  if(o.title&&!await confirmDialog(o.title,o.message,!!o.danger))return false;
+  let data;
+  try{ ({data}=await o.rpc()); }
+  catch(e){ toast('تعذّر الاتصال: '+(e&&e.message?e.message:'خطأ غير معروف'),'err'); return false; }
+  if(data&&data.ok){
+    toast(o.successMsg,o.successTone||'ok');
+    if(o.onSuccess)await o.onSuccess();
+    return true;
+  }
+  toast((data&&data.error)||o.failMsg||'تعذّر تنفيذ الإجراء','err');
+  return false;
+}
+
 async function newProjectDialog(clientId){
   const c=CLIENTS.find(x=>x.id===clientId)||{name:''};
   const p=await dialog({title:'مشروع جديد — '+c.name,
@@ -1594,15 +1612,22 @@ async function openProjectMenu(projectId, projectName){
       if(PROJECT&&PROJECT._dbId===projectId){await loadProject(CID,PID);render();}
     }catch(e){toast('تعذّر الاسترجاع: '+e.message,'err');}
   }else if(r.action==='archive'){
-    if(!await confirmDialog('أرشفة المشروع','أرشفة «'+(projectName||'')+'»؟ يختفي من المحفظة والخط الزمني، ويُسترجع من المؤرشفة.',false))return;
-    const {data}=await rpcArchiveProject(projectId);
-    if(data&&data.ok){toast('أُرشف المشروع','ok');SCREEN='portfolio';renderPortfolio();}
-    else toast((data&&data.error)||'تعذّر','err');
+    await runLifecycleAction({
+      title:'أرشفة المشروع',
+      message:'أرشفة «'+(projectName||'')+'»؟ يختفي من المحفظة والخط الزمني، ويُسترجع من المؤرشفة.',
+      rpc:()=>rpcArchiveProject(projectId),
+      successMsg:'أُرشف المشروع',
+      onSuccess:()=>{SCREEN='portfolio';renderPortfolio();}
+    });
   }else if(r.action==='delete'){
-    if(!await confirmDialog('طلب حذف المشروع','سيبدأ عدّاد 30 يومًا لحذف «'+(projectName||'')+'» وكل بنوده. قابل للاسترجاع طوال المهلة، والحذف النهائي لمالك النظام.',true))return;
-    const {data}=await rpcRequestProjectDeletion(projectId);
-    if(data&&data.ok){toast('بدأت مهلة حذف المشروع (30 يومًا)','warn');SCREEN='portfolio';renderPortfolio();}
-    else toast((data&&data.error)||'تعذّر','err');
+    await runLifecycleAction({
+      title:'طلب حذف المشروع',
+      message:'سيبدأ عدّاد 30 يومًا لحذف «'+(projectName||'')+'» وكل بنوده. قابل للاسترجاع طوال المهلة، والحذف النهائي لمالك النظام.',
+      danger:true,
+      rpc:()=>rpcRequestProjectDeletion(projectId),
+      successMsg:'بدأت مهلة حذف المشروع (30 يومًا)',successTone:'warn',
+      onSuccess:()=>{SCREEN='portfolio';renderPortfolio();}
+    });
   }
 }
 
@@ -1714,42 +1739,23 @@ async function openClientMenu(clientId){
   }else if(r.action==='access'){
     CID=clientId;PID=null;await openProject();
     if(typeof openAccess==='function')openAccess();
-  }else if(r.action==='trello'){
-    if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
-    openTrello();
-  }else if(r.action==='assign'){
-    openAssignPanel(projectId,projectName);
-  }else if(r.action==='newbl'){
-    if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا لحفظ أساس من جدولته الحالية','warn');return;}
-    if(!await confirmDialog('حفظ أساس جديد','سيُحفظ الوضع المجدول الحالي كأساس مرجعي جديد (v'+(((PROJECT.baselines)||[]).length+1)+') للمقارنة في الجانت. يُستخدم عادة بعد اعتماد طلب تعديل خطة.',false))return;
-    try{const b=await saveNewBaseline(projectId);toast('حُفظ '+b.label,'ok');render();}
-    catch(e){toast('تعذّر: '+e.message,'err');}
-  }else if(r.action==='restore_snap'){
-    // حوكمة: لا استرجاع فوق خطة مثبّتة
-    const {data:pst}=await sb.from('pmo_projects').select('status').eq('id',projectId).single();
-    if(pst&&pst.status==='baselined'){toast('الخطة مثبّتة — الاسترجاع يتطلب طلب تعديل خطة معتمدًا','warn');return;}
-    const snap=await fetchLatestSnapshot(projectId);
-    if(!snap){toast('لا توجد لقطات أمان محفوظة لهذا المشروع بعد','warn');return;}
-    const when=(snap.created_at||'').slice(0,16).replace('T',' ');
-    if(!await confirmDialog('استرجاع نسخة أمان',
-      'سيُستبدل الوضع الحالي للخطة كاملًا بنسخة:\n'+when+' — '+(snap.reason||'لقطة')+'\n\nسيُحفظ الوضع الحالي كلقطة أيضًا قبل الاسترجاع.',true))return;
-    try{
-      if(PROJECT&&PROJECT._dbId===projectId&&PROJECT.tasks.length)
-        await savePlanSnapshot(projectId,'الوضع قبل استرجاع لقطة سابقة');
-      await restorePlanSnapshot(projectId,snap);
-      toast('استُرجعت الخطة من نسخة الأمان','ok');
-      if(PROJECT&&PROJECT._dbId===projectId){await loadProject(CID,PID);render();}
-    }catch(e){toast('تعذّر الاسترجاع: '+e.message,'err');}
   }else if(r.action==='archive'){
-    if(!await confirmDialog('تأكيد الأرشفة','أرشفة «'+c.name+'»؟ سيُخفى من المحفظة النشطة ويمكن استرجاعه لاحقًا.',false))return;
-    const {data}=await rpcArchiveClient(clientId);
-    if(data&&data.ok){toast('تمت الأرشفة','ok');CLIENTS=CLIENTS.filter(x=>x.id!==clientId);renderPortfolio();}
-    else toast((data&&data.error)||'تعذّرت الأرشفة','err');
+    await runLifecycleAction({
+      title:'تأكيد الأرشفة',
+      message:'أرشفة «'+c.name+'»؟ سيُخفى من المحفظة النشطة ويمكن استرجاعه لاحقًا.',
+      rpc:()=>rpcArchiveClient(clientId),
+      successMsg:'تمت الأرشفة',failMsg:'تعذّرت الأرشفة',
+      onSuccess:()=>{CLIENTS=CLIENTS.filter(x=>x.id!==clientId);renderPortfolio();}
+    });
   }else if(r.action==='delete'){
-    if(!await confirmDialog('تأكيد طلب الحذف','طلب حذف «'+c.name+'»؟\n\nسيبدأ عدّاد 30 يومًا. يبقى قابلًا للاسترجاع طوال المهلة. الحذف النهائي يتطلب مالك النظام بعد انقضائها.',true))return;
-    const {data}=await rpcRequestDeletion(clientId);
-    if(data&&data.ok){toast('بدأت مهلة الحذف (30 يومًا)','warn');CLIENTS=CLIENTS.filter(x=>x.id!==clientId);renderPortfolio();}
-    else toast((data&&data.error)||'تعذّر الطلب','err');
+    await runLifecycleAction({
+      title:'تأكيد طلب الحذف',
+      message:'طلب حذف «'+c.name+'»؟\n\nسيبدأ عدّاد 30 يومًا. يبقى قابلًا للاسترجاع طوال المهلة. الحذف النهائي يتطلب مالك النظام بعد انقضائها.',
+      danger:true,
+      rpc:()=>rpcRequestDeletion(clientId),
+      successMsg:'بدأت مهلة الحذف (30 يومًا)',successTone:'warn',failMsg:'تعذّر الطلب',
+      onSuccess:()=>{CLIENTS=CLIENTS.filter(x=>x.id!==clientId);renderPortfolio();}
+    });
   }
 }
 
@@ -1799,29 +1805,29 @@ async function renderArchived(){
     }
   }
   list.innerHTML=html;
-  list.querySelectorAll('[data-prestore]').forEach(b=>b.onclick=async()=>{
-    const {data}=await rpcRestoreProject(b.dataset.prestore);
-    if(data&&data.ok){toast('استُرجع المشروع','ok');renderArchived();}else toast((data&&data.error)||'تعذّر','err');});
-  list.querySelectorAll('[data-pdel]').forEach(b=>b.onclick=async()=>{
-    if(!await confirmDialog('طلب حذف مشروع','بدء مهلة 30 يومًا لحذف هذا المشروع وكل بنوده؟',true))return;
-    const {data}=await rpcRequestProjectDeletion(b.dataset.pdel);
-    if(data&&data.ok){toast('بدأت المهلة','warn');renderArchived();}else toast((data&&data.error)||'تعذّر','err');});
-  list.querySelectorAll('[data-ppurge]').forEach(b=>b.onclick=async()=>{
-    if(!await confirmDialog('حذف نهائي','حذف نهائي لا رجعة فيه للمشروع وكل بنوده. متأكد؟',true))return;
-    const {data}=await rpcPurgeProject(b.dataset.ppurge);
-    if(data&&data.ok){toast('حُذف نهائيًا','ok');renderArchived();}else toast((data&&data.error)||'تعذّر — تحقق من المهلة والصلاحية','err');});
-  list.querySelectorAll('[data-restore]').forEach(b=>b.onclick=async()=>{
-    const {data}=await rpcRestoreClient(b.dataset.restore);
-    if(data&&data.ok){toast('تم الاسترجاع','ok');const c=await fetchClientsByState('active');CLIENTS=c;renderArchived();}
-    else toast((data&&data.error)||'تعذّر','err');});
-  list.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
-    if(!await confirmDialog('طلب حذف','بدء مهلة 30 يومًا لحذف هذا العميل؟',true))return;
-    const {data}=await rpcRequestDeletion(b.dataset.del);
-    if(data&&data.ok){toast('بدأت مهلة الحذف','warn');renderArchived();}else toast((data&&data.error)||'تعذّر','err');});
-  list.querySelectorAll('[data-purge]').forEach(b=>b.onclick=async()=>{
-    if(!await confirmDialog('حذف نهائي','تحذير: حذف نهائي لا رجعة فيه لكل بيانات العميل ومشاريعه. متأكد؟',true))return;
-    const {data}=await rpcPurgeClient(b.dataset.purge);
-    if(data&&data.ok){toast('تم الحذف النهائي','ok');renderArchived();}else toast((data&&data.error)||'تعذّر — تحقق من المهلة والصلاحية','err');});
+  list.querySelectorAll('[data-prestore]').forEach(b=>b.onclick=()=>runLifecycleAction({
+    rpc:()=>rpcRestoreProject(b.dataset.prestore),
+    successMsg:'استُرجع المشروع',onSuccess:renderArchived}));
+  list.querySelectorAll('[data-pdel]').forEach(b=>b.onclick=()=>runLifecycleAction({
+    title:'طلب حذف مشروع',message:'بدء مهلة 30 يومًا لحذف هذا المشروع وكل بنوده؟',danger:true,
+    rpc:()=>rpcRequestProjectDeletion(b.dataset.pdel),
+    successMsg:'بدأت المهلة',successTone:'warn',onSuccess:renderArchived}));
+  list.querySelectorAll('[data-ppurge]').forEach(b=>b.onclick=()=>runLifecycleAction({
+    title:'حذف نهائي',message:'حذف نهائي لا رجعة فيه للمشروع وكل بنوده. متأكد؟',danger:true,
+    rpc:()=>rpcPurgeProject(b.dataset.ppurge),
+    successMsg:'حُذف نهائيًا',failMsg:'تعذّر — تحقق من المهلة والصلاحية',onSuccess:renderArchived}));
+  list.querySelectorAll('[data-restore]').forEach(b=>b.onclick=()=>runLifecycleAction({
+    rpc:()=>rpcRestoreClient(b.dataset.restore),
+    successMsg:'تم الاسترجاع',
+    onSuccess:async()=>{CLIENTS=await fetchClientsByState('active');renderArchived();}}));
+  list.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>runLifecycleAction({
+    title:'طلب حذف',message:'بدء مهلة 30 يومًا لحذف هذا العميل؟',danger:true,
+    rpc:()=>rpcRequestDeletion(b.dataset.del),
+    successMsg:'بدأت مهلة الحذف',successTone:'warn',onSuccess:renderArchived}));
+  list.querySelectorAll('[data-purge]').forEach(b=>b.onclick=()=>runLifecycleAction({
+    title:'حذف نهائي',message:'تحذير: حذف نهائي لا رجعة فيه لكل بيانات العميل ومشاريعه. متأكد؟',danger:true,
+    rpc:()=>rpcPurgeClient(b.dataset.purge),
+    successMsg:'تم الحذف النهائي',failMsg:'تعذّر — تحقق من المهلة والصلاحية',onSuccess:renderArchived}));
 }
 
 // ===== سجل التدقيق على مستوى المكتب =====
