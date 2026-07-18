@@ -22,6 +22,8 @@ async function openProjectMenu(projectId, projectName){
     fields:[{key:'action',label:'الإجراء',type:'select',value:'rename',options:[
       {v:'rename',t:'إعادة تسمية المشروع'},
       {v:'restore_snap',t:'استرجاع نسخة أمان (ما قبل آخر استبدال)'},
+      {v:'assign',t:'إسناد الفريق للمشروع'},
+      {v:'newbl',t:'حفظ أساس جديد (Baseline v'+(((PROJECT&&PROJECT.baselines)||[]).length+1)+')'},
       {v:'archive',t:'أرشفة المشروع'},
       {v:'delete',t:'طلب حذف المشروع (مهلة 30 يومًا)'}
     ]}],confirmText:'متابعة'});
@@ -33,6 +35,13 @@ async function openProjectMenu(projectId, projectName){
       if(PROJECT&&PROJECT._dbId===projectId){PROJECT.name=e.name;render();}
       toast('أُعيدت التسمية','ok');if(SCREEN==='portfolio')renderPortfolio();
     }catch(err){toast('تعذّر: '+err.message,'err');}
+  }else if(r.action==='assign'){
+    openAssignPanel(projectId,projectName);
+  }else if(r.action==='newbl'){
+    if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا لحفظ أساس من جدولته الحالية','warn');return;}
+    if(!await confirmDialog('حفظ أساس جديد','سيُحفظ الوضع المجدول الحالي كأساس مرجعي جديد (v'+(((PROJECT.baselines)||[]).length+1)+') للمقارنة في الجانت. يُستخدم عادة بعد اعتماد طلب تعديل خطة.',false))return;
+    try{const b=await saveNewBaseline(projectId);toast('حُفظ '+b.label,'ok');render();}
+    catch(e){toast('تعذّر: '+e.message,'err');}
   }else if(r.action==='restore_snap'){
     // حوكمة: لا استرجاع فوق خطة مثبّتة
     const {data:pst}=await sb.from('pmo_projects').select('status').eq('id',projectId).single();
@@ -170,6 +179,13 @@ async function openClientMenu(clientId){
   }else if(r.action==='access'){
     CID=clientId;PID=null;await openProject();
     if(typeof openAccess==='function')openAccess();
+  }else if(r.action==='assign'){
+    openAssignPanel(projectId,projectName);
+  }else if(r.action==='newbl'){
+    if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا لحفظ أساس من جدولته الحالية','warn');return;}
+    if(!await confirmDialog('حفظ أساس جديد','سيُحفظ الوضع المجدول الحالي كأساس مرجعي جديد (v'+(((PROJECT.baselines)||[]).length+1)+') للمقارنة في الجانت. يُستخدم عادة بعد اعتماد طلب تعديل خطة.',false))return;
+    try{const b=await saveNewBaseline(projectId);toast('حُفظ '+b.label,'ok');render();}
+    catch(e){toast('تعذّر: '+e.message,'err');}
   }else if(r.action==='restore_snap'){
     // حوكمة: لا استرجاع فوق خطة مثبّتة
     const {data:pst}=await sb.from('pmo_projects').select('status').eq('id',projectId).single();
@@ -278,3 +294,53 @@ const AUDIT_LABELS={
   project_create:'إنشاء مشروع',project_delete:'حذف مشروع',
   task_update:'تعديل مهمة',cr_create:'طلب تغيير',cr_decision:'قرار تغيير'
 };
+
+// ===== إسناد الفريق (داخلي — لا يظهر للعميل بأي شكل) =====
+async function openAssignPanel(projectId,projectName){
+  $('#assignOverlay').style.display='flex';
+  $('#assignTitle').textContent='إسناد الفريق: '+(projectName||'');
+  const body=$('#assignBody');body.innerHTML='<div class="skeleton" style="height:100px"></div>';
+  try{
+    const [members,assigned]=await Promise.all([fetchTeamMembers(),fetchProjectStaff(projectId)]);
+    const aset=new Set(assigned);
+    const roleAr={admin:'إدارة المشاريع',manager:'فريق'};
+    body.innerHTML=`
+      <p class="trk-hint">أعضاء الطاقم المسندون يرون هذا المشروع في محفظتهم وخط تسليماته. المالك وإدارة المشاريع يرون الكل دائمًا. <b>العميل لا يرى الإسناد إطلاقًا.</b></p>
+      ${members.map(u=>`<label class="assign-row"><input type="checkbox" data-assign="${u.id}" ${aset.has(u.id)?'checked':''}>
+        <b>${esc(u.full_name||u.email)}</b><span class="assign-role">${roleAr[u.role]||u.role}</span></label>`).join('')||'<p class="pempty">لا أعضاء طاقم نشطين بعد.</p>'}
+      <div class="imp-actions">
+        <button class="hbtn" id="assignSave" style="background:var(--gold);border-color:var(--gold)">حفظ الإسناد</button>
+        <button class="hbtn ghost" id="assignClose">إغلاق</button>
+      </div>`;
+    $('#assignClose').onclick=()=>{$('#assignOverlay').style.display='none';};
+    $('#assignSave').onclick=async()=>{
+      const ids=[...document.querySelectorAll('#assignBody [data-assign]:checked')].map(c=>c.dataset.assign);
+      try{await saveProjectStaff(projectId,ids);toast('حُفظ الإسناد ('+ids.length+')','ok');$('#assignOverlay').style.display='none';}
+      catch(e){toast('تعذّر: '+e.message,'err');}
+    };
+  }catch(e){body.innerHTML='<p class="pempty">تعذّر التحميل</p>';}
+}
+// ===== مدير العطلات الرسمية =====
+async function openHolidaysManager(){
+  $('#holOverlay').style.display='flex';
+  const body=$('#holBody');body.innerHTML='<div class="skeleton" style="height:100px"></div>';
+  const paint=async()=>{
+    const rows=await fetchHolidays();
+    body.innerHTML=`
+      <p class="trk-hint">العطلات الرسمية (فوق الجمعة/السبت) — تُستثنى من كل الجدولة والمدد والتأخيرات. حدّثها عند إعلان التواريخ الرسمية.</p>
+      ${rows.map(h=>`<div class="hol-row"><b>${esc(h.name)}</b><span>${h.hdate}</span><button class="ib" data-holdel="${h.id}" aria-label="حذف" style="color:var(--crit)">🗑</button></div>`).join('')||'<p class="pempty">لا عطلات مسجلة.</p>'}
+      <div class="hol-row new">
+        <input id="holName" placeholder="اسم العطلة" class="trk-name">
+        <input id="holDate" type="date" class="trk-name" style="max-width:160px">
+        <button class="hbtn" id="holAdd" style="background:var(--ok);border-color:var(--ok)">+ إضافة</button>
+      </div>`;
+    body.querySelectorAll('[data-holdel]').forEach(b=>b.onclick=async()=>{
+      try{await delHolidayRow(b.dataset.holdel);toast('حُذفت','ok');paint();}catch(e){toast('تعذّر','err');}});
+    $('#holAdd').onclick=async()=>{
+      const n=$('#holName').value.trim(),d=$('#holDate').value;
+      if(!n||!d){toast('الاسم والتاريخ مطلوبان','warn');return;}
+      try{await addHolidayRow(d,n);toast('أُضيفت','ok');paint();}catch(e){toast('تعذّر (مكررة؟)','err');}
+    };
+  };
+  paint();
+}
