@@ -76,38 +76,61 @@ function trListForTask(t){
 // بنود قابلة للتصدير: مهام ومعالم (بلا حزم ولا مستمر)
 function trExportable(){return PROJECT.tasks.filter(t=>t.type!=='package'&&t.type!=='cont');}
 
-// ---------- بناء اللوحة ----------
-async function trelloSetupBoard(){
+// ---------- بناء/تعبئة اللوحة ----------
+async function trelloSetupBoard(existingBoardId){
   await trelloLoadCreds();
-  if(!TRELLO_CREDS||!TRELLO_CREDS.token){toast('اضبط إعدادات Trello أولًا','warn');return;}
+  if(!TRELLO_CREDS||!TRELLO_CREDS.token){toast('اضبط إعدادات Trello من أدوات المكتب أولًا','warn');return;}
   if(!PROJECT){toast('افتح المشروع أولًا','warn');return;}
-  const {data:pr}=await sb.from('pmo_projects').select('trello_board_id').eq('id',PROJECT._dbId).single();
-  if(pr&&pr.trello_board_id){
-    if(!await confirmDialog('اللوحة موجودة','لهذا المشروع لوحة مرتبطة بالفعل. هل تريد «الدفع» لتحديثها بدل إنشاء لوحة جديدة؟',false))return;
-    return trelloPush();
-  }
   const tasks=trExportable();
   if(!tasks.length){toast('لا بنود لتصديرها','warn');return;}
-  if(!await confirmDialog('إنشاء لوحة Trello',
-    'ستُنشأ لوحة باسم «'+PROJECT.name+'» بأربع قوائم تنفيذية، و'+tasks.length+' بطاقة من بنود الخطة (بتواريخ الاستحقاق المحسوبة).\n\nالخطة تبقى تُدار من المنصة.',false))return;
-  const L=$('#loader');if(L)L.classList.remove('hidden');
+  let boardId=existingBoardId||null,boardUrl='';
+  const L=$('#loader');
   try{
-    // 1) اللوحة
-    const board=await trFetch('/boards/','POST','name='+encodeURIComponent('ALAMAH — '+PROJECT.name)+'&defaultLists=false&prefs_permissionLevel=private');
-    // 2) القوائم (نعكس الترتيب لأن Trello يضيف من اليسار)
+    if(!boardId){
+      // اختيار مساحة العمل واسم اللوحة
+      let orgs=[];try{orgs=await trFetch('/members/me/organizations','GET','fields=id,displayName');}catch(_e){}
+      const f=[{key:'name',label:'اسم اللوحة',value:'ALAMAH — '+PROJECT.name}];
+      if(orgs&&orgs.length)f.push({key:'org',label:'مساحة العمل',type:'select',value:orgs[0].id,
+        options:orgs.map(o=>({v:o.id,t:o.displayName}))});
+      const q=await dialog({title:'لوحة جديدة',
+        message:'ستُنشأ لوحة خاصة بأربع قوائم تنفيذية و'+tasks.length+' بطاقة من بنود الخطة (بتواريخ الاستحقاق المحسوبة).',
+        fields:f,confirmText:'إنشاء'});
+      if(!q||!q.name)return;
+      if(L)L.classList.remove('hidden');
+      let p='name='+encodeURIComponent(q.name)+'&defaultLists=false&prefs_permissionLevel=private';
+      if(q.org)p+='&idOrganization='+q.org;
+      const board=await trFetch('/boards/','POST',p);
+      boardId=board.id;boardUrl=board.url;
+    }else{
+      if(L)L.classList.remove('hidden');
+      const b=await trFetch('/boards/'+boardId,'GET','fields=url');boardUrl=b.url;
+    }
+    // القوائم: نعيد استخدام الموجود وننشئ الناقص
+    const existing=await trFetch('/boards/'+boardId+'/lists','GET','fields=id,name');
+    const byName={};(existing||[]).forEach(l=>{byName[l.name]=l.id;});
     const listIds={};
     for(const l of TR_LISTS){
-      const lst=await trFetch('/lists','POST','name='+encodeURIComponent(l.name)+'&idBoard='+board.id+'&pos=bottom');
+      if(byName[l.name]){listIds[l.key]=byName[l.name];continue;}
+      const lst=await trFetch('/lists','POST','name='+encodeURIComponent(l.name)+'&idBoard='+boardId+'&pos=bottom');
       listIds[l.key]=lst.id;
     }
-    // 3) ملصقات المراحل
+    // ملصقات المراحل
     const labelIds={};
-    for(const tr of (PROJECT.tracks||[])){
-      try{const lb=await trFetch('/labels','POST','name='+encodeURIComponent(tr.name)+'&color=null&idBoard='+board.id);labelIds[tr.key]=lb.id;}catch(_e){}
-    }
-    // 4) البطاقات
+    try{
+      const labs=await trFetch('/boards/'+boardId+'/labels','GET','fields=id,name');
+      const lbByName={};(labs||[]).forEach(l=>{if(l.name)lbByName[l.name]=l.id;});
+      for(const tr of (PROJECT.tracks||[])){
+        if(lbByName[tr.name]){labelIds[tr.key]=lbByName[tr.name];continue;}
+        const lb=await trFetch('/labels','POST','name='+encodeURIComponent(tr.name)+'&color=null&idBoard='+boardId);
+        labelIds[tr.key]=lb.id;
+      }
+    }catch(_e){}
+    // البطاقات (تخطّي ما له بطاقة سلفًا)
+    const {data:rows}=await sb.from('pmo_tasks').select('ref,trello_card_id').eq('project_id',PROJECT._dbId);
+    const has={};(rows||[]).forEach(r=>{if(r.trello_card_id)has[r.ref]=1;});
     let n=0;
     for(const t of tasks){
+      if(has[t.id])continue;
       const r=SCHED.R[t.id];
       let p='name='+encodeURIComponent(trCardTitle(t))
         +'&desc='+encodeURIComponent(trCardDesc(t))
@@ -116,7 +139,6 @@ async function trelloSetupBoard(){
       if(labelIds[t.track])p+='&idLabels='+labelIds[t.track];
       const card=await trFetch('/cards','POST',p);
       await sb.from('pmo_tasks').update({trello_card_id:card.id}).eq('id',t._dbId);
-      // متطلبات البند كقائمة تحقق
       const reqs=(t.requirements||[]);
       if(reqs.length){
         try{
@@ -127,11 +149,12 @@ async function trelloSetupBoard(){
       }
       n++;
     }
-    await sb.from('pmo_projects').update({trello_board_id:board.id}).eq('id',PROJECT._dbId);
+    await sb.from('pmo_projects').update({trello_board_id:boardId}).eq('id',PROJECT._dbId);
     if(L)L.classList.add('hidden');
-    await dialog({title:'أُنشئت اللوحة',message:'تم إنشاء اللوحة و'+n+' بطاقة.\n\nالرابط:\n'+board.url,confirmText:'تمام'});
+    await dialog({title:existingBoardId?'تم الربط':'أُنشئت اللوحة',
+      message:(existingBoardId?'رُبط المشروع باللوحة، وأُضيفت ':'أُنشئت اللوحة و')+n+' بطاقة.\n\nالرابط:\n'+boardUrl,confirmText:'تمام'});
     toast('اللوحة جاهزة على Trello','ok');
-  }catch(e){if(L)L.classList.add('hidden');toast('تعذّر الإنشاء: '+e.message,'err');}
+  }catch(e){if(L)L.classList.add('hidden');toast('تعذّر: '+e.message,'err');}
 }
 
 // ---------- الدفع: المنصة ← Trello ----------
@@ -214,20 +237,60 @@ async function trelloPull(){
 }
 
 // ---------- القائمة ----------
-async function trelloMenu(){
-  const r=await dialog({title:'لوحة Trello',
-    message:'المنصة مصدر الحقيقة للخطة. Trello سطح تنفيذ للفريق — لا يراه العميل.',
-    fields:[{key:'a',label:'الإجراء',type:'select',value:'setup',options:[
-      {v:'setup',t:'إنشاء اللوحة (أول مرة)'},
-      {v:'push',t:'دفع التحديثات إلى Trello'},
-      {v:'pull',t:'سحب الحالات من Trello'},
-      {v:'settings',t:'إعدادات الاتصال (مفتاح/توكن)'}
-    ]}],confirmText:'متابعة'});
+async function trelloMenu(mode){
+  if(mode==='settings')return trelloSettings();
+  await trelloLoadCreds();
+  if(!TRELLO_CREDS||!TRELLO_CREDS.token){
+    await dialog({title:'لم يُضبط الاتصال بعد',
+      message:'بيانات اعتماد Trello تُضبط مرة واحدة فقط لكل المنصة، من:\n\nالمحفظة ← ⚙ أدوات المكتب ← إعدادات Trello\n\n(بصلاحية مالك المنصة)',confirmText:'تمام'});
+    return;
+  }
+  if(!PROJECT)return;
+  const {data:pr}=await sb.from('pmo_projects').select('trello_board_id').eq('id',PROJECT._dbId).single();
+  const linked=pr&&pr.trello_board_id;
+  let bname='';
+  if(linked){try{const b=await trFetch('/boards/'+linked,'GET','fields=name,url');bname=b.name;TRELLO_CREDS._url=b.url;}catch(_e){bname='(تعذّر قراءة اسم اللوحة)';}}
+  const opts=linked
+    ? [{v:'push',t:'دفع التحديثات إلى اللوحة'},{v:'pull',t:'سحب الحالات من اللوحة'},
+       {v:'open',t:'فتح اللوحة في Trello'},{v:'unlink',t:'فكّ الارتباط بهذه اللوحة'}]
+    : [{v:'new',t:'إنشاء لوحة جديدة لهذا المشروع'},{v:'link',t:'الربط بلوحة موجودة في حسابي'}];
+  const r=await dialog({title:'لوحة Trello — '+PROJECT.name,
+    message:linked?('اللوحة المرتبطة حاليًا: «'+bname+'»\n\nالمنصة مصدر الحقيقة للخطة؛ Trello سطح تنفيذ للفريق ولا يراه العميل.')
+                  :'لا توجد لوحة مرتبطة بهذا المشروع بعد. اختر إنشاء لوحة جديدة أو الربط بواحدة موجودة.',
+    fields:[{key:'a',label:'الإجراء',type:'select',value:opts[0].v,options:opts}],confirmText:'متابعة'});
   if(!r)return;
-  if(r.a==='setup')return trelloSetupBoard();
+  if(r.a==='new')return trelloSetupBoard(null);
+  if(r.a==='link')return trelloLinkExisting();
   if(r.a==='push')return trelloPush();
   if(r.a==='pull')return trelloPull();
-  if(r.a==='settings')return trelloSettings();
+  if(r.a==='open'){
+    try{const b=await trFetch('/boards/'+linked,'GET','fields=url');
+      await dialog({title:'رابط اللوحة',message:b.url,confirmText:'تمام'});}catch(e){toast('تعذّر','err');}
+    return;
+  }
+  if(r.a==='unlink'){
+    if(!await confirmDialog('فكّ الارتباط','سيُفكّ ربط المشروع بهذه اللوحة (اللوحة نفسها تبقى في Trello كما هي، ولن تُحذف). يمكنك الربط بلوحة أخرى بعدها.',true))return;
+    await sb.from('pmo_projects').update({trello_board_id:null}).eq('id',PROJECT._dbId);
+    await sb.from('pmo_tasks').update({trello_card_id:null}).eq('project_id',PROJECT._dbId);
+    toast('فُكّ الارتباط','ok');
+  }
+}
+
+// ---------- الربط بلوحة موجودة ----------
+async function trelloLinkExisting(){
+  const L=$('#loader');if(L)L.classList.remove('hidden');
+  let boards=[];
+  try{boards=await trFetch('/members/me/boards','GET','fields=id,name,closed&filter=open');}
+  catch(e){if(L)L.classList.add('hidden');toast('تعذّر جلب اللوحات: '+e.message,'err');return;}
+  if(L)L.classList.add('hidden');
+  boards=(boards||[]).filter(b=>!b.closed);
+  if(!boards.length){toast('لا لوحات مفتوحة في حسابك — أنشئ لوحة جديدة بدلًا من ذلك','warn');return;}
+  const r=await dialog({title:'الربط بلوحة موجودة',
+    message:'اختر لوحة من حسابك. سيتحقق النظام من وجود القوائم الأربع وينشئ الناقص منها، ثم يُنشئ بطاقات البنود التي لا بطاقة لها.',
+    fields:[{key:'b',label:'اللوحة',type:'select',value:boards[0].id,options:boards.map(b=>({v:b.id,t:b.name}))}],
+    confirmText:'ربط وتعبئة'});
+  if(!r||!r.b)return;
+  return trelloSetupBoard(r.b);
 }
 
 window.trelloMenu=trelloMenu;
