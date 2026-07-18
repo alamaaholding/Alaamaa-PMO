@@ -39,23 +39,30 @@ async function loadProject(clientId, projectId){
   if(!projects||!projects.length){PROJECT=null;return;}
   const p=projects[0];
   // tasks/deps/baseline/CRs تعتمد على project_id فقط → نطلبها بالتوازي
-  const [tasksR,depsR,blR,crR]=await Promise.all([
-    sb.from('pmo_tasks').select('id,ref,wbs,name,track,type,duration,lag,fixed_date,owner,deliverable,status,progress,sort_order').eq('project_id',p.id).order('sort_order'),
-    sb.from('pmo_dependencies').select('task_id,depends_on_id').eq('project_id',p.id),
-    sb.from('pmo_baselines').select('snapshot').eq('project_id',p.id).order('approved_at',{ascending:false}).limit(1),
-    sb.from('pmo_change_requests').select('*').eq('project_id',p.id).order('created_at',{ascending:false})
+  const [tasksR,depsR,blR,crR,holR]=await Promise.all([
+    sb.from('pmo_tasks').select('id,ref,wbs,name,track,type,duration,lag,fixed_date,owner,deliverable,status,progress,sort_order,parent_id').eq('project_id',p.id).order('sort_order'),
+    sb.from('pmo_dependencies').select('id,task_id,depends_on_id,dep_type,lag').eq('project_id',p.id),
+    sb.from('pmo_baselines').select('id,label,snapshot,approved_at').eq('project_id',p.id).order('approved_at',{ascending:true}),
+    sb.from('pmo_change_requests').select('*').eq('project_id',p.id).order('created_at',{ascending:false}),
+    sb.from('pmo_holidays').select('hdate,name').order('hdate')
   ]);
   const tasks=tasksR.data||[],deps=depsR.data||[],bl=blR.data||[];
+  setHolidays(holR?holR.data:[]);
+  window.HOLIDAY_NAMES={};(holR&&holR.data||[]).forEach(h=>{window.HOLIDAY_NAMES[h.hdate]=h.name;});
   CRS=crR.data||[];
   const ids=tasks.map(t=>t.id);let reqs=[];
   if(ids.length){const r=await sb.from('pmo_requirements').select('*').in('task_id',ids);reqs=r.data||[];}
   const refById={};tasks.forEach(t=>refById[t.id]=t.ref);
-  const depMap={};deps.forEach(d=>{(depMap[d.task_id]=depMap[d.task_id]||[]).push(refById[d.depends_on_id]);});
+  const depMap={},depMapX={};
+  deps.forEach(d=>{const rf=refById[d.depends_on_id];
+    (depMap[d.task_id]=depMap[d.task_id]||[]).push(rf);
+    (depMapX[d.task_id]=depMapX[d.task_id]||[]).push({_id:d.id,ref:rf,type:d.dep_type||'FS',lag:d.lag||0});});
   const reqMap={};reqs.forEach(r=>{(reqMap[r.task_id]=reqMap[r.task_id]||[]).push({_id:r.id,desc:r.description,owner:r.owner,sla:r.sla_days,blocking:r.blocking,requested:r.requested_at||'',received:r.received_at||''});});
   PROJECT={_dbId:p.id,name:p.name,start:p.start_date,status:p.status,lifecycle:p.lifecycle,contractValue:p.contract_value,
-    baseline:(bl&&bl.length)?{snapshot:bl[0].snapshot}:null,
+    baseline:(bl&&bl.length)?{snapshot:bl[bl.length-1].snapshot}:null,
+    baselines:bl||[],
     tasks:(()=>{const _refOf={};tasks.forEach(x=>{_refOf[x.id]=x.ref;});
-      return tasks.map(t=>({id:t.ref,_dbId:t.id,parent:t.parent_id?(_refOf[t.parent_id]||null):null,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],requirements:reqMap[t.id]||[]}));})()};
+      return tasks.map(t=>({id:t.ref,_dbId:t.id,parent:t.parent_id?(_refOf[t.parent_id]||null):null,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],depsX:depMapX[t.id]||[],requirements:reqMap[t.id]||[]}));})()};
   PROJECT.tracks=(await sb.from('pmo_project_tracks').select('*').eq('project_id',p.id).order('sort')).data||[];
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
@@ -97,11 +104,12 @@ async function deleteTask(taskDbId){
   const {error}=await sb.from('pmo_tasks').delete().eq('id',taskDbId);
   if(error) throw error;
 }
-async function setDependencies(projectId, taskDbId, dependsOnDbIds){
-  // نحذف القديمة ثم نضيف الجديدة
+async function setDependencies(projectId, taskDbId, links){
+  // links: [{db, type, lag}] أو مصفوفة dbIds (توافق خلفي)
   await sb.from('pmo_dependencies').delete().eq('task_id',taskDbId);
-  if(dependsOnDbIds.length){
-    const rows=dependsOnDbIds.map(d=>({project_id:projectId,task_id:taskDbId,depends_on_id:d}));
+  const norm=(links||[]).map(l=>typeof l==='object'?l:{db:l,type:'FS',lag:0});
+  if(norm.length){
+    const rows=norm.map(l=>({project_id:projectId,task_id:taskDbId,depends_on_id:l.db,dep_type:l.type||'FS',lag:l.lag||0}));
     const {error}=await sb.from('pmo_dependencies').insert(rows);
     if(error) throw error;
   }
@@ -389,4 +397,30 @@ async function openTimeline(hostId,projectId){
 async function openTimelinePortfolio(hostId){
   try{await loadScript('timeline.js?v='+BUILD_V);await window.timelinePortfolio(hostId);}
   catch(e){const h=document.getElementById(hostId);if(h)h.innerHTML='<p class="pempty">تعذّر التحميل</p>';}
+}
+
+// ===== حفظ أساس جديد (v2, v3...) من الجدولة الحالية =====
+async function saveNewBaseline(projectId){
+  const snap={};PROJECT.tasks.forEach(t=>{const r=SCHED.R[t.id];if(r&&t.type!=='cont')snap[t.id]={ES:isoLocal(r.ES),EF:isoLocal(r.EF)};});
+  const n=(PROJECT.baselines||[]).length+1;
+  const {data,error}=await sb.from('pmo_baselines')
+    .insert({project_id:projectId,snapshot:snap,start_date:PROJECT.start,approved_by:USER?USER.id:null,label:'الأساس '+n})
+    .select('id,label,snapshot,approved_at').single();
+  if(error)throw error;
+  PROJECT.baselines=(PROJECT.baselines||[]).concat([data]);
+  return data;
+}
+// ===== العطلات =====
+async function fetchHolidays(){const {data}=await sb.from('pmo_holidays').select('*').order('hdate');return data||[];}
+async function addHolidayRow(hdate,name){const {error}=await sb.from('pmo_holidays').insert({hdate,name});if(error)throw error;}
+async function delHolidayRow(id){const {error}=await sb.from('pmo_holidays').delete().eq('id',id);if(error)throw error;}
+// ===== الفريق والإسناد (داخلي — لا يراه العميل) =====
+async function fetchTeamMembers(){const {data}=await sb.from('team_members').select('id,full_name,email,role').eq('is_active',true).order('full_name');return data||[];}
+async function fetchProjectStaff(projectId){const {data}=await sb.from('pmo_project_staff').select('member_id').eq('project_id',projectId);return (data||[]).map(r=>r.member_id);}
+async function saveProjectStaff(projectId,memberIds){
+  await sb.from('pmo_project_staff').delete().eq('project_id',projectId);
+  if(memberIds.length){
+    const rows=memberIds.map(m=>({project_id:projectId,member_id:m}));
+    const {error}=await sb.from('pmo_project_staff').insert(rows);if(error)throw error;
+  }
 }
