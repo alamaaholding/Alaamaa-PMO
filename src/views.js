@@ -30,7 +30,7 @@ function render(){
   if(arr.length){w.classList.add('show');w.innerHTML=arr.map(x=>'⚠ '+x).join('<br>');}else w.classList.remove('show');
   const views=PERMS[ROLE].views;if(!views.includes(VIEW))VIEW=views[0];
   $('#tabs').setAttribute('role','tablist');
-  $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''}" role="tab" aria-selected="${v===VIEW}" data-v="${v}">${VIEW_LABELS[v]}</button>`).join('');
+  $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''} ${VIEW_TONE[v]?'tab-'+VIEW_TONE[v]:''}" role="tab" aria-selected="${v===VIEW}" data-v="${v}">${VIEW_ICONS[v]||''}<span>${VIEW_LABELS[v]}</span></button>`).join('');
   $$('#tabs .tab').forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render();});
   const host=$('#host');
   // حالة فارغة: مشروع بلا بنود — دعوة فعل واضحة (لا تبويبات فارغة)
@@ -537,25 +537,38 @@ function vDeliv(){
   return `<div class="dwrap"><table class="dtbl"><thead><tr><th>المخرج</th><th>البند</th><th>المسار</th><th>التسليم المتوقع</th><th>الحالة</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
+// نغمة الحدث في السجل: أخضر للاعتماد/الاسترجاع، أحمر للحذف/الرفض، محايد لغيرها
+function auditTone(action){
+  if(/purge|_delete$|^request_deletion|^request_project_deletion|cr_rejected/.test(action))return 'rejected';
+  if(/cr_approved|^restore_|comment_resolve/.test(action))return 'approved';
+  return 'pending';
+}
 function vAudit(rows){
   if(!rows||!rows.length)return '<p class="empty" style="padding:20px;text-align:center">لا تغييرات مسجّلة بعد.</p>';
-  const ACT={status_change:'تغيير الحالة',progress_change:'تحديث التقدّم',duration_change:'تغيير المدة',cr_created:'طلب تعديل خطة جديد',cr_approved:'الموافقة على طلب تعديل',cr_rejected:'رفض طلب تعديل',cr_pending:'طلب تعديل معلّق'};
-  const ENT={task:'بند',change_request:'طلب تعديل خطة'};
+  // القاموس موحّد مع سجل المكتب (AUDIT_ACTIONS في config.js) — لا تعريف محلي مكرّر
+  const ACT=AUDIT_ACTIONS,ENT=AUDIT_ENTITIES;
   // خريطة معرّف البند → اسمه (للعرض المفهوم)
   const taskById={};PROJECT.tasks.forEach(t=>{taskById[t._dbId]=t;});
   const rowsHtml=rows.map(a=>{
     const act=ACT[a.action]||a.action;
+    const nv=a.new_value||null,ov=a.old_value||null;
     let detail='';
-    if(a.action==='status_change'&&a.old_value&&a.new_value){detail=`${STATUS[a.old_value.status]||a.old_value.status} ← ${STATUS[a.new_value.status]||a.new_value.status}`;}
-    else if(a.action==='progress_change'&&a.new_value){detail=`${a.old_value?a.old_value.progress:0}% ← ${a.new_value.progress}%`;}
-    else if(a.action==='duration_change'&&a.new_value){detail=`${a.old_value?a.old_value.duration:'?'} ← ${a.new_value.duration} يوم`;}
-    else if(a.action==='cr_created'&&a.new_value){detail=esc(a.new_value.reason||a.new_value.kind||'');}
+    if(a.action==='status_change'&&ov&&nv){detail=`${STATUS[ov.status]||ov.status} ← ${STATUS[nv.status]||nv.status}`;}
+    else if(a.action==='progress_change'&&nv){detail=`${ov?ov.progress:0}% ← ${nv.progress}%`;}
+    else if(a.action==='duration_change'&&nv){detail=`${ov?ov.duration:'?'} ← ${nv.duration} يوم`;}
+    else if(a.action==='client_request_status'&&nv){detail=`${(ov&&ov.status)||'—'} ← ${nv.status||'—'}`;}
+    else{
+      // احتياطي عام: أول حقل نصّي ذي معنى من القيمة الجديدة ثم القديمة
+      const pick=o=>o&&(o.reason||o.description||o.title||o.body||o.name||o.kind||o.task_ref||null);
+      const v=pick(nv)||pick(ov)||'';
+      if(v)detail=esc(String(v).slice(0,90));
+    }
     const t=a.entity==='task'?taskById[a.entity_id]:null;
-    const target=t?(esc(t.id)+' — '+esc(t.name)):(ENT[a.entity]||a.entity);
+    const target=t?(esc(t.id)+' — '+esc(t.name)):(ENT[a.entity]||a.entity||'—');
     const when=new Date(a.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
     return `<tr>
       <td style="white-space:nowrap;font-size:.76rem;color:var(--muted)">${when}</td>
-      <td><span class="crstate ${a.action.startsWith('cr_')?(a.action==='cr_approved'?'approved':a.action==='cr_rejected'?'rejected':'pending'):'pending'}" style="font-size:.7rem">${act}</span></td>
+      <td><span class="crstate ${auditTone(a.action)}" style="font-size:.7rem">${act}</span></td>
       <td>${target}</td>
       <td style="font-size:.8rem;color:#4a4233">${detail}</td>
     </tr>`;
