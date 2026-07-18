@@ -23,6 +23,7 @@ async function openProjectMenu(projectId, projectName){
       {v:'rename',t:'إعادة تسمية المشروع'},
       {v:'restore_snap',t:'استرجاع نسخة أمان (ما قبل آخر استبدال)'},
       {v:'assign',t:'إسناد الفريق للمشروع'},
+      {v:'trello',t:'لوحة Trello (تنفيذ الفريق)'},
       {v:'newbl',t:'حفظ أساس جديد (Baseline v'+(((PROJECT&&PROJECT.baselines)||[]).length+1)+')'},
       {v:'archive',t:'أرشفة المشروع'},
       {v:'delete',t:'طلب حذف المشروع (مهلة 30 يومًا)'}
@@ -35,6 +36,9 @@ async function openProjectMenu(projectId, projectName){
       if(PROJECT&&PROJECT._dbId===projectId){PROJECT.name=e.name;render();}
       toast('أُعيدت التسمية','ok');if(SCREEN==='portfolio')renderPortfolio();
     }catch(err){toast('تعذّر: '+err.message,'err');}
+  }else if(r.action==='trello'){
+    if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
+    openTrello();
   }else if(r.action==='assign'){
     openAssignPanel(projectId,projectName);
   }else if(r.action==='newbl'){
@@ -179,6 +183,9 @@ async function openClientMenu(clientId){
   }else if(r.action==='access'){
     CID=clientId;PID=null;await openProject();
     if(typeof openAccess==='function')openAccess();
+  }else if(r.action==='trello'){
+    if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
+    openTrello();
   }else if(r.action==='assign'){
     openAssignPanel(projectId,projectName);
   }else if(r.action==='newbl'){
