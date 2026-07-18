@@ -112,6 +112,20 @@
 </div>
 
 <!-- نافذة التبعيات -->
+<!-- لوحة الإسناد -->
+<div id="assignOverlay" class="rqoverlay" style="align-items:flex-start">
+  <div class="rqmodal" style="max-width:480px">
+    <div class="rqhd"><h3 id="assignTitle" style="font-size:1.02rem">إسناد الفريق</h3><button onclick="document.getElementById('assignOverlay').style.display='none'" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
+    <div id="assignBody" style="padding:18px"></div>
+  </div>
+</div>
+<!-- لوحة العطلات -->
+<div id="holOverlay" class="rqoverlay" style="align-items:flex-start">
+  <div class="rqmodal" style="max-width:480px">
+    <div class="rqhd"><h3 style="font-size:1.02rem">العطلات الرسمية</h3><button onclick="document.getElementById('holOverlay').style.display='none'" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
+    <div id="holBody" style="padding:18px"></div>
+  </div>
+</div>
 <!-- لوحة إدارة المراحل -->
 <div id="trkOverlay" class="rqoverlay" style="align-items:flex-start">
   <div class="rqmodal" style="max-width:520px">
