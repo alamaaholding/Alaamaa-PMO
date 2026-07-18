@@ -4,17 +4,27 @@ async function renderPortfolio(){
   $('#hProject').textContent='محفظة المشاريع';
   $('#barClient').style.display='none';hideChrome();
   const isStaff=(ROLE==='pmo'||ROLE==='delivery');
-  const leadsBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showLeads">'+I.users+' العملاء المحتملون</button>':'';
-  const dolBtn=isStaff?'<button class="reqbtn" id="showDOL" style="background:var(--crit);border-color:var(--crit);color:#fff">'+I.scale+' طبقة القرار (DOL)</button>':'';
-  const auditBtn=isStaff?'<button class="reqbtn" id="showAudit">'+I.clipboard+' سجل المكتب</button>':'';
-  const holBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showHolidays">🗓 العطلات</button>':'';
-  const tlBtn=isStaff?'<button class="reqbtn" id="showTimeline" style="background:var(--ink);border-color:var(--ink);color:#fff">📦 خط التسليمات الشامل</button>':'';
-  const pgBtn=isStaff?'<button class="reqbtn" id="showPGantt" style="background:var(--blue);border-color:var(--blue);color:#fff">'+I.calendar+' الخط الزمني الشامل</button>':'';
-  const archBtn=(ROLE==='pmo')?'<button class="reqbtn" id="showArchived">'+I.archive+' المؤرشفة</button>':'';
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
   const skel=CLIENTS.map(()=>'<div class="pcard"><div class="skeleton" style="height:22px;width:55%;margin-bottom:14px"></div><div class="skeleton" style="height:8px;margin-bottom:12px"></div><div class="skeleton" style="height:36px"></div></div>').join('');
-  const addClientBtn=(ROLE==='pmo')?'<button class="reqbtn" id="addClientBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ عميل جديد</button>':'';
-  const toolbar=isStaff?`<div class="portfolio-tools">${addClientBtn}${pgBtn}${dolBtn}${auditBtn}${tlBtn}${holBtn}${archBtn}${leadsBtn}</div>`:'';
+  const toolItems=[];
+  if(isStaff){
+    toolItems.push({id:'showPGantt',t:'الخط الزمني الشامل',i:'📅'});
+    toolItems.push({id:'showTimeline',t:'خط التسليمات الشامل',i:'📦'});
+    toolItems.push({id:'showDOL',t:'طبقة القرار (DOL)',i:'⚖'});
+    toolItems.push({id:'showAudit',t:'سجل المكتب',i:'📋'});
+  }
+  if(ROLE==='pmo'){
+    toolItems.push({id:'showHolidays',t:'العطلات الرسمية',i:'🗓'});
+    toolItems.push({id:'showArchived',t:'المؤرشفة',i:'🗄'});
+    toolItems.push({id:'showLeads',t:'العملاء المحتملون',i:'👥'});
+  }
+  if(IS_OWNER)toolItems.push({id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
+  const toolsMenu=toolItems.length?`<div class="tools-wrap">
+    <button class="hbtn tools-btn" id="toolsBtn" aria-expanded="false" aria-haspopup="true">⚙ أدوات المكتب <span class="tools-caret">▾</span></button>
+    <div class="tools-pop" id="toolsPop" role="menu">${toolItems.map(t=>`<button role="menuitem" id="${t.id}"><span class="ti">${t.i}</span>${t.t}</button>`).join('')}</div>
+  </div>`:'';
+  const primaryBtn=(ROLE==='pmo')?'<button class="hbtn primary-cta" id="addClientBtn">+ عميل جديد</button>':'';
+  const toolbar=isStaff?`<div class="portfolio-tools">${primaryBtn}${toolsMenu}</div>`:'';
   $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
   if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;
     const ac=$('#addClientBtn');if(ac)ac.onclick=addNewClient;}
@@ -24,6 +34,15 @@ async function renderPortfolio(){
   {const hb=$('#showHolidays');if(hb)hb.onclick=openHolidaysManager;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
   {const pg=$('#showPGantt');if(pg)pg.onclick=renderPortfolioGantt;}
+  {const ts=$('#showTrelloSet');if(ts)ts.onclick=()=>openTrello('settings');}
+  {const tb=$('#toolsBtn'),pop=$('#toolsPop');
+    if(tb&&pop){
+      const close=()=>{pop.classList.remove('open');tb.setAttribute('aria-expanded','false');};
+      tb.onclick=(e)=>{e.stopPropagation();const o=pop.classList.toggle('open');tb.setAttribute('aria-expanded',o?'true':'false');};
+      pop.querySelectorAll('button').forEach(b=>b.addEventListener('click',close));
+      document.addEventListener('click',close);
+      tb.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
+    }}
   // استعلام واحد لكل الملخّصات (صف لكل مشروع)
   const {data:rows,error}=await fetchPortfolio();
   const grid=$('#pgrid');grid.innerHTML='';
@@ -155,7 +174,8 @@ async function renderPortfolio(){
     </div>`;
   };
 
-  shown.forEach(x=>{
+  const withProj=shown.filter(x=>!x.noProjects), empty=shown.filter(x=>x.noProjects);
+  const renderCard=x=>{
     const multi=x.list.length>1;
     const expanded=PEXPANDED.has(x.cid);
     const alertBadges=[];
@@ -183,7 +203,24 @@ async function renderPortfolio(){
       ${multi?`<div class="pcompany-body" style="display:${expanded?'block':'none'}">${x.list.map(projRow).join('')}${ROLE==='pmo'?`<button class="reqbtn" data-addproj="${x.cid}" style="margin:6px 2px;background:var(--ok);border-color:var(--ok);color:#fff">+ مشروع جديد</button>`:''}</div>`:''}
     `;
     grid.appendChild(card);
-  });
+  };
+  withProj.forEach(renderCard);
+  // قسم مطوي للعملاء بلا مشاريع (لا يزاحم النشط)
+  if(empty.length){
+    const sec=document.createElement('div');sec.className='empty-sec';
+    const open=PEXPANDED.has('__empty');
+    sec.innerHTML=`<button class="empty-sec-hd" data-emptytoggle="1" aria-expanded="${open}">
+        <span class="es-chev">${open?'▴':'▾'}</span> عملاء بلا مشاريع <span class="es-n">${empty.length}</span>
+        <span class="es-hint">جاهزون لإضافة أول مشروع</span></button>
+      <div class="empty-sec-body" style="display:${open?'flex':'none'}">
+        ${empty.map(x=>`<button class="ecard" data-newproj="${x.cid}" style="--cc:${x.c.color}">
+          <span class="edot"></span><b>${esc(x.c.name)}</b><span class="eadd">+ أول مشروع</span></button>`).join('')}
+      </div>`;
+    grid.appendChild(sec);
+    const hd=sec.querySelector('[data-emptytoggle]');
+    hd.onclick=()=>{PEXPANDED.has('__empty')?PEXPANDED.delete('__empty'):PEXPANDED.add('__empty');renderPortfolio();};
+    sec.querySelectorAll('[data-newproj]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();newProjectDialog(b.dataset.newproj);});
+  }
 
   // التفاعل: ترويسة الشركة — توسّع (متعدد) أو تدخل مباشرة (مفرد)
   document.querySelectorAll('[data-toggle]').forEach(el=>el.onclick=async(e)=>{
