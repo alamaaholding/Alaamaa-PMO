@@ -378,14 +378,30 @@ function renderDeps(){
   function collectDependents(ref){PROJECT.tasks.forEach(t=>{if((t.deps||[]).includes(ref)&&!dependents.has(t.id)){dependents.add(t.id);collectDependents(t.id);}});}
   collectDependents(DEP_TASK.id);
   const opts=PROJECT.tasks.filter(t=>t.id!==DEP_TASK.id&&!dependents.has(t.id));
-  $('#depList').innerHTML=opts.map(t=>`<label style="display:flex;align-items:center;gap:9px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;cursor:pointer;font-size:.84rem">
-    <input type="checkbox" data-dep="${esc(t.id)}" ${current.has(t.id)?'checked':''}>
-    <span class="idcell" style="--tc:${TRACKS[t.track].color}">${esc(t.id)}</span> ${esc(t.name)}</label>`).join('')||'<p class="empty">لا بنود متاحة.</p>';
+  const xmap={};(DEP_TASK.depsX||[]).forEach(x=>{xmap[x.ref]=x;});
+  $('#depList').innerHTML=opts.map(t=>{const on=current.has(t.id),x=xmap[t.id]||{type:'FS',lag:0};
+    return `<div class="dep-row" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;font-size:.84rem">
+    <input type="checkbox" data-dep="${esc(t.id)}" ${on?'checked':''} id="dp_${esc(t.id)}">
+    <label for="dp_${esc(t.id)}" style="cursor:pointer;flex:1;display:flex;align-items:center;gap:8px"><span class="idcell" style="--tc:${trackMeta(t.track).color}">${esc(t.id)}</span> ${esc(t.name)}</label>
+    <select data-deptype="${esc(t.id)}" class="dep-type" aria-label="نوع التبعية" ${on?'':'disabled'}>
+      <option value="FS" ${x.type==='FS'?'selected':''}>بعد انتهاء (FS)</option>
+      <option value="SS" ${x.type==='SS'?'selected':''}>مع بداية (SS)</option>
+      <option value="FF" ${x.type==='FF'?'selected':''}>مع نهاية (FF)</option>
+    </select>
+    <input type="number" data-deplag="${esc(t.id)}" class="dep-lag" value="${x.lag||0}" title="إزاحة بأيام العمل (سالبة=تداخل)" aria-label="الإزاحة" ${on?'':'disabled'}>
+  </div>`;}).join('')||'<p class="empty">لا بنود متاحة.</p>';
+  document.querySelectorAll('#depList [data-dep]').forEach(cb=>cb.onchange=()=>{
+    const r=cb.dataset.dep;
+    const s=document.querySelector(`[data-deptype="${r}"]`),l=document.querySelector(`[data-deplag="${r}"]`);
+    if(s)s.disabled=!cb.checked;if(l)l.disabled=!cb.checked;});
 }
 $('#depSave').onclick=async()=>{
-  const checked=[...document.querySelectorAll('#depList [data-dep]:checked')].map(c=>c.dataset.dep);
-  // تحويل المعرّفات (ref) إلى dbIds
-  const dbIds=checked.map(ref=>{const t=PROJECT.tasks.find(x=>x.id===ref);return t?t._dbId:null;}).filter(Boolean);
+  const links=[...document.querySelectorAll('#depList [data-dep]:checked')].map(c=>{
+    const ref=c.dataset.dep;const t=PROJECT.tasks.find(x=>x.id===ref);if(!t)return null;
+    const s=document.querySelector(`[data-deptype="${ref}"]`),l=document.querySelector(`[data-deplag="${ref}"]`);
+    return {db:t._dbId,type:(s&&s.value)||'FS',lag:parseInt((l&&l.value)||'0',10)||0};
+  }).filter(Boolean);
+  const dbIds=links;
   try{
     await setDependencies(PROJECT._dbId,DEP_TASK._dbId,dbIds);
     await loadProject(CID);
