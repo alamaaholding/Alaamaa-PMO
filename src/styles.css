@@ -60,9 +60,16 @@ select.csel{font-family:inherit;border:1px solid #3a3528;background:#26241f;colo
 .warn{margin:var(--s3) 0;padding:var(--s3) var(--s4);border-radius:var(--r);background:var(--crit-bg);border:1px solid #ecc9bf;border-inline-start:4px solid var(--crit);color:var(--crit);font-size:var(--fs-md);display:none;line-height:1.7}
 .warn.show{display:block;animation:rise .3s ease}
 .tabs{display:flex;gap:var(--s1);margin-top:var(--s5);flex-wrap:wrap;border-bottom:1px solid var(--line)}
-.tab{font-family:inherit;font-size:var(--fs-base);font-weight:600;padding:11px 17px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1px;transition:var(--t);border-radius:var(--r-sm) var(--r-sm) 0 0}
+.tab{font-family:inherit;font-size:var(--fs-base);font-weight:600;padding:11px 15px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1px;transition:var(--t);border-radius:var(--r-sm) var(--r-sm) 0 0;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
 .tab:hover{color:var(--ink);background:var(--soft-2)}
 .tab.active{color:var(--ink);border-bottom-color:var(--gold)}
+.tab .icn{width:16px;height:16px;opacity:.75;transition:var(--t)}
+.tab.active .icn,.tab:hover .icn{opacity:1}
+/* التبويبان الأكثر التباسًا: شكل أيقونة مختلف + نغمة لون ثابتة تميّزهما فورًا */
+.tab-plan .icn{color:var(--blue);opacity:.9}
+.tab-service .icn{color:var(--gold-dark);opacity:.9}
+.tab-plan.active{border-bottom-color:var(--blue)}
+.tab-service.active{border-bottom-color:var(--gold-dark)}
 .hintbar{font-size:var(--fs-sm);color:var(--muted);padding:var(--s2) 2px;display:flex;align-items:center;gap:6px}
 #host{padding:var(--s4) 0 var(--s10);animation:fade .25s ease}
 @keyframes fade{from{opacity:0}to{opacity:1}}
@@ -192,6 +199,20 @@ select.st:hover{border-color:var(--gold)}
 .crstate.pending{background:var(--warn-bg);color:var(--warn)}.crstate.approved{background:var(--ok-bg);color:var(--ok)}.crstate.rejected{background:var(--crit-bg);color:var(--crit)}
 .crbody{font-size:var(--fs-md);line-height:1.75}.crbody small{color:var(--muted)}
 .cract{display:flex;gap:var(--s2);margin-top:var(--s3)}
+/* ===== فصل بصري: «تعديل الخطة» (أزرق/بنيوي) مقابل «طلبات الخدمة» (ذهبي/تشغيلي) ===== */
+.crcard.cr-plan{border-inline-start:3px solid var(--blue)}
+.cr-modewrap{margin-top:var(--s2)}
+.cr-mode{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:700;padding:3px 10px;border-radius:999px;line-height:1.7}
+.cr-mode.auto{background:var(--ok-bg);color:var(--ok)}
+.cr-mode.manual{background:var(--blue-bg);color:var(--blue)}
+.cr-modehint{margin:2px 0 var(--s1)}
+.cr-pendexec{margin-top:var(--s2);font-size:var(--fs-sm);font-weight:600;color:var(--warn);background:var(--warn-bg);border-radius:var(--r-sm);padding:7px 10px;line-height:1.6}
+/* شريطا التوضيح: نغمة لونية مختلفة لكل تبويب */
+.hintbar.exp-cr,.hintbar.exp-rq{border-inline-start:3px solid var(--line);padding-inline-start:10px;border-radius:0 var(--r-sm) var(--r-sm) 0}
+.hintbar.exp-cr{border-inline-start-color:var(--blue);background:linear-gradient(to left,transparent,var(--blue-bg))}
+.hintbar.exp-rq{border-inline-start-color:var(--gold-dark);background:linear-gradient(to left,transparent,var(--soft))}
+html[dir="rtl"] .hintbar.exp-cr,html[dir="rtl"] .hintbar.exp-rq{background-image:linear-gradient(to right,var(--blue-bg),transparent)}
+html[dir="rtl"] .hintbar.exp-rq{background-image:linear-gradient(to right,var(--soft),transparent)}
 .rqoverlay,#accessOverlay{position:fixed;inset:0;background:rgba(26,26,26,.55);backdrop-filter:blur(3px);z-index:120;display:none;align-items:flex-start;justify-content:center;padding:var(--s10) var(--s4);overflow:auto}
 .rqmodal,#accessOverlay>div{background:#fff;border-radius:var(--r-lg);max-width:880px;width:100%;box-shadow:var(--e4);animation:rise .3s cubic-bezier(.2,.8,.2,1)}
 .rqhd,#accessOverlay .mhd{background:var(--ink);color:#fff;padding:var(--s4) var(--s5);border-radius:var(--r-lg) var(--r-lg) 0 0;display:flex;justify-content:space-between;align-items:center}
