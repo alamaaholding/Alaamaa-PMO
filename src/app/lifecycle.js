@@ -294,13 +294,7 @@ async function renderArchived(){
 }
 
 // ===== سجل التدقيق على مستوى المكتب =====
-const AUDIT_LABELS={
-  archive_client:'أرشفة عميل',restore_client:'استرجاع عميل',request_deletion:'طلب حذف',purge_client:'حذف نهائي',
-  comment_add:'إضافة تعليق',comment_delete:'حذف تعليق',comment_resolve:'حلّ تعليق',comment_reopen:'إعادة فتح تعليق',
-  requirement_add:'إضافة متطلب',requirement_delete:'حذف متطلب',
-  project_create:'إنشاء مشروع',project_delete:'حذف مشروع',
-  task_update:'تعديل مهمة',cr_create:'طلب تغيير',cr_decision:'قرار تغيير'
-};
+// القاموس موحّد في config.js (AUDIT_ACTIONS) ويشترك فيه سجل المكتب وسجل المشروع.
 
 // ===== إسناد الفريق (داخلي — لا يظهر للعميل بأي شكل) =====
 async function openAssignPanel(projectId,projectName){
