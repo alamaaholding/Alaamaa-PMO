@@ -188,11 +188,19 @@ async function loadComments(projectId){
   const {data}=await sb.from('pmo_comments').select('*').eq('project_id',projectId).order('created_at');
   return data||[];
 }
-async function addComment(projectId, kind, body, parentId){
-  const row={project_id:projectId,kind,body,parent_id:parentId||null,
+async function addComment(projectId, kind, body, parentId, taskId){
+  const row={project_id:projectId,kind,body,parent_id:parentId||null,task_id:taskId||null,
     author_id:USER.id,author_email:USER._name||USER.email,author_role:ROLE};
   const {error}=await sb.from('pmo_comments').insert(row);
   if(error) throw error;
+}
+// نقاش بند بعينه + سجله — لطبقة «لوحة البند»
+async function loadTaskThread(projectId, taskDbId){
+  const [cm,au]=await Promise.all([
+    sb.from('pmo_comments').select('*').eq('project_id',projectId).eq('task_id',taskDbId).order('created_at'),
+    sb.from('pmo_audit_log').select('*').eq('entity','task').eq('entity_id',taskDbId).order('created_at',{ascending:false}).limit(40)
+  ]);
+  return {comments:cm.data||[],audit:au.data||[]};
 }
 async function resolveComment(commentId, resolved){
   await sb.from('pmo_comments').update({resolved}).eq('id',commentId);
