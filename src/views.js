@@ -29,9 +29,12 @@ function render(){
   if(blk.length)arr.push('بنود متوقفة بانتظار متطلبات: '+blk.map(t=>t.id).join('، '));
   if(arr.length){w.classList.add('show');w.innerHTML=arr.map(x=>'⚠ '+x).join('<br>');}else w.classList.remove('show');
   const views=PERMS[ROLE].views;if(!views.includes(VIEW))VIEW=views[0];
+  const C=(PROJECT&&PROJECT.counts)||{};
+  // شارة العدّ: تُعرض فقط حين يوجد ما ينتظر — لا أصفار تشوّش
+  const badge=v=>{const n=C[v]||0;return n?`<span class="tabn" aria-label="${n} بانتظار المتابعة">${n}</span>`:'';};
   $('#tabs').setAttribute('role','tablist');
-  $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''} ${VIEW_TONE[v]?'tab-'+VIEW_TONE[v]:''}" role="tab" aria-selected="${v===VIEW}" data-v="${v}">${VIEW_ICONS[v]||''}<span>${VIEW_LABELS[v]}</span></button>`).join('');
-  $$('#tabs .tab').forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render();});
+  $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''} ${VIEW_TONE[v]?'tab-'+VIEW_TONE[v]:''}" role="tab" aria-selected="${v===VIEW}" data-v="${v}">${VIEW_ICONS[v]||''}<span>${VIEW_LABELS[v]}</span>${badge(v)}</button>`).join('');
+  $$('#tabs .tab').forEach(b=>b.onclick=()=>setView(b.dataset.v));
   const host=$('#host');
   // حالة فارغة: مشروع بلا بنود — دعوة فعل واضحة (لا تبويبات فارغة)
   if(!PROJECT.tasks.length && VIEW!=='discuss' && VIEW!=='requests'){
@@ -614,7 +617,7 @@ function bindDiscuss(){
   const send=document.getElementById('dcSend');
   if(send)send.onclick=async()=>{
     const body=document.getElementById('dcBody').value.trim();if(!body){toast('اكتب رسالة','warn');return;}
-    try{ await addComment(PROJECT._dbId, document.getElementById('dcKind').value, body, null); toast('أُرسلت','ok'); render(); }
+    try{ await addComment(PROJECT._dbId, document.getElementById('dcKind').value, body, null); toast('أُرسلت','ok'); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر الإرسال: '+e.message,'err'); }
   };
   document.querySelectorAll('[data-reply]').forEach(b=>b.onclick=()=>{
@@ -623,17 +626,17 @@ function bindDiscuss(){
     box.innerHTML=`<div style="display:flex;gap:6px;margin-top:8px"><input id="rin-${b.dataset.reply}" placeholder="ردك..." style="flex:1;border:1.5px solid var(--line);border-radius:7px;padding:7px;font-family:inherit;font-size:.82rem"><button class="reqbtn" data-sendreply="${b.dataset.reply}" style="background:var(--gold);border-color:var(--gold);color:#fff">رد</button></div>`;
     box.querySelector('[data-sendreply]').onclick=async()=>{
       const v=document.getElementById('rin-'+b.dataset.reply).value.trim();if(!v){return;}
-      try{ await addComment(PROJECT._dbId,'comment',v,b.dataset.reply); toast('أُرسل الرد','ok'); render(); }
+      try{ await addComment(PROJECT._dbId,'comment',v,b.dataset.reply); toast('أُرسل الرد','ok'); await refreshProjectCounts(); render(); }
       catch(e){ toast('تعذّر: '+e.message,'err'); }
     };
   });
   document.querySelectorAll('[data-resolve]').forEach(b=>b.onclick=async()=>{
-    try{ await resolveComment(b.dataset.resolve, b.dataset.cur!=='1'); render(); }
+    try{ await resolveComment(b.dataset.resolve, b.dataset.cur!=='1'); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
   document.querySelectorAll('[data-delc]').forEach(b=>b.onclick=async()=>{
     if(!await confirmDialog('حذف التعليق','حذف هذا التعليق؟ لا يمكن التراجع.',true))return;
-    try{ await deleteComment(b.dataset.delc); toast('حُذف','ok'); render(); }
+    try{ await deleteComment(b.dataset.delc); toast('حُذف','ok'); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
 }
@@ -693,11 +696,11 @@ function bindRequests(){
     const body=document.getElementById('rqBody').value.trim();
     const dept=document.getElementById('rqDept').value;
     const prio=document.getElementById('rqPrio').value;
-    try{ await addClientRequest(PROJECT._dbId,title,body,dept,prio); toast('أُرسل الطلب','ok'); render(); }
+    try{ await addClientRequest(PROJECT._dbId,title,body,dept,prio); toast('أُرسل الطلب','ok'); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر الإرسال: '+e.message,'err'); }
   };
   document.querySelectorAll('[data-setstatus]').forEach(b=>b.onclick=async()=>{
-    try{ await updateClientRequest(b.dataset.setstatus,{status:b.dataset.s}); render(); }
+    try{ await updateClientRequest(b.dataset.setstatus,{status:b.dataset.s}); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
   document.querySelectorAll('[data-assign]').forEach(b=>b.onclick=async()=>{
