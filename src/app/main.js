@@ -105,6 +105,18 @@ window.addEventListener('hashchange',()=>{
   if(typeof SCREEN!=='undefined'&&SCREEN==='project')applyHash();
 });
 
+// إغلاق لوحة البند: زر، نقر على الخلفية، ومفتاح Esc
+(function bindTaskOverlayChrome(){
+  const wire=()=>{
+    const ov=document.getElementById('taskOverlay');if(!ov)return;
+    const cl=document.getElementById('tkClose');if(cl)cl.onclick=closeTaskPanel;
+    ov.addEventListener('click',e=>{if(e.target===ov)closeTaskPanel();});
+    document.addEventListener('keydown',e=>{
+      if(e.key==='Escape'&&ov.style.display==='flex')closeTaskPanel();});
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire);else wire();
+})();
+
 async function openProject(){
   TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};
   $('#loader').classList.remove('hidden');
