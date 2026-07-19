@@ -1,4 +1,4 @@
-const BUILD_V='8106a744';
+const BUILD_V='dd610eaf';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -303,6 +303,9 @@ async function loadProject(clientId, projectId){
     tasks:(()=>{const _refOf={};tasks.forEach(x=>{_refOf[x.id]=x.ref;});
       return tasks.map(t=>({id:t.ref,_dbId:t.id,parent:t.parent_id?(_refOf[t.parent_id]||null):null,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],depsX:depMapX[t.id]||[],requirements:reqMap[t.id]||[]}));})()};
   PROJECT.tracks=(await sb.from('pmo_project_tracks').select('*').eq('project_id',p.id).order('sort')).data||[];
+  // شارات التبويبات: عدّ خفيف لا يجلب صفوفًا
+  PROJECT.counts={cr:CRS.filter(x=>x.status==='pending').length,discuss:0,requests:0};
+  try{Object.assign(PROJECT.counts,await fetchProjectCounts(p.id));}catch(e){}
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
 
@@ -400,6 +403,23 @@ async function bulkInsertDeps(projectId, depPairs, refToId){
 async function fetchProjectTaskRefs(projectId){
   const {data}=await sb.from('pmo_tasks').select('id,ref').eq('project_id',projectId);
   return data||[];
+}
+
+// ===== عدّادات التبويبات (شارات) — استعلامات عدّ فقط بلا جلب صفوف =====
+async function fetchProjectCounts(projectId){
+  const [dis,req]=await Promise.all([
+    sb.from('pmo_comments').select('id',{count:'exact',head:true}).eq('project_id',projectId).eq('resolved',false),
+    sb.from('pmo_client_requests').select('id',{count:'exact',head:true}).eq('project_id',projectId).in('status',['new','in_progress'])
+  ]);
+  return {discuss:dis.count||0,requests:req.count||0};
+}
+// يُعاد حسابها بعد أي إجراء يغيّرها (تعليق، حلّ، طلب خدمة، قرار على طلب تعديل)
+async function refreshProjectCounts(){
+  if(!PROJECT||!PROJECT._dbId)return;
+  try{
+    const c=await fetchProjectCounts(PROJECT._dbId);
+    PROJECT.counts=Object.assign({},PROJECT.counts,c,{cr:(CRS||[]).filter(x=>x.status==='pending').length});
+  }catch(e){/* الشارات تحسينية — لا توقف الواجهة */}
 }
 
 // ===== النقاش (تعليقات/أسئلة/مقترحات) =====
@@ -703,9 +723,12 @@ function render(){
   if(blk.length)arr.push('بنود متوقفة بانتظار متطلبات: '+blk.map(t=>t.id).join('، '));
   if(arr.length){w.classList.add('show');w.innerHTML=arr.map(x=>'⚠ '+x).join('<br>');}else w.classList.remove('show');
   const views=PERMS[ROLE].views;if(!views.includes(VIEW))VIEW=views[0];
+  const C=(PROJECT&&PROJECT.counts)||{};
+  // شارة العدّ: تُعرض فقط حين يوجد ما ينتظر — لا أصفار تشوّش
+  const badge=v=>{const n=C[v]||0;return n?`<span class="tabn" aria-label="${n} بانتظار المتابعة">${n}</span>`:'';};
   $('#tabs').setAttribute('role','tablist');
-  $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''} ${VIEW_TONE[v]?'tab-'+VIEW_TONE[v]:''}" role="tab" aria-selected="${v===VIEW}" data-v="${v}">${VIEW_ICONS[v]||''}<span>${VIEW_LABELS[v]}</span></button>`).join('');
-  $$('#tabs .tab').forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render();});
+  $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''} ${VIEW_TONE[v]?'tab-'+VIEW_TONE[v]:''}" role="tab" aria-selected="${v===VIEW}" data-v="${v}">${VIEW_ICONS[v]||''}<span>${VIEW_LABELS[v]}</span>${badge(v)}</button>`).join('');
+  $$('#tabs .tab').forEach(b=>b.onclick=()=>setView(b.dataset.v));
   const host=$('#host');
   // حالة فارغة: مشروع بلا بنود — دعوة فعل واضحة (لا تبويبات فارغة)
   if(!PROJECT.tasks.length && VIEW!=='discuss' && VIEW!=='requests'){
@@ -1288,7 +1311,7 @@ function bindDiscuss(){
   const send=document.getElementById('dcSend');
   if(send)send.onclick=async()=>{
     const body=document.getElementById('dcBody').value.trim();if(!body){toast('اكتب رسالة','warn');return;}
-    try{ await addComment(PROJECT._dbId, document.getElementById('dcKind').value, body, null); toast('أُرسلت','ok'); render(); }
+    try{ await addComment(PROJECT._dbId, document.getElementById('dcKind').value, body, null); toast('أُرسلت','ok'); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر الإرسال: '+e.message,'err'); }
   };
   document.querySelectorAll('[data-reply]').forEach(b=>b.onclick=()=>{
@@ -1297,17 +1320,17 @@ function bindDiscuss(){
     box.innerHTML=`<div style="display:flex;gap:6px;margin-top:8px"><input id="rin-${b.dataset.reply}" placeholder="ردك..." style="flex:1;border:1.5px solid var(--line);border-radius:7px;padding:7px;font-family:inherit;font-size:.82rem"><button class="reqbtn" data-sendreply="${b.dataset.reply}" style="background:var(--gold);border-color:var(--gold);color:#fff">رد</button></div>`;
     box.querySelector('[data-sendreply]').onclick=async()=>{
       const v=document.getElementById('rin-'+b.dataset.reply).value.trim();if(!v){return;}
-      try{ await addComment(PROJECT._dbId,'comment',v,b.dataset.reply); toast('أُرسل الرد','ok'); render(); }
+      try{ await addComment(PROJECT._dbId,'comment',v,b.dataset.reply); toast('أُرسل الرد','ok'); await refreshProjectCounts(); render(); }
       catch(e){ toast('تعذّر: '+e.message,'err'); }
     };
   });
   document.querySelectorAll('[data-resolve]').forEach(b=>b.onclick=async()=>{
-    try{ await resolveComment(b.dataset.resolve, b.dataset.cur!=='1'); render(); }
+    try{ await resolveComment(b.dataset.resolve, b.dataset.cur!=='1'); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
   document.querySelectorAll('[data-delc]').forEach(b=>b.onclick=async()=>{
     if(!await confirmDialog('حذف التعليق','حذف هذا التعليق؟ لا يمكن التراجع.',true))return;
-    try{ await deleteComment(b.dataset.delc); toast('حُذف','ok'); render(); }
+    try{ await deleteComment(b.dataset.delc); toast('حُذف','ok'); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
 }
@@ -1367,11 +1390,11 @@ function bindRequests(){
     const body=document.getElementById('rqBody').value.trim();
     const dept=document.getElementById('rqDept').value;
     const prio=document.getElementById('rqPrio').value;
-    try{ await addClientRequest(PROJECT._dbId,title,body,dept,prio); toast('أُرسل الطلب','ok'); render(); }
+    try{ await addClientRequest(PROJECT._dbId,title,body,dept,prio); toast('أُرسل الطلب','ok'); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر الإرسال: '+e.message,'err'); }
   };
   document.querySelectorAll('[data-setstatus]').forEach(b=>b.onclick=async()=>{
-    try{ await updateClientRequest(b.dataset.setstatus,{status:b.dataset.s}); render(); }
+    try{ await updateClientRequest(b.dataset.setstatus,{status:b.dataset.s}); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
   document.querySelectorAll('[data-assign]').forEach(b=>b.onclick=async()=>{
@@ -2183,13 +2206,69 @@ function showChrome(){ $('#kpisRow').style.display=''; $('#tabs').style.display=
 
 async function loadSummary(clientId){ return null; /* لم تعد مستخدمة — استُبدلت بـpmo_portfolio */ }
 
+// ===== الروابط العميقة =====
+// الشكل: #/p/{projectId}/{view}[/t/{ref}] — يتيح إرسال رابط لبند أو طلب اعتماد مباشرة.
+let _hashLock=false,_focusRef=null;
+function writeHash(){
+  if(typeof SCREEN==='undefined'||SCREEN!=='project'||!PROJECT||!PROJECT._dbId)return;
+  const h='#/p/'+PROJECT._dbId+'/'+VIEW+(_focusRef?('/t/'+encodeURIComponent(_focusRef)):'');
+  if(location.hash===h)return;
+  _hashLock=true;
+  try{history.replaceState(null,'',h);}catch(e){location.hash=h;}
+  setTimeout(()=>{_hashLock=false;},0);
+}
+function parseHash(){
+  const m=/^#\/p\/([^/]+)\/([a-z]+)(?:\/t\/(.+))?$/.exec(location.hash||'');
+  if(!m)return null;
+  return {projectId:m[1],view:m[2],ref:m[3]?decodeURIComponent(m[3]):null};
+}
+// تبديل التبويب — نقطة الدخول الوحيدة (تحدّث الرابط أيضًا)
+function setView(v,ref){
+  if(!PERMS[ROLE]||PERMS[ROLE].views.indexOf(v)===-1)return;
+  VIEW=v;_focusRef=ref||null;
+  render();writeHash();
+  if(_focusRef)focusTask(_focusRef);
+}
+// إبراز بند بعينه بعد الانتقال إليه
+function focusTask(ref){
+  setTimeout(()=>{
+    const sel='[data-id="'+(window.CSS&&CSS.escape?CSS.escape(ref):ref)+'"]';
+    const el=document.querySelector('#host '+sel)||document.querySelector('#host [data-grow="'+ref+'"]');
+    if(!el)return;
+    document.querySelectorAll('.row-focus').forEach(x=>x.classList.remove('row-focus'));
+    el.classList.add('row-focus');
+    if(el.scrollIntoView)el.scrollIntoView({behavior:'smooth',block:'center'});
+  },60);
+}
+// الانتقال من أي مكان إلى بند داخل الجدول
+function gotoTask(ref){
+  TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};
+  setView(can('editStruct')||ROLE!=='client'?'table':'gantt',ref);
+}
+// تطبيق الرابط عند الفتح أو عند تغيّره يدويًا
+function applyHash(){
+  const h=parseHash();if(!h)return false;
+  if(PROJECT&&PROJECT._dbId===h.projectId&&PERMS[ROLE]&&PERMS[ROLE].views.indexOf(h.view)>-1){
+    VIEW=h.view;_focusRef=h.ref||null;
+    render();
+    if(_focusRef)focusTask(_focusRef);
+    return true;
+  }
+  return false;
+}
+window.addEventListener('hashchange',()=>{
+  if(_hashLock)return;
+  if(typeof SCREEN!=='undefined'&&SCREEN==='project')applyHash();
+});
+
 async function openProject(){
   TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};
   $('#loader').classList.remove('hidden');
   await loadProject(CID,PID);
   $('#loader').classList.add('hidden');
   SCREEN='project';$('#barClient').style.display='';showChrome();
-  render();
+  // إن كان الوصول عبر رابط عميق، افتح التبويب/البند المقصود؛ وإلا اعرض الافتراضي
+  if(!applyHash()){render();writeHash();}
 }
 
 // تعديل تاريخ بدء المشروع — المصدر الوحيد للحقيقة، يعيد حساب كل التواريخ
@@ -2315,7 +2394,7 @@ $('#approveContract').onclick=async()=>{
   const snap={};PROJECT.tasks.forEach(t=>{const rr=SCHED.R[t.id];snap[t.id]={duration:t.duration,ES:fmtY(rr.ES),EF:fmtY(rr.EF)};});
   const {error}=await rpcApproveContract(PROJECT._dbId, val?parseFloat(val):null, snap);
   if(error){toast('تعذّر الاعتماد: '+error.message,'err');return;}
-  await loadProject(CID);render();
+  await loadProject(CID,PID);render();
   toast('تم اعتماد العقد وتثبيت خط الأساس · المشروع الآن نشط','ok');
 };
 
@@ -2355,15 +2434,17 @@ function vCR(){
     const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn" data-ap="${c.id}" style="background:var(--ok);border-color:var(--ok)">${apText}</button><button class="hbtn" data-rj="${c.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc">رفض</button></div>`:'';
     // تنبيه تنفيذ معلّق: وافق عليه ولم يُطبَّق آليًا ⇒ الخطة لم تتغيّر بعد
     const pendingExec=(c.status==='approved'&&!kd.auto)?'<div class="cr-pendexec">⚠ معتمد — لكن الخطة لم تتغيّر تلقائيًا. نفّذ التعديل يدويًا في تبويب «الجدول».</div>':'';
+    const goto=(c.task_ref&&t)?`<button class="lnk" data-gotask="${esc(c.task_ref)}">↗ الذهاب إلى البند في الخطة</button>`:'';
     return `<div class="crcard cr-plan">
       <div class="crhd"><span class="crid">${esc(c.id.slice(0,12))}</span><span class="crstate ${stcls}">${sttxt}</span></div>
-      <div class="crbody"><b>البند:</b> ${esc(c.task_ref||'—')}${t?' — '+esc(t.name):''} · <b>النوع:</b> ${kd.t}${c.new_value?' · <b>القيمة:</b> '+esc(c.new_value):''}<br><b>المبرر:</b> ${esc(c.reason||'—')}<br><small>${new Date(c.created_at).toLocaleDateString('ar')}</small>${c.decision_note?'<br><small>القرار: '+esc(c.decision_note)+'</small>':''}</div>
+      <div class="crbody"><b>البند:</b> ${esc(c.task_ref||'—')}${t?' — '+esc(t.name):''} · <b>النوع:</b> ${kd.t}${c.new_value?' · <b>القيمة:</b> '+esc(c.new_value):''}<br><b>المبرر:</b> ${esc(c.reason||'—')}<br><small>${new Date(c.created_at).toLocaleDateString('ar')}</small>${c.decision_note?'<br><small>القرار: '+esc(c.decision_note)+'</small>':''}${goto?'<br>'+goto:''}</div>
       <div class="cr-modewrap">${kd.auto?crAutoNote:crManualNote}</div>${pendingExec}${actions}</div>`;
   }).join(''):'<p class="empty" style="color:var(--muted);font-style:italic">لا طلبات تغيير.</p>';
   return `<div class="crwrap">${form}<div class="crlist">${list}</div></div>`;
 }
 
 function bindCR(){
+  $$('[data-gotask]').forEach(b=>b.onclick=()=>gotoTask(b.dataset.gotask));
   // تلميح حيّ: يوضّح قبل الإرسال هل سيُطبَّق الطلب آليًا أم يدويًا
   const kindSel=$('#crKind'),modeHint=$('#crModeHint');
   if(kindSel&&modeHint){
@@ -2376,6 +2457,7 @@ function bindCR(){
     const {error}=await insertCR({project_id:PROJECT._dbId,task_ref:$('#crTask').value,kind:$('#crKind').value,new_value:$('#crVal').value,reason});
     if(error){toast('تعذّر الإرسال: '+error.message,'err');return;}
     CRS=await fetchCRs(PROJECT._dbId);
+    await refreshProjectCounts();
     render();
   };
   $$('[data-ap]').forEach(b=>b.onclick=async()=>{
@@ -2393,12 +2475,13 @@ function bindCR(){
       :(kd.auto?'معتمد — تعذّر التطبيق الآلي (قيمة غير صالحة)، يتطلب تنفيذًا يدويًا'
                :'معتمد — يتطلب تنفيذًا يدويًا في الجدول');
     await decideCR(c.id,{status:'approved',decision_note:note,decided_at:new Date().toISOString()});
-    await loadProject(CID);render();
+    await loadProject(CID,PID);render();
     toast(applied?'اعتُمد الطلب وطُبّق على الجدول':'اعتُمد الطلب — نفّذ التعديل يدويًا في تبويب «الجدول»',applied?'ok':'warn');
   });
   $$('[data-rj]').forEach(b=>b.onclick=async()=>{
     await decideCR(b.dataset.rj,{status:'rejected',decided_at:new Date().toISOString()});
     CRS=await fetchCRs(PROJECT._dbId);
+    await refreshProjectCounts();
     render();
   });
 }
@@ -2484,7 +2567,7 @@ async function handleAddTask(){
     r.track=pk.track; _parentDb=pk._dbId;}
   try{
     await addTask(PROJECT._dbId,{ref:r.ref,name:r.name||'بند جديد',track:r.track,type:r.type,duration:r.type==='package'?0:parseInt(r.duration||'1',10),parent_id:_parentDb});
-    await loadProject(CID);
+    await loadProject(CID,PID);
     toast('أُضيف البند بنجاح','ok');
     render();
   }catch(e){toast('تعذّر الإضافة: '+(e.message.includes('duplicate')?'المعرّف مستخدم':e.message),'err');}
@@ -2505,7 +2588,7 @@ async function handleDeleteTask(refId){
       blocking:q.blocking,requested_at:q.requested||null,received_at:q.received||null}))};
   try{
     await deleteTask(t._dbId);
-    await loadProject(CID);
+    await loadProject(CID,PID);
     render();
     toastUndo('حُذف «'+snap.ref+' — '+snap.name+'»',async()=>{
       const parentDb=snap.parent?((PROJECT.tasks.find(x=>x.id===snap.parent)||{})._dbId||null):null;
@@ -2570,7 +2653,7 @@ $('#depSave').onclick=async()=>{
   const dbIds=links;
   try{
     await setDependencies(PROJECT._dbId,DEP_TASK._dbId,dbIds);
-    await loadProject(CID);
+    await loadProject(CID,PID);
     $('#depOverlay').style.display='none';
     toast('حُدّثت التبعيات','ok');
     render();
