@@ -64,6 +64,22 @@ select.csel{font-family:inherit;border:1px solid #3a3528;background:#26241f;colo
 .tab:hover{color:var(--ink);background:var(--soft-2)}
 .tab.active{color:var(--ink);border-bottom-color:var(--gold)}
 .tab .icn{width:16px;height:16px;opacity:.75;transition:var(--t)}
+/* شارة العدّ على التبويب: تُظهر ما ينتظر دون فتح التبويب */
+.tabn{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;
+  border-radius:999px;background:var(--crit);color:#fff;font-size:var(--fs-xs);font-weight:700;line-height:1;
+  font-variant-numeric:tabular-nums}
+.tab:not(.active) .tabn{background:var(--muted)}
+.tab-plan .tabn{background:var(--blue)}
+.tab-service:not(.active) .tabn{background:var(--muted)}
+/* إبراز البند بعد الانتقال إليه من رابط عميق أو من طلب تعديل */
+@keyframes rowFocusPulse{0%{background:var(--soft);box-shadow:inset 0 0 0 2px var(--gold)}
+  100%{background:transparent;box-shadow:inset 0 0 0 2px transparent}}
+.row-focus{animation:rowFocusPulse 2.4s ease-out 1}
+.row-focus>td:first-child{position:relative}
+/* زر الانتقال داخل البطاقات */
+.lnk{background:none;border:none;padding:2px 0;font-family:inherit;font-size:var(--fs-sm);font-weight:700;
+  color:var(--blue);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.lnk:hover{color:var(--ink)}
 .tab.active .icn,.tab:hover .icn{opacity:1}
 /* التبويبان الأكثر التباسًا: شكل أيقونة مختلف + نغمة لون ثابتة تميّزهما فورًا */
 .tab-plan .icn{color:var(--blue);opacity:.9}
