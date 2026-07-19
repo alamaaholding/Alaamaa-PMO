@@ -65,6 +65,34 @@ select.csel{font-family:inherit;border:1px solid #3a3528;background:#26241f;colo
 .tab.active{color:var(--ink);border-bottom-color:var(--gold)}
 .tab .icn{width:16px;height:16px;opacity:.75;transition:var(--t)}
 /* شارة العدّ على التبويب: تُظهر ما ينتظر دون فتح التبويب */
+/* ===== لوحة البند ===== */
+.tktabs{display:flex;gap:2px;padding:0 var(--s5);border-bottom:1px solid var(--line);background:var(--soft-2);
+  overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tktab{font-family:inherit;font-size:var(--fs-md);font-weight:600;padding:10px 14px;border:none;background:transparent;
+  color:var(--muted);cursor:pointer;border-bottom:2.5px solid transparent;transition:var(--t);white-space:nowrap;
+  display:inline-flex;align-items:center;gap:6px}
+.tktab:hover{color:var(--ink)}
+.tktab.active{color:var(--ink);border-bottom-color:var(--gold)}
+.tkn{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;
+  border-radius:999px;background:var(--muted);color:#fff;font-size:var(--fs-xs);font-weight:700;line-height:1}
+.tktab.active .tkn{background:var(--gold-dark)}
+.tkhint{font-size:var(--fs-sm);color:var(--muted);margin-bottom:var(--s3);line-height:1.7}
+.tkinfo{width:100%;border-collapse:collapse}
+.tkinfo th{text-align:right;font-size:var(--fs-sm);color:var(--muted);font-weight:600;padding:7px 0;width:38%;vertical-align:top}
+.tkinfo td{font-size:var(--fs-base);padding:7px 0;border-bottom:1px solid var(--line)}
+.tktbl{width:100%;border-collapse:collapse;font-size:var(--fs-md)}
+.tktbl th{text-align:right;font-size:var(--fs-sm);color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line)}
+.tktbl td{padding:8px;border-bottom:1px solid var(--line)}
+.tkacts{display:flex;gap:var(--s2);margin-top:var(--s4);flex-wrap:wrap}
+.tkmsg{border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px;background:#fff;
+  font-size:var(--fs-base);line-height:1.75}
+.tkmsg-hd{display:flex;justify-content:space-between;gap:8px;margin-bottom:5px;flex-wrap:wrap}
+.tkmsg-hd b{font-size:var(--fs-md)}
+.tkmsg-hd span{font-size:var(--fs-xs);color:var(--muted)}
+/* معرّف البند كزر يفتح اللوحة */
+.idbtn{font-family:inherit;border:none;cursor:pointer;background:transparent;padding:0}
+.idbtn:hover{text-decoration:underline;text-underline-offset:3px}
+
 .tabn{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;
   border-radius:999px;background:var(--crit);color:#fff;font-size:var(--fs-xs);font-weight:700;line-height:1;
   font-variant-numeric:tabular-nums}
