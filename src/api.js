@@ -64,6 +64,9 @@ async function loadProject(clientId, projectId){
     tasks:(()=>{const _refOf={};tasks.forEach(x=>{_refOf[x.id]=x.ref;});
       return tasks.map(t=>({id:t.ref,_dbId:t.id,parent:t.parent_id?(_refOf[t.parent_id]||null):null,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],depsX:depMapX[t.id]||[],requirements:reqMap[t.id]||[]}));})()};
   PROJECT.tracks=(await sb.from('pmo_project_tracks').select('*').eq('project_id',p.id).order('sort')).data||[];
+  // شارات التبويبات: عدّ خفيف لا يجلب صفوفًا
+  PROJECT.counts={cr:CRS.filter(x=>x.status==='pending').length,discuss:0,requests:0};
+  try{Object.assign(PROJECT.counts,await fetchProjectCounts(p.id));}catch(e){}
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
 
@@ -161,6 +164,23 @@ async function bulkInsertDeps(projectId, depPairs, refToId){
 async function fetchProjectTaskRefs(projectId){
   const {data}=await sb.from('pmo_tasks').select('id,ref').eq('project_id',projectId);
   return data||[];
+}
+
+// ===== عدّادات التبويبات (شارات) — استعلامات عدّ فقط بلا جلب صفوف =====
+async function fetchProjectCounts(projectId){
+  const [dis,req]=await Promise.all([
+    sb.from('pmo_comments').select('id',{count:'exact',head:true}).eq('project_id',projectId).eq('resolved',false),
+    sb.from('pmo_client_requests').select('id',{count:'exact',head:true}).eq('project_id',projectId).in('status',['new','in_progress'])
+  ]);
+  return {discuss:dis.count||0,requests:req.count||0};
+}
+// يُعاد حسابها بعد أي إجراء يغيّرها (تعليق، حلّ، طلب خدمة، قرار على طلب تعديل)
+async function refreshProjectCounts(){
+  if(!PROJECT||!PROJECT._dbId)return;
+  try{
+    const c=await fetchProjectCounts(PROJECT._dbId);
+    PROJECT.counts=Object.assign({},PROJECT.counts,c,{cr:(CRS||[]).filter(x=>x.status==='pending').length});
+  }catch(e){/* الشارات تحسينية — لا توقف الواجهة */}
 }
 
 // ===== النقاش (تعليقات/أسئلة/مقترحات) =====
