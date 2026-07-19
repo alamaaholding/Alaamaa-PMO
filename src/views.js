@@ -561,7 +561,7 @@ function vAudit(rows){
     if(a.action==='status_change'&&ov&&nv){detail=`${STATUS[ov.status]||ov.status} ← ${STATUS[nv.status]||nv.status}`;}
     else if(a.action==='progress_change'&&nv){detail=`${ov?ov.progress:0}% ← ${nv.progress}%`;}
     else if(a.action==='duration_change'&&nv){detail=`${ov?ov.duration:'?'} ← ${nv.duration} يوم`;}
-    else if(a.action==='client_request_status'&&nv){detail=`${(ov&&ov.status)||'—'} ← ${nv.status||'—'}`;}
+    else if(a.action==='client_request_status'&&nv){const R=REQ_STATUS_AR||{};detail=`${R[(ov||{}).status]||(ov&&ov.status)||'—'} ← ${R[nv.status]||nv.status||'—'}`;}
     else{
       // احتياطي عام: أول حقل نصّي ذي معنى من القيمة الجديدة ثم القديمة
       const pick=o=>o&&(o.reason||o.description||o.title||o.body||o.name||o.kind||o.task_ref||null);
