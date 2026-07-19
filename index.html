@@ -6,8 +6,8 @@
 <link rel="preconnect" href="https://gxiucsieezkvwztbsrgf.supabase.co">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script defer src="app.bundle.js?v=dd610eaf"></script>
-<link rel="stylesheet" href="styles.css?v=dd610eaf">
+<script defer src="app.bundle.js?v=96e87ab5"></script>
+<link rel="stylesheet" href="styles.css?v=96e87ab5">
 </head><body>
 <!-- شاشة الدخول -->
 <div id="login" class="hidden"><div class="lcard">
@@ -71,6 +71,15 @@
       <table class="rqtbl" id="reqTbl"></table>
       <button class="hbtn" id="reqAdd" style="margin-top:10px;background:var(--gold);border-color:var(--gold)">+ إضافة متطلب</button>
     </div>
+  </div>
+</div>
+
+<!-- لوحة البند: كل ما يخص بندًا واحدًا في مكان واحد -->
+<div id="taskOverlay" class="rqoverlay">
+  <div class="rqmodal">
+    <div class="rqhd"><h3 id="tkTitle" style="font-size:1.02rem">تفاصيل البند</h3><button id="tkClose" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
+    <div id="tkTabs" class="tktabs" role="tablist"></div>
+    <div id="tkBody" style="padding:16px 18px;min-height:160px"></div>
   </div>
 </div>
 
