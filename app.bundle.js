@@ -1,4 +1,4 @@
-const BUILD_V='dd610eaf';
+const BUILD_V='96e87ab5';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -427,11 +427,19 @@ async function loadComments(projectId){
   const {data}=await sb.from('pmo_comments').select('*').eq('project_id',projectId).order('created_at');
   return data||[];
 }
-async function addComment(projectId, kind, body, parentId){
-  const row={project_id:projectId,kind,body,parent_id:parentId||null,
+async function addComment(projectId, kind, body, parentId, taskId){
+  const row={project_id:projectId,kind,body,parent_id:parentId||null,task_id:taskId||null,
     author_id:USER.id,author_email:USER._name||USER.email,author_role:ROLE};
   const {error}=await sb.from('pmo_comments').insert(row);
   if(error) throw error;
+}
+// نقاش بند بعينه + سجله — لطبقة «لوحة البند»
+async function loadTaskThread(projectId, taskDbId){
+  const [cm,au]=await Promise.all([
+    sb.from('pmo_comments').select('*').eq('project_id',projectId).eq('task_id',taskDbId).order('created_at'),
+    sb.from('pmo_audit_log').select('*').eq('entity','task').eq('entity_id',taskDbId).order('created_at',{ascending:false}).limit(40)
+  ]);
+  return {comments:cm.data||[],audit:au.data||[]};
 }
 async function resolveComment(commentId, resolved){
   await sb.from('pmo_comments').update({resolved}).eq('id',commentId);
@@ -917,7 +925,7 @@ function vTable(){
     const depCount=(t.deps||[]).length;
     const editCol=editStruct?`<td style="white-space:nowrap"><button class="reqbtn" data-deps="${esc(t.id)}" title="التبعيات" aria-label="تحرير التبعيات">${I.link} ${depCount||''}</button> <button class="ib" data-del="${esc(t.id)}" title="حذف" aria-label="حذف البند" style="color:var(--crit)">${I.trash}</button></td>`:'';
     rows+=`<tr data-id="${esc(t.id)}" class="${r.critical?'crit':''}">
-      <td><span class="idcell" style="--tc:${tc}">${esc(t.id)}${r.critical?'<span class="critdot"></span>':''}</span></td>
+      <td><button class="idcell idbtn" data-tkopen="${esc(t.id)}" title="فتح لوحة البند" style="--tc:${tc}">${esc(t.id)}${r.critical?'<span class="critdot"></span>':''}</button></td>
       <td class="${t.parent?'child-cell':''}">${t.parent?'<span class="tree-ind" aria-hidden="true">└</span>':''}${nameCell}</td>
       <td>${typeCell}</td>
       <td><input class="cell inum" type="number" min="0" data-f="duration" value="${t.duration||0}" ${durDis}></td>
@@ -978,6 +986,7 @@ function vCards(editStruct,editProg){
       ${t.type!=='milestone'?`<div class="tc-prog"><div class="pbar mini"><div class="pbar-fill" style="width:${pct}%"></div></div><span>${pct}%</span></div>`:''}
       <div class="tc-acts">
         <select class="st st-${k.effStatus}" data-f="status" ${editProg?'':'disabled'}>${sopt}</select>
+        <button class="reqbtn" data-tkopen="${esc(t.id)}">⛶ لوحة البند</button>
         <button class="reqbtn" data-reqs="${esc(t.id)}">${reqs.length?(bad?bad+'⚠ متطلبات':reqs.length+' متطلبات'):'متطلبات'}</button>
         ${editStruct?`<button class="reqbtn" data-deps="${esc(t.id)}" aria-label="التبعيات">${I.link} ${(t.deps||[]).length||''}</button><button class="ib" data-del="${esc(t.id)}" aria-label="حذف" style="color:var(--crit)">${I.trash}</button>`:''}
       </div>
@@ -1006,6 +1015,7 @@ function bindTable(){
     });
   });
   $$('#tbl [data-reqs]').forEach(b=>b.onclick=()=>openReqs(b.dataset.reqs));
+  $$('#host [data-tkopen]').forEach(b=>b.onclick=()=>openTaskPanel(b.dataset.tkopen));
   if(editStruct){
     $$('#tbl [data-del]').forEach(b=>b.onclick=()=>handleDeleteTask(b.dataset.del));
     $$('#tbl [data-deps]').forEach(b=>b.onclick=()=>openDeps(b.dataset.deps));
@@ -1285,6 +1295,9 @@ function vDiscuss(rows){
     const when=new Date(c.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
     const resBtn=(!isReply&&c.kind!=='comment'&&ROLE==='pmo')?`<button class="reqbtn" data-resolve="${c.id}" data-cur="${c.resolved?1:0}" style="font-size:.7rem">${c.resolved?'إعادة فتح':'تعليم محلول'}</button>`:'';
     const resBadge=(c.kind!=='comment'&&c.resolved)?'<span class="crstate approved" style="font-size:.68rem">محلول</span>':'';
+    // تعليق مرتبط ببند: يظهر هنا أيضًا مع إشارة وانتقال — لا يختفي في لوحة البند
+    const tk=c.task_id?PROJECT.tasks.find(t=>t._dbId===c.task_id):null;
+    const tkChip=tk?`<button class="lnk" data-gotask="${esc(tk.id)}" style="font-size:.7rem">↗ على البند ${esc(tk.id)}</button>`:'';
     return `<div class="crcard" style="${isReply?'margin-inline-start:28px;border-inline-start:3px solid var(--line)':''}">
       <div class="crhd">
         <span><span class="crstate" style="background:color-mix(in srgb,${KCLR[c.kind]} 14%,#fff);color:${KCLR[c.kind]};font-size:.7rem">${KIND[c.kind]}</span>
@@ -1292,7 +1305,7 @@ function vDiscuss(rows){
           <span style="font-size:.7rem;color:var(--muted)">· ${ROLE_AR[c.author_role]||''}</span></span>
         <span style="display:flex;gap:8px;align-items:center">${resBadge}<small style="color:var(--muted)">${when}</small></span>
       </div>
-      <div class="crbody">${esc(c.body)}</div>
+      <div class="crbody">${esc(c.body)}${tkChip?'<br>'+tkChip:''}</div>
       <div class="cract">${resBtn}<button class="reqbtn" data-reply="${c.id}" style="font-size:.72rem">رد</button>${(ROLE==='pmo'||c.author_id===USER.id)?`<button class="reqbtn" data-delc="${c.id}" aria-label="حذف التعليق" style="font-size:.72rem;color:var(--crit)">حذف</button>`:''}</div>
       <div id="replyBox-${c.id}"></div>
     </div>`;
@@ -1308,6 +1321,7 @@ function vDiscuss(rows){
   return composer+'<div class="crlist">'+thread+'</div>';
 }
 function bindDiscuss(){
+  document.querySelectorAll('[data-gotask]').forEach(b=>b.onclick=()=>gotoTask(b.dataset.gotask));
   const send=document.getElementById('dcSend');
   if(send)send.onclick=async()=>{
     const body=document.getElementById('dcBody').value.trim();if(!body){toast('اكتب رسالة','warn');return;}
@@ -1480,6 +1494,186 @@ function vClientDash(){
     </div>
   </div>`;
 }
+
+
+/* ===== taskpanel.js ===== */
+// ===== لوحة البند =====
+// كل ما يخص بندًا واحدًا في مكان واحد: تفاصيل · تبعيات · متطلبات · نقاش · سجل.
+// تعالج شكوى «التبويبات غير مترابطة»: بدل التنقل بين أربعة تبويبات لتكوين صورة عن بند،
+// تُفتح اللوحة من صف البند مباشرة.
+
+let TK_TASK=null,TK_VIEW='info',TK_THREAD=null,TK_LOADING=false;
+
+const TK_TABS=[
+  {k:'info',t:'تفاصيل'},
+  {k:'deps',t:'تبعيات'},
+  {k:'reqs',t:'متطلبات'},
+  {k:'talk',t:'نقاش'},
+  {k:'log', t:'سجل'}
+];
+
+async function openTaskPanel(refId,view){
+  TK_TASK=PROJECT.tasks.find(t=>t.id===refId);
+  if(!TK_TASK){toast('البند غير موجود','warn');return;}
+  TK_VIEW=view||'info';TK_THREAD=null;
+  $('#tkTitle').textContent=TK_TASK.id+' — '+TK_TASK.name;
+  $('#taskOverlay').style.display='flex';
+  renderTaskPanel();
+  loadTaskPanelThread();
+}
+function closeTaskPanel(){
+  $('#taskOverlay').style.display='none';
+  TK_TASK=null;TK_THREAD=null;
+}
+async function loadTaskPanelThread(){
+  if(!TK_TASK||!TK_TASK._dbId)return;
+  TK_LOADING=true;
+  try{ TK_THREAD=await loadTaskThread(PROJECT._dbId,TK_TASK._dbId); }
+  catch(e){ TK_THREAD={comments:[],audit:[],error:e.message}; }
+  TK_LOADING=false;
+  if(TK_TASK)renderTaskPanel();
+}
+
+function tkCount(k){
+  if(!TK_TASK)return 0;
+  if(k==='deps')return (TK_TASK.depsX||[]).length;
+  if(k==='reqs')return (TK_TASK.requirements||[]).length;
+  if(k==='talk')return TK_THREAD?TK_THREAD.comments.length:0;
+  return 0;
+}
+
+function renderTaskPanel(){
+  if(!TK_TASK)return;
+  $('#tkTabs').innerHTML=TK_TABS.map(x=>{
+    const n=tkCount(x.k);
+    return `<button class="tktab ${x.k===TK_VIEW?'active':''}" role="tab" aria-selected="${x.k===TK_VIEW}" data-tk="${x.k}">${x.t}${n?`<span class="tkn">${n}</span>`:''}</button>`;
+  }).join('');
+  $$('#tkTabs .tktab').forEach(b=>b.onclick=()=>{TK_VIEW=b.dataset.tk;renderTaskPanel();});
+
+  const H={info:tkInfo,deps:tkDeps,reqs:tkReqs,talk:tkTalk,log:tkLog};
+  $('#tkBody').innerHTML=(H[TK_VIEW]||tkInfo)();
+  bindTaskPanel();
+}
+
+// ---------- تفاصيل ----------
+function tkInfo(){
+  const t=TK_TASK,r=SCHED.R[t.id],k=(TRACK&&TRACK[t.id])||{};
+  const row=(l,v)=>`<tr><th>${l}</th><td>${v}</td></tr>`;
+  const meta=trackMeta(t.track);
+  return `<table class="tkinfo">
+    ${row('الاسم',esc(t.name))}
+    ${row('المرحلة',esc(meta.code+' — '+meta.name))}
+    ${row('النوع',t.type==='milestone'?'معلم':(t.type==='package'?'حزمة عمل':'بند'))}
+    ${row('المدة',t.type==='milestone'?'—':(t.duration+' يوم'))}
+    ${row('البداية/النهاية',r?(fmt(r.ES)+' ← '+fmt(r.EF)):'—')}
+    ${row('الحالة','<span class="ministat s-'+(k.effStatus||t.status)+'">'+(STATUS[k.effStatus||t.status]||'—')+'</span>')}
+    ${row('التقدّم',(t.progress||0)+'%')}
+    ${row('المسؤول',esc(t.owner||'—'))}
+    ${row('المخرج',esc(t.deliverable||'—'))}
+    ${r&&r.critical?row('المسار الحرج','<span class="crstate rejected">على المسار الحرج</span>'):''}
+  </table>
+  <div class="tkacts">
+    <button class="reqbtn" id="tkGo">↗ إظهاره في الخطة</button>
+    ${can('editStruct')?'<button class="reqbtn" id="tkEditReqs">إدارة المتطلبات</button>':''}
+  </div>`;
+}
+
+// ---------- تبعيات ----------
+function tkDeps(){
+  const d=TK_TASK.depsX||[];
+  const TY={FS:'ينتهي ← يبدأ',SS:'يبدآن معًا',FF:'ينتهيان معًا'};
+  if(!d.length)return '<p class="empty">لا تبعيات — هذا البند يبدأ بلا انتظار بند آخر.</p>';
+  const rows=d.map(x=>{
+    const p=PROJECT.tasks.find(t=>t.id===x.ref);
+    return `<tr><td><b>${esc(x.ref)}</b></td><td>${esc(p?p.name:'—')}</td>
+      <td>${TY[x.type]||x.type}</td><td>${x.lag?(x.lag+' يوم'):'—'}</td>
+      <td><button class="lnk" data-tkgo="${esc(x.ref)}">فتح</button></td></tr>`;
+  }).join('');
+  return `<p class="tkhint">البنود التي يجب أن تسبق هذا البند.</p>
+    <table class="tktbl"><thead><tr><th>المرجع</th><th>البند</th><th>النوع</th><th>فاصل</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ---------- متطلبات ----------
+function tkReqs(){
+  const q=TK_TASK.requirements||[];
+  if(!q.length)return '<p class="empty">لا متطلبات مسجّلة لهذا البند.</p>';
+  // الحالة محسوبة في المحرك (computeTracking) — لا نعيد حساب SLA هنا
+  const ST={received:['approved','مُستلم'],latejust:['pending','مُستلم متأخرًا'],
+            overdue:['rejected','متأخر'],pending:['pending','بانتظار']};
+  const rows=q.map(x=>{
+    const s=ST[x._state]||['pending','بانتظار'];
+    const lateTxt=(x._state==='overdue'&&x._late)?(' +'+x._late):'';
+    return `<tr><td>${esc(x.desc)}</td><td>${esc(x.owner||'—')}</td>
+      <td>${x.blocking?'<span class="crstate rejected" style="font-size:.68rem">حاجز</span>':'—'}</td>
+      <td><span class="crstate ${s[0]}" style="font-size:.68rem">${s[1]}${lateTxt}</span></td></tr>`;
+  }).join('');
+  return `<p class="tkhint">مدخلات يحتاجها تنفيذ هذا البند. المتطلب «الحاجز» غير المُستلم يوقف البند.</p>
+    <table class="tktbl"><thead><tr><th>المتطلب</th><th>المسؤول</th><th>حاجز</th><th>الحالة</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ---------- نقاش البند ----------
+function tkTalk(){
+  if(TK_LOADING||!TK_THREAD)return '<p class="empty">جارٍ التحميل…</p>';
+  if(TK_THREAD.error)return '<p class="empty">تعذّر تحميل النقاش: '+esc(TK_THREAD.error)+'</p>';
+  const KIND={comment:'تعليق',question:'سؤال',suggestion:'مقترح'};
+  const ROLE_AR={pmo:'إدارة المشاريع',delivery:'الفريق',client:'العميل'};
+  const list=TK_THREAD.comments.map(c=>{
+    const when=new Date(c.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
+    return `<div class="tkmsg">
+      <div class="tkmsg-hd"><b>${esc(c.author_email||'—')}</b>
+        <span>${ROLE_AR[c.author_role]||''} · ${KIND[c.kind]||c.kind} · ${when}</span></div>
+      <div>${esc(c.body)}</div></div>`;
+  }).join('');
+  return `<p class="tkhint">نقاش مرتبط بهذا البند تحديدًا — ويظهر أيضًا في تبويب «النقاش» العام.</p>
+    ${list||'<p class="empty">لا نقاش على هذا البند بعد.</p>'}
+    <div class="crform" style="position:static;margin-top:14px">
+      <select id="tkKind"><option value="comment">تعليق</option><option value="question">سؤال</option><option value="suggestion">مقترح</option></select>
+      <textarea id="tkBodyIn" placeholder="اكتب رسالتك حول هذا البند..."></textarea>
+      <button class="hbtn" id="tkSend" style="background:var(--gold);border-color:var(--gold);width:100%">إرسال</button>
+    </div>`;
+}
+
+// ---------- سجل البند ----------
+function tkLog(){
+  if(TK_LOADING||!TK_THREAD)return '<p class="empty">جارٍ التحميل…</p>';
+  const rows=TK_THREAD.audit;
+  if(!rows.length)return '<p class="empty">لا تغييرات مسجّلة على هذا البند.</p>';
+  const body=rows.map(a=>{
+    const when=new Date(a.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
+    const ov=a.old_value,nv=a.new_value;
+    let d='';
+    if(a.action==='status_change'&&ov&&nv)d=(STATUS[ov.status]||ov.status)+' ← '+(STATUS[nv.status]||nv.status);
+    else if(a.action==='progress_change'&&nv)d=(ov?ov.progress:0)+'% ← '+nv.progress+'%';
+    else if(a.action==='duration_change'&&nv)d=(ov?ov.duration:'?')+' ← '+nv.duration+' يوم';
+    return `<tr><td><small>${when}</small></td>
+      <td><span class="crstate ${auditTone(a.action)}" style="font-size:.68rem">${AUDIT_ACTIONS[a.action]||a.action}</span></td>
+      <td>${esc(d)}</td></tr>`;
+  }).join('');
+  return `<p class="tkhint">آخر ${rows.length} تغييرًا على هذا البند.</p>
+    <table class="tktbl"><thead><tr><th>الوقت</th><th>الإجراء</th><th>التغيير</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function bindTaskPanel(){
+  const go=$('#tkGo');
+  if(go)go.onclick=()=>{const r=TK_TASK.id;closeTaskPanel();gotoTask(r);};
+  const er=$('#tkEditReqs');
+  if(er)er.onclick=()=>{const r=TK_TASK.id;closeTaskPanel();openReqs(r);};
+  $$('[data-tkgo]').forEach(b=>b.onclick=()=>openTaskPanel(b.dataset.tkgo,'info'));
+  const send=$('#tkSend');
+  if(send)send.onclick=async()=>{
+    const body=$('#tkBodyIn').value.trim();
+    if(!body){toast('اكتب رسالة','warn');return;}
+    try{
+      await addComment(PROJECT._dbId,$('#tkKind').value,body,null,TK_TASK._dbId);
+      toast('أُرسلت','ok');
+      await loadTaskPanelThread();
+      await refreshProjectCounts();
+      if(typeof render==='function'&&SCREEN==='project')render();
+    }catch(e){ toast('تعذّر الإرسال: '+e.message,'err'); }
+  };
+}
+
+window.openTaskPanel=openTaskPanel;
 
 
 /* ===== state.js ===== */
@@ -2260,6 +2454,18 @@ window.addEventListener('hashchange',()=>{
   if(_hashLock)return;
   if(typeof SCREEN!=='undefined'&&SCREEN==='project')applyHash();
 });
+
+// إغلاق لوحة البند: زر، نقر على الخلفية، ومفتاح Esc
+(function bindTaskOverlayChrome(){
+  const wire=()=>{
+    const ov=document.getElementById('taskOverlay');if(!ov)return;
+    const cl=document.getElementById('tkClose');if(cl)cl.onclick=closeTaskPanel;
+    ov.addEventListener('click',e=>{if(e.target===ov)closeTaskPanel();});
+    document.addEventListener('keydown',e=>{
+      if(e.key==='Escape'&&ov.style.display==='flex')closeTaskPanel();});
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire);else wire();
+})();
 
 async function openProject(){
   TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};
