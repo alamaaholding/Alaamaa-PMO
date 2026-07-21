@@ -161,7 +161,8 @@ async function editStartDate(){
 
 async function renderPortfolioTimeline(){
   SCREEN='ptimeline';$('#hProject').textContent='خط التسليمات — كل المشاريع';hideChrome();
-  $('#host').innerHTML='<div id="ptlWrap"><div class="skeleton" style="height:120px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backPT">↩ المحفظة</button><span style="margin-inline-start:auto">📦 <b>خط التسليمات:</b> سجل زمني للتبادل بين علامة والعملاء عبر <b>كل المشاريع</b>.</span></div><div id="ptlWrap"><div class="skeleton" style="height:120px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
+  $('#backPT').onclick=renderPortfolio;
   openTimelinePortfolio('ptlWrap');
 }
 async function renderAuditLog(){
