@@ -328,6 +328,28 @@ async function fetchArchivedProjects(){
 async function fetchTracks(projectId){const{data}=await sb.from('pmo_project_tracks').select('*').eq('project_id',projectId).order('sort');return data||[];}
 async function addTrack(projectId,key,name,color,sort){const{error}=await sb.from('pmo_project_tracks').insert({project_id:projectId,key,name,color,sort});if(error)throw error;}
 async function updateTrack(id,patch){const{error}=await sb.from('pmo_project_tracks').update(patch).eq('id',id);if(error)throw error;}
+async function deleteTrack(id){const{error}=await sb.from('pmo_project_tracks').delete().eq('id',id);if(error)throw error;}
+async function reorderTracks(rows){
+  // rows: [{id,sort}, ...] — تحديثات مستقلة فلا حاجة لدالة قاعدة خاصة
+  for(const r of rows){const{error}=await sb.from('pmo_project_tracks').update({sort:r.sort}).eq('id',r.id);if(error)throw error;}
+}
+// استيراد Excel: مراحل مكتشفة من WBS تُدرج أو تُحدَّث بمفتاحها — لا تُكرَّر عبر استيرادات متتالية.
+// mode='replace': يحذف المراحل غير الواردة في الملف الجديد (استبدال كامل حقيقي).
+// mode='merge': يبقي كل مرحلة موجودة غير مذكورة، ويحدّث تقاطع المفاتيح فقط.
+async function upsertProjectTracks(projectId, phases, mode){
+  const existing=await fetchTracks(projectId);
+  const byKey={};existing.forEach(t=>{byKey[t.key]=t;});
+  let base=existing.length;
+  for(const ph of phases){
+    const cur=byKey[ph.key];
+    if(cur){ await updateTrack(cur.id,{name:ph.name}); } // اللون اليدوي المضبوط سابقًا لا يُستبدل صامتًا
+    else{ await addTrack(projectId, ph.key, ph.name, ph.color, ++base); }
+  }
+  if(mode==='replace'){
+    const incoming=new Set(phases.map(p=>p.key));
+    for(const t of existing){ if(!incoming.has(t.key)) await deleteTrack(t.id); }
+  }
+}
 
 // ===== التحميل الكسول للوحدات الثقيلة (أداء) =====
 const _lazy={};
