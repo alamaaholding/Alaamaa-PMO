@@ -1,4 +1,4 @@
-const BUILD_V='f4490d99';
+const BUILD_V='6c358837';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1959,31 +1959,53 @@ function openTracksManager(){
 
 function renderTrkPanel(){
   const list=(PROJECT.tracks||[]).slice().sort((a,b)=>a.sort-b.sort);
-  const countOf=k=>(PROJECT.tasks||[]).filter(t=>t.track===k&&t.type!=='package').length;
+  // نبني على نفس مصدر الحقيقة المستخدم في الفلترة والجانت — projTrackList()، لا PROJECT.tracks وحده،
+  // فما تراه هنا مطابق حرفيًا لما تراه في الجدول والجانت وشريط الفلاتر.
+  const live=projTrackList();
+  const doneCountOf=k=>{
+    const items=(PROJECT.tasks||[]).filter(t=>t.track===k&&t.type!=='package');
+    const n=items.length,done=items.filter(t=>(TRACK&&TRACK[t.id]&&TRACK[t.id].effStatus)==='done').length;
+    return {n,done,pct:n?Math.round(done/n*100):0};
+  };
   $('#trkBody').innerHTML=`
-    <p class="trk-hint">تُنشأ المراحل تلقائيًا عند استيراد خطة من Excel (وفق ترقيم WBS)، أو أضفها هنا يدويًا.
-      عدّل الاسم أو اللون ثم اضغط «حفظ». إعادة الترتيب والحذف فوريان.</p>
-    <div id="trkList">
-    ${list.map((t,i)=>{
-      const n=countOf(t.key);
-      return `<div class="trk-row" data-tid="${t.id}" data-key="${esc(t.key)}">
+    <p class="trk-hint">تُنشأ المراحل تلقائيًا عند استيراد خطة من Excel وفق ترقيم WBS الفعلي — هذه القائمة
+      مطابقة دائمًا لما تراه في الجدول والجانت وشريط الفلاتر، ولا تحتاج ضبطًا منفصلًا لكل مشروع.
+      عدّل الاسم أو اللون هنا فقط للتخصيص، ثم اضغط «حفظ».</p>
+    <div id="trkList" class="trk-cards">
+    ${live.map((x,i)=>{
+      const raw=list.find(t=>t.key===x.key);
+      const st=doneCountOf(x.key);
+      return `<div class="trk-card" data-tid="${raw?raw.id:''}" data-key="${esc(x.key)}" style="--pc:${x.color}">
       <div class="trk-order">
-        <button class="trk-ord" data-up="${t.id}" ${i===0?'disabled':''} aria-label="تحريك لأعلى">▲</button>
-        <button class="trk-ord" data-down="${t.id}" ${i===list.length-1?'disabled':''} aria-label="تحريك لأسفل">▼</button>
+        <button class="trk-ord" data-up="${raw?raw.id:''}" ${(!raw||i===0)?'disabled':''} aria-label="تحريك لأعلى">▲</button>
+        <button class="trk-ord" data-down="${raw?raw.id:''}" ${(!raw||i===live.length-1)?'disabled':''} aria-label="تحريك لأسفل">▼</button>
       </div>
-      <input type="color" class="trk-color" value="${t.color}" aria-label="لون المرحلة ${esc(t.name)}">
-      <span class="trk-key" title="رمز المرحلة">${esc(t.key)}</span>
-      <input class="trk-name" value="${esc(t.name)}" aria-label="اسم المرحلة">
-      <span class="trk-n" title="عدد البنود في هذه المرحلة">${n} بند</span>
-      <button class="trk-del" data-del="${t.id}" data-n="${n}" aria-label="حذف مرحلة ${esc(t.name)}" title="حذف">✕</button>
+      <input type="color" class="trk-color" value="${x.color}" aria-label="لون المرحلة ${esc(x.name)}">
+      <div class="trk-main">
+        <div class="trk-toprow">
+          <span class="trk-key" title="مرجع WBS">${esc(x.key)}</span>
+          <input class="trk-name" value="${esc(x.name)}" aria-label="اسم المرحلة" ${raw?'':'disabled title="مرحلة مشتقة تلقائيًا — أضفها للسجل بالحفظ أدناه"'}>
+          ${raw?`<button class="trk-del" data-del="${raw.id}" data-n="${st.n}" aria-label="حذف مرحلة ${esc(x.name)}" title="حذف">✕</button>`:''}
+        </div>
+        <div class="trk-meta">
+          <span class="trk-n">${st.n} بند</span>
+          <div class="trk-bar" role="progressbar" aria-valuenow="${st.pct}" aria-valuemin="0" aria-valuemax="100" title="${st.pct}% مكتمل">
+            <div class="trk-bar-fill" style="width:${st.pct}%"></div>
+          </div>
+          <span class="trk-pct">${st.pct}%</span>
+        </div>
+      </div>
     </div>`;}).join('')}
     </div>
-    <div class="trk-row trk-new">
+    <div class="trk-card trk-new">
       <div class="trk-order"></div>
       <input type="color" class="trk-color" id="trkNewColor" value="#C8A06B" aria-label="لون المرحلة الجديدة">
-      <input class="trk-key-in" id="trkNewKey" placeholder="رمز" maxlength="4" aria-label="رمز المرحلة الجديدة">
-      <input class="trk-name" id="trkNewName" placeholder="+ اسم مرحلة جديدة (اختياري)" aria-label="اسم المرحلة الجديدة">
-      <span></span><span></span>
+      <div class="trk-main">
+        <div class="trk-toprow">
+          <input class="trk-key-in" id="trkNewKey" placeholder="رمز" maxlength="4" aria-label="رمز المرحلة الجديدة">
+          <input class="trk-name" id="trkNewName" placeholder="+ اسم مرحلة جديدة (لتخصيص مرحلة لا تُدار تلقائيًا)" aria-label="اسم المرحلة الجديدة">
+        </div>
+      </div>
     </div>
     <div class="imp-actions">
       <button class="hbtn" id="trkSave" style="background:var(--gold);border-color:var(--gold)">حفظ التعديلات</button>
@@ -1991,8 +2013,8 @@ function renderTrkPanel(){
     </div>`;
   $('#trkClose').onclick=()=>{$('#trkOverlay').style.display='none';};
   $('#trkSave').onclick=saveTracks;
-  $$('#trkBody [data-up]').forEach(b=>b.onclick=()=>moveTrack(b.dataset.up,-1));
-  $$('#trkBody [data-down]').forEach(b=>b.onclick=()=>moveTrack(b.dataset.down,1));
+  $$('#trkBody [data-up]').forEach(b=>b.dataset.up&&(b.onclick=()=>moveTrack(b.dataset.up,-1)));
+  $$('#trkBody [data-down]').forEach(b=>b.dataset.down&&(b.onclick=()=>moveTrack(b.dataset.down,1)));
   $$('#trkBody [data-del]').forEach(b=>b.onclick=()=>deleteTrackRow(b.dataset.del,parseInt(b.dataset.n,10)));
 }
 
@@ -2026,13 +2048,22 @@ async function saveTracks(){
   const list=PROJECT.tracks||[];let changed=0;
   const btn=$('#trkSave');if(btn)btn.disabled=true;
   try{
-    for(const row of document.querySelectorAll('#trkBody .trk-row[data-tid]')){
-      const t=list.find(x=>x.id===row.dataset.tid);if(!t)continue;
-      const name=row.querySelector('.trk-name').value.trim();
-      const color=row.querySelector('.trk-color').value;
-      if(name&&(name!==t.name||color!==t.color)){await updateTrack(t.id,{name,color});changed++;}
+    for(const card of document.querySelectorAll('#trkBody .trk-card[data-key]')){
+      const tid=card.dataset.tid,key=card.dataset.key;
+      const colorInput=card.querySelector('.trk-color');
+      const color=colorInput.value;
+      if(tid){
+        // مرحلة لها سجل تخصيص بالفعل — تحديث الاسم واللون إن تغيّرا
+        const t=list.find(x=>x.id===tid);if(!t)continue;
+        const name=card.querySelector('.trk-name').value.trim();
+        if(name&&(name!==t.name||color!==t.color)){await updateTrack(t.id,{name,color});changed++;}
+      }else if(key&&color.toLowerCase()!==(colorInput.defaultValue||'').toLowerCase()){
+        // مرحلة مشتقة تلقائيًا من WBS بلا سجل تخصيص — إنشاء سجل عند أول تخصيص للون
+        const name=card.querySelector('.trk-name').value.trim()||key;
+        await addTrack(PROJECT._dbId,key,name,color,(PROJECT.tracks||[]).length+1);changed++;
+      }
     }
-    const nk=($('#trkNewKey').value||'').trim().toUpperCase();
+    const nk=($('#trkNewKey').value||'').trim();
     const nn=($('#trkNewName').value||'').trim();
     if(nk&&nn){await addTrack(PROJECT._dbId,nk,nn,$('#trkNewColor').value,list.length);changed++;}
     else if(nn&&!nk){toast('أدخل رمزًا للمرحلة الجديدة (حرف أو رقم)','warn');if(btn)btn.disabled=false;return;}
