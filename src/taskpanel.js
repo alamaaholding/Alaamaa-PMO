@@ -3,7 +3,7 @@
 // تعالج شكوى «التبويبات غير مترابطة»: بدل التنقل بين أربعة تبويبات لتكوين صورة عن بند،
 // تُفتح اللوحة من صف البند مباشرة.
 
-let TK_TASK=null,TK_VIEW='info',TK_THREAD=null,TK_LOADING=false;
+let TK_TASK=null,TK_VIEW='info',TK_THREAD=null,TK_LOADING=false,TK_PREVFOCUS=null;
 
 const TK_TABS=[
   {k:'info',t:'تفاصيل'},
@@ -18,13 +18,18 @@ async function openTaskPanel(refId,view){
   if(!TK_TASK){toast('البند غير موجود','warn');return;}
   TK_VIEW=view||'info';TK_THREAD=null;
   $('#tkTitle').textContent=TK_TASK.id+' — '+TK_TASK.name;
+  TK_PREVFOCUS=document.activeElement;
   $('#taskOverlay').style.display='flex';
   renderTaskPanel();
+  const ft=document.querySelector('#tkTabs .tktab.active')||$('#tkClose');
+  if(ft)setTimeout(()=>ft.focus(),40);
   loadTaskPanelThread();
 }
 function closeTaskPanel(){
   $('#taskOverlay').style.display='none';
   TK_TASK=null;TK_THREAD=null;
+  if(TK_PREVFOCUS&&TK_PREVFOCUS.focus)try{TK_PREVFOCUS.focus();}catch(e){}
+  TK_PREVFOCUS=null;
 }
 async function loadTaskPanelThread(){
   if(!TK_TASK||!TK_TASK._dbId)return;
@@ -47,9 +52,20 @@ function renderTaskPanel(){
   if(!TK_TASK)return;
   $('#tkTabs').innerHTML=TK_TABS.map(x=>{
     const n=tkCount(x.k);
-    return `<button class="tktab ${x.k===TK_VIEW?'active':''}" role="tab" aria-selected="${x.k===TK_VIEW}" data-tk="${x.k}">${x.t}${n?`<span class="tkn">${n}</span>`:''}</button>`;
+    return `<button class="tktab ${x.k===TK_VIEW?'active':''}" role="tab" id="tk-tab-${x.k}" aria-controls="tkBody" aria-selected="${x.k===TK_VIEW}" tabindex="${x.k===TK_VIEW?0:-1}" data-tk="${x.k}">${x.t}${n?`<span class="tkn">${n}</span>`:''}</button>`;
   }).join('');
+  const tb=$('#tkBody');tb.setAttribute('role','tabpanel');tb.setAttribute('aria-labelledby','tk-tab-'+TK_VIEW);
   $$('#tkTabs .tktab').forEach(b=>b.onclick=()=>{TK_VIEW=b.dataset.tk;renderTaskPanel();});
+  // أسهم لوحة المفاتيح (RTL: اليسار = التالي) + Home/End
+  $('#tkTabs').onkeydown=e=>{
+    const ks=TK_TABS.map(x=>x.k);const i=ks.indexOf(TK_VIEW);let j=null;
+    if(e.key==='ArrowLeft')j=(i+1)%ks.length;
+    else if(e.key==='ArrowRight')j=(i-1+ks.length)%ks.length;
+    else if(e.key==='Home')j=0;else if(e.key==='End')j=ks.length-1;
+    if(j===null)return;
+    e.preventDefault();TK_VIEW=ks[j];renderTaskPanel();
+    const nb=document.querySelector('#tkTabs .tktab[data-tk="'+ks[j]+'"]');if(nb)nb.focus();
+  };
 
   const H={info:tkInfo,deps:tkDeps,reqs:tkReqs,talk:tkTalk,log:tkLog};
   $('#tkBody').innerHTML=(H[TK_VIEW]||tkInfo)();
