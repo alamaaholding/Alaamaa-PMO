@@ -1,4 +1,4 @@
-const BUILD_V='7d1c1166';
+const BUILD_V='e72ae17e';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -567,6 +567,28 @@ async function fetchArchivedProjects(){
 async function fetchTracks(projectId){const{data}=await sb.from('pmo_project_tracks').select('*').eq('project_id',projectId).order('sort');return data||[];}
 async function addTrack(projectId,key,name,color,sort){const{error}=await sb.from('pmo_project_tracks').insert({project_id:projectId,key,name,color,sort});if(error)throw error;}
 async function updateTrack(id,patch){const{error}=await sb.from('pmo_project_tracks').update(patch).eq('id',id);if(error)throw error;}
+async function deleteTrack(id){const{error}=await sb.from('pmo_project_tracks').delete().eq('id',id);if(error)throw error;}
+async function reorderTracks(rows){
+  // rows: [{id,sort}, ...] — تحديثات مستقلة فلا حاجة لدالة قاعدة خاصة
+  for(const r of rows){const{error}=await sb.from('pmo_project_tracks').update({sort:r.sort}).eq('id',r.id);if(error)throw error;}
+}
+// استيراد Excel: مراحل مكتشفة من WBS تُدرج أو تُحدَّث بمفتاحها — لا تُكرَّر عبر استيرادات متتالية.
+// mode='replace': يحذف المراحل غير الواردة في الملف الجديد (استبدال كامل حقيقي).
+// mode='merge': يبقي كل مرحلة موجودة غير مذكورة، ويحدّث تقاطع المفاتيح فقط.
+async function upsertProjectTracks(projectId, phases, mode){
+  const existing=await fetchTracks(projectId);
+  const byKey={};existing.forEach(t=>{byKey[t.key]=t;});
+  let base=existing.length;
+  for(const ph of phases){
+    const cur=byKey[ph.key];
+    if(cur){ await updateTrack(cur.id,{name:ph.name}); } // اللون اليدوي المضبوط سابقًا لا يُستبدل صامتًا
+    else{ await addTrack(projectId, ph.key, ph.name, ph.color, ++base); }
+  }
+  if(mode==='replace'){
+    const incoming=new Set(phases.map(p=>p.key));
+    for(const t of existing){ if(!incoming.has(t.key)) await deleteTrack(t.id); }
+  }
+}
 
 // ===== التحميل الكسول للوحدات الثقيلة (أداء) =====
 const _lazy={};
@@ -735,8 +757,19 @@ function render(){
   // شارة العدّ: تُعرض فقط حين يوجد ما ينتظر — لا أصفار تشوّش
   const badge=v=>{const n=C[v]||0;return n?`<span class="tabn" aria-label="${n} بانتظار المتابعة">${n}</span>`:'';};
   $('#tabs').setAttribute('role','tablist');
-  $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''} ${VIEW_TONE[v]?'tab-'+VIEW_TONE[v]:''}" role="tab" aria-selected="${v===VIEW}" data-v="${v}">${VIEW_ICONS[v]||''}<span>${VIEW_LABELS[v]}</span>${badge(v)}</button>`).join('');
+  $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''} ${VIEW_TONE[v]?'tab-'+VIEW_TONE[v]:''}" role="tab" id="tab-${v}" aria-controls="host" aria-selected="${v===VIEW}" tabindex="${v===VIEW?0:-1}" data-v="${v}">${VIEW_ICONS[v]||''}<span>${VIEW_LABELS[v]}</span>${badge(v)}</button>`).join('');
+  const _hp=$('#host');if(_hp){_hp.setAttribute('role','tabpanel');_hp.setAttribute('aria-labelledby','tab-'+VIEW);}
   $$('#tabs .tab').forEach(b=>b.onclick=()=>setView(b.dataset.v));
+  // تنقّل الأسهم وفق WAI-ARIA (بمراعاة RTL: اليسار = التالي) + Home/End
+  $('#tabs').onkeydown=e=>{
+    const i=views.indexOf(VIEW);let j=null;
+    if(e.key==='ArrowLeft')j=(i+1)%views.length;
+    else if(e.key==='ArrowRight')j=(i-1+views.length)%views.length;
+    else if(e.key==='Home')j=0;else if(e.key==='End')j=views.length-1;
+    if(j===null)return;
+    e.preventDefault();setView(views[j]);
+    const nb=document.querySelector('#tabs .tab[data-v="'+views[j]+'"]');if(nb)nb.focus();
+  };
   const host=$('#host');
   // حالة فارغة: مشروع بلا بنود — دعوة فعل واضحة (لا تبويبات فارغة)
   if(!PROJECT.tasks.length && VIEW!=='discuss' && VIEW!=='requests'){
@@ -748,7 +781,8 @@ function render(){
     const ei=$('#emptyImport');if(ei)ei.onclick=openImporter;
     return;
   }
-  if(VIEW==='dashboard')host.innerHTML=(ROLE==='client')?vClientDash():vDashboard();
+  if(VIEW==='dashboard'){host.innerHTML=(ROLE==='client')?vClientDash():vDashboard();
+    $$('#host [data-tkopen]').forEach(b=>b.onclick=()=>openTaskPanel(b.dataset.tkopen));}
   else if(VIEW==='table'){host.innerHTML='<div class="hintbar">تحديث الحالة والتقدّم يُحفظ مباشرة في القاعدة. المسار الحرج مظلّل.</div>'+vTable();bindTable();}
   else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();bindProjFilterBar();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(2,PX-4);render();};
     const pgb=$('#printGanttBtn');if(pgb)pgb.onclick=()=>printProject('gantt');
@@ -759,6 +793,9 @@ function render(){
       if(b)PROJECT.baseline={snapshot:b.snapshot};render();};
     document.querySelectorAll('[data-scale]').forEach(b=>{const on=b.dataset.scale===GSCALE;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false');
       b.onclick=()=>{GSCALE=b.dataset.scale;try{localStorage.setItem('pmo_gscale',GSCALE);}catch(_e){}PX=GSCALE_PX[GSCALE]||16;render();};});
+    $$('#host .glbl[data-tkopen]').forEach(el=>{
+      el.onclick=()=>openTaskPanel(el.dataset.tkopen);
+      el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openTaskPanel(el.dataset.tkopen);}};});
     bindGanttHover();drawGanttLinks();}
   else if(VIEW==='deliv')host.innerHTML=vDeliv();
   else if(VIEW==='timeline'){
@@ -793,10 +830,10 @@ function vDashboard(){
   const week=tasks.filter(t=>t.type!=='milestone'&&D(fmtY(S.R[t.id].ES))<=wkEnd&&D(fmtY(S.R[t.id].EF))>=dd);
   const creqs=[];PROJECT.tasks.forEach(t=>(t.requirements||[]).forEach(r=>{if(r.owner==='client'&&r._state!=='received'&&r._state!=='latejust')creqs.push({t,r});}));
   const miles=PROJECT.tasks.filter(t=>t.type==='milestone').map(t=>({t,ef:S.R[t.id].EF})).filter(m=>D(fmtY(m.ef))>=dd).sort((a,b)=>a.ef-b.ef).slice(0,5);
-  const alerts=[];creqs.filter(x=>x.r._state==='overdue').forEach(x=>alerts.push(['client','متطلب متأخر من العميل: '+x.r.desc+' ('+x.t.id+')'+(x.r._late?' +'+x.r._late+'ي':'')]));
-  tasks.filter(t=>T[t.id].delay==='alamah').forEach(t=>alerts.push(['alamah','تأخير على فريق علامة: '+t.id+' — '+t.name]));
-  tasks.filter(t=>T[t.id].blocked).forEach(t=>alerts.push(['blocked','بند متوقف: '+t.id+' — '+t.name]));
-  const tl=t=>`<li><span class="tgw" style="--tc:${trackMeta(t.track).color}">${esc(t.id)}</span> ${esc(t.name)} <em>${fmt(S.R[t.id].ES)}–${fmt(S.R[t.id].EF)}</em> <span class="ministat s-${T[t.id].effStatus}">${STATUS[T[t.id].effStatus]}</span></li>`;
+  const alerts=[];creqs.filter(x=>x.r._state==='overdue').forEach(x=>alerts.push(['client','متطلب متأخر من العميل: '+x.r.desc+' ('+x.t.id+')'+(x.r._late?' +'+x.r._late+'ي':''),x.t.id]));
+  tasks.filter(t=>T[t.id].delay==='alamah').forEach(t=>alerts.push(['alamah','تأخير على فريق علامة: '+t.id+' — '+t.name,t.id]));
+  tasks.filter(t=>T[t.id].blocked).forEach(t=>alerts.push(['blocked','بند متوقف: '+t.id+' — '+t.name,t.id]));
+  const tl=t=>`<li><button class="tlink" data-tkopen="${esc(t.id)}"><span class="tgw" style="--tc:${trackMeta(t.track).color}">${esc(t.id)}</span> ${esc(t.name)} <em>${fmt(S.R[t.id].ES)}–${fmt(S.R[t.id].EF)}</em> <span class="ministat s-${T[t.id].effStatus}">${STATUS[T[t.id].effStatus]}</span></button></li>`;
   const card=(l,v,c)=>`<div class="dcard ${c||''}"><b>${v}</b><span>${l}</span></div>`;
   let h=`<div class="dgrid">${card('نسبة الإنجاز',pct+'%','ok')}${card('مكتملة',done)}${card('جارية',inprog,'blue')}${card('متبقية',total-done)}${card('متوقفة',blocked,'crit')}${card('متطلبات مطلوبة',creqs.length,'warn')}</div>
   <div class="dprog"><div class="dprog-fill" style="width:${pct}%"></div></div>
@@ -805,10 +842,10 @@ function vDashboard(){
     <div class="dbox"><h4>مهام هذا الأسبوع (${week.length})</h4><ul class="tlist">${week.length?week.map(tl).join(''):'<li class="empty">لا مهام هذا الأسبوع.</li>'}</ul></div>
   </div>
   <div class="dcols">
-    <div class="dbox"><h4>المتطلبات المطلوبة من العميل (${creqs.length})</h4><ul class="tlist">${creqs.length?creqs.map(x=>`<li><span class="ministat s-${x.r._state==='overdue'?'blocked':'notstarted'}">${x.r._state==='overdue'?'متأخر':'بانتظار'}</span> ${esc(x.r.desc)} <em>SLA ${x.r.sla}ي · ${esc(x.t.id)}</em></li>`).join(''):'<li class="empty">لا متطلبات معلّقة.</li>'}</ul></div>
-    <div class="dbox"><h4>المعالم القادمة</h4><ul class="tlist">${miles.length?miles.map(m=>`<li><span class="md">◆</span> ${esc(m.t.name.replace('معلم: ',''))} <em>${fmt(m.ef)}</em></li>`).join(''):'<li class="empty">—</li>'}</ul></div>
+    <div class="dbox"><h4>المتطلبات المطلوبة من العميل (${creqs.length})</h4><ul class="tlist">${creqs.length?creqs.map(x=>`<li><button class="tlink" data-tkopen="${esc(x.t.id)}"><span class="ministat s-${x.r._state==='overdue'?'blocked':'notstarted'}">${x.r._state==='overdue'?'متأخر':'بانتظار'}</span> ${esc(x.r.desc)} <em>SLA ${x.r.sla}ي · ${esc(x.t.id)}</em></button></li>`).join(''):'<li class="empty">لا متطلبات معلّقة.</li>'}</ul></div>
+    <div class="dbox"><h4>المعالم القادمة</h4><ul class="tlist">${miles.length?miles.map(m=>`<li><button class="tlink" data-tkopen="${esc(m.t.id)}"><span class="md">◆</span> ${esc(m.t.name.replace('معلم: ',''))} <em>${fmt(m.ef)}</em></button></li>`).join(''):'<li class="empty">—</li>'}</ul></div>
   </div>
-  <div class="dbox alerts"><h4>التنبيهات (${alerts.length})</h4><ul class="tlist">${alerts.length?alerts.map(a=>`<li class="alert a-${a[0]}">⚠ ${esc(a[1])}</li>`).join(''):'<li class="empty">لا تنبيهات.</li>'}</ul></div>`;
+  <div class="dbox alerts"><h4>التنبيهات (${alerts.length})</h4><ul class="tlist">${alerts.length?alerts.map(a=>`<li class="alert a-${a[0]}">${a[2]?`<button class="tlink" data-tkopen="${esc(a[2])}">⚠ ${esc(a[1])}</button>`:('⚠ '+esc(a[1]))}</li>`).join(''):'<li class="empty">لا تنبيهات.</li>'}</ul></div>`;
   h+=sCurveSVG();
   return h;
 }
@@ -1121,7 +1158,7 @@ function vGantt(){
         tail=`<div class="gtail ${who}" style="right:${to*PX}px;width:${tl*PX}px" title="امتداد التأخير حتى اليوم"></div><div class="glate ${who}" style="right:${(to+tl)*PX+5}px">${who==='client'?'بانتظار العميل':'متأخر'} +${lateDays}ي</div>`;
       }
       lane+=`<div class="gbar ${cls} ${r.critical?'crit':''} ${overdue?'late late-'+who:''}" data-gid="${esc(t.id)}" style="right:${o*PX}px;width:${wpx}px;background:${tc}" title="${tip}">${fill}</div>${tail}${durEl}`;}
-    rows+=`<div class="grow" data-grow="${esc(t.id)}"><div class="glbl ${t.parent?'gchild':''}"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
+    rows+=`<div class="grow" data-grow="${esc(t.id)}"><div class="glbl ${t.parent?'gchild':''}" role="button" tabindex="0" data-tkopen="${esc(t.id)}" aria-label="لوحة البند ${esc(t.id)} — ${esc(t.name)}"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
   return projFilterBar()+baselineDeviation(BL)+`<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
     <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${HD.top}${HD.bot}</div></div>
     <div id="gcanvas" style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${HD.wkends}${HD.grid}${today}</div>${rows}</div></div></div>
@@ -1502,7 +1539,7 @@ function vClientDash(){
 // تعالج شكوى «التبويبات غير مترابطة»: بدل التنقل بين أربعة تبويبات لتكوين صورة عن بند،
 // تُفتح اللوحة من صف البند مباشرة.
 
-let TK_TASK=null,TK_VIEW='info',TK_THREAD=null,TK_LOADING=false;
+let TK_TASK=null,TK_VIEW='info',TK_THREAD=null,TK_LOADING=false,TK_PREVFOCUS=null;
 
 const TK_TABS=[
   {k:'info',t:'تفاصيل'},
@@ -1517,13 +1554,18 @@ async function openTaskPanel(refId,view){
   if(!TK_TASK){toast('البند غير موجود','warn');return;}
   TK_VIEW=view||'info';TK_THREAD=null;
   $('#tkTitle').textContent=TK_TASK.id+' — '+TK_TASK.name;
+  TK_PREVFOCUS=document.activeElement;
   $('#taskOverlay').style.display='flex';
   renderTaskPanel();
+  const ft=document.querySelector('#tkTabs .tktab.active')||$('#tkClose');
+  if(ft)setTimeout(()=>ft.focus(),40);
   loadTaskPanelThread();
 }
 function closeTaskPanel(){
   $('#taskOverlay').style.display='none';
   TK_TASK=null;TK_THREAD=null;
+  if(TK_PREVFOCUS&&TK_PREVFOCUS.focus)try{TK_PREVFOCUS.focus();}catch(e){}
+  TK_PREVFOCUS=null;
 }
 async function loadTaskPanelThread(){
   if(!TK_TASK||!TK_TASK._dbId)return;
@@ -1546,9 +1588,20 @@ function renderTaskPanel(){
   if(!TK_TASK)return;
   $('#tkTabs').innerHTML=TK_TABS.map(x=>{
     const n=tkCount(x.k);
-    return `<button class="tktab ${x.k===TK_VIEW?'active':''}" role="tab" aria-selected="${x.k===TK_VIEW}" data-tk="${x.k}">${x.t}${n?`<span class="tkn">${n}</span>`:''}</button>`;
+    return `<button class="tktab ${x.k===TK_VIEW?'active':''}" role="tab" id="tk-tab-${x.k}" aria-controls="tkBody" aria-selected="${x.k===TK_VIEW}" tabindex="${x.k===TK_VIEW?0:-1}" data-tk="${x.k}">${x.t}${n?`<span class="tkn">${n}</span>`:''}</button>`;
   }).join('');
+  const tb=$('#tkBody');tb.setAttribute('role','tabpanel');tb.setAttribute('aria-labelledby','tk-tab-'+TK_VIEW);
   $$('#tkTabs .tktab').forEach(b=>b.onclick=()=>{TK_VIEW=b.dataset.tk;renderTaskPanel();});
+  // أسهم لوحة المفاتيح (RTL: اليسار = التالي) + Home/End
+  $('#tkTabs').onkeydown=e=>{
+    const ks=TK_TABS.map(x=>x.k);const i=ks.indexOf(TK_VIEW);let j=null;
+    if(e.key==='ArrowLeft')j=(i+1)%ks.length;
+    else if(e.key==='ArrowRight')j=(i-1+ks.length)%ks.length;
+    else if(e.key==='Home')j=0;else if(e.key==='End')j=ks.length-1;
+    if(j===null)return;
+    e.preventDefault();TK_VIEW=ks[j];renderTaskPanel();
+    const nb=document.querySelector('#tkTabs .tktab[data-tk="'+ks[j]+'"]');if(nb)nb.focus();
+  };
 
   const H={info:tkInfo,deps:tkDeps,reqs:tkReqs,talk:tkTalk,log:tkLog};
   $('#tkBody').innerHTML=(H[TK_VIEW]||tkInfo)();
@@ -1857,18 +1910,32 @@ function openTracksManager(){
 }
 
 function renderTrkPanel(){
-  const list=PROJECT.tracks||[];
+  const list=(PROJECT.tracks||[]).slice().sort((a,b)=>a.sort-b.sort);
+  const countOf=k=>(PROJECT.tasks||[]).filter(t=>t.track===k&&t.type!=='package').length;
   $('#trkBody').innerHTML=`
-    <p class="trk-hint">عدّل الاسم أو اللون مباشرة ثم اضغط «حفظ». التغييرات تنعكس فورًا على الجدول والجانت وداشبورد العميل.</p>
-    ${list.map(t=>`<div class="trk-row" data-tid="${t.id}">
+    <p class="trk-hint">تُنشأ المراحل تلقائيًا عند استيراد خطة من Excel (وفق ترقيم WBS)، أو أضفها هنا يدويًا.
+      عدّل الاسم أو اللون ثم اضغط «حفظ». إعادة الترتيب والحذف فوريان.</p>
+    <div id="trkList">
+    ${list.map((t,i)=>{
+      const n=countOf(t.key);
+      return `<div class="trk-row" data-tid="${t.id}" data-key="${esc(t.key)}">
+      <div class="trk-order">
+        <button class="trk-ord" data-up="${t.id}" ${i===0?'disabled':''} aria-label="تحريك لأعلى">▲</button>
+        <button class="trk-ord" data-down="${t.id}" ${i===list.length-1?'disabled':''} aria-label="تحريك لأسفل">▼</button>
+      </div>
       <input type="color" class="trk-color" value="${t.color}" aria-label="لون المرحلة ${esc(t.name)}">
       <span class="trk-key" title="رمز المرحلة">${esc(t.key)}</span>
       <input class="trk-name" value="${esc(t.name)}" aria-label="اسم المرحلة">
-    </div>`).join('')}
+      <span class="trk-n" title="عدد البنود في هذه المرحلة">${n} بند</span>
+      <button class="trk-del" data-del="${t.id}" data-n="${n}" aria-label="حذف مرحلة ${esc(t.name)}" title="حذف">✕</button>
+    </div>`;}).join('')}
+    </div>
     <div class="trk-row trk-new">
+      <div class="trk-order"></div>
       <input type="color" class="trk-color" id="trkNewColor" value="#C8A06B" aria-label="لون المرحلة الجديدة">
-      <input class="trk-key-in" id="trkNewKey" placeholder="رمز" maxlength="2" aria-label="رمز المرحلة الجديدة">
+      <input class="trk-key-in" id="trkNewKey" placeholder="رمز" maxlength="4" aria-label="رمز المرحلة الجديدة">
       <input class="trk-name" id="trkNewName" placeholder="+ اسم مرحلة جديدة (اختياري)" aria-label="اسم المرحلة الجديدة">
+      <span></span><span></span>
     </div>
     <div class="imp-actions">
       <button class="hbtn" id="trkSave" style="background:var(--gold);border-color:var(--gold)">حفظ التعديلات</button>
@@ -1876,6 +1943,35 @@ function renderTrkPanel(){
     </div>`;
   $('#trkClose').onclick=()=>{$('#trkOverlay').style.display='none';};
   $('#trkSave').onclick=saveTracks;
+  $$('#trkBody [data-up]').forEach(b=>b.onclick=()=>moveTrack(b.dataset.up,-1));
+  $$('#trkBody [data-down]').forEach(b=>b.onclick=()=>moveTrack(b.dataset.down,1));
+  $$('#trkBody [data-del]').forEach(b=>b.onclick=()=>deleteTrackRow(b.dataset.del,parseInt(b.dataset.n,10)));
+}
+
+async function moveTrack(id,dir){
+  const list=(PROJECT.tracks||[]).slice().sort((a,b)=>a.sort-b.sort);
+  const i=list.findIndex(t=>t.id===id),j=i+dir;
+  if(i<0||j<0||j>=list.length)return;
+  const a=list[i],b=list[j];
+  try{
+    await reorderTracks([{id:a.id,sort:b.sort},{id:b.id,sort:a.sort}]);
+    PROJECT.tracks=await fetchTracks(PROJECT._dbId);
+    renderTrkPanel();
+  }catch(e){toast('تعذّر الترتيب: '+e.message,'err');}
+}
+async function deleteTrackRow(id,n){
+  const t=(PROJECT.tracks||[]).find(x=>x.id===id);if(!t)return;
+  const msg=n>0
+    ? `المرحلة «${t.name}» فيها ${n} بندًا. حذفها لا يحذف البنود، لكنها ستُعرض بلا مرحلة معروفة حتى تُنقل. هل تريد المتابعة؟`
+    : `حذف المرحلة «${t.name}»؟`;
+  if(!await confirmDialog('حذف مرحلة',msg,n>0))return;
+  try{
+    await deleteTrack(id);
+    PROJECT.tracks=await fetchTracks(PROJECT._dbId);
+    toast('حُذفت المرحلة','ok');
+    renderTrkPanel();
+    if(SCREEN==='project')render();
+  }catch(e){toast('تعذّر الحذف: '+e.message,'err');}
 }
 
 async function saveTracks(){
@@ -2463,6 +2559,18 @@ window.addEventListener('hashchange',()=>{
     ov.addEventListener('click',e=>{if(e.target===ov)closeTaskPanel();});
     document.addEventListener('keydown',e=>{
       if(e.key==='Escape'&&ov.style.display==='flex')closeTaskPanel();});
+    // حبس Tab داخل النافذة العائمة المفتوحة (WAI-ARIA Dialog)
+    document.addEventListener('keydown',e=>{
+      if(e.key!=='Tab')return;
+      const open=[...document.querySelectorAll('.rqoverlay')].find(x=>x.style.display==='flex');
+      if(!open)return;
+      const f=[...open.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')]
+        .filter(el=>!el.disabled&&!el.hasAttribute('hidden')&&el.getAttribute('tabindex')!=='-1');
+      if(!f.length)return;
+      const first=f[0],last=f[f.length-1],a=document.activeElement;
+      if(e.shiftKey&&(a===first||!open.contains(a))){e.preventDefault();last.focus();}
+      else if(!e.shiftKey&&(a===last||!open.contains(a))){e.preventDefault();first.focus();}
+    },true);
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire);else wire();
 })();
