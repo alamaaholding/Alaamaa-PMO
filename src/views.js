@@ -33,8 +33,19 @@ function render(){
   // شارة العدّ: تُعرض فقط حين يوجد ما ينتظر — لا أصفار تشوّش
   const badge=v=>{const n=C[v]||0;return n?`<span class="tabn" aria-label="${n} بانتظار المتابعة">${n}</span>`:'';};
   $('#tabs').setAttribute('role','tablist');
-  $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''} ${VIEW_TONE[v]?'tab-'+VIEW_TONE[v]:''}" role="tab" aria-selected="${v===VIEW}" data-v="${v}">${VIEW_ICONS[v]||''}<span>${VIEW_LABELS[v]}</span>${badge(v)}</button>`).join('');
+  $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''} ${VIEW_TONE[v]?'tab-'+VIEW_TONE[v]:''}" role="tab" id="tab-${v}" aria-controls="host" aria-selected="${v===VIEW}" tabindex="${v===VIEW?0:-1}" data-v="${v}">${VIEW_ICONS[v]||''}<span>${VIEW_LABELS[v]}</span>${badge(v)}</button>`).join('');
+  const _hp=$('#host');if(_hp){_hp.setAttribute('role','tabpanel');_hp.setAttribute('aria-labelledby','tab-'+VIEW);}
   $$('#tabs .tab').forEach(b=>b.onclick=()=>setView(b.dataset.v));
+  // تنقّل الأسهم وفق WAI-ARIA (بمراعاة RTL: اليسار = التالي) + Home/End
+  $('#tabs').onkeydown=e=>{
+    const i=views.indexOf(VIEW);let j=null;
+    if(e.key==='ArrowLeft')j=(i+1)%views.length;
+    else if(e.key==='ArrowRight')j=(i-1+views.length)%views.length;
+    else if(e.key==='Home')j=0;else if(e.key==='End')j=views.length-1;
+    if(j===null)return;
+    e.preventDefault();setView(views[j]);
+    const nb=document.querySelector('#tabs .tab[data-v="'+views[j]+'"]');if(nb)nb.focus();
+  };
   const host=$('#host');
   // حالة فارغة: مشروع بلا بنود — دعوة فعل واضحة (لا تبويبات فارغة)
   if(!PROJECT.tasks.length && VIEW!=='discuss' && VIEW!=='requests'){
@@ -46,7 +57,8 @@ function render(){
     const ei=$('#emptyImport');if(ei)ei.onclick=openImporter;
     return;
   }
-  if(VIEW==='dashboard')host.innerHTML=(ROLE==='client')?vClientDash():vDashboard();
+  if(VIEW==='dashboard'){host.innerHTML=(ROLE==='client')?vClientDash():vDashboard();
+    $$('#host [data-tkopen]').forEach(b=>b.onclick=()=>openTaskPanel(b.dataset.tkopen));}
   else if(VIEW==='table'){host.innerHTML='<div class="hintbar">تحديث الحالة والتقدّم يُحفظ مباشرة في القاعدة. المسار الحرج مظلّل.</div>'+vTable();bindTable();}
   else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();bindProjFilterBar();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(2,PX-4);render();};
     const pgb=$('#printGanttBtn');if(pgb)pgb.onclick=()=>printProject('gantt');
@@ -57,6 +69,9 @@ function render(){
       if(b)PROJECT.baseline={snapshot:b.snapshot};render();};
     document.querySelectorAll('[data-scale]').forEach(b=>{const on=b.dataset.scale===GSCALE;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false');
       b.onclick=()=>{GSCALE=b.dataset.scale;try{localStorage.setItem('pmo_gscale',GSCALE);}catch(_e){}PX=GSCALE_PX[GSCALE]||16;render();};});
+    $$('#host .glbl[data-tkopen]').forEach(el=>{
+      el.onclick=()=>openTaskPanel(el.dataset.tkopen);
+      el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openTaskPanel(el.dataset.tkopen);}};});
     bindGanttHover();drawGanttLinks();}
   else if(VIEW==='deliv')host.innerHTML=vDeliv();
   else if(VIEW==='timeline'){
@@ -91,10 +106,10 @@ function vDashboard(){
   const week=tasks.filter(t=>t.type!=='milestone'&&D(fmtY(S.R[t.id].ES))<=wkEnd&&D(fmtY(S.R[t.id].EF))>=dd);
   const creqs=[];PROJECT.tasks.forEach(t=>(t.requirements||[]).forEach(r=>{if(r.owner==='client'&&r._state!=='received'&&r._state!=='latejust')creqs.push({t,r});}));
   const miles=PROJECT.tasks.filter(t=>t.type==='milestone').map(t=>({t,ef:S.R[t.id].EF})).filter(m=>D(fmtY(m.ef))>=dd).sort((a,b)=>a.ef-b.ef).slice(0,5);
-  const alerts=[];creqs.filter(x=>x.r._state==='overdue').forEach(x=>alerts.push(['client','متطلب متأخر من العميل: '+x.r.desc+' ('+x.t.id+')'+(x.r._late?' +'+x.r._late+'ي':'')]));
-  tasks.filter(t=>T[t.id].delay==='alamah').forEach(t=>alerts.push(['alamah','تأخير على فريق علامة: '+t.id+' — '+t.name]));
-  tasks.filter(t=>T[t.id].blocked).forEach(t=>alerts.push(['blocked','بند متوقف: '+t.id+' — '+t.name]));
-  const tl=t=>`<li><span class="tgw" style="--tc:${trackMeta(t.track).color}">${esc(t.id)}</span> ${esc(t.name)} <em>${fmt(S.R[t.id].ES)}–${fmt(S.R[t.id].EF)}</em> <span class="ministat s-${T[t.id].effStatus}">${STATUS[T[t.id].effStatus]}</span></li>`;
+  const alerts=[];creqs.filter(x=>x.r._state==='overdue').forEach(x=>alerts.push(['client','متطلب متأخر من العميل: '+x.r.desc+' ('+x.t.id+')'+(x.r._late?' +'+x.r._late+'ي':''),x.t.id]));
+  tasks.filter(t=>T[t.id].delay==='alamah').forEach(t=>alerts.push(['alamah','تأخير على فريق علامة: '+t.id+' — '+t.name,t.id]));
+  tasks.filter(t=>T[t.id].blocked).forEach(t=>alerts.push(['blocked','بند متوقف: '+t.id+' — '+t.name,t.id]));
+  const tl=t=>`<li><button class="tlink" data-tkopen="${esc(t.id)}"><span class="tgw" style="--tc:${trackMeta(t.track).color}">${esc(t.id)}</span> ${esc(t.name)} <em>${fmt(S.R[t.id].ES)}–${fmt(S.R[t.id].EF)}</em> <span class="ministat s-${T[t.id].effStatus}">${STATUS[T[t.id].effStatus]}</span></button></li>`;
   const card=(l,v,c)=>`<div class="dcard ${c||''}"><b>${v}</b><span>${l}</span></div>`;
   let h=`<div class="dgrid">${card('نسبة الإنجاز',pct+'%','ok')}${card('مكتملة',done)}${card('جارية',inprog,'blue')}${card('متبقية',total-done)}${card('متوقفة',blocked,'crit')}${card('متطلبات مطلوبة',creqs.length,'warn')}</div>
   <div class="dprog"><div class="dprog-fill" style="width:${pct}%"></div></div>
@@ -103,10 +118,10 @@ function vDashboard(){
     <div class="dbox"><h4>مهام هذا الأسبوع (${week.length})</h4><ul class="tlist">${week.length?week.map(tl).join(''):'<li class="empty">لا مهام هذا الأسبوع.</li>'}</ul></div>
   </div>
   <div class="dcols">
-    <div class="dbox"><h4>المتطلبات المطلوبة من العميل (${creqs.length})</h4><ul class="tlist">${creqs.length?creqs.map(x=>`<li><span class="ministat s-${x.r._state==='overdue'?'blocked':'notstarted'}">${x.r._state==='overdue'?'متأخر':'بانتظار'}</span> ${esc(x.r.desc)} <em>SLA ${x.r.sla}ي · ${esc(x.t.id)}</em></li>`).join(''):'<li class="empty">لا متطلبات معلّقة.</li>'}</ul></div>
-    <div class="dbox"><h4>المعالم القادمة</h4><ul class="tlist">${miles.length?miles.map(m=>`<li><span class="md">◆</span> ${esc(m.t.name.replace('معلم: ',''))} <em>${fmt(m.ef)}</em></li>`).join(''):'<li class="empty">—</li>'}</ul></div>
+    <div class="dbox"><h4>المتطلبات المطلوبة من العميل (${creqs.length})</h4><ul class="tlist">${creqs.length?creqs.map(x=>`<li><button class="tlink" data-tkopen="${esc(x.t.id)}"><span class="ministat s-${x.r._state==='overdue'?'blocked':'notstarted'}">${x.r._state==='overdue'?'متأخر':'بانتظار'}</span> ${esc(x.r.desc)} <em>SLA ${x.r.sla}ي · ${esc(x.t.id)}</em></button></li>`).join(''):'<li class="empty">لا متطلبات معلّقة.</li>'}</ul></div>
+    <div class="dbox"><h4>المعالم القادمة</h4><ul class="tlist">${miles.length?miles.map(m=>`<li><button class="tlink" data-tkopen="${esc(m.t.id)}"><span class="md">◆</span> ${esc(m.t.name.replace('معلم: ',''))} <em>${fmt(m.ef)}</em></button></li>`).join(''):'<li class="empty">—</li>'}</ul></div>
   </div>
-  <div class="dbox alerts"><h4>التنبيهات (${alerts.length})</h4><ul class="tlist">${alerts.length?alerts.map(a=>`<li class="alert a-${a[0]}">⚠ ${esc(a[1])}</li>`).join(''):'<li class="empty">لا تنبيهات.</li>'}</ul></div>`;
+  <div class="dbox alerts"><h4>التنبيهات (${alerts.length})</h4><ul class="tlist">${alerts.length?alerts.map(a=>`<li class="alert a-${a[0]}">${a[2]?`<button class="tlink" data-tkopen="${esc(a[2])}">⚠ ${esc(a[1])}</button>`:('⚠ '+esc(a[1]))}</li>`).join(''):'<li class="empty">لا تنبيهات.</li>'}</ul></div>`;
   h+=sCurveSVG();
   return h;
 }
@@ -419,7 +434,7 @@ function vGantt(){
         tail=`<div class="gtail ${who}" style="right:${to*PX}px;width:${tl*PX}px" title="امتداد التأخير حتى اليوم"></div><div class="glate ${who}" style="right:${(to+tl)*PX+5}px">${who==='client'?'بانتظار العميل':'متأخر'} +${lateDays}ي</div>`;
       }
       lane+=`<div class="gbar ${cls} ${r.critical?'crit':''} ${overdue?'late late-'+who:''}" data-gid="${esc(t.id)}" style="right:${o*PX}px;width:${wpx}px;background:${tc}" title="${tip}">${fill}</div>${tail}${durEl}`;}
-    rows+=`<div class="grow" data-grow="${esc(t.id)}"><div class="glbl ${t.parent?'gchild':''}"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
+    rows+=`<div class="grow" data-grow="${esc(t.id)}"><div class="glbl ${t.parent?'gchild':''}" role="button" tabindex="0" data-tkopen="${esc(t.id)}" aria-label="لوحة البند ${esc(t.id)} — ${esc(t.name)}"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
   return projFilterBar()+baselineDeviation(BL)+`<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
     <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${HD.top}${HD.bot}</div></div>
     <div id="gcanvas" style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${HD.wkends}${HD.grid}${today}</div>${rows}</div></div></div>
