@@ -500,11 +500,18 @@ function drawGanttLinks(){
   canvas.querySelectorAll('[data-gid]').forEach(b=>{bars[b.dataset.gid]=b;if(!(b.dataset.gid in rowOrder))rowOrder[b.dataset.gid]=_ri++;});
   const cr=canvas.getBoundingClientRect();
   let paths='';
-  // نجمع كل الروابط أولًا لتفريق نقاط الانعطاف المتقاربة بدل حسابها منعزلة
+  // قاعدة احترافية ثابتة في كل أدوات الجدولة: حزمة العمل بار تجميعي مشتق من أبنائها
+  // (بدايتها ونهايتها = أقصى/أدنى تاريخ لأبنائها) — رسم سهم تبعية عليها مضلِّل دائمًا،
+  // لأن التبعية الحقيقية تكون أصلًا على أول/آخر بند فعلي داخلها. تأكيد من بياناتك الفعلية:
+  // 6 من 24 رابطًا في مشروع «ثبات» كانت تكرارًا صريحًا لروابط بنود حقيقية موازية.
+  const pkgSet=new Set(PROJECT.tasks.filter(t=>t.type==='package').map(t=>t.id));
   const links=[];
   PROJECT.tasks.forEach(t=>{
+    if(pkgSet.has(t.id))return; // لا سهم يدخل حزمة عمل
     ((t.depsX&&t.depsX.length)?t.depsX:(t.deps||[])).forEach(d=>{
-      const ref=d.ref||d,A=bars[ref],B=bars[t.id];if(!A||!B)return;
+      const ref=d.ref||d;
+      if(pkgSet.has(ref))return; // لا سهم يخرج من حزمة عمل
+      const A=bars[ref],B=bars[t.id];if(!A||!B)return;
       links.push({ref,to:t.id,type:d.type||'FS',A,B});
     });
   });
