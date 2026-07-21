@@ -64,6 +64,11 @@ async function loadProject(clientId, projectId){
     tasks:(()=>{const _refOf={};tasks.forEach(x=>{_refOf[x.id]=x.ref;});
       return tasks.map(t=>({id:t.ref,_dbId:t.id,parent:t.parent_id?(_refOf[t.parent_id]||null):null,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],depsX:depMapX[t.id]||[],requirements:reqMap[t.id]||[]}));})()};
   PROJECT.tracks=(await sb.from('pmo_project_tracks').select('*').eq('project_id',p.id).order('sort')).data||[];
+  // إصلاح ذاتي: مرحلة كل بند = مرجع أعلى سلف له في WBS الفعلي (عبر parent_id الحقيقي)،
+  // لا القيمة المخزّنة في عمود track التي قد تكون انحرفت عن الهرمية الحقيقية (استيراد سابق قبل هذا الإصلاح،
+  // تعديل يدوي، إلخ). هذا يصحّح فورًا أي مشروع قديم بلا أي هجرة بيانات.
+  {const byRef={};PROJECT.tasks.forEach(t=>{byRef[t.id]=t;});
+   PROJECT.tasks.forEach(t=>{t.track=taskTopAncestor(t,byRef);});}
   // شارات التبويبات: عدّ خفيف لا يجلب صفوفًا
   PROJECT.counts={cr:CRS.filter(x=>x.status==='pending').length,discuss:0,requests:0};
   try{Object.assign(PROJECT.counts,await fetchProjectCounts(p.id));}catch(e){}
