@@ -1,4 +1,4 @@
-const BUILD_V='4ea7148f';
+const BUILD_V='7a63abc1';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -80,8 +80,35 @@ const VIEW_ICONS={
 // التابات التي تحتاج تمييزًا لونيًا إضافيًا لتقارب معناها
 const VIEW_TONE={cr:'plan',requests:'service'};
 
-// المراحل الديناميكية: قائمة مراحل المشروع الحالي (أو الافتراضية)
+// أعلى سلف في شجرة WBS — هذا هو تعريف «المرحلة» الحقيقي والوحيد.
+// لا نثق بعمود track كمصدر حقيقة (قد ينحرف عن الهرمية الفعلية)؛ الهرمية عبر parent
+// المبنية من parent_id الفعلي في القاعدة موثوقة دائمًا لأنها قيد مفتاح أجنبي حقيقي.
+function taskTopAncestor(t, byRef){
+  let cur=t, guard=0;
+  while(cur.parent && byRef[cur.parent] && guard++<50){ cur=byRef[cur.parent]; }
+  return cur.id;
+}
+
+// المراحل الديناميكية: ذاتية الإصلاح دائمًا — تُشتق من مراجع الجذور الفعلية الموجودة
+// في المشروع، لا من سجل pmo_project_tracks وحده. إن وُجد تخصيص اسم/لون في السجل يُستخدم؛
+// وإلا يُشتق افتراضي من اسم البند الجذر نفسه — فلا تظهر تصفية فارغة أبدًا بسبب انحراف البيانات.
+const _TRACK_PALETTE=['#8A8071','#4A6B8A','#A67F4E','#6B8E6B','#8A5E7A','#5E8A8A','#8A6B4A','#4B3F72'];
 function projTrackList(){
+  if(typeof PROJECT!=='undefined'&&PROJECT&&PROJECT.tasks&&PROJECT.tasks.length){
+    const reg={};(PROJECT.tracks||[]).forEach(x=>{reg[x.key]=x;});
+    const byRef={};PROJECT.tasks.forEach(t=>{byRef[t.id]=t;});
+    const seen=new Set(),out=[];let pi=0;
+    PROJECT.tasks.forEach(t=>{
+      const k=t.track;if(seen.has(k))return;seen.add(k);
+      const custom=reg[k],top=byRef[k];
+      out.push({key:k,id:custom&&custom.id,
+        name:(custom&&custom.name)||(top&&top.name)||k,
+        color:(custom&&custom.color)||_TRACK_PALETTE[pi++%_TRACK_PALETTE.length],
+        code:k,sort:custom?custom.sort:(1000+pi)});
+    });
+    out.sort((a,b)=>a.sort-b.sort);
+    if(out.length)return out;
+  }
   if(typeof PROJECT!=='undefined'&&PROJECT&&PROJECT.tracks&&PROJECT.tracks.length)
     return PROJECT.tracks.map(t=>({key:t.key,name:t.name,color:t.color,code:t.key,id:t.id,sort:t.sort}));
   return Object.keys(TRACKS).map((k,i)=>({key:k,name:TRACKS[k].name,color:TRACKS[k].color,code:TRACKS[k].code||k,sort:i}));
@@ -303,6 +330,11 @@ async function loadProject(clientId, projectId){
     tasks:(()=>{const _refOf={};tasks.forEach(x=>{_refOf[x.id]=x.ref;});
       return tasks.map(t=>({id:t.ref,_dbId:t.id,parent:t.parent_id?(_refOf[t.parent_id]||null):null,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],depsX:depMapX[t.id]||[],requirements:reqMap[t.id]||[]}));})()};
   PROJECT.tracks=(await sb.from('pmo_project_tracks').select('*').eq('project_id',p.id).order('sort')).data||[];
+  // إصلاح ذاتي: مرحلة كل بند = مرجع أعلى سلف له في WBS الفعلي (عبر parent_id الحقيقي)،
+  // لا القيمة المخزّنة في عمود track التي قد تكون انحرفت عن الهرمية الحقيقية (استيراد سابق قبل هذا الإصلاح،
+  // تعديل يدوي، إلخ). هذا يصحّح فورًا أي مشروع قديم بلا أي هجرة بيانات.
+  {const byRef={};PROJECT.tasks.forEach(t=>{byRef[t.id]=t;});
+   PROJECT.tasks.forEach(t=>{t.track=taskTopAncestor(t,byRef);});}
   // شارات التبويبات: عدّ خفيف لا يجلب صفوفًا
   PROJECT.counts={cr:CRS.filter(x=>x.status==='pending').length,discuss:0,requests:0};
   try{Object.assign(PROJECT.counts,await fetchProjectCounts(p.id));}catch(e){}
