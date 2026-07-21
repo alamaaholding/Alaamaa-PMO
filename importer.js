@@ -84,6 +84,8 @@ function mapColumns(headerCells){
 // تطبيع قيمة النوع
 function normType(v){
   const n=normTxt(v);
+  if(/مرحله|phase|stage/.test(n)) return 'phase';
+  if(/حزمه|package|summary|ملخص|مجموعه|group/.test(n)) return 'package';
   if(/معلم|milestone|gate|بوابه/.test(n)) return 'milestone';
   if(/مستمر|cont|continuous|ongoing/.test(n)) return 'cont';
   if(/ثابت|fixed/.test(n)) return 'fixed';
@@ -123,7 +125,7 @@ function parseWorkbook(arrayBuffer){
   if(cols.name==null) missing.push('الاسم');
   if(missing.length) throw {ar:`أعمدة أساسية مفقودة في ورقة «${sheetName}»: ${missing.join('، ')}.`};
 
-  const tasks=[]; const warnings=[]; const seen=new Set();
+  let tasks=[]; const warnings=[]; const seen=new Set();
   for(let i=hr+1;i<rows.length;i++){
     const row=rows[i]||[];
     const ref=String(row[cols.ref]==null?'':row[cols.ref]).trim();
@@ -138,6 +140,7 @@ function parseWorkbook(arrayBuffer){
     const type=cols.type!=null?normType(row[cols.type]):'task';
     tasks.push({
       ref, name:name||ref,
+      trackRaw:cols.track!=null?String(row[cols.track]||'').trim():'',
       track:cols.track!=null?normTrack(row[cols.track]):'0',
       type, duration:(type==='milestone'||type==='cont')?0:duration,
       deps:cols.deps!=null?parseDeps(row[cols.deps]):[],
@@ -153,9 +156,47 @@ function parseWorkbook(arrayBuffer){
      if(parts.length>1){const cand=parts.slice(0,-1).join('.');
        if(refSet.has(cand)&&cand!==String(t.ref))t.parent=cand;}});
    const pkgRefs=new Set(tasks.filter(t=>t.parent).map(t=>String(t.parent)));
-   tasks.forEach(t=>{if(pkgRefs.has(String(t.ref))){
+   tasks.forEach(t=>{if(pkgRefs.has(String(t.ref))&&t.type!=='phase'){
      if(t.type==='milestone')warnings.push(`«${t.ref}» معلم لكنه أب لبنود — حُوّل لحزمة عمل.`);
      t.type='package';}});
+  }
+
+  // ═══ اشتقاق المراحل من WBS ═══
+  // مرحلة = صف نوعه «مرحلة/Phase» صراحةً، أو — إن كان عمود المسار مهملًا
+  // (غائبًا، أو نسخة من المعرّف، أو قيمة واحدة مكررة) — كل جذر WBS له أبناء.
+  let phases=[];
+  {
+    const explicit=tasks.filter(t=>t.type==='phase');
+    let phaseRows=explicit;
+    if(!phaseRows.length){
+      const raw=[...new Set(tasks.map(t=>t.trackRaw))];
+      const trackIsRef=tasks.every(t=>!t.trackRaw||t.trackRaw===String(t.ref));
+      const degenerate=raw.length<=1||trackIsRef;
+      if(degenerate){
+        const hasKids=new Set(tasks.filter(t=>t.parent).map(t=>String(t.parent)));
+        phaseRows=tasks.filter(t=>!t.parent&&hasKids.has(String(t.ref)));
+      }
+    }
+    if(phaseRows.length){
+      const PALETTE=['#8A8071','#4A6B8A','#A67F4E','#6B8E6B','#8A5E7A','#5E8A8A','#8A6B4A','#4B3F72'];
+      const phaseSet=new Set(phaseRows.map(t=>String(t.ref)));
+      phases=phaseRows.map((t,i)=>({key:String(t.ref),name:t.name,color:PALETTE[i%PALETTE.length],sort:i+1}));
+      // نسب كل بند لمرحلته عبر جذر ترقيمه، وفصل صفوف المراحل عن قائمة البنود
+      tasks.forEach(t=>{
+        const root=String(t.ref).split('.')[0];
+        if(phaseSet.has(root))t.track=root;
+        if(t.parent&&phaseSet.has(String(t.parent)))t.parent=null;
+      });
+      tasks=tasks.filter(t=>!phaseSet.has(String(t.ref)));
+      // التبعيات من/إلى صف مرحلة تُسقط بتنبيه (أبناؤها يحملون التبعيات الفعلية)
+      let dropped=0;
+      tasks.forEach(t=>{const b=t.deps.length;t.deps=t.deps.filter(d=>!phaseSet.has(String(d)));dropped+=b-t.deps.length;});
+      if(dropped)warnings.push(`${dropped} تبعية كانت تشير إلى صفوف مراحل — أُسقطت (البنود داخل المراحل تحمل التبعيات الفعلية).`);
+      warnings.push(`اكتُشفت ${phases.length} مراحل من WBS وستُنشأ تلقائيًا: ${phases.map(p=>p.key+' '+p.name).join('، ')}.`);
+    }else{
+      // لا مراحل مكتشفة: أي صف عُلّم «مرحلة» صراحة بلا أبناء يُعاد بندًا عاديًا
+      tasks.forEach(t=>{if(t.type==='phase')t.type='task';});
+    }
   }
   tasks.forEach(t=>{if(t.type==='task'&&(!t.duration||t.duration<=0))warnings.push(`«${t.ref}» مهمة بمدة 0 — ستلتصق بنهاية سابقتها دون استهلاك أيام (يُفضّل معلم أو مدة ≥ 1).`);});
   // تحقّق التبعيات: كل تبعية يجب أن تشير لمعرّف موجود
@@ -169,7 +210,7 @@ function parseWorkbook(arrayBuffer){
   const cycle=detectCycle(tasks, depPairs);
   if(cycle) warnings.push(`تحذير: دورة تبعية محتملة عبر: ${cycle.join(' → ')} — راجع التبعيات.`);
 
-  return {sheetName, colsFound:Object.keys(cols), tasks, depPairs, warnings};
+  return {sheetName, colsFound:Object.keys(cols), tasks, phases, depPairs, warnings};
 }
 // كشف دورة بسيط (DFS)
 function detectCycle(tasks, depPairs){
@@ -229,10 +270,14 @@ function renderImpPreview(p){
     ? `<div class="imp-warn"><b>ملاحظات (${p.warnings.length}):</b><ul>${p.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul></div>`
     : '<div class="imp-ok">لا تحذيرات — الملف سليم.</div>';
   const sample=p.tasks.slice(0,6).map(t=>`<tr><td>${esc(t.ref)}</td><td>${t.parent?'<span style="color:var(--muted)">└ </span>':''}${esc(t.name)}</td><td>${esc(t.track)}</td><td>${TYPES[t.type]||t.type}</td><td>${t.duration||'—'}</td><td>${esc(t.deps.join('، ')||'—')}</td></tr>`).join('');
+  const phaseChips=(p.phases&&p.phases.length)
+    ? `<div class="imp-phases"><b>المراحل المكتشفة (${p.phases.length}):</b> ${p.phases.map(ph=>`<span class="imp-phase" style="--pc:${ph.color}">${esc(ph.key)} ${esc(ph.name)}</span>`).join('')}</div>`
+    : '';
   $('#impResult').innerHTML=`
     <div class="imp-summary">
-      ✓ قُرئت ورقة «${esc(p.sheetName)}»: <b>${tcount}</b> مهمة · <b>${mcount}</b> معلم · <b>${dcount}</b> تبعية.
+      ✓ قُرئت ورقة «${esc(p.sheetName)}»: <b>${tcount}</b> مهمة · <b>${mcount}</b> معلم · <b>${dcount}</b> تبعية${p.phases&&p.phases.length?` · <b>${p.phases.length}</b> مراحل`:''}.
     </div>
+    ${phaseChips}
     ${warns}
     <div class="imp-tablewrap"><table class="imp-table"><thead><tr><th>المعرّف</th><th>الاسم</th><th>المسار</th><th>النوع</th><th>المدة</th><th>يعتمد على</th></tr></thead><tbody>${sample}</tbody>${tcount>6?`<tfoot><tr><td colspan="6">… و${tcount-6} مهمة أخرى</td></tr></tfoot>`:''}</table></div>
     <div class="imp-actions">
@@ -266,6 +311,8 @@ async function runImport(mode){
       const skipped=before-tasks.length;
       if(skipped>0) toast(`الدمج: ${skipped} مهمة موجودة بالفعل تم تخطّيها`,'warn');
     }
+    if(IMP_DATA.phases&&IMP_DATA.phases.length)
+      await upsertProjectTracks(PROJECT._dbId, IMP_DATA.phases, mode);
     const refToId=await bulkInsertTasks(PROJECT._dbId, tasks);
     // للدمج: نحتاج خريطة شاملة (الموجود + الجديد) لربط التبعيات
     if(mode==='merge'){
@@ -275,7 +322,7 @@ async function runImport(mode){
     const dn=await bulkInsertDeps(PROJECT._dbId, depPairs, refToId);
     $('#impOverlay').style.display='none';
     toast(`تم الاستيراد: ${Object.keys(refToId).length? tasks.length:0} مهمة و${dn} تبعية · التواريخ محسوبة آليًا`,'ok');
-    await loadProject(CID); render();
+    await loadProject(CID,PID); render();
   }catch(err){
     const msg=err&&err.message?err.message:'خطأ غير متوقّع';
     $('#impResult').insertAdjacentHTML('afterbegin',`<div class="imp-err">تعذّر الاستيراد: ${esc(msg)}</div>`);
