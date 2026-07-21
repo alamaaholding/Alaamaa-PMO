@@ -109,18 +109,32 @@ function openTracksManager(){
 }
 
 function renderTrkPanel(){
-  const list=PROJECT.tracks||[];
+  const list=(PROJECT.tracks||[]).slice().sort((a,b)=>a.sort-b.sort);
+  const countOf=k=>(PROJECT.tasks||[]).filter(t=>t.track===k&&t.type!=='package').length;
   $('#trkBody').innerHTML=`
-    <p class="trk-hint">عدّل الاسم أو اللون مباشرة ثم اضغط «حفظ». التغييرات تنعكس فورًا على الجدول والجانت وداشبورد العميل.</p>
-    ${list.map(t=>`<div class="trk-row" data-tid="${t.id}">
+    <p class="trk-hint">تُنشأ المراحل تلقائيًا عند استيراد خطة من Excel (وفق ترقيم WBS)، أو أضفها هنا يدويًا.
+      عدّل الاسم أو اللون ثم اضغط «حفظ». إعادة الترتيب والحذف فوريان.</p>
+    <div id="trkList">
+    ${list.map((t,i)=>{
+      const n=countOf(t.key);
+      return `<div class="trk-row" data-tid="${t.id}" data-key="${esc(t.key)}">
+      <div class="trk-order">
+        <button class="trk-ord" data-up="${t.id}" ${i===0?'disabled':''} aria-label="تحريك لأعلى">▲</button>
+        <button class="trk-ord" data-down="${t.id}" ${i===list.length-1?'disabled':''} aria-label="تحريك لأسفل">▼</button>
+      </div>
       <input type="color" class="trk-color" value="${t.color}" aria-label="لون المرحلة ${esc(t.name)}">
       <span class="trk-key" title="رمز المرحلة">${esc(t.key)}</span>
       <input class="trk-name" value="${esc(t.name)}" aria-label="اسم المرحلة">
-    </div>`).join('')}
+      <span class="trk-n" title="عدد البنود في هذه المرحلة">${n} بند</span>
+      <button class="trk-del" data-del="${t.id}" data-n="${n}" aria-label="حذف مرحلة ${esc(t.name)}" title="حذف">✕</button>
+    </div>`;}).join('')}
+    </div>
     <div class="trk-row trk-new">
+      <div class="trk-order"></div>
       <input type="color" class="trk-color" id="trkNewColor" value="#C8A06B" aria-label="لون المرحلة الجديدة">
-      <input class="trk-key-in" id="trkNewKey" placeholder="رمز" maxlength="2" aria-label="رمز المرحلة الجديدة">
+      <input class="trk-key-in" id="trkNewKey" placeholder="رمز" maxlength="4" aria-label="رمز المرحلة الجديدة">
       <input class="trk-name" id="trkNewName" placeholder="+ اسم مرحلة جديدة (اختياري)" aria-label="اسم المرحلة الجديدة">
+      <span></span><span></span>
     </div>
     <div class="imp-actions">
       <button class="hbtn" id="trkSave" style="background:var(--gold);border-color:var(--gold)">حفظ التعديلات</button>
@@ -128,6 +142,35 @@ function renderTrkPanel(){
     </div>`;
   $('#trkClose').onclick=()=>{$('#trkOverlay').style.display='none';};
   $('#trkSave').onclick=saveTracks;
+  $$('#trkBody [data-up]').forEach(b=>b.onclick=()=>moveTrack(b.dataset.up,-1));
+  $$('#trkBody [data-down]').forEach(b=>b.onclick=()=>moveTrack(b.dataset.down,1));
+  $$('#trkBody [data-del]').forEach(b=>b.onclick=()=>deleteTrackRow(b.dataset.del,parseInt(b.dataset.n,10)));
+}
+
+async function moveTrack(id,dir){
+  const list=(PROJECT.tracks||[]).slice().sort((a,b)=>a.sort-b.sort);
+  const i=list.findIndex(t=>t.id===id),j=i+dir;
+  if(i<0||j<0||j>=list.length)return;
+  const a=list[i],b=list[j];
+  try{
+    await reorderTracks([{id:a.id,sort:b.sort},{id:b.id,sort:a.sort}]);
+    PROJECT.tracks=await fetchTracks(PROJECT._dbId);
+    renderTrkPanel();
+  }catch(e){toast('تعذّر الترتيب: '+e.message,'err');}
+}
+async function deleteTrackRow(id,n){
+  const t=(PROJECT.tracks||[]).find(x=>x.id===id);if(!t)return;
+  const msg=n>0
+    ? `المرحلة «${t.name}» فيها ${n} بندًا. حذفها لا يحذف البنود، لكنها ستُعرض بلا مرحلة معروفة حتى تُنقل. هل تريد المتابعة؟`
+    : `حذف المرحلة «${t.name}»؟`;
+  if(!await confirmDialog('حذف مرحلة',msg,n>0))return;
+  try{
+    await deleteTrack(id);
+    PROJECT.tracks=await fetchTracks(PROJECT._dbId);
+    toast('حُذفت المرحلة','ok');
+    renderTrkPanel();
+    if(SCREEN==='project')render();
+  }catch(e){toast('تعذّر الحذف: '+e.message,'err');}
 }
 
 async function saveTracks(){
