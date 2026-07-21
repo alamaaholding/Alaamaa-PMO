@@ -414,7 +414,9 @@ function vGantt(){
     const overdue=(t.status!=='done'&&t.type!=='cont'&&t.type!=='package'&&r&&dd>r.EF);
     const lateDays=overdue?Math.max(1,wdBetween(r.EF,dd)-1):0;
     const who=(k&&k.delay==='client')?'client':'alamah';
-    const tip=`${esc(t.name)} — ${fmt(r.ES)}–${fmt(r.EF)} | ${STATUS[k.effStatus]}${overdue?` | متأخر ${lateDays} يوم عمل`:''}`;
+    const slackTip=t.type==='milestone'?'':(r.critical?' | حرج — لا فائض زمني'
+      :(r.slack!=null&&r.slack>0?` | فائض ${r.slack} يوم عمل قبل أن يؤثّر على تاريخ التسليم`:''));
+    const tip=`${esc(t.name)} — ${fmt(r.ES)}–${fmt(r.EF)} | ${STATUS[k.effStatus]}${overdue?` | متأخر ${lateDays} يوم عمل`:''}${slackTip}`;
     let lane='';
     if(BL&&BL[t.id]&&t.type!=='milestone'){const bo=off(D(BL[t.id].ES)),bl=Math.max(1,Math.round((D(BL[t.id].EF)-D(BL[t.id].ES))/oneDay)+1);lane+=`<div class="blbar" style="right:${bo*PX}px;width:${bl*PX}px"></div>`;}
     if(t.type==='package'){
@@ -494,22 +496,29 @@ function drawGanttLinks(){
   const canvas=document.getElementById('gcanvas');if(!canvas)return;
   const old=document.getElementById('glinks');if(old)old.remove();
   if(!GLINKS_ON)return;
-  const bars={};
-  canvas.querySelectorAll('[data-gid]').forEach(b=>{bars[b.dataset.gid]=b;});
+  const bars={};const rowOrder={};let _ri=0;
+  canvas.querySelectorAll('[data-gid]').forEach(b=>{bars[b.dataset.gid]=b;if(!(b.dataset.gid in rowOrder))rowOrder[b.dataset.gid]=_ri++;});
   const cr=canvas.getBoundingClientRect();
   let paths='';
+  // نجمع كل الروابط أولًا لتفريق نقاط الانعطاف المتقاربة بدل حسابها منعزلة
+  const links=[];
   PROJECT.tasks.forEach(t=>{
     ((t.depsX&&t.depsX.length)?t.depsX:(t.deps||[])).forEach(d=>{
-      const A=bars[d.ref||d],B=bars[t.id];if(!A||!B)return;
-      const dtype=(d.type||'FS');
-      const ra=A.getBoundingClientRect(),rb=B.getBoundingClientRect();
-      // مراسي حسب النوع: FS نهاية←بداية · SS بداية←بداية · FF نهاية←نهاية
-      const x1=(dtype==='SS'?ra.right:ra.left)-cr.left, y1=ra.top-cr.top+ra.height/2;
-      const x2=(dtype==='FF'?rb.left:rb.right)-cr.left, y2=rb.top-cr.top+rb.height/2;
-      const crit=A.classList.contains('crit')&&B.classList.contains('crit');
-      const bend=Math.min(x1,x2)-9;
-      paths+=`<path d="M ${x1} ${y1} L ${bend} ${y1} L ${bend} ${y2} L ${x2-1} ${y2}" class="glink ${crit?'crit':''} lt-${dtype}" marker-end="url(#${crit?'garrc':'garr'})" data-lfrom="${esc(d.ref||d)}" data-lto="${esc(t.id)}"/>`;
+      const ref=d.ref||d,A=bars[ref],B=bars[t.id];if(!A||!B)return;
+      links.push({ref,to:t.id,type:d.type||'FS',A,B});
     });
+  });
+  links.forEach(({ref,to,type:dtype,A,B})=>{
+    const ra=A.getBoundingClientRect(),rb=B.getBoundingClientRect();
+    const x1=(dtype==='SS'?ra.right:ra.left)-cr.left, y1=ra.top-cr.top+ra.height/2;
+    const x2=(dtype==='FF'?rb.left:rb.right)-cr.left, y2=rb.top-cr.top+rb.height/2;
+    const crit=A.classList.contains('crit')&&B.classList.contains('crit');
+    // تفريق حقيقي: كلما بَعُدت الصفوف عن بعضها، ابتعد خط الانعطاف أكثر — يمنع انطباع «خط واحد»
+    // حين تتقارب نقاط بداية عدة روابط (نفس السابقة أو نفس تاريخ البدء).
+    const rowGap=Math.abs((rowOrder[to]||0)-(rowOrder[ref]||0));
+    const stagger=6+Math.min(46,rowGap*3);
+    const bend=Math.min(x1,x2)-stagger;
+    paths+=`<path d="M ${x1} ${y1} L ${bend} ${y1} L ${bend} ${y2} L ${x2-1} ${y2}" class="glink ${crit?'crit':''} lt-${dtype}" marker-end="url(#${crit?'garrc':'garr'})" data-lfrom="${esc(ref)}" data-lto="${esc(to)}"/>`;
   });
   if(!paths)return;
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
