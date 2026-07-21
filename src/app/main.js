@@ -113,6 +113,18 @@ window.addEventListener('hashchange',()=>{
     ov.addEventListener('click',e=>{if(e.target===ov)closeTaskPanel();});
     document.addEventListener('keydown',e=>{
       if(e.key==='Escape'&&ov.style.display==='flex')closeTaskPanel();});
+    // حبس Tab داخل النافذة العائمة المفتوحة (WAI-ARIA Dialog)
+    document.addEventListener('keydown',e=>{
+      if(e.key!=='Tab')return;
+      const open=[...document.querySelectorAll('.rqoverlay')].find(x=>x.style.display==='flex');
+      if(!open)return;
+      const f=[...open.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')]
+        .filter(el=>!el.disabled&&!el.hasAttribute('hidden')&&el.getAttribute('tabindex')!=='-1');
+      if(!f.length)return;
+      const first=f[0],last=f[f.length-1],a=document.activeElement;
+      if(e.shiftKey&&(a===first||!open.contains(a))){e.preventDefault();last.focus();}
+      else if(!e.shiftKey&&(a===last||!open.contains(a))){e.preventDefault();first.focus();}
+    },true);
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire);else wire();
 })();
