@@ -18,7 +18,8 @@ async function renderPortfolio(){
     toolItems.push({id:'showArchived',t:'المؤرشفة',i:'🗄'});
     toolItems.push({id:'showLeads',t:'العملاء المحتملون',i:'👥'});
   }
-  if(IS_OWNER)toolItems.push({id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
+  if(IS_OWNER){toolItems.push({id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
+    toolItems.push({id:'showStaffAccess',t:'صلاحيات الفريق',i:'🔐'});}
   const toolsMenu=toolItems.length?`<div class="tools-wrap">
     <button class="hbtn tools-btn" id="toolsBtn" aria-expanded="false" aria-haspopup="true">⚙ أدوات المكتب <span class="tools-caret">▾</span></button>
     <div class="tools-pop" id="toolsPop" role="menu">${toolItems.map(t=>`<button role="menuitem" id="${t.id}"><span class="ti">${t.i}</span>${t.t}</button>`).join('')}</div>
@@ -35,6 +36,7 @@ async function renderPortfolio(){
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
   {const pg=$('#showPGantt');if(pg)pg.onclick=renderPortfolioGantt;}
   {const ts=$('#showTrelloSet');if(ts)ts.onclick=()=>openTrello('settings');}
+  {const sa=$('#showStaffAccess');if(sa)sa.onclick=renderStaffAccess;}
   {const tb=$('#toolsBtn'),pop=$('#toolsPop');
     if(tb&&pop){
       const close=()=>{pop.classList.remove('open');tb.setAttribute('aria-expanded','false');};
