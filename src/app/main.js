@@ -60,14 +60,7 @@ async function qjGo(item){
   const list=$('#qjumpList'),input=$('#qjumpInput');
   if(list)list.hidden=true;if(input){input.value='';input.blur();}
   if(item.kind==='project'){CID=item.cid;PID=item.id;await openProject();return;}
-  const c=QJ_INDEX.find(x=>x.cid===item.cid);
-  if(!c){toast('تعذّر العثور على العميل','err');return;}
-  if(c.projects.length===1){CID=c.cid;PID=c.projects[0].id;await openProject();return;}
-  SCREEN='portfolio';
-  if(c.projects.length>1)PEXPANDED.add(c.cid);
-  await renderPortfolio();
-  if(!c.projects.length){openClientMenu(c.cid);return;}
-  setTimeout(()=>{const el=document.querySelector('[data-toggle="'+c.cid+'"]');if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},80);
+  await renderClientHome(item.cid);
 }
 function bindQJump(){
   const wrap=$('#qjumpWrap');if(!wrap||wrap._bound)return;wrap._bound=true;
@@ -96,7 +89,9 @@ async function startApp(){
   if(ROLE==='client'){
     SCREEN='project';CID=CLIENTS[0].id;await loadProject(CID);render();
   }else{
-    SCREEN='portfolio';await renderPortfolio();
+    const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
+    if(cm&&CLIENTS.some(c=>c.id===cm[1])){SCREEN='clienthome';await renderClientHome(cm[1]);}
+    else{SCREEN='portfolio';await renderPortfolio();}
   }
 }
 
@@ -162,6 +157,10 @@ function applyHash(){
 window.addEventListener('hashchange',()=>{
   if(_hashLock)return;
   if(typeof SCREEN!=='undefined'&&SCREEN==='project')applyHash();
+  else{
+    const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
+    if(cm&&CLIENTS.some(c=>c.id===cm[1])&&(ROLE==='pmo'||ROLE==='delivery'))renderClientHome(cm[1]);
+  }
 });
 
 // إغلاق لوحة البند: زر، نقر على الخلفية، ومفتاح Esc
