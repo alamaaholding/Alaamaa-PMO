@@ -4,16 +4,24 @@
 
 const PHASE_NAMES={'0':'التأسيس','A':'التنفيذ','B':'الذكاء','C':'الاستراتيجية'};
 
-async function pganttOpen(){
-  SCREEN='pgantt';
-  $('#hProject').innerHTML='<span class="ctx-dot" style="background:var(--blue)"></span>الخط الزمني الشامل — كل المشاريع';
-  $('#barClient').style.display='none';hideChrome();
-  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">رؤية شاملة لكل المشاريع النشطة. اضغط أي مشروع للدخول إليه.</span></div><div id="pgWrap"><div class="skeleton" style="height:50px;margin-bottom:8px"></div><div class="skeleton" style="height:50px;margin-bottom:8px"></div><div class="skeleton" style="height:50px"></div></div>';
-  $('#backP').onclick=renderPortfolio;
+// clientId (اختياري): نفس الدالة ونفس مصدر البيانات لعرض المحفظة كاملة أو عميل واحد فقط —
+// لا استعلام أو منطق تجميع منفصل مكرّر بين الحالتين.
+async function pganttOpen(clientId,mount){
+  const embedded=!!mount;
+  if(!embedded){
+    SCREEN='pgantt';
+    $('#hProject').innerHTML='<span class="ctx-dot" style="background:var(--blue)"></span>الخط الزمني الشامل — '+(clientId?'هذا العميل':'كل المشاريع');
+    $('#barClient').style.display='none';hideChrome();
+    $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ '+(clientId?'ملف العميل':'المحفظة')+'</button><span style="margin-inline-start:auto">رؤية شاملة لكل المشاريع النشطة. اضغط أي مشروع للدخول إليه.</span></div><div id="pgWrap"><div class="skeleton" style="height:50px;margin-bottom:8px"></div><div class="skeleton" style="height:50px;margin-bottom:8px"></div><div class="skeleton" style="height:50px"></div></div>';
+    $('#backP').onclick=clientId?(()=>renderClientHome(clientId)):renderPortfolio;
+  }
+  const mountId=embedded?mount:'pgWrap';
+  if(embedded)document.getElementById(mountId).innerHTML='<div class="skeleton" style="height:50px;margin-bottom:8px"></div><div class="skeleton" style="height:50px"></div>';
 
   // نجلب المشاريع ومهامها، ونحسب CPM لكل مشروع
-  const timeline=await fetchPortfolioTimeline();
-  if(!timeline.length){ $('#pgWrap').innerHTML='<div class="empty-cta"><div class="ico">'+I.calendar+'</div><h3>لا مشاريع لعرضها</h3><p>المشاريع التي لها خطط مهام ستظهر هنا في خط زمني موحّد.</p></div>'; return; }
+  let timeline=await fetchPortfolioTimeline();
+  if(clientId)timeline=timeline.filter(t=>t.client_id===clientId);
+  if(!timeline.length){ document.getElementById(mountId).innerHTML='<div class="empty-cta"><div class="ico">'+I.calendar+'</div><h3>لا مشاريع لعرضها</h3><p>المشاريع التي لها خطط مهام ستظهر هنا في خط زمني موحّد.</p></div>'; return; }
   const pids=timeline.map(t=>t.project_id);
   const {tasks,deps,tracks:allTracks}=await fetchAllProjectsTasks(pids);
   const trkByProj={};(allTracks||[]).forEach(t=>{(trkByProj[t.project_id]=trkByProj[t.project_id]||{})[t.key]={name:t.name,color:t.color};});
@@ -52,10 +60,11 @@ async function pganttOpen(){
   if(!minD)minD=new Date();if(!maxD)maxD=new Date(minD.getTime()+86400000*90);
   // نوسّع الحدود لأسبوع
   minD=new Date(minD.getTime()-86400000*3); maxD=new Date(maxD.getTime()+86400000*3);
-  PG_RENDER(projRows,minD,maxD);
+  PG_RENDER(projRows,minD,maxD,mountId);
 }
 
-function PG_RENDER(rows,minD,maxD){
+function PG_RENDER(rows,minD,maxD,mountId){
+  mountId=mountId||'pgWrap';
   const totalDays=Math.max(1,Math.round((maxD-minD)/86400000));
   // أعمدة أسبوعية للمحور
   const weeks=[]; let w=new Date(minD);
@@ -96,7 +105,9 @@ function PG_RENDER(rows,minD,maxD){
     </div>`;
   });
 
-  $('#pgWrap').innerHTML=`
+  const mountEl=document.getElementById(mountId);
+  if(!mountEl)return;
+  mountEl.innerHTML=`
     <div class="pg-legend">
       ${Object.entries(PHASE_NAMES).map(([k,v])=>`<span class="pg-leg"><i style="background:${(TRACKS&&TRACKS[k]&&TRACKS[k].color)||'#999'}"></i>${v}</span>`).join('')}
       <span class="pg-leg"><i class="pg-leg-today"></i>اليوم</span>
@@ -105,8 +116,8 @@ function PG_RENDER(rows,minD,maxD){
       <div class="pg-axis"><div class="pg-axis-label"></div><div class="pg-axis-track">${axisHtml}${todayLine}</div></div>
       <div class="pg-rows">${rowsHtml}</div>
     </div>`;
-  // تفاعل: نقرة تدخل المشروع
-  document.querySelectorAll('[data-open]').forEach(el=>el.onclick=async()=>{
+  // تفاعل: نقرة تدخل المشروع (تُقيَّد بحاوية التثبيت لسلامة التضمين المزدوج المحتمل)
+  mountEl.querySelectorAll('[data-open]').forEach(el=>el.onclick=async()=>{
     const pid=el.dataset.open;
     const row=rows.find(x=>x.pid===pid);
     if(!row)return;
