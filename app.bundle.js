@@ -1,4 +1,4 @@
-const BUILD_V='b02b8be8';
+const BUILD_V='c5e2af32';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -2772,16 +2772,20 @@ async function renderClientHome(clientId){
   $('#chBack').onclick=renderPortfolio;
   $('#chMenu').onclick=()=>openClientMenu(clientId);
 
-  let stats,access;
+  let stats,access=[];
   try{
-    await ensureMembersCache();
-    const {data:rows}=await fetchPortfolio();
+    const {data:rows,error}=await fetchPortfolio();
+    if(error)throw error;
     const list=(rows||[]).filter(r=>r.client_id===clientId&&r.project_id);
     stats=aggregateClientRows(clientId,list,c);
+  }catch(e){$('#chBody').innerHTML='<p class="pempty">تعذّر تحميل مشاريع العميل: '+esc(e.message||String(e))+'</p>';return;}
+  // فشل جلب الصلاحيات (مثلًا صلاحيات غير كافية لعرض فريق آخرين) لا يجب أن يمنع عرض المشاريع نفسها
+  try{
+    await ensureMembersCache();
     access=(await fetchAllStaffAccess()).filter(a=>
       (a.scope_type==='client'&&a.scope_value===clientId)||
       (a.scope_type==='project'&&stats.list.some(l=>l.project_id===a.scope_value)));
-  }catch(e){$('#chBody').innerHTML='<p class="pempty">تعذّر التحميل: '+esc(e.message)+'</p>';return;}
+  }catch(e){access=[];}
   renderCHBody(stats,access);
   // الجانت المجمَّع لهذا العميل — نفس أداة «الخط الزمني الشامل»، بنطاق مُقيَّد فقط
   if(stats.list.length)renderPortfolioGantt(clientId,'chGanttWrap');
