@@ -36,7 +36,7 @@ async function loadClients(){
   if(!IS_OWNER&&MY_ACCESS.length&&!hasCompanyScope()){
     const {data:projs}=await sb.from('pmo_projects').select('id,client_id,department');
     (projs||[]).forEach(p=>{PROJ_DEPTS[p.id]=p.department;});
-    const okClientIds=new Set((projs||[]).filter(p=>canSeeProject(p.id,p.department)).map(p=>p.client_id));
+    const okClientIds=new Set((projs||[]).filter(p=>canSeeProject(p.id,p.department,p.client_id)).map(p=>p.client_id));
     CLIENTS=CLIENTS.filter(c=>okClientIds.has(c.id));
   }
 }
@@ -49,7 +49,7 @@ async function loadProject(clientId, projectId){
   const {data:projects}=await q;
   if(!projects||!projects.length){PROJECT=null;return;}
   // حارس دفاعي: حتى لو وصل رابط مباشر لمشروع خارج نطاق صلاحيته المخصَّصة، لا يُفتح
-  if(!IS_OWNER&&MY_ACCESS.length&&!canSeeProject(projects[0].id,projects[0].department)){
+  if(!IS_OWNER&&MY_ACCESS.length&&!canSeeProject(projects[0].id,projects[0].department,projects[0].client_id)){
     PROJECT=null;PROJECT_ACCESS_DENIED=true;return;
   }
   PROJECT_ACCESS_DENIED=false;
@@ -399,8 +399,8 @@ async function openImporter(){
     window.importerOpen();
   }catch(e){if(l)l.classList.add('hidden');toast('تعذّر تحميل أداة الاستيراد — تحقق من الاتصال','err');}
 }
-async function renderPortfolioGantt(){
-  try{await loadScript('pgantt.js?v='+BUILD_V);await window.pganttOpen();}
+async function renderPortfolioGantt(clientId,mountId){
+  try{await loadScript('pgantt.js?v='+BUILD_V);await window.pganttOpen(clientId,mountId);}
   catch(e){toast('تعذّر تحميل الخط الزمني الشامل','err');}
 }
 
