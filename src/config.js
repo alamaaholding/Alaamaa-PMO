@@ -51,28 +51,55 @@ const AUDIT_ENTITIES={task:'بند',change_request:'طلب تعديل خطة',re
 // موظف بلا أي سجل في MY_ACCESS = يرى كل شيء كما كان دائمًا (سلوك ما قبل هذا النظام).
 function hasCompanyScope(){return IS_OWNER||MY_ACCESS.some(a=>a.scope_type==='company');}
 function myDeptScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='department').map(a=>a.scope_value));}
+function myClientScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='client').map(a=>a.scope_value));}
 function myProjectScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='project').map(a=>a.scope_value));}
-// هل يُسمح لي برؤية مشروع بعينه (بمعرّفه وقسمه)؟
-function canSeeProject(projectId,dept){
+// هل يُسمح لي برؤية مشروع بعينه (بمعرّفه وقسمه وعميله)؟
+function canSeeProject(projectId,dept,clientId){
   if(IS_OWNER||hasCompanyScope())return true;
   if(!MY_ACCESS.length)return true; // لا تخصيص = لا قيود (توافق خلفي)
   if(myProjectScopes().has(projectId))return true;
+  if(clientId&&myClientScopes().has(clientId))return true;
   if(dept&&myDeptScopes().has(dept))return true;
   return false;
 }
 // أعلى مستوى صلاحية ممنوح لي على مشروع بعينه: 'edit'|'view'|null (null فقط إن كان مقيّدًا ولا يراه أصلًا)
-function myAccessLevelFor(projectId,dept){
+function myAccessLevelFor(projectId,dept,clientId){
   if(IS_OWNER)return 'edit';
   if(!MY_ACCESS.length)return 'edit'; // لا تخصيص = صلاحية كاملة كما كانت دائمًا
   const rows=MY_ACCESS.filter(a=>
     a.scope_type==='company'||
     (a.scope_type==='project'&&a.scope_value===projectId)||
+    (a.scope_type==='client'&&clientId&&a.scope_value===clientId)||
     (a.scope_type==='department'&&dept&&a.scope_value===dept));
   if(!rows.length)return null;
   return rows.some(r=>r.access_level==='edit')?'edit':'view';
 }
+// هل يُسمح لي برؤية عميل كامل (له أي مشروع أراه، أو نطاق عميل/شركة مباشر)؟
+function canSeeClient(clientId,clientProjects){
+  if(IS_OWNER||hasCompanyScope())return true;
+  if(!MY_ACCESS.length)return true;
+  if(myClientScopes().has(clientId))return true;
+  return (clientProjects||[]).some(p=>canSeeProject(p.id,p.department,clientId));
+}
 
-// ===== أيقونات SVG موحّدة (خطية، ترث لون النص) =====
+// ===== تجميع إحصاءات عميل من صفوف pmo_portfolio() — مصدر حقيقة واحد =====
+// تُستخدم من شبكة المحفظة وصفحة العميل المخصَّصة كليهما؛ لا حساب مكرّر في مكانين
+// (بالضبط الخلل الذي عالجناه سابقًا في مطابقة المراحل — نفس المبدأ هنا).
+function aggregateClientRows(cid,list,fallback){
+  const r0=(list&&list[0])||{};
+  const c=CLIENTS.find(x=>x.id===cid)||fallback||{name:r0.client_name,color:r0.color||'#C8A06B'};
+  if(!list||!list.length)return{cid,c,list:[],tot:0,done:0,blocked:0,reqs:0,comments:0,
+    hasAlerts:false,isActive:false,isDraft:true,pct:0,noProjects:true};
+  const tot=list.reduce((s,r)=>s+Number(r.total_tasks||0),0);
+  const done=list.reduce((s,r)=>s+Number(r.done_tasks||0),0);
+  const blocked=list.reduce((s,r)=>s+Number(r.blocked_tasks||0),0);
+  const reqs=list.reduce((s,r)=>s+Number(r.pending_client_reqs||0),0);
+  const comments=list.reduce((s,r)=>s+Number(r.open_comments||0),0);
+  return {cid,c,list,tot,done,blocked,reqs,comments,hasAlerts:blocked>0||reqs>0||comments>0,
+    isActive:list.some(r=>r.lifecycle==='active'||r.lifecycle==='approved'),
+    isDraft:list.some(r=>r.status==='draft'||r.lifecycle==='proposal'),
+    pct:tot>0?Math.round(done/tot*100):0};
+}
 const I={
  scale:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 21h18M6 7l-3 6h6l-3-6zM18 7l-3 6h6l-3-6zM7 7h10"/></svg>',
  clipboard:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4a2 2 0 0 1 6 0M9 10h6M9 14h6M9 18h4"/></svg>',
