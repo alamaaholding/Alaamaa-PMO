@@ -1,4 +1,4 @@
-const BUILD_V='a3d22557';
+const BUILD_V='24a7a84f';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -47,6 +47,32 @@ const AUDIT_ACTIONS={
 };
 const AUDIT_ENTITIES={task:'بند',change_request:'طلب تعديل خطة',requirement:'متطلب',
   comment:'تعليق',client_request:'طلب خدمة',project:'مشروع',client:'عميل'};
+
+// ===== نطاق صلاحيات الفريق =====
+// المبدأ: لا تغيير في سلوك أي موظف قائم إطلاقًا حتى يمنحه مالك النظام صلاحية محددة صراحة.
+// موظف بلا أي سجل في MY_ACCESS = يرى كل شيء كما كان دائمًا (سلوك ما قبل هذا النظام).
+function hasCompanyScope(){return IS_OWNER||MY_ACCESS.some(a=>a.scope_type==='company');}
+function myDeptScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='department').map(a=>a.scope_value));}
+function myProjectScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='project').map(a=>a.scope_value));}
+// هل يُسمح لي برؤية مشروع بعينه (بمعرّفه وقسمه)؟
+function canSeeProject(projectId,dept){
+  if(IS_OWNER||hasCompanyScope())return true;
+  if(!MY_ACCESS.length)return true; // لا تخصيص = لا قيود (توافق خلفي)
+  if(myProjectScopes().has(projectId))return true;
+  if(dept&&myDeptScopes().has(dept))return true;
+  return false;
+}
+// أعلى مستوى صلاحية ممنوح لي على مشروع بعينه: 'edit'|'view'|null (null فقط إن كان مقيّدًا ولا يراه أصلًا)
+function myAccessLevelFor(projectId,dept){
+  if(IS_OWNER)return 'edit';
+  if(!MY_ACCESS.length)return 'edit'; // لا تخصيص = صلاحية كاملة كما كانت دائمًا
+  const rows=MY_ACCESS.filter(a=>
+    a.scope_type==='company'||
+    (a.scope_type==='project'&&a.scope_value===projectId)||
+    (a.scope_type==='department'&&dept&&a.scope_value===dept));
+  if(!rows.length)return null;
+  return rows.some(r=>r.access_level==='edit')?'edit':'view';
+}
 
 // ===== أيقونات SVG موحّدة (خطية، ترث لون النص) =====
 const I={
@@ -298,7 +324,8 @@ async function loadIdentity(){
   const {data:{user}}=await sb.auth.getUser();USER=user;if(!user)return null;
   const {data:tm}=await sb.from('team_members').select('role,is_active,full_name').eq('id',user.id).maybeSingle();
   if(tm&&tm.is_active){ROLE=(tm.role==='admin')?'pmo':(tm.role==='manager'?'delivery':'client');USER._name=tm.full_name||user.email;
-    try{const {data:own}=await sb.rpc('pmo_is_owner');IS_OWNER=(own===true);if(IS_OWNER)ROLE='pmo';}catch(e){IS_OWNER=false;}}
+    try{const {data:own}=await sb.rpc('pmo_is_owner');IS_OWNER=(own===true);if(IS_OWNER)ROLE='pmo';}catch(e){IS_OWNER=false;}
+    if(!IS_OWNER){try{MY_ACCESS=await fetchMyStaffAccess();}catch(e){MY_ACCESS=[];}}}
   else{
     // عميل: نتحقق من التصريح بالإيميل (دالة pmo_my_client_ids)
     const {data:ids}=await sb.rpc('pmo_my_client_ids');
@@ -323,7 +350,17 @@ $('#backPortfolio').onclick=async()=>{ await renderPortfolio(); $('#backPortfoli
 
 
 // ===== تحميل المشروع =====
-async function loadClients(){const {data}=await sb.from('pmo_clients').select('*').order('created_at');CLIENTS=data||[];}
+async function loadClients(){
+  const {data}=await sb.from('pmo_clients').select('*').order('created_at');
+  CLIENTS=data||[];
+  // فلترة وفق نطاق الصلاحية — فقط إن كان لهذا الموظف تخصيص فعلي (وإلا لا تغيير إطلاقًا)
+  if(!IS_OWNER&&MY_ACCESS.length&&!hasCompanyScope()){
+    const {data:projs}=await sb.from('pmo_projects').select('id,client_id,department');
+    (projs||[]).forEach(p=>{PROJ_DEPTS[p.id]=p.department;});
+    const okClientIds=new Set((projs||[]).filter(p=>canSeeProject(p.id,p.department)).map(p=>p.client_id));
+    CLIENTS=CLIENTS.filter(c=>okClientIds.has(c.id));
+  }
+}
 const PROJECT_CACHE={}; // تخزين مؤقت للمشاريع المحمّلة (يُبطل عند الكتابة)
 async function loadProject(clientId, projectId){
   CID=clientId;
@@ -332,6 +369,11 @@ async function loadProject(clientId, projectId){
   else q=q.eq('lifecycle_state','active').order('start_date').limit(1);
   const {data:projects}=await q;
   if(!projects||!projects.length){PROJECT=null;return;}
+  // حارس دفاعي: حتى لو وصل رابط مباشر لمشروع خارج نطاق صلاحيته المخصَّصة، لا يُفتح
+  if(!IS_OWNER&&MY_ACCESS.length&&!canSeeProject(projects[0].id,projects[0].department)){
+    PROJECT=null;PROJECT_ACCESS_DENIED=true;return;
+  }
+  PROJECT_ACCESS_DENIED=false;
   const p=projects[0];
   // tasks/deps/baseline/CRs تعتمد على project_id فقط → نطلبها بالتوازي
   const [tasksR,depsR,blR,crR,holR]=await Promise.all([
@@ -766,6 +808,27 @@ async function addHolidayRow(hdate,name){const {error}=await sb.from('pmo_holida
 async function delHolidayRow(id){const {error}=await sb.from('pmo_holidays').delete().eq('id',id);if(error)throw error;}
 // ===== الفريق والإسناد (داخلي — لا يراه العميل) =====
 async function fetchTeamMembers(){const {data}=await sb.from('team_members').select('id,full_name,email,role').eq('is_active',true).order('full_name');return data||[];}
+
+// ===== صلاحيات الفريق (شركة/قسم/مشروع × عرض/تعديل) — مالك النظام فقط يديرها =====
+const DEPTS={marketing:'علامة ماركتنج',tech:'علامة تقني',consulting:'علامة استشارات'};
+async function fetchAllStaffAccess(){
+  const {data,error}=await sb.from('pmo_staff_access').select('*').order('granted_at',{ascending:false});
+  if(error)throw error;return data||[];
+}
+async function grantStaffAccess(memberId,scopeType,scopeValue,level){
+  const {error}=await sb.from('pmo_staff_access').upsert(
+    {member_id:memberId,scope_type:scopeType,scope_value:scopeValue,access_level:level,granted_by:USER.id},
+    {onConflict:'member_id,scope_type,scope_value'});
+  if(error)throw error;
+}
+async function revokeStaffAccess(id){const {error}=await sb.from('pmo_staff_access').delete().eq('id',id);if(error)throw error;}
+// صلاحيات المستخدم الحالي نفسه — تُحمَّل عند الدخول لتصفية المحفظة لغير المالك
+async function fetchMyStaffAccess(){
+  if(!USER||!USER.id)return [];
+  const {data}=await sb.from('pmo_staff_access').select('*').eq('member_id',USER.id);
+  return data||[];
+}
+async function setProjectDepartment(projectId,dept){const {error}=await sb.from('pmo_projects').update({department:dept||null}).eq('id',projectId);if(error)throw error;}
 async function fetchProjectStaff(projectId){const {data}=await sb.from('pmo_project_staff').select('member_id').eq('project_id',projectId);return (data||[]).map(r=>r.member_id);}
 async function saveProjectStaff(projectId,memberIds){
   await sb.from('pmo_project_staff').delete().eq('project_id',projectId);
@@ -1816,6 +1879,8 @@ window.openTaskPanel=openTaskPanel;
 // ===== app/state.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
 // ===== الحالة =====
 let USER=null,ROLE=null,IS_OWNER=false,CLIENTS=[],CID=null,PID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[],PFILTER='all',PSEARCH='',PEXPANDED=new Set(),PALERTS=new Set(),PSORT='alerts';
+// نظام صلاحيات الفريق: MY_ACCESS=صلاحيات المستخدم الحالي المخصَّصة له (فارغة = لا قيود، كما كان دائمًا)
+let MY_ACCESS=[],PROJ_DEPTS={},PROJECT_ACCESS_DENIED=false;
 try{const sv=JSON.parse(localStorage.getItem('pmo_pfilters')||'{}');
   if(sv.PFILTER)PFILTER=sv.PFILTER; if(sv.PSORT)PSORT=sv.PSORT; if(Array.isArray(sv.PALERTS))PALERTS=new Set(sv.PALERTS);
 }catch(e){}
@@ -2332,7 +2397,8 @@ async function renderPortfolio(){
     toolItems.push({id:'showArchived',t:'المؤرشفة',i:'🗄'});
     toolItems.push({id:'showLeads',t:'العملاء المحتملون',i:'👥'});
   }
-  if(IS_OWNER)toolItems.push({id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
+  if(IS_OWNER){toolItems.push({id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
+    toolItems.push({id:'showStaffAccess',t:'صلاحيات الفريق',i:'🔐'});}
   const toolsMenu=toolItems.length?`<div class="tools-wrap">
     <button class="hbtn tools-btn" id="toolsBtn" aria-expanded="false" aria-haspopup="true">⚙ أدوات المكتب <span class="tools-caret">▾</span></button>
     <div class="tools-pop" id="toolsPop" role="menu">${toolItems.map(t=>`<button role="menuitem" id="${t.id}"><span class="ti">${t.i}</span>${t.t}</button>`).join('')}</div>
@@ -2349,6 +2415,7 @@ async function renderPortfolio(){
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
   {const pg=$('#showPGantt');if(pg)pg.onclick=renderPortfolioGantt;}
   {const ts=$('#showTrelloSet');if(ts)ts.onclick=()=>openTrello('settings');}
+  {const sa=$('#showStaffAccess');if(sa)sa.onclick=renderStaffAccess;}
   {const tb=$('#toolsBtn'),pop=$('#toolsPop');
     if(tb&&pop){
       const close=()=>{pop.classList.remove('open');tb.setAttribute('aria-expanded','false');};
@@ -2557,6 +2624,121 @@ async function renderPortfolio(){
 }
 
 
+/* ===== staffaccess.js ===== */
+// ===== app/staffaccess.js — شاشة صلاحيات الفريق (مالك النظام فقط) =====
+// ثلاثة نطاقات: شركة كاملة · قسم (يطابق أذرع علامة الثلاث) · مشروع واحد.
+// مستويان: عرض · تعديل. مالك النظام فقط يمنح/يسحب — لا أحد آخر.
+
+let SA_MEMBERS=[],SA_GRANTS=[],SA_PROJECTS=[],SA_OWNER_EMAILS=[];
+
+async function fetchOwnerEmails(){const {data}=await sb.from('pmo_owners').select('email');return (data||[]).map(x=>x.email.toLowerCase());}
+
+async function renderStaffAccess(){
+  if(!IS_OWNER){toast('هذه الشاشة لمالك النظام فقط','err');return;}
+  SCREEN='staffaccess';$('#hProject').textContent='صلاحيات الفريق';hideChrome();
+  $('#host').innerHTML=`<div class="hintbar"><button class="reqbtn" id="backSA">↩ المحفظة</button>
+    <span style="margin-inline-start:auto">🔐 <b>صلاحيات الفريق:</b> من يرى/يعدّل ماذا — على مستوى الشركة، القسم، أو مشروع واحد.
+    موظف بلا أي صلاحية مخصَّصة هنا يبقى كما كان دائمًا (يرى كل شيء).</span></div>
+    <div id="saBody"><div class="skeleton" style="height:120px;margin-bottom:10px"></div><div class="skeleton" style="height:200px"></div></div>`;
+  $('#backSA').onclick=renderPortfolio;
+  try{
+    [SA_MEMBERS,SA_GRANTS,SA_PROJECTS,SA_OWNER_EMAILS]=await Promise.all([
+      fetchTeamMembers(),
+      fetchAllStaffAccess(),
+      sb.from('pmo_projects').select('id,name,department,client_id').then(r=>r.data||[]),
+      fetchOwnerEmails()
+    ]);
+    const clientsById={};(CLIENTS||[]).forEach(c=>{clientsById[c.id]=c.name;});
+    SA_PROJECTS.forEach(p=>{p._client=clientsById[p.client_id]||'';});
+  }catch(e){$('#saBody').innerHTML='<p class="pempty">تعذّر التحميل: '+esc(e.message)+'</p>';return;}
+  renderSABody();
+}
+
+function saScopeLabel(g){
+  if(g.scope_type==='company')return 'الشركة كاملة';
+  if(g.scope_type==='department')return DEPTS[g.scope_value]||g.scope_value;
+  const p=SA_PROJECTS.find(x=>x.id===g.scope_value);
+  return p?(p._client+' — '+p.name):'مشروع محذوف';
+}
+
+function renderSABody(){
+  const grantsByMember={};SA_GRANTS.forEach(g=>{(grantsByMember[g.member_id]=grantsByMember[g.member_id]||[]).push(g);});
+  const memberRows=SA_MEMBERS.map(m=>{
+    const grants=grantsByMember[m.id]||[];
+    const owner=SA_OWNER_EMAILS.includes((m.email||'').toLowerCase());
+    const chips=grants.map(g=>`<span class="sa-chip sa-${g.access_level}">${esc(saScopeLabel(g))} · ${g.access_level==='edit'?'تعديل':'عرض'}
+      <button data-sarevoke="${g.id}" aria-label="سحب الصلاحية" title="سحب">✕</button></span>`).join('');
+    return `<div class="sa-row">
+      <div class="sa-who"><b>${esc(m.full_name||m.email)}</b><span>${esc(m.email)}</span></div>
+      <div class="sa-grants">${owner?'<span class="sa-chip sa-owner">مالك النظام — صلاحية كاملة دائمًا</span>':(chips||'<span class="sa-empty">لا صلاحية مخصَّصة — يرى كل شيء (افتراضي)</span>')}</div>
+    </div>`;
+  }).join('');
+
+  const memberOpts=SA_MEMBERS.map(m=>`<option value="${m.id}">${esc(m.full_name||m.email)}</option>`).join('');
+  const deptOpts=Object.keys(DEPTS).map(k=>`<option value="${k}">${esc(DEPTS[k])}</option>`).join('');
+  const projOpts=SA_PROJECTS.map(p=>`<option value="${p.id}">${esc(p._client)} — ${esc(p.name)}</option>`).join('');
+
+  const deptTable=SA_PROJECTS.map(p=>`<tr><td>${esc(p._client)}</td><td>${esc(p.name)}</td>
+    <td><select data-setdept="${p.id}">
+      <option value="">— بلا قسم —</option>
+      ${Object.keys(DEPTS).map(k=>`<option value="${k}" ${p.department===k?'selected':''}>${esc(DEPTS[k])}</option>`).join('')}
+    </select></td></tr>`).join('');
+
+  $('#saBody').innerHTML=`
+    <div class="sa-section">
+      <h4>منح صلاحية جديدة</h4>
+      <div class="sa-form">
+        <select id="saMember">${memberOpts}</select>
+        <select id="saScopeType">
+          <option value="company">الشركة كاملة</option>
+          <option value="department">قسم بعينه</option>
+          <option value="project">مشروع بعينه</option>
+        </select>
+        <select id="saScopeValue" style="display:none">${deptOpts}</select>
+        <select id="saScopeProject" style="display:none">${projOpts}</select>
+        <select id="saLevel"><option value="view">عرض فقط</option><option value="edit">عرض وتعديل</option></select>
+        <button class="hbtn" id="saGrant" style="background:var(--gold);border-color:var(--gold)">منح</button>
+      </div>
+    </div>
+    <div class="sa-section">
+      <h4>الصلاحيات الحالية</h4>
+      <div class="sa-list">${memberRows}</div>
+    </div>
+    <div class="sa-section">
+      <h4>قسم كل مشروع <span class="sa-hint">(لازم لعمل صلاحية «قسم» — بلا قسم، المشروع لا يظهر لأي صلاحية قسمية)</span></h4>
+      <table class="tktbl"><thead><tr><th>العميل</th><th>المشروع</th><th>القسم</th></tr></thead><tbody>${deptTable}</tbody></table>
+    </div>`;
+
+  const stEl=$('#saScopeType'),svEl=$('#saScopeValue'),spEl=$('#saScopeProject');
+  stEl.onchange=()=>{
+    svEl.style.display=(stEl.value==='department')?'':'none';
+    spEl.style.display=(stEl.value==='project')?'':'none';
+  };
+  $('#saGrant').onclick=async()=>{
+    const memberId=$('#saMember').value,scopeType=stEl.value,level=$('#saLevel').value;
+    const scopeValue=scopeType==='company'?null:(scopeType==='department'?svEl.value:spEl.value);
+    try{
+      await grantStaffAccess(memberId,scopeType,scopeValue,level);
+      SA_GRANTS=await fetchAllStaffAccess();
+      toast('مُنحت الصلاحية','ok');renderSABody();
+    }catch(e){toast('تعذّر المنح: '+e.message,'err');}
+  };
+  $$('#saBody [data-sarevoke]').forEach(b=>b.onclick=async()=>{
+    if(!await confirmDialog('سحب صلاحية','سحب هذه الصلاحية؟ سيفقد الموظف الوصول المرتبط بها فورًا.',false))return;
+    try{await revokeStaffAccess(b.dataset.sarevoke);SA_GRANTS=await fetchAllStaffAccess();toast('سُحبت الصلاحية','ok');renderSABody();}
+    catch(e){toast('تعذّر السحب: '+e.message,'err');}
+  });
+  $$('#saBody [data-setdept]').forEach(sel=>sel.onchange=async()=>{
+    try{await setProjectDepartment(sel.dataset.setdept,sel.value||null);
+      const p=SA_PROJECTS.find(x=>x.id===sel.dataset.setdept);if(p)p.department=sel.value||null;
+      toast('حُدِّث القسم','ok');
+    }catch(e){toast('تعذّر التحديث: '+e.message,'err');}
+  });
+}
+
+window.renderStaffAccess=renderStaffAccess;
+
+
 /* ===== main.js ===== */
 // ===== app/main.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
 function savePFilters(){try{localStorage.setItem('pmo_pfilters',JSON.stringify({PFILTER,PSORT,PALERTS:[...PALERTS]}));}catch(e){}}
@@ -2694,6 +2876,9 @@ async function openProject(){
   $('#loader').classList.remove('hidden');
   await loadProject(CID,PID);
   $('#loader').classList.add('hidden');
+  if(PROJECT_ACCESS_DENIED){
+    SCREEN='portfolio';toast('لا تملك صلاحية الوصول لهذا المشروع','err');await renderPortfolio();return;
+  }
   SCREEN='project';$('#barClient').style.display='';showChrome();
   // إن كان الوصول عبر رابط عميق، افتح التبويب/البند المقصود؛ وإلا اعرض الافتراضي
   if(!applyHash()){render();writeHash();}
