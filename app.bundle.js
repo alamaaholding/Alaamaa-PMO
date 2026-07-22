@@ -1,4 +1,4 @@
-const BUILD_V='6dd3cc63';
+const BUILD_V='1256ab20';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -53,28 +53,55 @@ const AUDIT_ENTITIES={task:'بند',change_request:'طلب تعديل خطة',re
 // موظف بلا أي سجل في MY_ACCESS = يرى كل شيء كما كان دائمًا (سلوك ما قبل هذا النظام).
 function hasCompanyScope(){return IS_OWNER||MY_ACCESS.some(a=>a.scope_type==='company');}
 function myDeptScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='department').map(a=>a.scope_value));}
+function myClientScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='client').map(a=>a.scope_value));}
 function myProjectScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='project').map(a=>a.scope_value));}
-// هل يُسمح لي برؤية مشروع بعينه (بمعرّفه وقسمه)؟
-function canSeeProject(projectId,dept){
+// هل يُسمح لي برؤية مشروع بعينه (بمعرّفه وقسمه وعميله)؟
+function canSeeProject(projectId,dept,clientId){
   if(IS_OWNER||hasCompanyScope())return true;
   if(!MY_ACCESS.length)return true; // لا تخصيص = لا قيود (توافق خلفي)
   if(myProjectScopes().has(projectId))return true;
+  if(clientId&&myClientScopes().has(clientId))return true;
   if(dept&&myDeptScopes().has(dept))return true;
   return false;
 }
 // أعلى مستوى صلاحية ممنوح لي على مشروع بعينه: 'edit'|'view'|null (null فقط إن كان مقيّدًا ولا يراه أصلًا)
-function myAccessLevelFor(projectId,dept){
+function myAccessLevelFor(projectId,dept,clientId){
   if(IS_OWNER)return 'edit';
   if(!MY_ACCESS.length)return 'edit'; // لا تخصيص = صلاحية كاملة كما كانت دائمًا
   const rows=MY_ACCESS.filter(a=>
     a.scope_type==='company'||
     (a.scope_type==='project'&&a.scope_value===projectId)||
+    (a.scope_type==='client'&&clientId&&a.scope_value===clientId)||
     (a.scope_type==='department'&&dept&&a.scope_value===dept));
   if(!rows.length)return null;
   return rows.some(r=>r.access_level==='edit')?'edit':'view';
 }
+// هل يُسمح لي برؤية عميل كامل (له أي مشروع أراه، أو نطاق عميل/شركة مباشر)؟
+function canSeeClient(clientId,clientProjects){
+  if(IS_OWNER||hasCompanyScope())return true;
+  if(!MY_ACCESS.length)return true;
+  if(myClientScopes().has(clientId))return true;
+  return (clientProjects||[]).some(p=>canSeeProject(p.id,p.department,clientId));
+}
 
-// ===== أيقونات SVG موحّدة (خطية، ترث لون النص) =====
+// ===== تجميع إحصاءات عميل من صفوف pmo_portfolio() — مصدر حقيقة واحد =====
+// تُستخدم من شبكة المحفظة وصفحة العميل المخصَّصة كليهما؛ لا حساب مكرّر في مكانين
+// (بالضبط الخلل الذي عالجناه سابقًا في مطابقة المراحل — نفس المبدأ هنا).
+function aggregateClientRows(cid,list,fallback){
+  const r0=(list&&list[0])||{};
+  const c=CLIENTS.find(x=>x.id===cid)||fallback||{name:r0.client_name,color:r0.color||'#C8A06B'};
+  if(!list||!list.length)return{cid,c,list:[],tot:0,done:0,blocked:0,reqs:0,comments:0,
+    hasAlerts:false,isActive:false,isDraft:true,pct:0,noProjects:true};
+  const tot=list.reduce((s,r)=>s+Number(r.total_tasks||0),0);
+  const done=list.reduce((s,r)=>s+Number(r.done_tasks||0),0);
+  const blocked=list.reduce((s,r)=>s+Number(r.blocked_tasks||0),0);
+  const reqs=list.reduce((s,r)=>s+Number(r.pending_client_reqs||0),0);
+  const comments=list.reduce((s,r)=>s+Number(r.open_comments||0),0);
+  return {cid,c,list,tot,done,blocked,reqs,comments,hasAlerts:blocked>0||reqs>0||comments>0,
+    isActive:list.some(r=>r.lifecycle==='active'||r.lifecycle==='approved'),
+    isDraft:list.some(r=>r.status==='draft'||r.lifecycle==='proposal'),
+    pct:tot>0?Math.round(done/tot*100):0};
+}
 const I={
  scale:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 21h18M6 7l-3 6h6l-3-6zM18 7l-3 6h6l-3-6zM7 7h10"/></svg>',
  clipboard:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4a2 2 0 0 1 6 0M9 10h6M9 14h6M9 18h4"/></svg>',
@@ -357,7 +384,7 @@ async function loadClients(){
   if(!IS_OWNER&&MY_ACCESS.length&&!hasCompanyScope()){
     const {data:projs}=await sb.from('pmo_projects').select('id,client_id,department');
     (projs||[]).forEach(p=>{PROJ_DEPTS[p.id]=p.department;});
-    const okClientIds=new Set((projs||[]).filter(p=>canSeeProject(p.id,p.department)).map(p=>p.client_id));
+    const okClientIds=new Set((projs||[]).filter(p=>canSeeProject(p.id,p.department,p.client_id)).map(p=>p.client_id));
     CLIENTS=CLIENTS.filter(c=>okClientIds.has(c.id));
   }
 }
@@ -370,7 +397,7 @@ async function loadProject(clientId, projectId){
   const {data:projects}=await q;
   if(!projects||!projects.length){PROJECT=null;return;}
   // حارس دفاعي: حتى لو وصل رابط مباشر لمشروع خارج نطاق صلاحيته المخصَّصة، لا يُفتح
-  if(!IS_OWNER&&MY_ACCESS.length&&!canSeeProject(projects[0].id,projects[0].department)){
+  if(!IS_OWNER&&MY_ACCESS.length&&!canSeeProject(projects[0].id,projects[0].department,projects[0].client_id)){
     PROJECT=null;PROJECT_ACCESS_DENIED=true;return;
   }
   PROJECT_ACCESS_DENIED=false;
@@ -720,8 +747,8 @@ async function openImporter(){
     window.importerOpen();
   }catch(e){if(l)l.classList.add('hidden');toast('تعذّر تحميل أداة الاستيراد — تحقق من الاتصال','err');}
 }
-async function renderPortfolioGantt(){
-  try{await loadScript('pgantt.js?v='+BUILD_V);await window.pganttOpen();}
+async function renderPortfolioGantt(clientId,mountId){
+  try{await loadScript('pgantt.js?v='+BUILD_V);await window.pganttOpen(clientId,mountId);}
   catch(e){toast('تعذّر تحميل الخط الزمني الشامل','err');}
 }
 
@@ -2413,7 +2440,7 @@ async function renderPortfolio(){
   {const tb=$('#showTimeline');if(tb)tb.onclick=renderPortfolioTimeline;}
   {const hb=$('#showHolidays');if(hb)hb.onclick=openHolidaysManager;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
-  {const pg=$('#showPGantt');if(pg)pg.onclick=renderPortfolioGantt;}
+  {const pg=$('#showPGantt');if(pg)pg.onclick=()=>renderPortfolioGantt();}
   {const ts=$('#showTrelloSet');if(ts)ts.onclick=()=>openTrello('settings');}
   {const sa=$('#showStaffAccess');if(sa)sa.onclick=renderStaffAccess;}
   {const tb=$('#toolsBtn'),pop=$('#toolsPop');
@@ -2435,26 +2462,10 @@ async function renderPortfolio(){
   // تجميع حسب الشركة أولًا (الشركة هي وحدة العرض)
   const groups={}; 
   projects.forEach(r=>{ (groups[r.client_id]=groups[r.client_id]||[]).push(r); });
-  let companies=Object.keys(groups).map(cid=>{
-    const list=groups[cid]; const r0=list[0];
-    const c=CLIENTS.find(x=>x.id===cid)||{name:r0.client_name,color:r0.color||'#C8A06B'};
-    // مجاميع الشركة
-    const tot=list.reduce((s,r)=>s+Number(r.total_tasks||0),0);
-    const done=list.reduce((s,r)=>s+Number(r.done_tasks||0),0);
-    const blocked=list.reduce((s,r)=>s+Number(r.blocked_tasks||0),0);
-    const reqs=list.reduce((s,r)=>s+Number(r.pending_client_reqs||0),0);
-    const comments=list.reduce((s,r)=>s+Number(r.open_comments||0),0);
-    const hasAlerts=blocked>0||reqs>0||comments>0;
-    const isActive=list.some(r=>r.lifecycle==='active'||r.lifecycle==='approved');
-    const isDraft=list.some(r=>r.status==='draft'||r.lifecycle==='proposal');
-    return {cid,c,list,tot,done,blocked,reqs,comments,hasAlerts,isActive,isDraft,
-      pct:tot>0?Math.round(done/tot*100):0};
-  });
+  let companies=Object.keys(groups).map(cid=>aggregateClientRows(cid,groups[cid]));
   // العملاء بلا مشاريع: بطاقة دعوة لإضافة أول مشروع
   noProjRows.forEach(r=>{
-    const c=CLIENTS.find(x=>x.id===r.client_id)||{name:r.client_name,color:r.color||'#C8A06B'};
-    companies.push({cid:r.client_id,c,list:[],tot:0,done:0,blocked:0,reqs:0,comments:0,
-      hasAlerts:false,isActive:false,isDraft:true,pct:0,noProjects:true});
+    companies.push(aggregateClientRows(r.client_id,null,{name:r.client_name,color:r.color||'#C8A06B'}));
   });
 
   // عدّادات الفلاتر (على مستوى الشركات)
@@ -2558,17 +2569,16 @@ async function renderPortfolio(){
   const withProj=shown.filter(x=>!x.noProjects), empty=shown.filter(x=>x.noProjects);
   const renderCard=x=>{
     const multi=x.list.length>1;
-    const expanded=PEXPANDED.has(x.cid);
     const alertBadges=[];
     if(x.blocked>0)alertBadges.push(`<span class="palert red">${x.blocked} متوقف</span>`);
     if(x.reqs>0)alertBadges.push(`<span class="palert amber">${x.reqs} متطلب</span>`);
     if(x.comments>0)alertBadges.push(`<span class="palert blue">${x.comments} نقاش</span>`);
     const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات" aria-label="إجراءات العميل">${I.dots}</button>`:'';
     const card=document.createElement('div');
-    card.className='pcompany'+(expanded?' expanded':'')+(x.hasAlerts?' has-alerts':'');
+    card.className='pcompany'+(x.hasAlerts?' has-alerts':'');
     card.style.cssText=`--cc:${x.c.color}`;
     card.innerHTML=`
-      <div class="pcompany-hd" data-toggle="${x.cid}" role="button" tabindex="0" aria-expanded="${expanded}">
+      <div class="pcompany-hd" data-toggle="${x.cid}" role="button" tabindex="0">
         <span class="pdot" style="background:${x.c.color}"></span>
         <div class="pcompany-info">
           <h3>${esc(x.c.name)}</h3>
@@ -2577,11 +2587,10 @@ async function renderPortfolio(){
         <div class="pcompany-side">
           ${alertBadges.length?`<div class="palerts">${alertBadges.join('')}</div>`:''}
           ${x.noProjects?'':`<div class="pcompany-pct"><b>${x.pct}%</b><div class="pbar mini" role="progressbar" aria-valuenow="${x.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="نسبة الإنجاز"><div class="pbar-fill" style="width:${x.pct}%"></div></div></div>`}
-          ${x.noProjects?'<span class="pcompany-chev">+</span>':(multi?`<span class="pcompany-chev">${expanded?'▴':'▾'}</span>`:'<span class="pcompany-chev">←</span>')}
+          <span class="pcompany-chev">${x.noProjects?'+':'←'}</span>
           ${actBtn}
         </div>
       </div>
-      ${multi?`<div class="pcompany-body" style="display:${expanded?'block':'none'}">${x.list.map(projRow).join('')}${ROLE==='pmo'?`<button class="reqbtn" data-addproj="${x.cid}" style="margin:6px 2px;background:var(--ok);border-color:var(--ok);color:#fff">+ مشروع جديد</button>`:''}</div>`:''}
     `;
     grid.appendChild(card);
   };
@@ -2603,15 +2612,11 @@ async function renderPortfolio(){
     sec.querySelectorAll('[data-newproj]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();newProjectDialog(b.dataset.newproj);});
   }
 
-  // التفاعل: ترويسة الشركة — توسّع (متعدد) أو تدخل مباشرة (مفرد)
+  // التفاعل: ترويسة الشركة — تفتح صفحة العميل الموحّدة دائمًا (لوحة قيادة + مشاريعه + خططه + فريقه)
   document.querySelectorAll('[data-toggle]').forEach(el=>el.onclick=async(e)=>{
     if(e.target.closest('[data-cmenu]'))return;
     const cid=el.dataset.toggle;
-    const comp=shown.find(x=>x.cid===cid); if(!comp)return;
-    if(!comp.list.length){ openClientMenu(cid); return; }
-    if(comp.list.length===1){ CID=cid; PID=comp.list[0].project_id; await openProject(); return; }
-    if(PEXPANDED.has(cid))PEXPANDED.delete(cid); else PEXPANDED.add(cid);
-    renderPortfolio();
+    await renderClientHome(cid);
   });
   // نقرة على مشروع داخل التوسيع
   document.querySelectorAll('[data-openproj]').forEach(el=>el.onclick=async(e)=>{
@@ -2657,6 +2662,7 @@ async function renderStaffAccess(){
 function saScopeLabel(g){
   if(g.scope_type==='company')return 'الشركة كاملة';
   if(g.scope_type==='department')return DEPTS[g.scope_value]||g.scope_value;
+  if(g.scope_type==='client'){const c=CLIENTS.find(x=>x.id===g.scope_value);return c?('كل مشاريع: '+c.name):'عميل محذوف';}
   const p=SA_PROJECTS.find(x=>x.id===g.scope_value);
   return p?(p._client+' — '+p.name):'مشروع محذوف';
 }
@@ -2676,6 +2682,7 @@ function renderSABody(){
 
   const memberOpts=SA_MEMBERS.map(m=>`<option value="${m.id}">${esc(m.full_name||m.email)}</option>`).join('');
   const deptOpts=Object.keys(DEPTS).map(k=>`<option value="${k}">${esc(DEPTS[k])}</option>`).join('');
+  const clientOpts=(CLIENTS||[]).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
   const projOpts=SA_PROJECTS.map(p=>`<option value="${p.id}">${esc(p._client)} — ${esc(p.name)}</option>`).join('');
 
   const deptTable=SA_PROJECTS.map(p=>`<tr><td>${esc(p._client)}</td><td>${esc(p.name)}</td>
@@ -2692,9 +2699,11 @@ function renderSABody(){
         <select id="saScopeType">
           <option value="company">الشركة كاملة</option>
           <option value="department">قسم بعينه</option>
+          <option value="client">عميل بعينه (كل مشاريعه)</option>
           <option value="project">مشروع بعينه</option>
         </select>
         <select id="saScopeValue" style="display:none">${deptOpts}</select>
+        <select id="saScopeClient" style="display:none">${clientOpts}</select>
         <select id="saScopeProject" style="display:none">${projOpts}</select>
         <select id="saLevel"><option value="view">عرض فقط</option><option value="edit">عرض وتعديل</option></select>
         <button class="hbtn" id="saGrant" style="background:var(--gold);border-color:var(--gold)">منح</button>
@@ -2709,14 +2718,16 @@ function renderSABody(){
       <table class="tktbl"><thead><tr><th>العميل</th><th>المشروع</th><th>القسم</th></tr></thead><tbody>${deptTable}</tbody></table>
     </div>`;
 
-  const stEl=$('#saScopeType'),svEl=$('#saScopeValue'),spEl=$('#saScopeProject');
+  const stEl=$('#saScopeType'),svEl=$('#saScopeValue'),spEl=$('#saScopeProject'),scEl=$('#saScopeClient');
   stEl.onchange=()=>{
     svEl.style.display=(stEl.value==='department')?'':'none';
+    scEl.style.display=(stEl.value==='client')?'':'none';
     spEl.style.display=(stEl.value==='project')?'':'none';
   };
   $('#saGrant').onclick=async()=>{
     const memberId=$('#saMember').value,scopeType=stEl.value,level=$('#saLevel').value;
-    const scopeValue=scopeType==='company'?null:(scopeType==='department'?svEl.value:spEl.value);
+    const scopeValue=scopeType==='company'?null:
+      (scopeType==='department'?svEl.value:(scopeType==='client'?scEl.value:spEl.value));
     try{
       await grantStaffAccess(memberId,scopeType,scopeValue,level);
       SA_GRANTS=await fetchAllStaffAccess();
@@ -2737,6 +2748,143 @@ function renderSABody(){
 }
 
 window.renderStaffAccess=renderStaffAccess;
+
+
+/* ===== clienthome.js ===== */
+// ===== app/clienthome.js — صفحة عميل موحّدة =====
+// تحلّ محلّ التوسّع المباشر داخل شبكة المحفظة: نقرة على أي عميل تفتح هنا.
+// مصدر البيانات: نفس fetchPortfolio() المستخدم في شبكة المحفظة، ونفس aggregateClientRows()
+// المستخدمة هناك — لا حساب مكرّر، ولا احتمال انحراف بين الصفحتين.
+
+let SA_MEMBERS_CACHE=null;
+async function ensureMembersCache(){if(!SA_MEMBERS_CACHE)SA_MEMBERS_CACHE=await fetchTeamMembers();return SA_MEMBERS_CACHE;}
+
+async function renderClientHome(clientId){
+  const c=CLIENTS.find(x=>x.id===clientId);
+  if(!c){toast('عميل غير موجود','err');await renderPortfolio();return;}
+  SCREEN='clienthome';CID=clientId;PID=null;
+  $('#hProject').textContent=c.name;
+  $('#barClient').style.display='none';hideChrome();
+  writeClientHash(clientId);
+  $('#host').innerHTML=`
+    <div class="hintbar"><button class="reqbtn" id="chBack">↩ المحفظة</button>
+      <button class="reqbtn" id="chMenu" style="margin-inline-start:8px">⋮ إجراءات العميل</button>
+      <span style="margin-inline-start:auto">ملف العميل الكامل: لوحة قيادة مجمَّعة، كل مشاريعه، خططه، وفريقه — في مكان واحد.</span></div>
+    <div id="chBody"><div class="skeleton" style="height:90px;margin-bottom:10px"></div>
+      <div class="skeleton" style="height:160px;margin-bottom:10px"></div>
+      <div class="skeleton" style="height:220px"></div></div>`;
+  $('#chBack').onclick=renderPortfolio;
+  $('#chMenu').onclick=()=>openClientMenu(clientId);
+
+  let stats,access;
+  try{
+    await ensureMembersCache();
+    const {data:rows}=await fetchPortfolio();
+    const list=(rows||[]).filter(r=>r.client_id===clientId&&r.project_id);
+    stats=aggregateClientRows(clientId,list,c);
+    access=(await fetchAllStaffAccess()).filter(a=>
+      (a.scope_type==='client'&&a.scope_value===clientId)||
+      (a.scope_type==='project'&&stats.list.some(l=>l.project_id===a.scope_value)));
+  }catch(e){$('#chBody').innerHTML='<p class="pempty">تعذّر التحميل: '+esc(e.message)+'</p>';return;}
+  renderCHBody(stats,access);
+  // الجانت المجمَّع لهذا العميل — نفس أداة «الخط الزمني الشامل»، بنطاق مُقيَّد فقط
+  if(stats.list.length)renderPortfolioGantt(clientId,'chGanttWrap');
+}
+
+function writeClientHash(clientId){
+  const h='#/c/'+clientId;
+  if(location.hash===h)return;
+  try{history.replaceState(null,'',h);}catch(e){location.hash=h;}
+}
+
+function renderCHBody(stats,access){
+  const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'};
+  const kpi=(n,v,cls)=>`<div class="ch-kpi ${cls||''}"><b>${v}</b><span>${n}</span></div>`;
+  const kpis=`<div class="ch-kpis">
+    ${kpi('مشاريع',stats.list.length)}
+    ${kpi('نسبة الإنجاز',stats.pct+'%')}
+    ${kpi('بنود متوقفة',stats.blocked,stats.blocked?'ch-warn':'')}
+    ${kpi('متطلبات بانتظار العميل',stats.reqs,stats.reqs?'ch-warn':'')}
+    ${kpi('نقاش مفتوح',stats.comments)}
+  </div>`;
+
+  const projCards=stats.noProjects?
+    `<div class="empty-cta"><div class="ico">${I.folder||'📁'}</div><h3>لا مشاريع بعد</h3><p>ابدأ أول مشروع لهذا العميل.</p>
+      <button class="hbtn" id="chNewProj" style="background:var(--gold);border-color:var(--gold)">+ مشروع جديد</button></div>`
+    :stats.list.map(r=>{
+      const pct=r.total_tasks>0?Math.round(r.done_tasks/r.total_tasks*100):0;
+      return `<button class="ch-pcard" data-openp="${r.project_id}">
+        <div class="ch-pname">${esc(r.project_name)}</div>
+        <div class="ch-pmeta"><span class="pill" style="background:var(--soft-2);color:var(--muted)">${LIFE[r.lifecycle]||r.lifecycle||''}</span>
+          ${r.blocked_tasks>0?'<span class="pill" style="background:var(--crit-bg);color:var(--crit)">'+r.blocked_tasks+' متوقف</span>':''}</div>
+        <div class="trk-bar" style="margin-top:8px"><div class="trk-bar-fill" style="width:${pct}%;background:var(--ok)"></div></div>
+        <div class="ch-ppct">${pct}% · ${r.total_tasks} بند</div>
+      </button>`;
+    }).join('');
+
+  const memberOpts=(SA_MEMBERS_CACHE||[]).map(m=>`<option value="${m.id}">${esc(m.full_name||m.email)}</option>`).join('');
+  const projOpts=stats.list.map(r=>`<option value="${r.project_id}">${esc(r.project_name)}</option>`).join('');
+  const accessRows=access.map(a=>{
+    const m=(SA_MEMBERS_CACHE||[]).find(x=>x.id===a.member_id);
+    const scopeLbl=a.scope_type==='client'?'كل مشاريع هذا العميل':
+      (stats.list.find(r=>r.project_id===a.scope_value)||{}).project_name||'مشروع';
+    return `<span class="sa-chip sa-${a.access_level}">${esc(m?(m.full_name||m.email):'—')} — ${esc(scopeLbl)} · ${a.access_level==='edit'?'تعديل':'عرض'}
+      <button data-chrevoke="${a.id}" aria-label="سحب" title="سحب">✕</button></span>`;
+  }).join('')||'<span class="sa-empty">لا أحد لديه صلاحية مخصَّصة لهذا العميل تحديدًا</span>';
+
+  $('#chBody').innerHTML=`
+    <div class="sa-section">${kpis}</div>
+    <div class="sa-section">
+      <h4>مشاريع ${esc(stats.c.name)} <span class="sa-hint">(${stats.list.length})</span></h4>
+      <div class="ch-pgrid">${projCards}</div>
+    </div>
+    <div class="sa-section">
+      <h4>خططه — الخط الزمني المجمَّع
+        <span class="sa-hint">لعرض كل عملاء المحفظة معًا بدل عميل واحد، استخدم «الخط الزمني الشامل» من أدوات المكتب</span></h4>
+      <div id="chGanttWrap">${stats.noProjects?'<p class="empty">لا خطط بعد.</p>':''}</div>
+    </div>
+    <div class="sa-section">
+      <h4>فريق هذا العميل <span class="sa-hint">دعوة عضو موجود بالفعل — على مستوى العميل كاملًا أو مشروع واحد بعينه</span></h4>
+      <div class="sa-form" style="margin-bottom:14px">
+        <select id="chMember">${memberOpts}</select>
+        <select id="chScope"><option value="client">كل مشاريع هذا العميل</option>${projOpts?'<option value="project">مشروع بعينه:</option>':''}</select>
+        <select id="chProj" style="display:none">${projOpts}</select>
+        <select id="chLevel"><option value="view">عرض فقط</option><option value="edit">عرض وتعديل</option></select>
+        <button class="hbtn" id="chGrant" style="background:var(--gold);border-color:var(--gold)">منح</button>
+      </div>
+      <div class="sa-grants">${accessRows}</div>
+    </div>`;
+
+  $$('#chBody [data-openp]').forEach(b=>b.onclick=async()=>{CID=stats.cid;PID=b.dataset.openp;await openProject();});
+  const nb=$('#chNewProj');if(nb)nb.onclick=()=>newProjectDialog(stats.cid);
+  const scopeSel=$('#chScope'),projSel=$('#chProj');
+  if(scopeSel)scopeSel.onchange=()=>{projSel.style.display=(scopeSel.value==='project')?'':'none';};
+  const gb=$('#chGrant');
+  if(gb)gb.onclick=async()=>{
+    const memberId=$('#chMember').value,scopeType=scopeSel.value,level=$('#chLevel').value;
+    const scopeValue=scopeType==='client'?stats.cid:projSel.value;
+    try{
+      await grantStaffAccess(memberId,scopeType,scopeValue,level);
+      toast('مُنحت الصلاحية','ok');
+      const newAccess=(await fetchAllStaffAccess()).filter(a=>
+        (a.scope_type==='client'&&a.scope_value===stats.cid)||
+        (a.scope_type==='project'&&stats.list.some(l=>l.project_id===a.scope_value)));
+      renderCHBody(stats,newAccess);
+    }catch(e){toast('تعذّر المنح: '+e.message,'err');}
+  };
+  $$('#chBody [data-chrevoke]').forEach(b=>b.onclick=async()=>{
+    if(!await confirmDialog('سحب صلاحية','سحب هذه الصلاحية؟',false))return;
+    try{
+      await revokeStaffAccess(b.dataset.chrevoke);toast('سُحبت الصلاحية','ok');
+      const newAccess=(await fetchAllStaffAccess()).filter(a=>
+        (a.scope_type==='client'&&a.scope_value===stats.cid)||
+        (a.scope_type==='project'&&stats.list.some(l=>l.project_id===a.scope_value)));
+      renderCHBody(stats,newAccess);
+    }catch(e){toast('تعذّر السحب: '+e.message,'err');}
+  });
+}
+
+window.renderClientHome=renderClientHome;
 
 
 /* ===== main.js ===== */
@@ -2802,14 +2950,7 @@ async function qjGo(item){
   const list=$('#qjumpList'),input=$('#qjumpInput');
   if(list)list.hidden=true;if(input){input.value='';input.blur();}
   if(item.kind==='project'){CID=item.cid;PID=item.id;await openProject();return;}
-  const c=QJ_INDEX.find(x=>x.cid===item.cid);
-  if(!c){toast('تعذّر العثور على العميل','err');return;}
-  if(c.projects.length===1){CID=c.cid;PID=c.projects[0].id;await openProject();return;}
-  SCREEN='portfolio';
-  if(c.projects.length>1)PEXPANDED.add(c.cid);
-  await renderPortfolio();
-  if(!c.projects.length){openClientMenu(c.cid);return;}
-  setTimeout(()=>{const el=document.querySelector('[data-toggle="'+c.cid+'"]');if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},80);
+  await renderClientHome(item.cid);
 }
 function bindQJump(){
   const wrap=$('#qjumpWrap');if(!wrap||wrap._bound)return;wrap._bound=true;
@@ -2838,7 +2979,9 @@ async function startApp(){
   if(ROLE==='client'){
     SCREEN='project';CID=CLIENTS[0].id;await loadProject(CID);render();
   }else{
-    SCREEN='portfolio';await renderPortfolio();
+    const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
+    if(cm&&CLIENTS.some(c=>c.id===cm[1])){SCREEN='clienthome';await renderClientHome(cm[1]);}
+    else{SCREEN='portfolio';await renderPortfolio();}
   }
 }
 
@@ -2904,6 +3047,10 @@ function applyHash(){
 window.addEventListener('hashchange',()=>{
   if(_hashLock)return;
   if(typeof SCREEN!=='undefined'&&SCREEN==='project')applyHash();
+  else{
+    const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
+    if(cm&&CLIENTS.some(c=>c.id===cm[1])&&(ROLE==='pmo'||ROLE==='delivery'))renderClientHome(cm[1]);
+  }
 });
 
 // إغلاق لوحة البند: زر، نقر على الخلفية، ومفتاح Esc
