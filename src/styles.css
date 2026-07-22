@@ -384,6 +384,22 @@ textarea.dlg-i{min-height:80px;resize:vertical}
 .sa-chip button{background:none;border:none;cursor:pointer;color:inherit;opacity:.6;font-size:var(--fs-xs);padding:0 2px}
 .sa-chip button:hover{opacity:1}
 .sa-empty{font-size:var(--fs-sm);color:var(--muted)}
+/* ===== صفحة العميل الموحّدة ===== */
+.ch-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.ch-kpi{text-align:center;padding:10px 6px;border-radius:var(--r-sm);background:var(--soft-2)}
+.ch-kpi b{display:block;font-size:var(--fs-xl);font-weight:700;color:var(--ink)}
+.ch-kpi span{font-size:var(--fs-xs);color:var(--muted)}
+.ch-kpi.ch-warn{background:var(--crit-bg)}
+.ch-kpi.ch-warn b{color:var(--crit)}
+.ch-pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.ch-pcard{text-align:right;border:1px solid var(--line);border-radius:var(--r-md);padding:14px;background:#fff;
+  cursor:pointer;transition:box-shadow var(--t),border-color var(--t);font-family:inherit}
+.ch-pcard:hover{box-shadow:var(--e1);border-color:var(--gold)}
+.ch-pname{font-weight:700;font-size:var(--fs-md);margin-bottom:6px}
+.ch-pmeta{display:flex;gap:6px;flex-wrap:wrap}
+.ch-pmeta .pill{font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:999px}
+.ch-ppct{font-size:var(--fs-xs);color:var(--muted);margin-top:5px}
+@media(max-width:760px){.ch-kpis{grid-template-columns:repeat(2,1fr)}}
 .imp-err{background:var(--crit-bg);border:1px solid #ecc9bf;border-inline-start:4px solid var(--crit);border-radius:9px;padding:13px 15px;font-size:var(--fs-base);color:var(--crit);line-height:1.8;margin:10px 0}
 .imp-tablewrap{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:9px;margin:12px 0}
 .imp-table{width:100%;border-collapse:collapse;font-size:var(--fs-md)}
