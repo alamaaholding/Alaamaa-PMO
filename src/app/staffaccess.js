@@ -30,6 +30,7 @@ async function renderStaffAccess(){
 function saScopeLabel(g){
   if(g.scope_type==='company')return 'الشركة كاملة';
   if(g.scope_type==='department')return DEPTS[g.scope_value]||g.scope_value;
+  if(g.scope_type==='client'){const c=CLIENTS.find(x=>x.id===g.scope_value);return c?('كل مشاريع: '+c.name):'عميل محذوف';}
   const p=SA_PROJECTS.find(x=>x.id===g.scope_value);
   return p?(p._client+' — '+p.name):'مشروع محذوف';
 }
@@ -49,6 +50,7 @@ function renderSABody(){
 
   const memberOpts=SA_MEMBERS.map(m=>`<option value="${m.id}">${esc(m.full_name||m.email)}</option>`).join('');
   const deptOpts=Object.keys(DEPTS).map(k=>`<option value="${k}">${esc(DEPTS[k])}</option>`).join('');
+  const clientOpts=(CLIENTS||[]).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
   const projOpts=SA_PROJECTS.map(p=>`<option value="${p.id}">${esc(p._client)} — ${esc(p.name)}</option>`).join('');
 
   const deptTable=SA_PROJECTS.map(p=>`<tr><td>${esc(p._client)}</td><td>${esc(p.name)}</td>
@@ -65,9 +67,11 @@ function renderSABody(){
         <select id="saScopeType">
           <option value="company">الشركة كاملة</option>
           <option value="department">قسم بعينه</option>
+          <option value="client">عميل بعينه (كل مشاريعه)</option>
           <option value="project">مشروع بعينه</option>
         </select>
         <select id="saScopeValue" style="display:none">${deptOpts}</select>
+        <select id="saScopeClient" style="display:none">${clientOpts}</select>
         <select id="saScopeProject" style="display:none">${projOpts}</select>
         <select id="saLevel"><option value="view">عرض فقط</option><option value="edit">عرض وتعديل</option></select>
         <button class="hbtn" id="saGrant" style="background:var(--gold);border-color:var(--gold)">منح</button>
@@ -82,14 +86,16 @@ function renderSABody(){
       <table class="tktbl"><thead><tr><th>العميل</th><th>المشروع</th><th>القسم</th></tr></thead><tbody>${deptTable}</tbody></table>
     </div>`;
 
-  const stEl=$('#saScopeType'),svEl=$('#saScopeValue'),spEl=$('#saScopeProject');
+  const stEl=$('#saScopeType'),svEl=$('#saScopeValue'),spEl=$('#saScopeProject'),scEl=$('#saScopeClient');
   stEl.onchange=()=>{
     svEl.style.display=(stEl.value==='department')?'':'none';
+    scEl.style.display=(stEl.value==='client')?'':'none';
     spEl.style.display=(stEl.value==='project')?'':'none';
   };
   $('#saGrant').onclick=async()=>{
     const memberId=$('#saMember').value,scopeType=stEl.value,level=$('#saLevel').value;
-    const scopeValue=scopeType==='company'?null:(scopeType==='department'?svEl.value:spEl.value);
+    const scopeValue=scopeType==='company'?null:
+      (scopeType==='department'?svEl.value:(scopeType==='client'?scEl.value:spEl.value));
     try{
       await grantStaffAccess(memberId,scopeType,scopeValue,level);
       SA_GRANTS=await fetchAllStaffAccess();
