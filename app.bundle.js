@@ -1,4 +1,4 @@
-const BUILD_V='1256ab20';
+const BUILD_V='b02b8be8';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -2568,7 +2568,6 @@ async function renderPortfolio(){
 
   const withProj=shown.filter(x=>!x.noProjects), empty=shown.filter(x=>x.noProjects);
   const renderCard=x=>{
-    const multi=x.list.length>1;
     const alertBadges=[];
     if(x.blocked>0)alertBadges.push(`<span class="palert red">${x.blocked} متوقف</span>`);
     if(x.reqs>0)alertBadges.push(`<span class="palert amber">${x.reqs} متطلب</span>`);
@@ -2579,17 +2578,14 @@ async function renderPortfolio(){
     card.style.cssText=`--cc:${x.c.color}`;
     card.innerHTML=`
       <div class="pcompany-hd" data-toggle="${x.cid}" role="button" tabindex="0">
-        <span class="pdot" style="background:${x.c.color}"></span>
-        <div class="pcompany-info">
+        <div class="pcv-top">
+          <span class="pdot" style="background:${x.c.color}"></span>
           <h3>${esc(x.c.name)}</h3>
-          <span class="pcompany-sub">${x.noProjects?'لا مشاريع بعد — انقر لإضافة أول مشروع':(multi?x.list.length+' مشاريع':esc(x.list[0].project_name||'مشروع واحد'))+' · '+x.tot+' بند'}</span>
-        </div>
-        <div class="pcompany-side">
-          ${alertBadges.length?`<div class="palerts">${alertBadges.join('')}</div>`:''}
-          ${x.noProjects?'':`<div class="pcompany-pct"><b>${x.pct}%</b><div class="pbar mini" role="progressbar" aria-valuenow="${x.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="نسبة الإنجاز"><div class="pbar-fill" style="width:${x.pct}%"></div></div></div>`}
-          <span class="pcompany-chev">${x.noProjects?'+':'←'}</span>
           ${actBtn}
         </div>
+        <span class="pcompany-sub">${x.noProjects?'لا مشاريع بعد — انقر لإضافة أول مشروع':(x.list.length>1?x.list.length+' مشاريع':esc(x.list[0].project_name||'مشروع واحد'))+' · '+x.tot+' بند'}</span>
+        ${x.noProjects?'':`<div class="pcompany-pct"><div class="pbar mini" role="progressbar" aria-valuenow="${x.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="نسبة الإنجاز"><div class="pbar-fill" style="width:${x.pct}%"></div></div><b>${x.pct}%</b></div>`}
+        ${alertBadges.length?`<div class="palerts">${alertBadges.join('')}</div>`:''}
       </div>
     `;
     grid.appendChild(card);
