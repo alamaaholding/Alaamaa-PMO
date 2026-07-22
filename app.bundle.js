@@ -1,4 +1,4 @@
-const BUILD_V='c5e2af32';
+const BUILD_V='75eb9fea';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -856,6 +856,11 @@ async function fetchMyStaffAccess(){
   return data||[];
 }
 async function setProjectDepartment(projectId,dept){const {error}=await sb.from('pmo_projects').update({department:dept||null}).eq('id',projectId);if(error)throw error;}
+async function addTeamMember(email,fullName,role){
+  const {data,error}=await sb.rpc('pmo_add_team_member',{p_email:email,p_full_name:fullName,p_role:role});
+  if(error)throw error;
+  return data;
+}
 async function fetchProjectStaff(projectId){const {data}=await sb.from('pmo_project_staff').select('member_id').eq('project_id',projectId);return (data||[]).map(r=>r.member_id);}
 async function saveProjectStaff(projectId,memberIds){
   await sb.from('pmo_project_staff').delete().eq('project_id',projectId);
@@ -2689,6 +2694,15 @@ function renderSABody(){
 
   $('#saBody').innerHTML=`
     <div class="sa-section">
+      <h4>إضافة عضو فريق <span class="sa-hint">يشترط أن يكون قد سجّل دخوله مرة واحدة على الأقل عبر Google على المنصة — عندها فقط يمكن ربط بريده. اطلب منه تسجيل الدخول أولًا ثم أعد المحاولة هنا.</span></h4>
+      <div class="sa-form">
+        <input id="saNewEmail" type="email" placeholder="البريد الإلكتروني" style="flex:1;min-width:200px;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-family:inherit">
+        <input id="saNewName" placeholder="الاسم (اختياري)" style="border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-family:inherit">
+        <select id="saNewRole"><option value="manager">فريق (manager)</option><option value="admin">إدارة كاملة (admin)</option></select>
+        <button class="hbtn" id="saAddMember" style="background:var(--ok);border-color:var(--ok)">إضافة</button>
+      </div>
+    </div>
+    <div class="sa-section">
       <h4>منح صلاحية جديدة</h4>
       <div class="sa-form">
         <select id="saMember">${memberOpts}</select>
@@ -2719,6 +2733,25 @@ function renderSABody(){
     svEl.style.display=(stEl.value==='department')?'':'none';
     scEl.style.display=(stEl.value==='client')?'':'none';
     spEl.style.display=(stEl.value==='project')?'':'none';
+  };
+  const amb=$('#saAddMember');
+  if(amb)amb.onclick=async()=>{
+    const email=($('#saNewEmail').value||'').trim();
+    const name=($('#saNewName').value||'').trim();
+    const role=$('#saNewRole').value;
+    if(!email){toast('أدخل البريد الإلكتروني','warn');return;}
+    amb.disabled=true;
+    try{
+      const r=await addTeamMember(email,name,role);
+      if(r&&r.ok){
+        toast(r.updated?'تحديث بيانات عضو موجود':'أُضيف العضو بنجاح','ok');
+        $('#saNewEmail').value='';$('#saNewName').value='';
+        SA_MEMBERS=await fetchTeamMembers();renderSABody();
+      }else if(r&&r.reason==='no_signin'){
+        toast('هذا البريد لم يسجّل الدخول على المنصة بعد — اطلب منه الدخول مرة واحدة ثم أعد المحاولة','warn');
+      }else toast('تعذّرت الإضافة','err');
+    }catch(e){toast('تعذّرت الإضافة: '+e.message,'err');}
+    amb.disabled=false;
   };
   $('#saGrant').onclick=async()=>{
     const memberId=$('#saMember').value,scopeType=stEl.value,level=$('#saLevel').value;
