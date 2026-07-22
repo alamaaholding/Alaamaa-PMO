@@ -25,12 +25,71 @@ function toastUndo(msg,onUndo){
 
 // ===== نوافذ الحوار المخصّصة (بديل prompt/confirm المتصفح) =====
 
+// ===== مبدّل سريع للعملاء والمشاريع (طاقم فقط) =====
+let QJ_INDEX=[];
+async function refreshQJIndex(){
+  try{
+    const {data}=await fetchPortfolio();
+    const byClient={};
+    (data||[]).forEach(r=>{
+      const c=(byClient[r.client_id]=byClient[r.client_id]||{cid:r.client_id,name:r.client_name,projects:[]});
+      if(r.project_id)c.projects.push({id:r.project_id,name:r.project_name});
+    });
+    QJ_INDEX=Object.values(byClient);
+  }catch(e){QJ_INDEX=[];}
+}
+function qjRender(q){
+  const list=$('#qjumpList');if(!list)return;
+  q=(q||'').trim();
+  if(!q){list.hidden=true;list.innerHTML='';return;}
+  const nq=q.toLowerCase();
+  const results=[];
+  QJ_INDEX.forEach(c=>{
+    if(c.name.toLowerCase().includes(nq))results.push({kind:'client',cid:c.cid,label:c.name,sub:(c.projects.length?c.projects.length+' مشروع':'بلا مشاريع')});
+    c.projects.forEach(p=>{if(p.name.toLowerCase().includes(nq)||c.name.toLowerCase().includes(nq))
+      results.push({kind:'project',cid:c.cid,id:p.id,label:p.name,sub:c.name});});
+  });
+  const top=results.slice(0,8);
+  if(!top.length){list.innerHTML='<div class="qjump-empty">لا نتائج مطابقة</div>';list.hidden=false;return;}
+  list.innerHTML=top.map((r,i)=>`<button class="qjump-item" data-qj="${i}" role="option">
+    <span class="qji">${r.kind==='project'?'📄':'🏢'}</span><b>${esc(r.label)}</b><span class="qjs">${esc(r.sub)}</span></button>`).join('');
+  list.hidden=false;
+  $$('#qjumpList [data-qj]').forEach((b,i)=>b.onclick=()=>qjGo(top[i]));
+}
+async function qjGo(item){
+  const list=$('#qjumpList'),input=$('#qjumpInput');
+  if(list)list.hidden=true;if(input){input.value='';input.blur();}
+  if(item.kind==='project'){CID=item.cid;PID=item.id;await openProject();return;}
+  const c=QJ_INDEX.find(x=>x.cid===item.cid);
+  if(!c){toast('تعذّر العثور على العميل','err');return;}
+  if(c.projects.length===1){CID=c.cid;PID=c.projects[0].id;await openProject();return;}
+  SCREEN='portfolio';
+  if(c.projects.length>1)PEXPANDED.add(c.cid);
+  await renderPortfolio();
+  if(!c.projects.length){openClientMenu(c.cid);return;}
+  setTimeout(()=>{const el=document.querySelector('[data-toggle="'+c.cid+'"]');if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},80);
+}
+function bindQJump(){
+  const wrap=$('#qjumpWrap');if(!wrap||wrap._bound)return;wrap._bound=true;
+  wrap.style.display=(ROLE==='pmo'||ROLE==='delivery')?'':'none';
+  if(ROLE!=='pmo'&&ROLE!=='delivery')return;
+  const input=$('#qjumpInput'),list=$('#qjumpList');
+  input.addEventListener('focus',async()=>{if(!QJ_INDEX.length)await refreshQJIndex();qjRender(input.value);});
+  input.addEventListener('input',()=>qjRender(input.value));
+  input.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){list.hidden=true;input.blur();}
+    else if(e.key==='Enter'){const first=list.querySelector('[data-qj]');if(first)first.click();}
+  });
+  document.addEventListener('click',e=>{if(!wrap.contains(e.target))list.hidden=true;});
+}
+
 async function startApp(){
   $('#login').classList.add('hidden');$('#loader').classList.remove('hidden');
   await loadClients();
   $('#app').classList.remove('hidden');$('#loader').classList.add('hidden');
   $('#uName').textContent=USER._name||USER.email;
   $('#roleChip').textContent=ROLE_NAMES[ROLE];
+  bindQJump();
   $('#dataDate').value=DATA_DATE;$('#dataDate').onchange=e=>{DATA_DATE=e.target.value;if(SCREEN==='project')render();else renderPortfolio();};
   if(!CLIENTS.length){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا توجد مشاريع متاحة لحسابك بعد.</p>';hideChrome();return;}
   // العميل: دخول مباشر لمشروعه الوحيد. الطاقم: شاشة المحفظة
