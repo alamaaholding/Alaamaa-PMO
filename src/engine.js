@@ -11,6 +11,7 @@ function scheduleTasks(tasks,projectStartStr){
   const isWD=isWorkday;const clone=d=>new Date(d.getTime());
   const ensureWD=d=>{d=clone(d);while(!isWD(d))d.setDate(d.getDate()+1);return d;};
   const nextWD=d=>{d=clone(d);d.setDate(d.getDate()+1);while(!isWD(d))d.setDate(d.getDate()+1);return d;};
+  const prevWD=d=>{d=clone(d);d.setDate(d.getDate()-1);while(!isWD(d))d.setDate(d.getDate()-1);return d;};
   const addWD=(d,n)=>{d=ensureWD(d);let c=0;while(c<n){d.setDate(d.getDate()+1);if(isWD(d))c++;}return d;};
   const subWD=(d,n)=>{d=clone(d);while(!isWD(d))d.setDate(d.getDate()-1);let c=0;while(c<n){d.setDate(d.getDate()-1);if(isWD(d))c++;}return d;};
   const wdB=(a,b)=>{let s=clone(a),e=clone(b),sg=1;if(e<s){const t=s;s=e;e=t;sg=-1;}let c=0,d=clone(s);while(d<e){d.setDate(d.getDate()+1);if(isWD(d))c++;}return c*sg;};
@@ -46,8 +47,36 @@ function scheduleTasks(tasks,projectStartStr){
     R[id]={ES,EF,dur};});
   let pEnd=start;_leafs.forEach(t=>{if(t.type!=='cont'&&R[t.id].EF>pEnd)pEnd=R[t.id].EF;});
   _leafs.forEach(t=>{if(t.type==='cont')R[t.id].EF=clone(pEnd);});
-  seq.slice().reverse().forEach(id=>{const t=map[id];const succ=_leafs.filter(s=>(s.deps||[]).includes(id));let LF;
-    if(succ.length===0)LF=clone(pEnd);else{let mn=null;succ.forEach(s=>{const ls=R[s.id].LS;if(mn===null||ls<mn)mn=ls;});LF=clone(mn);}
+  seq.slice().reverse().forEach(id=>{const t=map[id];
+    // كل الروابط التي هذا البند سابق فيها (مع نوعها وإزاحتها) — لا مجرد deps خام
+    const succEdges=[];
+    _leafs.forEach(s=>{const dx=(s.depsX&&s.depsX.length)?s.depsX:(s.deps||[]).map(d=>({ref:d,type:'FS',lag:0}));
+      dx.forEach(x=>{if(x.ref===id)succEdges.push({s,type:x.type||'FS',lag:x.lag||0});});});
+    const invLag=(d,L)=>L>=0?subWD(d,L):addWD(d,-L); // عكس lagAdd المستخدم في المرور الأمامي
+    let LF;
+    if(succEdges.length===0)LF=clone(pEnd);
+    else{
+      let mn=null;
+      succEdges.forEach(({s,type,lag})=>{
+        const rs=R[s.id];let cand;
+        if(type==='SS'){
+          // القيد الحقيقي على بداية السابق لا نهايته — نحوّله لمكافئ «نهاية» بإضافة مدة t نفسه
+          const lsCand=invLag(rs.LS,lag);
+          const durT=t.type==='milestone'?0:Math.max(1,t.duration||1);
+          cand=addWD(lsCand,durT-1);
+        }else if(type==='FF'){
+          cand=invLag(rs.LF,lag); // نهاية بنهاية — بلا فجوة يوم عمل
+        }else{
+          // FS: العكس الدقيق لِـ nextWD/ensureWD في المرور الأمامي —
+          // فجوة يوم عمل واحدة تُطرح فقط إن كان اللاحق ذا مدة حقيقية (لا معلمًا/صفريًا)
+          const gapped=invLag(rs.LS,lag);
+          const succDur=(s.type==='milestone'||s.type==='cont')?0:(s.duration||0);
+          cand=succDur>0?prevWD(gapped):gapped;
+        }
+        if(mn===null||cand<mn)mn=cand;
+      });
+      LF=clone(mn);
+    }
     const dur=R[id].dur;let LS;if(t.type==='milestone')LS=clone(LF);else if(t.type==='cont')LS=clone(R[id].ES);else LS=subWD(LF,Math.max(1,dur)-1);
     R[id].LF=LF;R[id].LS=LS;let slack=wdB(R[id].ES,LS);if(t.type==='fixed')slack=0;R[id].slack=slack;R[id].critical=(t.type!=='cont')&&slack<=0;});
   // اشتقاق حزم العمل: البداية=أبكر ابن، النهاية=أقصى ابن، حرجة إن كان ابن حرجًا
