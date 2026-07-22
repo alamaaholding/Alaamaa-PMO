@@ -46,6 +46,32 @@ const AUDIT_ACTIONS={
 const AUDIT_ENTITIES={task:'بند',change_request:'طلب تعديل خطة',requirement:'متطلب',
   comment:'تعليق',client_request:'طلب خدمة',project:'مشروع',client:'عميل'};
 
+// ===== نطاق صلاحيات الفريق =====
+// المبدأ: لا تغيير في سلوك أي موظف قائم إطلاقًا حتى يمنحه مالك النظام صلاحية محددة صراحة.
+// موظف بلا أي سجل في MY_ACCESS = يرى كل شيء كما كان دائمًا (سلوك ما قبل هذا النظام).
+function hasCompanyScope(){return IS_OWNER||MY_ACCESS.some(a=>a.scope_type==='company');}
+function myDeptScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='department').map(a=>a.scope_value));}
+function myProjectScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='project').map(a=>a.scope_value));}
+// هل يُسمح لي برؤية مشروع بعينه (بمعرّفه وقسمه)؟
+function canSeeProject(projectId,dept){
+  if(IS_OWNER||hasCompanyScope())return true;
+  if(!MY_ACCESS.length)return true; // لا تخصيص = لا قيود (توافق خلفي)
+  if(myProjectScopes().has(projectId))return true;
+  if(dept&&myDeptScopes().has(dept))return true;
+  return false;
+}
+// أعلى مستوى صلاحية ممنوح لي على مشروع بعينه: 'edit'|'view'|null (null فقط إن كان مقيّدًا ولا يراه أصلًا)
+function myAccessLevelFor(projectId,dept){
+  if(IS_OWNER)return 'edit';
+  if(!MY_ACCESS.length)return 'edit'; // لا تخصيص = صلاحية كاملة كما كانت دائمًا
+  const rows=MY_ACCESS.filter(a=>
+    a.scope_type==='company'||
+    (a.scope_type==='project'&&a.scope_value===projectId)||
+    (a.scope_type==='department'&&dept&&a.scope_value===dept));
+  if(!rows.length)return null;
+  return rows.some(r=>r.access_level==='edit')?'edit':'view';
+}
+
 // ===== أيقونات SVG موحّدة (خطية، ترث لون النص) =====
 const I={
  scale:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 21h18M6 7l-3 6h6l-3-6zM18 7l-3 6h6l-3-6zM7 7h10"/></svg>',
