@@ -134,6 +134,9 @@ async function openProject(){
   $('#loader').classList.remove('hidden');
   await loadProject(CID,PID);
   $('#loader').classList.add('hidden');
+  if(PROJECT_ACCESS_DENIED){
+    SCREEN='portfolio';toast('لا تملك صلاحية الوصول لهذا المشروع','err');await renderPortfolio();return;
+  }
   SCREEN='project';$('#barClient').style.display='';showChrome();
   // إن كان الوصول عبر رابط عميق، افتح التبويب/البند المقصود؛ وإلا اعرض الافتراضي
   if(!applyHash()){render();writeHash();}
