@@ -508,6 +508,11 @@ async function fetchMyStaffAccess(){
   return data||[];
 }
 async function setProjectDepartment(projectId,dept){const {error}=await sb.from('pmo_projects').update({department:dept||null}).eq('id',projectId);if(error)throw error;}
+async function addTeamMember(email,fullName,role){
+  const {data,error}=await sb.rpc('pmo_add_team_member',{p_email:email,p_full_name:fullName,p_role:role});
+  if(error)throw error;
+  return data;
+}
 async function fetchProjectStaff(projectId){const {data}=await sb.from('pmo_project_staff').select('member_id').eq('project_id',projectId);return (data||[]).map(r=>r.member_id);}
 async function saveProjectStaff(projectId,memberIds){
   await sb.from('pmo_project_staff').delete().eq('project_id',projectId);
