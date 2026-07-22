@@ -11,7 +11,7 @@ def write(p,c): open(os.path.join(ROOT,p),'w',encoding='utf-8').write(c)
 
 CORE=['src/config.js','src/engine.js','src/api.js','src/views.js','src/taskpanel.js',
       'src/app/state.js','src/app/dialogs.js','src/app/lifecycle.js',
-      'src/app/portfolio.js','src/app/staffaccess.js','src/app/main.js']
+      'src/app/portfolio.js','src/app/staffaccess.js','src/app/clienthome.js','src/app/main.js']
 LAZY=['src/dol.js','src/importer.js','src/pgantt.js','src/timeline.js','src/trello.js']
 
 core_js='\n\n'.join('/* ===== '+os.path.basename(f)+' ===== */\n'+read(f) for f in CORE)
