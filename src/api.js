@@ -3,7 +3,8 @@ async function loadIdentity(){
   const {data:{user}}=await sb.auth.getUser();USER=user;if(!user)return null;
   const {data:tm}=await sb.from('team_members').select('role,is_active,full_name').eq('id',user.id).maybeSingle();
   if(tm&&tm.is_active){ROLE=(tm.role==='admin')?'pmo':(tm.role==='manager'?'delivery':'client');USER._name=tm.full_name||user.email;
-    try{const {data:own}=await sb.rpc('pmo_is_owner');IS_OWNER=(own===true);if(IS_OWNER)ROLE='pmo';}catch(e){IS_OWNER=false;}}
+    try{const {data:own}=await sb.rpc('pmo_is_owner');IS_OWNER=(own===true);if(IS_OWNER)ROLE='pmo';}catch(e){IS_OWNER=false;}
+    if(!IS_OWNER){try{MY_ACCESS=await fetchMyStaffAccess();}catch(e){MY_ACCESS=[];}}}
   else{
     // عميل: نتحقق من التصريح بالإيميل (دالة pmo_my_client_ids)
     const {data:ids}=await sb.rpc('pmo_my_client_ids');
@@ -28,7 +29,17 @@ $('#backPortfolio').onclick=async()=>{ await renderPortfolio(); $('#backPortfoli
 
 
 // ===== تحميل المشروع =====
-async function loadClients(){const {data}=await sb.from('pmo_clients').select('*').order('created_at');CLIENTS=data||[];}
+async function loadClients(){
+  const {data}=await sb.from('pmo_clients').select('*').order('created_at');
+  CLIENTS=data||[];
+  // فلترة وفق نطاق الصلاحية — فقط إن كان لهذا الموظف تخصيص فعلي (وإلا لا تغيير إطلاقًا)
+  if(!IS_OWNER&&MY_ACCESS.length&&!hasCompanyScope()){
+    const {data:projs}=await sb.from('pmo_projects').select('id,client_id,department');
+    (projs||[]).forEach(p=>{PROJ_DEPTS[p.id]=p.department;});
+    const okClientIds=new Set((projs||[]).filter(p=>canSeeProject(p.id,p.department)).map(p=>p.client_id));
+    CLIENTS=CLIENTS.filter(c=>okClientIds.has(c.id));
+  }
+}
 const PROJECT_CACHE={}; // تخزين مؤقت للمشاريع المحمّلة (يُبطل عند الكتابة)
 async function loadProject(clientId, projectId){
   CID=clientId;
@@ -37,6 +48,11 @@ async function loadProject(clientId, projectId){
   else q=q.eq('lifecycle_state','active').order('start_date').limit(1);
   const {data:projects}=await q;
   if(!projects||!projects.length){PROJECT=null;return;}
+  // حارس دفاعي: حتى لو وصل رابط مباشر لمشروع خارج نطاق صلاحيته المخصَّصة، لا يُفتح
+  if(!IS_OWNER&&MY_ACCESS.length&&!canSeeProject(projects[0].id,projects[0].department)){
+    PROJECT=null;PROJECT_ACCESS_DENIED=true;return;
+  }
+  PROJECT_ACCESS_DENIED=false;
   const p=projects[0];
   // tasks/deps/baseline/CRs تعتمد على project_id فقط → نطلبها بالتوازي
   const [tasksR,depsR,blR,crR,holR]=await Promise.all([
@@ -471,6 +487,27 @@ async function addHolidayRow(hdate,name){const {error}=await sb.from('pmo_holida
 async function delHolidayRow(id){const {error}=await sb.from('pmo_holidays').delete().eq('id',id);if(error)throw error;}
 // ===== الفريق والإسناد (داخلي — لا يراه العميل) =====
 async function fetchTeamMembers(){const {data}=await sb.from('team_members').select('id,full_name,email,role').eq('is_active',true).order('full_name');return data||[];}
+
+// ===== صلاحيات الفريق (شركة/قسم/مشروع × عرض/تعديل) — مالك النظام فقط يديرها =====
+const DEPTS={marketing:'علامة ماركتنج',tech:'علامة تقني',consulting:'علامة استشارات'};
+async function fetchAllStaffAccess(){
+  const {data,error}=await sb.from('pmo_staff_access').select('*').order('granted_at',{ascending:false});
+  if(error)throw error;return data||[];
+}
+async function grantStaffAccess(memberId,scopeType,scopeValue,level){
+  const {error}=await sb.from('pmo_staff_access').upsert(
+    {member_id:memberId,scope_type:scopeType,scope_value:scopeValue,access_level:level,granted_by:USER.id},
+    {onConflict:'member_id,scope_type,scope_value'});
+  if(error)throw error;
+}
+async function revokeStaffAccess(id){const {error}=await sb.from('pmo_staff_access').delete().eq('id',id);if(error)throw error;}
+// صلاحيات المستخدم الحالي نفسه — تُحمَّل عند الدخول لتصفية المحفظة لغير المالك
+async function fetchMyStaffAccess(){
+  if(!USER||!USER.id)return [];
+  const {data}=await sb.from('pmo_staff_access').select('*').eq('member_id',USER.id);
+  return data||[];
+}
+async function setProjectDepartment(projectId,dept){const {error}=await sb.from('pmo_projects').update({department:dept||null}).eq('id',projectId);if(error)throw error;}
 async function fetchProjectStaff(projectId){const {data}=await sb.from('pmo_project_staff').select('member_id').eq('project_id',projectId);return (data||[]).map(r=>r.member_id);}
 async function saveProjectStaff(projectId,memberIds){
   await sb.from('pmo_project_staff').delete().eq('project_id',projectId);
