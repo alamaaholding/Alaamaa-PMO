@@ -1,4 +1,4 @@
-const BUILD_V='75eb9fea';
+const BUILD_V='6abcedfe';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -653,12 +653,13 @@ async function fetchAuditLog(limit, projectId){
 async function fetchPortfolioTimeline(){ return (await sb.rpc('pmo_portfolio_timeline')).data||[]; }
 // مهام خفيفة لكل المشاريع المعطاة (لحساب CPM في الواجهة)
 async function fetchAllProjectsTasks(projectIds){
-  if(!projectIds.length) return {tasks:[],deps:[]};
-  const [tasksR,depsR]=await Promise.all([
-    sb.from('pmo_tasks').select('id,ref,name,track,type,duration,status,sort_order,project_id').in('project_id',projectIds),
-    sb.from('pmo_dependencies').select('task_id,depends_on_id,project_id').in('project_id',projectIds)
+  if(!projectIds.length) return {tasks:[],deps:[],tracks:[]};
+  const [tasksR,depsR,tracksR]=await Promise.all([
+    sb.from('pmo_tasks').select('id,ref,name,track,type,duration,status,sort_order,project_id,parent_id').in('project_id',projectIds),
+    sb.from('pmo_dependencies').select('task_id,depends_on_id,project_id').in('project_id',projectIds),
+    sb.from('pmo_project_tracks').select('project_id,key,name,color').in('project_id',projectIds)
   ]);
-  return {tasks:tasksR.data||[],deps:depsR.data||[]};
+  return {tasks:tasksR.data||[],deps:depsR.data||[],tracks:tracksR.data||[]};
 }
 
 // ===== تعديل تاريخ بدء المشروع (المصدر الوحيد للحقيقة) =====
