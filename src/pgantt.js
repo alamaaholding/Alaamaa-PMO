@@ -3,6 +3,21 @@
 // يعتمد: $, esc, TRACKS, scheduleTasks, fetchPortfolioTimeline, fetchAllProjectsTasks, loadProject, render
 
 const PHASE_NAMES={'0':'التأسيس','A':'التنفيذ','B':'الذكاء','C':'الاستراتيجية'};
+const PG_PALETTE=['#8A8071','#4A6B8A','#A67F4E','#6B8E6B','#8A5E7A','#5E8A8A','#8A6B4A','#4B3F72'];
+// مرحلة كل بند تُشتق من هرمية WBS الفعلية (parent الحقيقي)، لا من عمود track الخام —
+// نفس الإصلاح الذاتي المطبَّق في loadProject، لتفادي انحراف مطابق (راجع taskTopAncestor).
+function pgDerivePhases(T,registryMap){
+  const byRef={};T.forEach(t=>{byRef[t.id]=t;});
+  T.forEach(t=>{t.track=taskTopAncestor(t,byRef);});
+  const out={};let pi=0;
+  T.forEach(t=>{
+    if(out[t.track])return;
+    const reg=registryMap&&registryMap[t.track];
+    const top=byRef[t.track];
+    out[t.track]={name:(reg&&reg.name)||(top&&top.name)||t.track,color:(reg&&reg.color)||PG_PALETTE[pi++%PG_PALETTE.length]};
+  });
+  return out;
+}
 
 // clientId (اختياري): نفس الدالة ونفس مصدر البيانات لعرض المحفظة كاملة أو عميل واحد فقط —
 // لا استعلام أو منطق تجميع منفصل مكرّر بين الحالتين.
@@ -41,8 +56,12 @@ async function pganttOpen(clientId,mount){
     pr.deps.forEach(d=>{(depMap[d.task_id]=depMap[d.task_id]||[]).push(refById[d.depends_on_id]);});
     const T=pr.tasks.sort((a,b)=>a.sort_order-b.sort_order).map(t=>({
       id:t.ref,name:t.name,track:t.track,type:t.type,duration:t.duration||0,
+      parent:t.parent_id?refById[t.parent_id]:null,
       deps:depMap[t.id]||[],status:t.status
     }));
+    // إصلاح ذاتي: مرحلة كل بند = مرجع أعلى سلف حقيقي له في WBS — يُحدِّث t.track في T مباشرة
+    const projPhases=pgDerivePhases(T,trkByProj[pid]);
+    trkByProj[pid]=projPhases;
     let sched=null;
     try{ sched=scheduleTasks(T,info.start_date); }catch(e){}
     const start=sched?sched.pStart:new Date(info.start_date);
@@ -107,9 +126,12 @@ function PG_RENDER(rows,minD,maxD,mountId){
 
   const mountEl=document.getElementById(mountId);
   if(!mountEl)return;
+  // مفتاح الشرح: المراحل الحقيقية الظاهرة فعليًا في الصفوف المعروضة — لا قائمة عامة ثابتة
+  const legendPhases={};
+  rows.forEach(r=>{const tm=r.trk&&r.trk[r.curPhase];if(tm&&!legendPhases[r.curPhase])legendPhases[r.curPhase]=tm;});
   mountEl.innerHTML=`
     <div class="pg-legend">
-      ${Object.entries(PHASE_NAMES).map(([k,v])=>`<span class="pg-leg"><i style="background:${(TRACKS&&TRACKS[k]&&TRACKS[k].color)||'#999'}"></i>${v}</span>`).join('')}
+      ${Object.values(legendPhases).map(v=>`<span class="pg-leg"><i style="background:${v.color}"></i>${esc(v.name)}</span>`).join('')}
       <span class="pg-leg"><i class="pg-leg-today"></i>اليوم</span>
     </div>
     <div class="pg-chart">
