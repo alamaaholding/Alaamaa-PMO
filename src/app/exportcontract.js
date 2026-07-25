@@ -4,6 +4,11 @@
 // الخطة بعد تاريخ الاعتماد. التواريخ والمدد من اللقطة نفسها؛ الأسماء والهرمية من الخطة
 // الحالية (أي إعادة تسمية لاحقة تمرّ عبر طلب تعديل موثَّق في سجل المشروع أصلًا).
 
+async function ensureQR(){
+  if(window.QRCode)return;
+  await loadScript('https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js');
+}
+
 async function openContractExport(){
   if(!PROJECT||!PROJECT.baselines||!PROJECT.baselines.length){
     toast('لا توجد لقطة (Baseline) بعد لهذا المشروع — ثبّت أساسًا أولًا','warn');return;
@@ -15,12 +20,20 @@ async function openContractExport(){
       options:PROJECT.baselines.slice().reverse().map(b=>({v:b.id,t:b.label+' — '+new Date(b.approved_at).toLocaleDateString('ar')}))}],
     confirmText:'تصدير'});
   if(!r)return;
-  buildContractDoc(r.bl);
+  await buildContractDoc(r.bl);
 }
 
-function buildContractDoc(baselineId){
+async function buildContractDoc(baselineId,contractToken){
   const bl=(PROJECT.baselines||[]).find(b=>b.id===baselineId);
   if(!bl){toast('لقطة غير موجودة','err');return;}
+  let qrImg='';
+  if(contractToken){
+    try{
+      await ensureQR();
+      const url=location.origin+location.pathname+'#/sign/'+contractToken;
+      qrImg=await window.QRCode.toDataURL(url,{margin:1,width:132,color:{dark:'#110A29',light:'#ffffff'}});
+    }catch(e){/* رمز QR تحسيني — فشله لا يوقف التصدير */}
+  }
   const snap=bl.snapshot||{};
   const phases=projTrackList();
   const byPhase={};phases.forEach(p=>{byPhase[p.key]=[];});
@@ -60,6 +73,7 @@ function buildContractDoc(baselineId){
       </div>
       <p class="cx-cover-note">هذا المستند لقطة ثابتة من الخطة بتاريخ اعتمادها أعلاه — لا يعكس أي تعديل لاحق.
         أُصدر آليًا من منصة حوكمة المشاريع بتاريخ ${today}.</p>
+      ${qrImg?`<div class="cx-qr"><img src="${qrImg}" alt="QR"><span>امسح لعرض العقد الموقَّع ومتابعة سير العمل</span></div>`:''}
     </section>
     ${phasePages}
     <div class="cx-footer">علامة · أثر دائم — مستند مُولَّد آليًا من منصة حوكمة المشاريع · ${esc(bl.label)}</div>
