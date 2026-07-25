@@ -154,6 +154,11 @@ async function refreshContractPanel(){
   const rows=list.map(c=>{
     const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
     const link=location.origin+location.pathname+'#/sign/'+c.token;
+    const cEmail=(CLIENTS.find(x=>x.id===CID)||{}).contact_email||'';
+    const subject=encodeURIComponent('عقد '+PROJECT.name+' — علامة');
+    const body=encodeURIComponent(
+      `تحية طيبة،\n\nنرفق رابط توقيع عقد مشروع «${PROJECT.name}» إلكترونيًا:\n${link}\n\nيمكنكم التوقيع مباشرة من الرابط أعلاه بلا حاجة لإنشاء حساب.\n\nشكرًا لكم،\nفريق علامة`);
+    const mailHref=`mailto:${encodeURIComponent(cEmail)}?subject=${subject}&body=${body}`;
     return `<div style="padding:14px 0;border-bottom:1px solid var(--line)">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <b>${esc(c.baseline_label)}</b><span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${STL[c.status]||c.status}</span>
@@ -163,6 +168,8 @@ async function refreshContractPanel(){
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input readonly value="${link}" style="flex:1;min-width:220px;font-size:.75rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2)">
         <button class="reqbtn" data-copylink="${link}">نسخ الرابط</button>
+        <a class="reqbtn" href="${mailHref}" style="text-decoration:none;display:inline-flex;align-items:center">📧 إرسال بالبريد</a>
+        <button class="reqbtn" data-exportqr="${c.baseline_id}" data-token="${c.token}">📄 تصدير PDF بـ QR</button>
         ${!al?`<button class="reqbtn" data-signalamaa="${c.id}" style="background:var(--ok);border-color:var(--ok);color:#fff">توقيع علامة الآن</button>`:''}
       </div>
     </div>`;
@@ -189,6 +196,12 @@ async function refreshContractPanel(){
   document.querySelectorAll('[data-copylink]').forEach(b=>b.onclick=async()=>{
     try{await navigator.clipboard.writeText(b.dataset.copylink);toast('نُسخ الرابط','ok');}
     catch(e){toast('انسخ الرابط يدويًا من الحقل','warn');}
+  });
+  document.querySelectorAll('[data-exportqr]').forEach(b=>b.onclick=async()=>{
+    b.disabled=true;const old=b.textContent;b.textContent='جارٍ التحضير...';
+    try{ await buildContractDoc(b.dataset.exportqr,b.dataset.token); }
+    catch(e){ toast('تعذّر التصدير: '+e.message,'err'); }
+    b.disabled=false;b.textContent=old;
   });
   document.querySelectorAll('[data-signalamaa]').forEach(b=>b.onclick=()=>{
     const cid=b.dataset.signalamaa;
