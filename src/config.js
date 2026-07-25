@@ -100,6 +100,42 @@ function aggregateClientRows(cid,list,fallback){
     isDraft:list.some(r=>r.status==='draft'||r.lifecycle==='proposal'),
     pct:tot>0?Math.round(done/tot*100):0};
 }
+// ===== الحفاظ على التركيز وموضع التمرير عبر إعادة بناء ناتجة عن تعديل حقل واحد =====
+// المشكلة: أي render()/renderReqs() يهدم DOM بأكمله ويعيد بناءه — فيُصفَّر موضع التمرير
+// (داخل .tablewrap مثلًا) ويُفقَد تركيز الحقل الذي كان المستخدم يكتب فيه للتو، مما يبدو
+// وكأن الصفحة «قفزت» أو أن ما كُتب «تصفّر». هذه الدالة تغلّف أي إعادة بناء كهذه فتُبقي
+// المستخدم في مكانه بالضبط.
+function preserveFocus(rerenderFn){
+  const el=document.activeElement;
+  const isField=el&&/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName);
+  const row=isField?el.closest('[data-id],[data-i]'):null;
+  const f=isField?(el.dataset.f||el.dataset.rf||null):null;
+  const rowKey=row?(row.dataset.id!==undefined?'id:'+row.dataset.id:'i:'+row.dataset.i):null;
+  const selStart=(isField&&typeof el.selectionStart==='number')?el.selectionStart:null;
+  const selEnd=(isField&&typeof el.selectionEnd==='number')?el.selectionEnd:null;
+  const scrollers=[...document.querySelectorAll('.tablewrap,#reqTbl')].map(c=>[c,c.scrollTop]);
+
+  rerenderFn();
+
+  if(f&&rowKey){
+    const m=/^(id|i):([\s\S]*)$/.exec(rowKey);
+    if(m){
+      const kind=m[1],val=m[2];
+      const esc2=(window.CSS&&CSS.escape)?CSS.escape(val):val;
+      const rowSel=kind==='id'?`[data-id="${esc2}"]`:`[data-i="${esc2}"]`;
+      const newRow=document.querySelector(rowSel);
+      const newEl=newRow&&newRow.querySelector(`[data-f="${f}"],[data-rf="${f}"]`);
+      if(newEl){
+        newEl.focus({preventScroll:true});
+        if(selStart!=null&&newEl.setSelectionRange){
+          try{newEl.setSelectionRange(selStart,selEnd);}catch(e){}
+        }
+      }
+    }
+  }
+  scrollers.forEach(([c,top])=>{if(document.body.contains(c))c.scrollTop=top;});
+}
+
 const I={
  scale:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 21h18M6 7l-3 6h6l-3-6zM18 7l-3 6h6l-3-6zM7 7h10"/></svg>',
  clipboard:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4a2 2 0 0 1 6 0M9 10h6M9 14h6M9 18h4"/></svg>',
