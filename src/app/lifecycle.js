@@ -44,6 +44,7 @@ async function openProjectMenu(projectId, projectName){
       {v:'trello',t:'لوحة Trello (تنفيذ الفريق)'},
       {v:'newbl',t:'حفظ أساس جديد (Baseline v'+(((PROJECT&&PROJECT.baselines)||[]).length+1)+')'},
       {v:'exportContract',t:'📄 تصدير للعقد (PDF)'},
+      {v:'contracts',t:'✍️ العقود والتوقيع الإلكتروني'},
       {v:'archive',t:'أرشفة المشروع'},
       {v:'delete',t:'طلب حذف المشروع (مهلة 30 يومًا)'}
     ]}],confirmText:'متابعة'});
@@ -51,6 +52,10 @@ async function openProjectMenu(projectId, projectName){
   if(r.action==='exportContract'){
     if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
     return openContractExport();
+  }
+  if(r.action==='contracts'){
+    if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
+    return openContractPanel();
   }
   if(r.action==='rename'){
     const e=await dialog({title:'إعادة التسمية',fields:[{key:'name',label:'الاسم الجديد',value:projectName||''}],confirmText:'حفظ'});
