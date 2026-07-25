@@ -323,7 +323,7 @@ function bindTable(){
         if(map[f]&&t._dbId){const patch={};patch[map[f]]=val;
           const {error}=await updateTaskFields(t._dbId,patch);
           if(error){toast('تعذّر الحفظ: '+error.message,'err');return;}}
-        render();
+        preserveFocus(render);
       });
     });
   });
