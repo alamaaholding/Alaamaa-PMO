@@ -13,6 +13,10 @@ async function loadIdentity(){
   return ROLE;
 }
 async function boot(){
+  // رابط التوقيع العام: مسار مستقل تمامًا، لا يمرّ عبر تسجيل الدخول إطلاقًا —
+  // الحارس الحقيقي هو الرمز العشوائي في الرابط نفسه، لا الجلسة.
+  const signMatch=/^#\/sign\/([a-zA-Z0-9]+)$/.exec(location.hash||'');
+  if(signMatch){ $('#loader').classList.add('hidden'); return renderPublicSign(signMatch[1]); }
   const {data:{session}}=await sb.auth.getSession();
   if(session){await loadIdentity();if(ROLE){return startApp();}else{return showDenied();}}
   showLogin();
@@ -513,6 +517,29 @@ async function addTeamMember(email,fullName,role){
   const {data,error}=await sb.rpc('pmo_add_team_member',{p_email:email,p_full_name:fullName,p_role:role});
   if(error)throw error;
   return data;
+}
+
+// ===== العقود والتوقيع الإلكتروني =====
+async function createContract(projectId,baselineId){
+  const {data,error}=await sb.rpc('pmo_create_contract',{p_project_id:projectId,p_baseline_id:baselineId});
+  if(error)throw error;return data;
+}
+async function fetchContractsForProject(projectId){
+  const {data,error}=await sb.rpc('pmo_contract_staff_view',{p_project_id:projectId});
+  if(error)throw error;return data||[];
+}
+async function signContractAsStaff(contractId,name,signatureData){
+  const {data,error}=await sb.rpc('pmo_sign_contract_staff',{p_contract_id:contractId,p_name:name,p_signature_data:signatureData});
+  if(error)throw error;return data;
+}
+// الوصول العام (بلا جلسة) — نفس عميل sb، الحارس الحقيقي هو الرمز نفسه داخل الدالة
+async function fetchPublicContract(token){
+  const {data,error}=await sb.rpc('pmo_contract_public_view',{p_token:token});
+  if(error)throw error;return data;
+}
+async function signContractPublic(token,name,email,signatureData){
+  const {data,error}=await sb.rpc('pmo_sign_contract_public',{p_token:token,p_name:name,p_email:email,p_signature_data:signatureData});
+  if(error)throw error;return data;
 }
 async function fetchProjectStaff(projectId){const {data}=await sb.from('pmo_project_staff').select('member_id').eq('project_id',projectId);return (data||[]).map(r=>r.member_id);}
 async function saveProjectStaff(projectId,memberIds){
