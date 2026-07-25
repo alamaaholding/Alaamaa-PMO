@@ -457,7 +457,7 @@ function renderReqs(){
     const map={desc:'description',owner:'owner',sla:'sla_days',requested:'requested_at',received:'received_at',blocking:'blocking'};
     const patch={};patch[map[f]]=(val===''?null:val);
     if(r._id){const {error}=await updateRequirement(r._id,patch);if(error){toast('تعذّر الحفظ: '+error.message,'err');return;}}
-    compute();renderReqs();
+    compute();preserveFocus(renderReqs);
   }));
   $('#reqTbl').querySelectorAll('[data-rdel]').forEach(b=>b.onclick=async()=>{
     const r=REQ_TASK.requirements[+b.dataset.rdel];
