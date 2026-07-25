@@ -1,4 +1,4 @@
-const BUILD_V='023fdaac';
+const BUILD_V='42840540';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -3001,6 +3001,11 @@ window.renderClientHome=renderClientHome;
 // الخطة بعد تاريخ الاعتماد. التواريخ والمدد من اللقطة نفسها؛ الأسماء والهرمية من الخطة
 // الحالية (أي إعادة تسمية لاحقة تمرّ عبر طلب تعديل موثَّق في سجل المشروع أصلًا).
 
+async function ensureQR(){
+  if(window.QRCode)return;
+  await loadScript('https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js');
+}
+
 async function openContractExport(){
   if(!PROJECT||!PROJECT.baselines||!PROJECT.baselines.length){
     toast('لا توجد لقطة (Baseline) بعد لهذا المشروع — ثبّت أساسًا أولًا','warn');return;
@@ -3012,12 +3017,20 @@ async function openContractExport(){
       options:PROJECT.baselines.slice().reverse().map(b=>({v:b.id,t:b.label+' — '+new Date(b.approved_at).toLocaleDateString('ar')}))}],
     confirmText:'تصدير'});
   if(!r)return;
-  buildContractDoc(r.bl);
+  await buildContractDoc(r.bl);
 }
 
-function buildContractDoc(baselineId){
+async function buildContractDoc(baselineId,contractToken){
   const bl=(PROJECT.baselines||[]).find(b=>b.id===baselineId);
   if(!bl){toast('لقطة غير موجودة','err');return;}
+  let qrImg='';
+  if(contractToken){
+    try{
+      await ensureQR();
+      const url=location.origin+location.pathname+'#/sign/'+contractToken;
+      qrImg=await window.QRCode.toDataURL(url,{margin:1,width:132,color:{dark:'#110A29',light:'#ffffff'}});
+    }catch(e){/* رمز QR تحسيني — فشله لا يوقف التصدير */}
+  }
   const snap=bl.snapshot||{};
   const phases=projTrackList();
   const byPhase={};phases.forEach(p=>{byPhase[p.key]=[];});
@@ -3057,6 +3070,7 @@ function buildContractDoc(baselineId){
       </div>
       <p class="cx-cover-note">هذا المستند لقطة ثابتة من الخطة بتاريخ اعتمادها أعلاه — لا يعكس أي تعديل لاحق.
         أُصدر آليًا من منصة حوكمة المشاريع بتاريخ ${today}.</p>
+      ${qrImg?`<div class="cx-qr"><img src="${qrImg}" alt="QR"><span>امسح لعرض العقد الموقَّع ومتابعة سير العمل</span></div>`:''}
     </section>
     ${phasePages}
     <div class="cx-footer">علامة · أثر دائم — مستند مُولَّد آليًا من منصة حوكمة المشاريع · ${esc(bl.label)}</div>
@@ -3229,6 +3243,11 @@ async function refreshContractPanel(){
   const rows=list.map(c=>{
     const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
     const link=location.origin+location.pathname+'#/sign/'+c.token;
+    const cEmail=(CLIENTS.find(x=>x.id===CID)||{}).contact_email||'';
+    const subject=encodeURIComponent('عقد '+PROJECT.name+' — علامة');
+    const body=encodeURIComponent(
+      `تحية طيبة،\n\nنرفق رابط توقيع عقد مشروع «${PROJECT.name}» إلكترونيًا:\n${link}\n\nيمكنكم التوقيع مباشرة من الرابط أعلاه بلا حاجة لإنشاء حساب.\n\nشكرًا لكم،\nفريق علامة`);
+    const mailHref=`mailto:${encodeURIComponent(cEmail)}?subject=${subject}&body=${body}`;
     return `<div style="padding:14px 0;border-bottom:1px solid var(--line)">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <b>${esc(c.baseline_label)}</b><span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${STL[c.status]||c.status}</span>
@@ -3238,6 +3257,8 @@ async function refreshContractPanel(){
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input readonly value="${link}" style="flex:1;min-width:220px;font-size:.75rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2)">
         <button class="reqbtn" data-copylink="${link}">نسخ الرابط</button>
+        <a class="reqbtn" href="${mailHref}" style="text-decoration:none;display:inline-flex;align-items:center">📧 إرسال بالبريد</a>
+        <button class="reqbtn" data-exportqr="${c.baseline_id}" data-token="${c.token}">📄 تصدير PDF بـ QR</button>
         ${!al?`<button class="reqbtn" data-signalamaa="${c.id}" style="background:var(--ok);border-color:var(--ok);color:#fff">توقيع علامة الآن</button>`:''}
       </div>
     </div>`;
@@ -3264,6 +3285,12 @@ async function refreshContractPanel(){
   document.querySelectorAll('[data-copylink]').forEach(b=>b.onclick=async()=>{
     try{await navigator.clipboard.writeText(b.dataset.copylink);toast('نُسخ الرابط','ok');}
     catch(e){toast('انسخ الرابط يدويًا من الحقل','warn');}
+  });
+  document.querySelectorAll('[data-exportqr]').forEach(b=>b.onclick=async()=>{
+    b.disabled=true;const old=b.textContent;b.textContent='جارٍ التحضير...';
+    try{ await buildContractDoc(b.dataset.exportqr,b.dataset.token); }
+    catch(e){ toast('تعذّر التصدير: '+e.message,'err'); }
+    b.disabled=false;b.textContent=old;
   });
   document.querySelectorAll('[data-signalamaa]').forEach(b=>b.onclick=()=>{
     const cid=b.dataset.signalamaa;
@@ -3616,7 +3643,7 @@ $('#approveContract').onclick=async()=>{
   await loadProject(CID,PID);render();
   toast('تم اعتماد العقد وتثبيت خط الأساس · المشروع الآن نشط','ok');
   if(await confirmDialog('تصدير للعقد','تصدير هذه اللقطة الآن كمستند PDF مرفق بالعقد؟',false))
-    buildContractDoc(PROJECT.baselines[PROJECT.baselines.length-1].id);
+    await buildContractDoc(PROJECT.baselines[PROJECT.baselines.length-1].id);
 };
 
 // ===== تبويب طلبات التغيير =====
