@@ -16,6 +16,29 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%}
 body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cream);color:var(--ink);line-height:1.6;font-size:15px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+/* ===== مسار التوقيع العام (بلا تسجيل دخول) ===== */
+.pubsign-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--ink)}
+.pubsign-card{background:#fff;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.35);max-width:520px;width:100%;padding:36px 32px}
+.pubsign-brand{font-size:1.15rem;font-weight:800;color:var(--gold-dark);margin-bottom:6px}
+.pubsign-brand span{font-weight:400;color:var(--muted);font-size:.85rem}
+.pubsign-card h2{font-size:var(--fs-2xl);font-weight:800;margin-bottom:20px}
+.pubsign-meta{display:grid;gap:8px;background:var(--soft-2);border-radius:12px;padding:16px 18px;margin-bottom:16px}
+.pubsign-meta div{display:flex;justify-content:space-between;gap:12px;font-size:.9rem}
+.pubsign-meta b{color:var(--muted);font-weight:600}
+.pubsig-status{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.pubsig-row{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-radius:9px;background:var(--ok-bg);font-size:.85rem}
+.pubsig-row b{font-weight:700}
+.pubsig-row.pubsig-pending{background:var(--soft-2);color:var(--muted)}
+.pubsign-note{font-size:.85rem;color:var(--muted);line-height:1.7;background:var(--soft-2);border-radius:10px;padding:12px 14px}
+.pubsign-progress{margin-top:14px}
+.pubsign-progress div{display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:6px}
+.pubsign-legal{font-size:.72rem;color:var(--muted);line-height:1.7;margin-top:10px}
+/* لوحة التوقيع */
+.sig-tabs{display:flex;gap:6px;margin-bottom:10px}
+.sig-tab{flex:1;padding:8px;border:1.5px solid var(--line);border-radius:8px;background:#fff;font-family:inherit;
+  font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer}
+.sig-tab.active{border-color:var(--gold);color:var(--ink);background:var(--soft-2)}
+#sigCanvas{width:100%;height:140px;border:1.5px dashed var(--line);border-radius:10px;background:#fdfdfb;touch-action:none;cursor:crosshair}
 .wrap{max-width:1500px;margin:0 auto;padding:0 var(--s5)}
 .hidden{display:none!important}
 ::selection{background:rgba(200,160,107,.25)}
