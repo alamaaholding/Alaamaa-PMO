@@ -327,7 +327,7 @@ $('#approveContract').onclick=async()=>{
   await loadProject(CID,PID);render();
   toast('تم اعتماد العقد وتثبيت خط الأساس · المشروع الآن نشط','ok');
   if(await confirmDialog('تصدير للعقد','تصدير هذه اللقطة الآن كمستند PDF مرفق بالعقد؟',false))
-    buildContractDoc(PROJECT.baselines[PROJECT.baselines.length-1].id);
+    await buildContractDoc(PROJECT.baselines[PROJECT.baselines.length-1].id);
 };
 
 // ===== تبويب طلبات التغيير =====
