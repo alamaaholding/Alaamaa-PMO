@@ -165,7 +165,7 @@ async function refreshContractPanel(){
     const cEmail=(CLIENTS.find(x=>x.id===CID)||{}).contact_email||'';
     const subject=encodeURIComponent('عقد '+PROJECT.name+' — علامة');
     const body=encodeURIComponent(
-      `تحية طيبة،\n\nنرفق رابط توقيع عقد مشروع «${PROJECT.name}» إلكترونيًا:\n${link}\n\nيمكنكم التوقيع مباشرة من الرابط أعلاه بلا حاجة لإنشاء حساب.\n\nشكرًا لكم،\nفريق علامة`);
+      `تحية طيبة،\n\nنرفق رابط خاص بكم حصرًا لتوقيع عقد مشروع «${PROJECT.name}» إلكترونيًا (لا يُستخدم لغير هذا الغرض):\n${link}\n\nيمكنكم فتح الرابط والاطّلاع على نص العقد كاملًا ثم التوقيع مباشرة، بلا حاجة لإنشاء حساب.\n\nشكرًا لكم،\nفريق علامة`);
     const mailHref=`mailto:${encodeURIComponent(cEmail)}?subject=${subject}&body=${body}`;
     return `<div style="padding:14px 0;border-bottom:1px solid var(--line)">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -174,6 +174,7 @@ async function refreshContractPanel(){
       <div class="sa-hint" style="margin:6px 0">علامة: ${al?esc(al.name)+' — '+new Date(al.signed_at).toLocaleDateString('ar'):'لم توقّع بعد'}
         · العميل: ${cl?esc(cl.name)+' — '+new Date(cl.signed_at).toLocaleDateString('ar'):'لم يوقّع بعد'}
         · ${c.includes_ad_spend?'يشمل إنفاقًا إعلانيًا':'بلا إنفاق إعلاني'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}</div>
+      <div class="ctr-link-badge">🔒 الرابط والرمز أدناه خاصّان بـ<b>${esc((CLIENTS.find(x=>x.id===CID)||{}).name||'هذا العميل')}</b> حصرًا — لتوقيع هذا العقد تحديدًا، لا يصلح لغيره</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input readonly value="${link}" style="flex:1;min-width:220px;font-size:.75rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2)">
         <button class="reqbtn" data-copylink="${link}">نسخ الرابط</button>
