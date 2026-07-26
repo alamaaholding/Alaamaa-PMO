@@ -1,4 +1,4 @@
-const BUILD_V='42840540';
+const BUILD_V='46df8384';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -904,9 +904,22 @@ async function addTeamMember(email,fullName,role){
 }
 
 // ===== العقود والتوقيع الإلكتروني =====
-async function createContract(projectId,baselineId){
-  const {data,error}=await sb.rpc('pmo_create_contract',{p_project_id:projectId,p_baseline_id:baselineId});
+async function createContract(projectId,baselineId,opts){
+  opts=opts||{};
+  const {data,error}=await sb.rpc('pmo_create_contract',{
+    p_project_id:projectId,p_baseline_id:baselineId,
+    p_includes_ad_spend:!!opts.includesAdSpend,
+    p_effective_date:opts.effectiveDate||null,
+    p_contract_value:opts.contractValue!=null?Number(opts.contractValue):null
+  });
   if(error)throw error;return data;
+}
+async function updateClientProfile(clientId,fields){
+  const patch={};
+  ['cr_number','vat_number','national_address_short','rep_name','rep_title','contact_email','contact_phone']
+    .forEach(k=>{if(k in fields)patch[k]=fields[k]||null;});
+  const {error}=await sb.from('pmo_clients').update(patch).eq('id',clientId);
+  if(error)throw error;
 }
 async function fetchContractsForProject(projectId){
   const {data,error}=await sb.rpc('pmo_contract_staff_view',{p_project_id:projectId});
@@ -2939,8 +2952,23 @@ function renderCHBody(stats,access){
       <button data-chrevoke="${a.id}" aria-label="سحب" title="سحب">✕</button></span>`;
   }).join('')||'<span class="sa-empty">لا أحد لديه صلاحية مخصَّصة لهذا العميل تحديدًا</span>';
 
+  const c=stats.c;
+  const missingFields=['cr_number','vat_number','national_address_short','rep_name','rep_title'].filter(k=>!c[k]);
+
   $('#chBody').innerHTML=`
     <div class="sa-section">${kpis}</div>
+    <div class="sa-section">
+      <h4>الملف التعاقدي <span class="sa-hint">يُستخدم تلقائيًا عند إنشاء أي عقد لهذا العميل — اختياري، لكن يُستحسن إكماله قبل أول عقد</span></h4>
+      ${missingFields.length?`<div class="ch-warn-badge">⚠ بيانات غير مكتملة (${missingFields.length} حقول) — يمكنك المتابعة، ويُنصح بإكمالها قبل إرسال أي عقد للعميل</div>`:''}
+      <div class="sa-form" style="flex-wrap:wrap">
+        <input id="cpCr" placeholder="رقم السجل التجاري" value="${esc(c.cr_number||'')}" style="flex:1;min-width:160px">
+        <input id="cpVat" placeholder="الرقم الضريبي (VAT)" value="${esc(c.vat_number||'')}" style="flex:1;min-width:160px">
+        <input id="cpAddr" placeholder="العنوان الوطني المختصر" value="${esc(c.national_address_short||'')}" style="flex:1;min-width:180px">
+        <input id="cpRepName" placeholder="اسم الممثل المفوَّض" value="${esc(c.rep_name||'')}" style="flex:1;min-width:160px">
+        <input id="cpRepTitle" placeholder="صفته" value="${esc(c.rep_title||'')}" style="flex:1;min-width:140px">
+        <button class="hbtn" id="cpSave" style="background:var(--gold);border-color:var(--gold)">حفظ الملف</button>
+      </div>
+    </div>
     <div class="sa-section">
       <h4>مشاريع ${esc(stats.c.name)} <span class="sa-hint">(${stats.list.length})</span></h4>
       <div class="ch-pgrid">${projCards}</div>
@@ -2961,6 +2989,17 @@ function renderCHBody(stats,access){
       </div>
       <div class="sa-grants">${accessRows}</div>
     </div>`;
+
+  $('#cpSave').onclick=async()=>{
+    const btn=$('#cpSave');btn.disabled=true;
+    const vals={cr_number:$('#cpCr').value.trim(),vat_number:$('#cpVat').value.trim(),
+      national_address_short:$('#cpAddr').value.trim(),rep_name:$('#cpRepName').value.trim(),rep_title:$('#cpRepTitle').value.trim()};
+    try{
+      await updateClientProfile(stats.cid,vals);
+      Object.assign(c,vals);
+      toast('حُفظ الملف التعاقدي','ok');renderCHBody(stats,access);
+    }catch(e){toast('تعذّر الحفظ: '+e.message,'err');btn.disabled=false;}
+  };
 
   $$('#chBody [data-openp]').forEach(b=>b.onclick=async()=>{CID=stats.cid;PID=b.dataset.openp;await openProject();});
   const nb=$('#chNewProj');if(nb)nb.onclick=()=>newProjectDialog(stats.cid);
@@ -3086,6 +3125,227 @@ async function buildContractDoc(baselineId,contractToken){
 window.openContractExport=openContractExport;
 
 
+/* ===== contracttemplate.js ===== */
+// ===== app/contracttemplate.js — محرك دمج نص العقد =====
+// مبدأ حاكم: لا إزاحة ترقيم إطلاقًا. العقد يحوي إحالات داخلية متبادلة برقم البند
+// (مثال: البند ٦ يحيل لـ«البند ٧»، ١٤.٥ يحيل لـ«١٠.٤»، ١٢.٣ يحيل لـ«١٢.١») — أي إزاحة
+// رقمية آلية بعد حذف بند تكسر هذه الإحالات وتُنتج مستندًا قانونيًا خاطئًا. لذا: البند
+// المشروط (الإنفاق الإعلاني) يبقى برقمه دائمًا، ويُستبدل متنه بسطر «غير منطبق» عند
+// استبعاده — كل الأرقام الأخرى وإحالاتها تبقى صحيحة دون أي تعديل.
+
+const CONTRACT_TEMPLATE = {
+  intro: `**علامة**\n\n**عقد تقديم خدمات**\n\nأُبرم هذا العقد بين الطرفين الموضحة بياناتهما أدناه، وذلك وفق الشروط والأحكام التالية:`,
+  parties: {
+    num:'١', title:'الأطراف',
+    rows:[
+      ['الاسم','علامة','{{اسم_العميل}}'],
+      ['السجل التجاري','','{{سجل_العميل}}'],
+      ['العنوان','','{{عنوان_العميل}}'],
+      ['الممثل المفوَّض','','{{ممثل_العميل}} — {{صفة_ممثل_العميل}}'],
+      ['بيانات التواصل','','{{بريد_العميل}} · {{هاتف_العميل}}']
+    ]
+  },
+  sections:[
+    {num:'٢', title:'تمهيد', body:
+`يهدف هذا العقد إلى تنظيم العلاقة التعاقدية بين الطرفين، وتحديد نطاق الخدمات وآلية تنفيذها، وحقوق والتزامات كل طرف، وآلية احتساب الأتعاب{{وإن_إعلان}}، وذلك وفق الخطة المرفقة (ملحق ١)، والتي تُعد جزءًا لا يتجزأ من هذا العقد.`},
+
+    {num:'٣', title:'التعريفات', body:
+`- الخطة: وثيقة نطاق العمل والمخرجات والجدول الزمني والأتعاب المرفقة بهذا العقد بصفتها ملحقًا (١)، والمعتمدة من الطرفين، وتُعد جزءًا لا يتجزأ من هذا العقد.
+- الأتعاب: المقابل المالي لإدارة علامة للعمل المحدد في الخطة{{استثناء_اعلان_قصير}}.
+{{تعريف_انفاق_اعلاني}}
+- المخرجات: الأعمال التي تنتجها علامة وتُسلَّم للعميل ضمن النطاق المحدد في الخطة.
+- الأصول: جميع الملفات والمحتويات التي أُنشئت خصيصًا للعميل بموجب هذا العقد من ملفات مصدر، حسابات، صلاحيات، تصاميم، أو بيانات دخول، وفق قائمة تسليم الأصول المرفقة؛ ولا يشمل ذلك بأي حال الأدوات الداخلية أو القوالب أو المنهجيات أو البرمجيات أو الأصول الفكرية السابقة أو المطوَّرة بصورة مستقلة بواسطة علامة ("الملكية الفكرية السابقة" وفق البند ١٠.١).
+- المعلومات السرية: أي معلومة تجارية أو تقنية أو مالية يفصح عنها أحد الطرفين للآخر، مكتوبة كانت أو شفهية، ويُعقل اعتبارها سرية بحكم طبيعتها أو سياق الإفصاح.
+- جولة التعديل: مراجعة واحدة على مخرَج بناءً على ملاحظات العميل، ضمن السقف المحدد في الخطة.
+- المعتمِد النهائي: ممثل العميل صاحب صلاحية الاعتماد وفق مصفوفة الاعتماد المرفقة.
+- بوابة الاعتماد: نقطة لا يُستكمل العمل قبل اجتيازها.
+- نمط التعاقد: الصفة التي تحدّد آلية الأتعاب والاستمرارية وفق ما تنص عليه الخطة، وهي إما "نمط دوري" (تشغيل مستمر بأتعاب دورية دون نطاق زمني محدد للعلاقة التعاقدية)، أو "نمط مشروع محدد النطاق" (عمل محدد المخرجات ينتهي بتسليمها واعتمادها)، أو نمطًا مختلطًا يجمع بينهما، وتُحدَّد صفة كل بند من بنود الخطة صراحةً في الخطة ذاتها.`},
+
+    {num:'٤', title:'نطاق العمل', body:
+`يُنفَّذ نطاق العمل حصرًا وفق ما هو محدد في الخطة المرفقة (ملحق ١)، وتُعد الخطة جزءًا لا يتجزأ من هذا العقد. عند وجود تعارض بين نص هذا العقد ونص الخطة فيما يخص التفاصيل التنفيذية كالمخرجات والجدول الزمني والأتعاب، تُرجَّح الخطة؛ أما فيما يخص الأحكام القانونية والتعاقدية العامة، فيُرجَّح نص هذا العقد.
+
+خارج النطاق صراحةً: كل ما لم يُذكر ضمن الخطة المرفقة لا يُعدّ جزءًا من هذا العقد، ويُتفق عليه بملحق منفصل وأتعاب إضافية.
+
+طلب تغيير النطاق (Change Request): في حال طلب العميل أي أعمال أو خدمات خارج نطاق الخطة المرفقة، أو تعديلًا جوهريًا عليها، فلا يلتزم الطرف الأول بتنفيذها إلا بعد اعتماد نطاق العمل الإضافي وأثره على الجدول الزمني والأتعاب كتابيًا من الطرفين؛ ويُوثَّق كل طلب تغيير كملحق مرقَّم يُضاف إلى الخطة.`},
+
+    {num:'٥', title:'المخرجات والجدول الزمني', body:
+`تُحدَّد المخرجات ومراحل الإنجاز والمواعيد المستهدفة وفق الخطة المرفقة (ملحق ١)، وتُعتمد أي تعديلات عليها كتابيًا من الطرفين.
+
+بالنسبة للبنود ذات نمط "مشروع محدد النطاق": تُحدَّد الخطة مدة تنفيذ تقديرية بأيام العمل تبدأ من تاريخ استلام علامة لكامل البيانات والاعتمادات اللازمة من العميل وفق قائمة طلب البيانات؛ ويُمدَّد هذا التقدير تلقائيًا بما يعادل مدة أي تأخير في تسليم البيانات أو الاعتماد من جهة العميل، أو أي تأخير ناتج عن جهة خارجية أو منصة رقمية أو مزوّد خدمة أو تغييرات تنظيمية لا يملك الطرف الأول السيطرة عليها (كتغييرات سياسات أو أعطال منصات مثل Meta أو Google أو Snapchat أو TikTok أو أدوات الذكاء الاصطناعي المستخدمة في التنفيذ)، دون أن يُعد ذلك إخلالًا من علامة.`},
+
+    {num:'٦', title:'الأتعاب وآلية الدفع', body:
+`تُحدَّد قيمة الأتعاب وآلية سدادها وفق نمط التعاقد المبيّن في الخطة المرفقة (ملحق ١){{اجمالي_قيمة_العقد}}، على النحو التالي:
+
+- النمط الدوري: تُستحق الأتعاب دوريًا (شهريًا ما لم يُذكر خلاف ذلك) عن كل دورة تشغيل، وتُسدَّد مقدَّمًا في بداية كل دورة ما لم تنص الخطة على غير ذلك.
+- نمط المشروع محدد النطاق: تُسدَّد الأتعاب دفعة واحدة عند إتمام التسليم، أو على دفعات مرتبطة بمراحل الإنجاز، وفق الجدول المحدد في الخطة؛ ويجوز الاتفاق على دفعة مقدَّمة عند التوقيع تُعد مقابلًا لحجز الموارد البشرية والفنية وبدء التنفيذ، وتكون غير قابلة للاسترداد بعد مباشرة الطرف الأول تنفيذ الأعمال، إلا إذا اتفق الطرفان كتابيًا على خلاف ذلك.
+
+{{فقرة_ميزانية_اعلان_مستقلة}}
+
+**٦.٤** التأخر في السداد: عند تأخر العميل عن سداد أي مبلغ مستحق أكثر من خمسة عشر (١٥) يومًا من تاريخ استحقاقه: (أ) يحق للطرف الأول تعليق تنفيذ الأعمال محل هذا العقد حتى استكمال السداد، دون أن يُعد ذلك إخلالًا من جانبه؛ (ب) يحق للطرف الأول المطالبة بتعويض عن التكاليف الإدارية والتشغيلية الفعلية الناشئة مباشرة عن هذا التأخير، بمبلغ مقطوع يعادل ثلاثة بالمئة (٣٪) من قيمة الدفعة المتأخرة، وبحد أقصى {{سقف_التعويض}} ريال سعودي، يُستحق مرة واحدة عن واقعة التأخير بصرف النظر عن مدة استمراره، ولا يتصاعد أو يتراكم بمرور الوقت؛ (ج) لا يسري البند (ب) إذا أثبت العميل تعذّر السداد لإعساره الفعلي، وفي هذه الحالة يتفق الطرفان على جدولة الدفعات وديًا.
+
+**٦.٥** يُقرّ الطرفان أن أي مبلغ يُستوفى بموجب البند ٦.٤(ب) هو تعويض عن ضرر إداري فعلي محدد سلفًا، وليس مقابلًا ماليًا عن مدة التأخير ذاتها، ولا يستفيد الطرف الأول من امتداد مدة التأخير بأي زيادة إضافية على هذا المبلغ.`},
+
+    {num:'٧', title:'الإنفاق الإعلاني — بند مستقل', conditional:'ad_spend', body:
+`تُدير علامة الإنفاق الإعلاني نيابةً عن العميل عبر حساب مخصّص منفصل عن حساباتها التشغيلية، ووفق ما يلي:
+
+- المبلغ ملك العميل، يُورَّد مقدّمًا إلى الحساب المخصّص قبل بدء الصرف.
+- يُصرف بالكامل على المنصّات الإعلانية المتفق عليها في الخطة، دون أي هامش أو عمولة لعلامة عليه.
+- لا يُخلط بأتعاب علامة ولا يُحتسب جزءًا منها، ولا يُستخدم لغير الإعلان المتفق عليه.
+- يُسوَّى دوريًا بكشف منفصل مرفق بفواتير المنصّات الفعلية، يبيّن: المُورَّد، والمصروف، والمتبقّي.
+- يُرحَّل الرصيد المتبقّي للفترة التالية، أو يُعاد إلى العميل عند انتهاء هذا العقد.
+- يجوز أن تحدد الخطة المرفقة سقفًا ثابتًا للإنفاق الشهري أو سقوفًا متدرجة عبر مراحل زمنية محددة (مثل مرحلة إطلاق، ثم توسّع، ثم استقرار)؛ ويُعمل بالسقف المقرر لكل مرحلة كما هو محدد في الخطة دون حاجة لتعديل هذا العقد.
+- أي تجاوز للسقف المقرر للمرحلة الجارية، أو انتقال مبكر إلى سقف مرحلة لاحقة، يتطلب موافقة كتابية مسبقة من العميل قبل الصرف الفعلي؛ ولا يجوز لعلامة الصرف بما يتجاوز السقف المعتمد دون هذه الموافقة.
+- لا يضمن الطرف الأول نتائج الحملات الإعلانية أو عدد العملاء أو المبيعات أو العائد على الإنفاق الإعلاني، إذ تعتمد النتائج على عوامل متعددة خارج سيطرته.`,
+    bodyIfExcluded:'لا ينطبق — لا يشمل هذا العقد إدارة علامة لأي ميزانية إعلانية نيابة عن العميل. أي إنفاق إعلاني مستقبلي يتطلب ملحقًا منفصلًا يُضمَّن أحكام هذا البند.'},
+
+    {num:'٨', title:'الاعتمادات وجولات التعديل', body:
+`- تخضع الاعتمادات لمدد الاستجابة (SLA) المحدّدة في مصفوفة الاعتماد المرفقة.
+- يُحدَّد سقف جولات التعديل لكل مخرَج وفق الخطة المرفقة (ملحق ١)؛ وتُحتسب الجولات الإضافية بأتعاب منفصلة.
+- عند عدم رد المعتمِد خلال المهلة المحددة، يُعلَّق الجدول الزمني ويُصعَّد الأمر إداريًا، ولا يُفترض الاعتماد ضمنًا. وإذا تجاوز تعليق المعتمِد أو تأخره ثلاثين (٣٠) يومًا متصلة، جاز للطرف الأول إنهاء البند محل التعليق تحديدًا، وتسوية الأتعاب المتعلقة به وفق نسبة الإنجاز.
+- يُعد المخرَج معتمَدًا إذا اجتاز بوابة الاعتماد المحددة له في الخطة، أو بمرور مهلة الاستجابة دون رد من المعتمِد وفق ما سبق.`},
+
+    {num:'٩', title:'التزامات الطرفين', body:
+`تلتزم علامة بـ: التنفيذ وفق النطاق المحدد في الخطة، والجودة المهنية، والالتزام بالمواعيد المتفق عليها، وإخطار العميل فورًا بأي عارض يؤثر على التنفيذ.
+
+يلتزم العميل بـ: إتاحة البيانات والصلاحيات اللازمة وفق قائمة طلب البيانات، والاعتماد ضمن المهلة المحددة{{التزام_ميزانية_اعلان}}، وسداد الأتعاب في مواعيدها. كما يضمن العميل صحة ودقة البيانات والمحتوى والمواد التي يقدّمها للطرف الأول، ويتحمّل وحده المسؤولية النظامية عن أي مطالبات ناشئة عنها.
+
+**٩.٣** يلتزم الطرف الأول بإخطار العميل كتابيًا دون تأخير عند رصد أي مخاطر جوهرية قد تؤثر على تنفيذ نطاق العمل أو الجدول الزمني{{او_الميزانية_الاعلانية}}، مع اقتراح الإجراءات المناسبة للتعامل معها؛ ولا يُشكّل هذا الإخطار التزامًا من الطرف الأول بضمان عدم وقوع هذه المخاطر أو تحمّل نتائجها.`},
+
+    {num:'١٠', title:'الملكية الفكرية وتسليم الأصول', body:
+`**١٠.١** تحتفظ علامة بملكية كافة الأدوات والمنهجيات والقوالب والأصول التقنية التي طوّرتها أو امتلكتها قبل هذا العقد أو بشكل مستقل عنه ("الملكية الفكرية السابقة")، ولا ينتقل أي حق فيها للعميل بموجب هذا العقد.
+
+**١٠.٢** تنتقل ملكية المخرجات النهائية المحدّدة في الخطة إلى العميل حصرًا عند سداد كامل الأتعاب المستحقة عنها؛ ويحق للعميل استخدامها لأغراض المراجعة الداخلية قبل ذلك دون حق النشر أو التصرف بها لأي جهة ثالثة.
+
+**١٠.٣** يحق لعلامة عرض المخرجات ضمن أعمالها التعريفية (Portfolio) بصيغة عامة لا تتضمن بيانات تجارية حسّاسة للعميل، وذلك بعد إطلاق المشروع أو المخرَج للجمهور، ما لم يُتفق كتابيًا على خلاف ذلك، أو يطلب العميل كتابيًا عدم الإدراج كليًا.
+
+**١٠.٤** عند انتهاء هذا العقد أو إنهائه لأي سبب، تُسلَّم جميع الأصول والصلاحيات إلى العميل خلال خمسة عشر (١٥) يوم عمل، وفق قائمة تسليم الأصول المرفقة كملحق (٢).
+
+**١٠.٥** لا يحق للعميل إعادة بيع أو ترخيص أو استغلال المخرجات تجاريًا لصالح الغير، إلا إذا نصت الخطة المرفقة على خلاف ذلك صراحةً.`},
+
+    {num:'١١', title:'السرّية وحماية البيانات', body:
+`**١١.١** يلتزم كل طرف بالمحافظة على سرّية المعلومات السرية للطرف الآخر طوال مدة سريان هذا العقد ولمدة سنتين بعد انتهائه، ولا يفصح عنها لأي جهة إلا بموافقة كتابية مسبقة من الطرف الآخر أو التزامًا بحكم نظامي.
+
+**١١.٢** لا يشمل الالتزام أعلاه: المعلومات المتاحة للعموم دون إخلال من المتلقي، أو التي كانت بحوزته قبل الإفصاح عنها بحسن نية، أو التي طُلب الإفصاح عنها بأمر قضائي أو نظامي رسمي، مع إخطار الطرف الآخر مسبقًا متى أمكن ذلك.
+
+**١١.٣** تلتزم علامة بمعالجة أي بيانات شخصية يتيحها العميل وفقًا لنظام حماية البيانات الشخصية السعودي ولائحته التنفيذية، وتقتصر المعالجة على أغراض تنفيذ هذا العقد حصرًا.
+
+**١١.٤** عند انتهاء هذا العقد، تلتزم علامة بإعادة أو إتلاف بيانات العميل والصلاحيات الممنوحة لها خلال خمسة عشر (١٥) يومًا، وتزويد العميل بما يثبت ذلك عند الطلب.
+
+**١١.٥** يجوز للطرف الأول استخدام أدوات الذكاء الاصطناعي لمعالجة المحتوى في حدود تنفيذ الخدمات، مع الالتزام بعدم إدخال أي من المعلومات السرية إلى أدوات لا توفر مستوى حماية مناسبًا، أو بما يخالف الأنظمة المعمول بها أو تعليمات العميل المتفق عليها كتابيًا.`},
+
+    {num:'١٢', title:'المسؤولية وحدودها', body:
+`**١٢.١** باستثناء ما يُشترط نظامًا وما ينتج عن الإهمال الجسيم أو سوء التصرف المتعمد، لا تتجاوز المسؤولية الإجمالية لعلامة الناشئة عن هذا العقد قيمة الأتعاب المدفوعة فعليًا خلال الأشهر الستة (٦) السابقة لواقعة المطالبة.
+
+**١٢.٢** لا يسأل أي طرف عن الأضرار غير المباشرة أو التبعية أو خسارة الأرباح أو الفرص التجارية، باستثناء ما ينتج عن إخلال بالتزامات السرّية الواردة في البند ١١.
+
+**١٢.٣**{{فقرة_استثناء_مسؤولية_اعلان}}
+
+**١٢.٤** لا يتحمّل الطرف الأول مسؤولية أي خسائر ناتجة عن قرارات العميل التجارية أو التسويقية المبنية على التوصيات المقدَّمة منه، إذ يبقى القرار النهائي واعتماده بيد العميل وحده.`},
+
+    {num:'١٣', title:'القوة القاهرة', body:
+`لا يُسأل أي طرف عن إخلال ناتج عن ظرف قاهر خارج سيطرته المعقولة، بما يشمل على سبيل المثال لا الحصر: الهجمات الإلكترونية، وانقطاع الإنترنت أو الخدمات السحابية، والأوبئة، والحروب أو الاضطرابات الأمنية، وقرارات الجهات الحكومية أو التنظيمية، على أن يُخطر الطرف المتأثر الطرفَ الآخر كتابيًا دون تأخير. وإذا استمر أثر القوة القاهرة لأكثر من ثلاثين (٣٠) يومًا متصلة، يحق لأي طرف إنهاء هذا العقد بإشعار كتابي، مع تسوية الأتعاب عن الأعمال المنفَّذة فعليًا حتى تاريخ التوقف{{اعادة_رصيد_اعلان}}.`},
+
+    {num:'١٤', title:'سريان العقد وإنهاؤه', body:
+`**١٤.١** يسري هذا العقد اعتبارًا من تاريخ توقيعه من الطرفين ({{تاريخ_السريان}})، ويستمر نافذًا دون تحديد بمدة زمنية معينة، إلى أن يُنهى أو ينتهي وفقًا لأحكام هذا البند.
+
+**١٤.٢** بالنسبة للبنود ذات نمط "مشروع محدد النطاق": ينتهي التعاقد بشأنها تلقائيًا بمجرد تسليم المخرجات النهائية واعتمادها من العميل وسداد كامل الأتعاب المستحقة عنها، دون حاجة لإشعار إنهاء، ودون أن يخلّ ذلك باستمرار سريان بقية بنود هذا العقد ذات النمط الدوري إن وُجدت.
+
+**١٤.٣** بالنسبة للبنود ذات نمط "دوري": لأي طرف إنهاء التعامل بشأنها دون إبداء سبب، بإشعار كتابي مسبق مدته ثلاثون (٣٠) يومًا.
+
+**١٤.٤** يحق لأي طرف، أيًا كان نمط التعاقد، الإنهاء الفوري في حال إخلال الطرف الآخر بالتزام جوهري وعدم تصحيحه خلال خمسة عشر (١٥) يومًا من إخطاره كتابيًا بذلك.
+
+**١٤.٥** عند الإنهاء لأي سبب، تُسوَّى الأتعاب عن الأعمال المنفَّذة فعليًا حتى تاريخ الإنهاء وفق نسبة الإنجاز{{اعادة_رصيد_اعلان_انهاء}}، وتُسلَّم الأصول وفق البند ١٠.٤.
+
+**١٤.٦** إذا أنهى العميل هذا العقد دون وجود إخلال من الطرف الأول، تستحق علامة قيمة الأعمال المنجزة فعليًا حتى تاريخ الإنهاء، إضافة إلى قيمة الالتزامات التي تعاقدت عليها الطرف الأول مع الغير لتنفيذ نطاق العمل والتي تعذّر إلغاؤها أو الرجوع فيها.`},
+
+    {num:'١٥', title:'عدم الاستقطاب وتضارب المصالح', body:
+`- يلتزم العميل، طوال مدة سريان هذا العقد ولمدة سنة واحدة بعد انتهائه، بعدم استقطاب أو توظيف أو التعاقد بشكل مباشر مع أي من منسوبي أو مقاولي الطرف الأول ممن شاركوا في تنفيذ هذا العقد، دون موافقة كتابية مسبقة من الطرف الأول.
+- يُقرّ الطرف الأول بأنه سيخطر العميل كتابيًا في حال نشوء أي تضارب مصالح جوهري يتعلق بتقديم خدمات مماثلة لجهة منافسة مباشرة للعميل ضمن النطاق المتفق عليه، وذلك للاتفاق على الإجراء المناسب.`},
+
+    {num:'١٦', title:'أحكام عامة', body:
+`- يخضع هذا العقد للأنظمة المعمول بها في المملكة العربية السعودية، بما في ذلك نظام حماية البيانات الشخصية ولائحته التنفيذية، وأنظمة الفوترة الإلكترونية الصادرة عن هيئة الزكاة والضريبة والجمارك (ZATCA) فيما يخص الفواتير الضريبية الصادرة بموجب هذا العقد.
+
+**١٦.٢** التسوية الودية المسبقة (إجراء إلزامي قبل التقاضي): تُسوّى أي منازعة تنشأ عن هذا العقد أو تتعلق به عبر مفاوضة مباشرة بين الممثلين المفوَّضين للطرفين، لمدة لا تتجاوز خمسة عشر (١٥) يومًا من تاريخ إخطار أي طرف الآخر كتابيًا بالنزاع. وفي حال تعذّر التوصل إلى تسوية خلال هذه المدة، يُحال النزاع إلى المحاكم التجارية المختصة في مدينة الرياض.
+
+- لا يسري أي تعديل على هذا العقد إلا كتابيًا وموقّعًا من الطرفين، بما في ذلك أي تعديل على الخطة المرفقة، ويجوز أن يتم ذلك بالتوقيع الإلكتروني المعتمد وفق الأنظمة المعمول بها في المملكة، وله ذات الحجية القانونية للتوقيع الخطي.
+- لا يجوز لأي طرف التنازل عن هذا العقد أو أي حقوق أو التزامات ناشئة عنه للغير دون موافقة كتابية مسبقة من الطرف الآخر.
+- تُوجَّه الإشعارات على العناوين وبيانات التواصل المبيّنة في البند ١، وتُعد مستلمة إذا أُرسلت عبر البريد الإلكتروني المحدد مع إشعار استلام.
+- إذا تبيّن بطلان أي بند من بنود هذا العقد، يبقى ما عداه ساريًا ونافذًا، ويُستبدل البند الباطل بأقرب حكم صحيح يحقق القصد ذاته.
+- يُشكّل هذا العقد مع الخطة المرفقة (ملحق ١) وقائمة تسليم الأصول (ملحق ٢) كامل التفاهم بين الطرفين، ويُلغي أي اتفاق أو تفاهم سابق بشأن الموضوع ذاته. وتكون الأولوية عند التعارض في التفسير وفق الترتيب الآتي: (١) هذا العقد، (٢) الملاحق، (٣) طلبات تغيير النطاق المعتمدة، (٤) المراسلات الرسمية المعتمدة بين الطرفين.
+- حُرِّر هذا العقد باللغة العربية بصفتها اللغة الحاكمة والمعتمدة في التفسير والتنفيذ؛ وأي نسخة مترجَمة لهذا العقد إلى لغة أخرى هي لغرض الاسترشاد فقط، ولا يُعتد بها عند التعارض مع النص العربي.`}
+  ],
+  signatures:{
+    num:'١٧', title:'التوقيعات', body:
+`بتوقيع الطرفين أدناه، يُقر كل منهما بأنه اطّلع على كافة بنود هذا العقد وملحقاته، وقَبِل الالتزام بها اعتبارًا من تاريخ التوقيع.`
+  }
+};
+
+function mergeContract(data){
+  const D={
+    اسم_العميل:data.clientName||'—', سجل_العميل:data.clientCr||'—', عنوان_العميل:data.clientAddress||'—',
+    ممثل_العميل:data.clientRepName||'—', صفة_ممثل_العميل:data.clientRepTitle||'—',
+    بريد_العميل:data.clientEmail||'—', هاتف_العميل:data.clientPhone||'—',
+    تاريخ_السريان:data.effectiveDate?fmtLong(data.effectiveDate):'—',
+    سقف_التعويض:data.latePaymentCap!=null?Number(data.latePaymentCap).toLocaleString('ar'):'[ـــــ]'
+  };
+  const adSpend=!!data.includesAdSpend;
+  D['وإن_إعلان']=adSpend?' والإنفاق الإعلاني':'';
+  D['استثناء_اعلان_قصير']=adSpend?'، ولا يشمل الإنفاق الإعلاني':'';
+  D['تعريف_انفاق_اعلاني']=adSpend?'- الإنفاق الإعلاني: المبالغ المخصّصة للصرف على المنصّات الإعلانية، وهي ملك العميل، ولا تتربّح علامة منها.':'';
+  D['اجمالي_قيمة_العقد']=data.contractValue?('، بقيمة إجمالية قدرها '+Number(data.contractValue).toLocaleString('ar')+' ريال سعودي (غير شامل ضريبة القيمة المضافة ما لم يُنص على خلاف ذلك)'):'';
+  D['فقرة_ميزانية_اعلان_مستقلة']=adSpend?'ميزانية الإعلان مستقلة تمامًا عن الأتعاب في الحالتين، وتخضع لأحكام البند ٧.':'لا توجد ميزانية إعلانية مُدارة ضمن هذا العقد (راجع البند ٧).';
+  D['التزام_ميزانية_اعلان']=adSpend?'، وتوريد ميزانية الإعلان مقدّمًا':'';
+  D['او_الميزانية_الاعلانية']=adSpend?' أو الميزانية الإعلانية':'';
+  D['فقرة_استثناء_مسؤولية_اعلان']=adSpend
+    ?' لا يشمل السقف المحدد في البند ١٢.١ ميزانية الإعلان المودعة لدى علامة وفق البند ٧، والتي تبقى التزامًا كاملًا بحساب دقيق وأمين مهما بلغت قيمتها.'
+    :' لا ينطبق (لا توجد ميزانية إعلانية مُدارة ضمن هذا العقد).';
+  D['اعادة_رصيد_اعلان']=adSpend?'، وإعادة رصيد الإعلان المتبقّي إلى العميل':'';
+  D['اعادة_رصيد_اعلان_انهاء']=adSpend?'، ويُعاد رصيد الإعلان المتبقّي إلى العميل خلال خمسة عشر (١٥) يومًا من تاريخ الإنهاء':'';
+
+  const sub=s=>s.replace(/\{\{([^}]+)\}\}/g,(_,k)=>(k in D?D[k]:'')).replace(/\n{3,}/g,'\n\n').trim();
+
+  const partyRows=CONTRACT_TEMPLATE.parties.rows.map(([label,a,b])=>[label,a,sub(b)]);
+  const sections=CONTRACT_TEMPLATE.sections.map(s=>{
+    if(s.conditional==='ad_spend'&&!adSpend){
+      return {num:s.num,title:s.title,body:s.bodyIfExcluded};
+    }
+    return {num:s.num,title:s.title,body:sub(s.body)};
+  });
+  return {
+    intro:CONTRACT_TEMPLATE.intro,
+    partyRows,
+    sections,
+    signatures:{num:CONTRACT_TEMPLATE.signatures.num,title:CONTRACT_TEMPLATE.signatures.title,body:CONTRACT_TEMPLATE.signatures.body}
+  };
+}
+function fmtLong(d){try{return new Date(d).toLocaleDateString('ar',{year:'numeric',month:'long',day:'numeric'});}catch(e){return '—';}}
+
+function renderMergedContractHTML(merged){
+  const mdInline=t=>esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+  const bodyHtml=body=>body.split(/\n{2,}/).map(p=>{
+    if(/^-\s/.test(p.trim())){
+      const items=p.split(/\n(?=-\s)/).map(li=>'<li>'+mdInline(li.replace(/^-\s*/,''))+'</li>').join('');
+      return '<ul>'+items+'</ul>';
+    }
+    return '<p>'+mdInline(p).replace(/\n/g,'<br>')+'</p>';
+  }).join('');
+  const partyTable=`<table class="ctr-parties"><tbody>${merged.partyRows.map(([l,a,b])=>
+    `<tr><th>${esc(l)}</th><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}</tbody></table>`;
+  const sectionsHtml=merged.sections.map(s=>
+    `<div class="ctr-sec"><h4>${esc(s.num)}. ${esc(s.title)}</h4>${bodyHtml(s.body)}</div>`).join('');
+  return `<div class="ctr-doc">
+    <div class="ctr-intro">${bodyHtml(merged.intro)}</div>
+    <div class="ctr-sec"><h4>١. الأطراف</h4>${partyTable}</div>
+    ${sectionsHtml}
+    <div class="ctr-sec"><h4>${esc(merged.signatures.num)}. ${esc(merged.signatures.title)}</h4>${bodyHtml(merged.signatures.body)}</div>
+  </div>`;
+}
+
+window.mergeContract=mergeContract;
+window.renderMergedContractHTML=renderMergedContractHTML;
+window.CONTRACT_TEMPLATE=CONTRACT_TEMPLATE;
+
+
 /* ===== contractsign.js ===== */
 // ===== app/contractsign.js — العقود والتوقيع الإلكتروني =====
 // مبدأ الأمان: الجداول مغلقة تمامًا عن anon على مستوى RLS؛ كل تفاعل عام يمرّ حصرًا عبر
@@ -3172,6 +3432,14 @@ async function renderPublicSign(token){
         <div><b>اللقطة المرجعية</b><span>${esc(d.baseline_label)} — ${new Date(d.baseline_date).toLocaleDateString('ar')}</span></div>
       </div>
       <div class="pubsig-status">${sigRow('علامة',alamaaSig)}${sigRow('العميل',clientSig)}</div>
+      <details class="pubsign-fulltext" ${clientSigned?'':'open'}>
+        <summary>${clientSigned?'عرض نص العقد الكامل':'📄 اقرأ نص العقد كاملًا قبل التوقيع'}</summary>
+        ${renderMergedContractHTML(mergeContract({
+          clientName:d.client_name,clientCr:d.client_cr,clientAddress:d.client_address,
+          clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title,
+          includesAdSpend:d.includes_ad_spend,effectiveDate:d.effective_date,contractValue:d.contract_value,latePaymentCap:d.late_payment_cap
+        }))}
+      </details>
       ${fullySigned?`
         <p class="pubsign-note">✅ عقد ساري ومكتمل التوقيع من الطرفين — هذه النسخة للاطّلاع فقط ولا يمكن التعديل عليها.</p>
         <div class="pubsign-progress">
@@ -3253,31 +3521,76 @@ async function refreshContractPanel(){
         <b>${esc(c.baseline_label)}</b><span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${STL[c.status]||c.status}</span>
       </div>
       <div class="sa-hint" style="margin:6px 0">علامة: ${al?esc(al.name)+' — '+new Date(al.signed_at).toLocaleDateString('ar'):'لم توقّع بعد'}
-        · العميل: ${cl?esc(cl.name)+' — '+new Date(cl.signed_at).toLocaleDateString('ar'):'لم يوقّع بعد'}</div>
+        · العميل: ${cl?esc(cl.name)+' — '+new Date(cl.signed_at).toLocaleDateString('ar'):'لم يوقّع بعد'}
+        · ${c.includes_ad_spend?'يشمل إنفاقًا إعلانيًا':'بلا إنفاق إعلاني'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input readonly value="${link}" style="flex:1;min-width:220px;font-size:.75rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2)">
         <button class="reqbtn" data-copylink="${link}">نسخ الرابط</button>
         <a class="reqbtn" href="${mailHref}" style="text-decoration:none;display:inline-flex;align-items:center">📧 إرسال بالبريد</a>
         <button class="reqbtn" data-exportqr="${c.baseline_id}" data-token="${c.token}">📄 تصدير PDF بـ QR</button>
+        <button class="reqbtn" data-viewtext="${c.id}">عرض نص العقد الكامل</button>
         ${!al?`<button class="reqbtn" data-signalamaa="${c.id}" style="background:var(--ok);border-color:var(--ok);color:#fff">توقيع علامة الآن</button>`:''}
       </div>
+      <div id="ctText-${c.id}" style="display:none;margin-top:10px"></div>
     </div>`;
   }).join('')||'<p class="empty">لا عقود بعد.</p>';
 
+  const clientC=CLIENTS.find(x=>x.id===CID)||{};
   document.getElementById('tkBody').innerHTML=`
     <div class="sa-section" style="margin-bottom:14px">
       <h4>إنشاء عقد جديد</h4>
-      <div class="sa-form">
+      <div class="sa-form" style="flex-wrap:wrap">
         <select id="ctNewBl">${blOpts}</select>
-        <button class="hbtn" id="ctCreate" style="background:var(--gold);border-color:var(--gold)">إنشاء</button>
+        <input id="ctValue" type="number" placeholder="قيمة العقد (ر.س)" value="${PROJECT.contractValue||''}" style="width:150px">
+        <input id="ctDate" type="date" title="تاريخ سريان العقد" value="${new Date().toISOString().slice(0,10)}">
+        <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="ctAdSpend"> يشمل إدارة إنفاق إعلاني</label>
       </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="reqbtn" id="ctPreview">👁 معاينة نص العقد الكامل</button>
+        <button class="hbtn" id="ctCreate" style="background:var(--gold);border-color:var(--gold)">إنشاء العقد</button>
+      </div>
+      <div id="ctPreviewArea" style="display:none;margin-top:14px"></div>
     </div>
     ${rows}
     <div id="ctSignArea"></div>`;
 
+  const buildPreviewData=()=>({
+    clientName:clientC.name,clientCr:clientC.cr_number,clientAddress:clientC.national_address_short,
+    clientRepName:clientC.rep_name,clientRepTitle:clientC.rep_title,clientEmail:clientC.contact_email,clientPhone:clientC.contact_phone,
+    includesAdSpend:document.getElementById('ctAdSpend').checked,
+    effectiveDate:document.getElementById('ctDate').value,
+    contractValue:document.getElementById('ctValue').value,
+    latePaymentCap:document.getElementById('ctValue').value?Math.round(Number(document.getElementById('ctValue').value)*0.03*100)/100:null
+  });
+  document.getElementById('ctPreview').onclick=()=>{
+    const area=document.getElementById('ctPreviewArea');
+    const show=area.style.display==='none';
+    area.style.display=show?'':'none';
+    if(show)area.innerHTML=renderMergedContractHTML(mergeContract(buildPreviewData()));
+  };
+  document.getElementById('ctAdSpend').onchange=document.getElementById('ctValue').oninput=document.getElementById('ctDate').onchange=()=>{
+    const area=document.getElementById('ctPreviewArea');
+    if(area.style.display!=='none')area.innerHTML=renderMergedContractHTML(mergeContract(buildPreviewData()));
+  };
+  document.querySelectorAll('[data-viewtext]').forEach(b=>b.onclick=()=>{
+    const c=list.find(x=>x.id===b.dataset.viewtext);
+    const box=document.getElementById('ctText-'+c.id);
+    const show=box.style.display==='none';
+    box.style.display=show?'':'none';
+    if(show)box.innerHTML=renderMergedContractHTML(mergeContract({
+      clientName:clientC.name,clientCr:c.client_cr,clientAddress:c.client_address,clientRepName:c.client_rep_name,
+      clientRepTitle:c.client_rep_title,clientEmail:c.client_contact_email,clientPhone:c.client_contact_phone,
+      includesAdSpend:c.includes_ad_spend,effectiveDate:c.effective_date,contractValue:c.contract_value,latePaymentCap:c.late_payment_cap
+    }));
+  });
+
   document.getElementById('ctCreate').onclick=async()=>{
     try{
-      const r=await createContract(PROJECT._dbId,document.getElementById('ctNewBl').value);
+      const r=await createContract(PROJECT._dbId,document.getElementById('ctNewBl').value,{
+        includesAdSpend:document.getElementById('ctAdSpend').checked,
+        effectiveDate:document.getElementById('ctDate').value,
+        contractValue:document.getElementById('ctValue').value
+      });
       if(r&&r.ok){toast('أُنشئ العقد — انسخ الرابط لإرساله للعميل','ok');await refreshContractPanel();}
       else toast('تعذّر الإنشاء','err');
     }catch(e){toast('تعذّر الإنشاء: '+e.message,'err');}
