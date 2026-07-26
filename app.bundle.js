@@ -1,4 +1,4 @@
-const BUILD_V='f15383eb';
+const BUILD_V='b653d264';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -3034,46 +3034,67 @@ window.renderClientHome=renderClientHome;
 
 
 /* ===== exportcontract.js ===== */
-// ===== app/exportcontract.js — تصدير الخطة المعتمدة كمستند احترافي =====
+// ===== app/exportcontract.js — تصدير مستند العقد الكامل: المتن القانوني + ملحق الخطة =====
 // المبدأ الحاكم: المستند يُبنى من لقطة (Baseline) محدَّدة — لا من الجدول الحيّ المتغيّر —
-// فيبقى صالحًا كمرجع ثابت عند أي مراجعة أو خلاف لاحق، بصرف النظر عن أي تعديل يطرأ على
-// الخطة بعد تاريخ الاعتماد. التواريخ والمدد من اللقطة نفسها؛ الأسماء والهرمية من الخطة
-// الحالية (أي إعادة تسمية لاحقة تمرّ عبر طلب تعديل موثَّق في سجل المشروع أصلًا).
+// فيبقى صالحًا كمرجع ثابت عند أي مراجعة أو خلاف لاحق. رمز QR يُولَّد محليًا بمكتبة مستضافة
+// على نفس نطاقك (qrgen.js) — لا اعتماد على أي CDN خارجي، فلا يتعطّل أبدًا لأسباب شبكية
+// أو حجب إعلانات أو جدار حماية مؤسسي.
 
 async function ensureQR(){
-  if(window.QRCode)return;
-  try{ await loadScript('https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js'); }
-  catch(e){ await loadScript('https://unpkg.com/qrcode@1.5.4/build/qrcode.min.js'); } // مصدر احتياطي إن تعذّر الأول
-  if(!window.QRCode)throw new Error('تعذّر تحميل مكتبة QR من مصدرَيها — تحقّق من الاتصال بالإنترنت');
+  if(window.qrcode)return;
+  await loadScript('qrgen.js?v='+BUILD_V);
+  if(!window.qrcode)throw new Error('تعذّر تحميل مولّد QR المستضاف ذاتيًا');
+}
+function generateQRDataURL(text){
+  const qr=window.qrcode(0,'M'); // 0 = اكتشاف الحجم تلقائيًا، M = تصحيح خطأ متوسط
+  qr.addData(text);
+  qr.make();
+  return qr.createDataURL(6,8); // حجم الخلية 6px، هامش 8 خلايا
 }
 
 async function openContractExport(){
   if(!PROJECT||!PROJECT.baselines||!PROJECT.baselines.length){
     toast('لا توجد لقطة (Baseline) بعد لهذا المشروع — ثبّت أساسًا أولًا','warn');return;
   }
-  const opts=PROJECT.baselines.slice().reverse().map(b=>
-    `<option value="${b.id}">${esc(b.label)} — ${new Date(b.approved_at).toLocaleDateString('ar')}</option>`).join('');
   const r=await dialog({title:'تصدير للعقد',
     fields:[{key:'bl',label:'اللقطة (Baseline) المُصدَّرة',type:'select',value:PROJECT.baselines[PROJECT.baselines.length-1].id,
       options:PROJECT.baselines.slice().reverse().map(b=>({v:b.id,t:b.label+' — '+new Date(b.approved_at).toLocaleDateString('ar')}))}],
     confirmText:'تصدير'});
   if(!r)return;
-  await buildContractDoc(r.bl);
+  await buildContractDoc(r.bl); // بلا عقد بعد — ملحق الخطة وحده (مستند مؤقت قبل إنشاء أي عقد فعلي)
 }
 
-async function buildContractDoc(baselineId,contractToken){
+// contract (اختياري): كائن العقد الكامل من fetchContractsForProject — إن وُجد، يُدمَج متن
+// العقد القانوني الكامل (17 بندًا) قبل ملحق الخطة في مستند واحد، مع رمز QR يحيل لتوقيعه.
+async function buildContractDoc(baselineId,contract){
   const bl=(PROJECT.baselines||[]).find(b=>b.id===baselineId);
   if(!bl){toast('لقطة غير موجودة','err');return;}
+  const clientName=(CLIENTS.find(c=>c.id===CID)||{}).name||'';
+
   let qrImg='';
-  if(contractToken){
+  if(contract&&contract.token){
     try{
       await ensureQR();
-      const url=location.origin+location.pathname+'#/sign/'+contractToken;
-      qrImg=await window.QRCode.toDataURL(url,{margin:1,width:132,color:{dark:'#110A29',light:'#ffffff'}});
+      const url=location.origin+location.pathname+'#/sign/'+contract.token;
+      qrImg=generateQRDataURL(url);
     }catch(e){
-      toast('تعذّر توليد رمز QR (' + e.message + ') — سيُصدَّر المستند بلا الرمز؛ تحقّق من الاتصال وحاول مجددًا','warn');
+      toast('تعذّر توليد رمز QR (' + e.message + ') — سيُصدَّر المستند بلا الرمز؛ أعد المحاولة','warn');
     }
   }
+
+  // متن العقد الكامل — فقط إن مُرِّر كائن عقد فعلي (لا عند التصدير المبدئي بلا عقد بعد)
+  let contractHtml='';
+  if(contract){
+    const merged=mergeContract({
+      clientName,clientCr:contract.client_cr,clientAddress:contract.client_address,
+      clientRepName:contract.client_rep_name,clientRepTitle:contract.client_rep_title,
+      clientEmail:contract.client_contact_email,clientPhone:contract.client_contact_phone,
+      includesAdSpend:contract.includes_ad_spend,effectiveDate:contract.effective_date,
+      contractValue:contract.contract_value,latePaymentCap:contract.late_payment_cap
+    });
+    contractHtml=`<section class="cx-page cx-contract-body">${renderMergedContractHTML(merged)}</section>`;
+  }
+
   const snap=bl.snapshot||{};
   const phases=projTrackList();
   const byPhase={};phases.forEach(p=>{byPhase[p.key]=[];});
@@ -3088,7 +3109,6 @@ async function buildContractDoc(baselineId,contractToken){
   });
   const today=new Date().toLocaleDateString('ar',{year:'numeric',month:'long',day:'numeric'});
   const blDate=new Date(bl.approved_at).toLocaleDateString('ar',{year:'numeric',month:'long',day:'numeric'});
-  const clientName=(CLIENTS.find(c=>c.id===CID)||{}).name||'';
 
   const phasePages=phases.filter(p=>(byPhase[p.key]||[]).length).map(p=>{
     const rows=byPhase[p.key].map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.name)}</td><td>${TYPES[x.type]||x.type}</td>
@@ -3099,22 +3119,26 @@ async function buildContractDoc(baselineId,contractToken){
       <tbody>${rows}</tbody></table>
     </section>`;
   }).join('');
+  const annexHd=contract?`<div class="cx-annex-hd">ملحق (١) — الخطة المعتمدة</div>`:'';
 
   const doc=document.getElementById('contractPrint');
   doc.innerHTML=`
     <section class="cx-cover">
       <div class="cx-cover-brand">علامة <span>· أثر دائم</span></div>
-      <h1>الخطة المعتمدة</h1>
+      <h1>${contract?'عقد تقديم خدمات':'الخطة المعتمدة'}</h1>
       <div class="cx-cover-meta">
         <div><b>العميل</b><span>${esc(clientName)}</span></div>
         <div><b>المشروع</b><span>${esc(PROJECT.name)}</span></div>
-        <div><b>اللقطة المرجعية</b><span>${esc(bl.label)}</span></div>
+        <div><b>اللقطة المرجعية (ملحق الخطة)</b><span>${esc(bl.label)}</span></div>
         <div><b>تاريخ الاعتماد</b><span>${blDate}</span></div>
       </div>
-      <p class="cx-cover-note">هذا المستند لقطة ثابتة من الخطة بتاريخ اعتمادها أعلاه — لا يعكس أي تعديل لاحق.
-        أُصدر آليًا من منصة حوكمة المشاريع بتاريخ ${today}.</p>
+      <p class="cx-cover-note">${contract
+        ?'هذا المستند يضمّ متن العقد الكامل وملحق الخطة المعتمدة معًا كوثيقة واحدة — بُني بتاريخ '+today+'.'
+        :'هذا المستند لقطة ثابتة من الخطة بتاريخ اعتمادها أعلاه — لا يعكس أي تعديل لاحق. أُصدر آليًا بتاريخ '+today+'.'}</p>
       ${qrImg?`<div class="cx-qr"><img src="${qrImg}" alt="QR"><span><b>رمز خاص بعقد ${esc(clientName)}</b><br>يحيل حصرًا لصفحة توقيع هذا العقد تحديدًا — لا يُستخدم لغير هذا الغرض</span></div>`:''}
     </section>
+    ${contractHtml}
+    ${annexHd}
     ${phasePages}
     <div class="cx-footer">علامة · أثر دائم — مستند مُولَّد آليًا من منصة حوكمة المشاريع · ${esc(bl.label)}</div>
   `;
@@ -3536,7 +3560,7 @@ async function refreshContractPanel(){
         <input readonly value="${link}" style="flex:1;min-width:220px;font-size:.75rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2)">
         <button class="reqbtn" data-copylink="${link}">نسخ الرابط</button>
         <a class="reqbtn" href="${mailHref}" style="text-decoration:none;display:inline-flex;align-items:center">📧 إرسال بالبريد</a>
-        <button class="reqbtn" data-exportqr="${c.baseline_id}" data-token="${c.token}">📄 تصدير PDF بـ QR</button>
+        <button class="reqbtn" data-exportqr="${c.id}">📄 تصدير PDF بـ QR (العقد كاملًا + الخطة)</button>
         <button class="reqbtn" data-viewtext="${c.id}">عرض نص العقد الكامل</button>
         ${!al?`<button class="reqbtn" data-signalamaa="${c.id}" style="background:var(--ok);border-color:var(--ok);color:#fff">توقيع علامة الآن</button>`:''}
       </div>
@@ -3609,8 +3633,10 @@ async function refreshContractPanel(){
     catch(e){toast('انسخ الرابط يدويًا من الحقل','warn');}
   });
   document.querySelectorAll('[data-exportqr]').forEach(b=>b.onclick=async()=>{
+    const c=list.find(x=>x.id===b.dataset.exportqr);
+    if(!c){toast('العقد غير موجود','err');return;}
     b.disabled=true;const old=b.textContent;b.textContent='جارٍ التحضير...';
-    try{ await buildContractDoc(b.dataset.exportqr,b.dataset.token); }
+    try{ await buildContractDoc(c.baseline_id,c); }
     catch(e){ toast('تعذّر التصدير: '+e.message,'err'); }
     b.disabled=false;b.textContent=old;
   });
