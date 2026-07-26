@@ -90,7 +90,8 @@ async function startApp(){
     SCREEN='project';CID=CLIENTS[0].id;await loadProject(CID);render();
   }else{
     const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
-    if(cm&&CLIENTS.some(c=>c.id===cm[1])){SCREEN='clienthome';await renderClientHome(cm[1]);}
+    const rid=cm?resolveClientIdentifier(cm[1]):null;
+    if(rid){SCREEN='clienthome';await renderClientHome(rid);}
     else{SCREEN='portfolio';await renderPortfolio();}
   }
 }
@@ -159,7 +160,8 @@ window.addEventListener('hashchange',()=>{
   if(typeof SCREEN!=='undefined'&&SCREEN==='project')applyHash();
   else{
     const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
-    if(cm&&CLIENTS.some(c=>c.id===cm[1])&&(ROLE==='pmo'||ROLE==='delivery'))renderClientHome(cm[1]);
+    const rid=cm?resolveClientIdentifier(cm[1]):null;
+    if(rid&&(ROLE==='pmo'||ROLE==='delivery'))renderClientHome(rid);
   }
 });
 
