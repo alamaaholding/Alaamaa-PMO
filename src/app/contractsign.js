@@ -83,6 +83,14 @@ async function renderPublicSign(token){
         <div><b>اللقطة المرجعية</b><span>${esc(d.baseline_label)} — ${new Date(d.baseline_date).toLocaleDateString('ar')}</span></div>
       </div>
       <div class="pubsig-status">${sigRow('علامة',alamaaSig)}${sigRow('العميل',clientSig)}</div>
+      <details class="pubsign-fulltext" ${clientSigned?'':'open'}>
+        <summary>${clientSigned?'عرض نص العقد الكامل':'📄 اقرأ نص العقد كاملًا قبل التوقيع'}</summary>
+        ${renderMergedContractHTML(mergeContract({
+          clientName:d.client_name,clientCr:d.client_cr,clientAddress:d.client_address,
+          clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title,
+          includesAdSpend:d.includes_ad_spend,effectiveDate:d.effective_date,contractValue:d.contract_value,latePaymentCap:d.late_payment_cap
+        }))}
+      </details>
       ${fullySigned?`
         <p class="pubsign-note">✅ عقد ساري ومكتمل التوقيع من الطرفين — هذه النسخة للاطّلاع فقط ولا يمكن التعديل عليها.</p>
         <div class="pubsign-progress">
@@ -164,31 +172,76 @@ async function refreshContractPanel(){
         <b>${esc(c.baseline_label)}</b><span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${STL[c.status]||c.status}</span>
       </div>
       <div class="sa-hint" style="margin:6px 0">علامة: ${al?esc(al.name)+' — '+new Date(al.signed_at).toLocaleDateString('ar'):'لم توقّع بعد'}
-        · العميل: ${cl?esc(cl.name)+' — '+new Date(cl.signed_at).toLocaleDateString('ar'):'لم يوقّع بعد'}</div>
+        · العميل: ${cl?esc(cl.name)+' — '+new Date(cl.signed_at).toLocaleDateString('ar'):'لم يوقّع بعد'}
+        · ${c.includes_ad_spend?'يشمل إنفاقًا إعلانيًا':'بلا إنفاق إعلاني'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input readonly value="${link}" style="flex:1;min-width:220px;font-size:.75rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2)">
         <button class="reqbtn" data-copylink="${link}">نسخ الرابط</button>
         <a class="reqbtn" href="${mailHref}" style="text-decoration:none;display:inline-flex;align-items:center">📧 إرسال بالبريد</a>
         <button class="reqbtn" data-exportqr="${c.baseline_id}" data-token="${c.token}">📄 تصدير PDF بـ QR</button>
+        <button class="reqbtn" data-viewtext="${c.id}">عرض نص العقد الكامل</button>
         ${!al?`<button class="reqbtn" data-signalamaa="${c.id}" style="background:var(--ok);border-color:var(--ok);color:#fff">توقيع علامة الآن</button>`:''}
       </div>
+      <div id="ctText-${c.id}" style="display:none;margin-top:10px"></div>
     </div>`;
   }).join('')||'<p class="empty">لا عقود بعد.</p>';
 
+  const clientC=CLIENTS.find(x=>x.id===CID)||{};
   document.getElementById('tkBody').innerHTML=`
     <div class="sa-section" style="margin-bottom:14px">
       <h4>إنشاء عقد جديد</h4>
-      <div class="sa-form">
+      <div class="sa-form" style="flex-wrap:wrap">
         <select id="ctNewBl">${blOpts}</select>
-        <button class="hbtn" id="ctCreate" style="background:var(--gold);border-color:var(--gold)">إنشاء</button>
+        <input id="ctValue" type="number" placeholder="قيمة العقد (ر.س)" value="${PROJECT.contractValue||''}" style="width:150px">
+        <input id="ctDate" type="date" title="تاريخ سريان العقد" value="${new Date().toISOString().slice(0,10)}">
+        <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="ctAdSpend"> يشمل إدارة إنفاق إعلاني</label>
       </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="reqbtn" id="ctPreview">👁 معاينة نص العقد الكامل</button>
+        <button class="hbtn" id="ctCreate" style="background:var(--gold);border-color:var(--gold)">إنشاء العقد</button>
+      </div>
+      <div id="ctPreviewArea" style="display:none;margin-top:14px"></div>
     </div>
     ${rows}
     <div id="ctSignArea"></div>`;
 
+  const buildPreviewData=()=>({
+    clientName:clientC.name,clientCr:clientC.cr_number,clientAddress:clientC.national_address_short,
+    clientRepName:clientC.rep_name,clientRepTitle:clientC.rep_title,clientEmail:clientC.contact_email,clientPhone:clientC.contact_phone,
+    includesAdSpend:document.getElementById('ctAdSpend').checked,
+    effectiveDate:document.getElementById('ctDate').value,
+    contractValue:document.getElementById('ctValue').value,
+    latePaymentCap:document.getElementById('ctValue').value?Math.round(Number(document.getElementById('ctValue').value)*0.03*100)/100:null
+  });
+  document.getElementById('ctPreview').onclick=()=>{
+    const area=document.getElementById('ctPreviewArea');
+    const show=area.style.display==='none';
+    area.style.display=show?'':'none';
+    if(show)area.innerHTML=renderMergedContractHTML(mergeContract(buildPreviewData()));
+  };
+  document.getElementById('ctAdSpend').onchange=document.getElementById('ctValue').oninput=document.getElementById('ctDate').onchange=()=>{
+    const area=document.getElementById('ctPreviewArea');
+    if(area.style.display!=='none')area.innerHTML=renderMergedContractHTML(mergeContract(buildPreviewData()));
+  };
+  document.querySelectorAll('[data-viewtext]').forEach(b=>b.onclick=()=>{
+    const c=list.find(x=>x.id===b.dataset.viewtext);
+    const box=document.getElementById('ctText-'+c.id);
+    const show=box.style.display==='none';
+    box.style.display=show?'':'none';
+    if(show)box.innerHTML=renderMergedContractHTML(mergeContract({
+      clientName:clientC.name,clientCr:c.client_cr,clientAddress:c.client_address,clientRepName:c.client_rep_name,
+      clientRepTitle:c.client_rep_title,clientEmail:c.client_contact_email,clientPhone:c.client_contact_phone,
+      includesAdSpend:c.includes_ad_spend,effectiveDate:c.effective_date,contractValue:c.contract_value,latePaymentCap:c.late_payment_cap
+    }));
+  });
+
   document.getElementById('ctCreate').onclick=async()=>{
     try{
-      const r=await createContract(PROJECT._dbId,document.getElementById('ctNewBl').value);
+      const r=await createContract(PROJECT._dbId,document.getElementById('ctNewBl').value,{
+        includesAdSpend:document.getElementById('ctAdSpend').checked,
+        effectiveDate:document.getElementById('ctDate').value,
+        contractValue:document.getElementById('ctValue').value
+      });
       if(r&&r.ok){toast('أُنشئ العقد — انسخ الرابط لإرساله للعميل','ok');await refreshContractPanel();}
       else toast('تعذّر الإنشاء','err');
     }catch(e){toast('تعذّر الإنشاء: '+e.message,'err');}
