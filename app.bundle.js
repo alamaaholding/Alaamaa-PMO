@@ -1,4 +1,4 @@
-const BUILD_V='46df8384';
+const BUILD_V='f15383eb';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -3042,7 +3042,9 @@ window.renderClientHome=renderClientHome;
 
 async function ensureQR(){
   if(window.QRCode)return;
-  await loadScript('https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js');
+  try{ await loadScript('https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js'); }
+  catch(e){ await loadScript('https://unpkg.com/qrcode@1.5.4/build/qrcode.min.js'); } // مصدر احتياطي إن تعذّر الأول
+  if(!window.QRCode)throw new Error('تعذّر تحميل مكتبة QR من مصدرَيها — تحقّق من الاتصال بالإنترنت');
 }
 
 async function openContractExport(){
@@ -3068,7 +3070,9 @@ async function buildContractDoc(baselineId,contractToken){
       await ensureQR();
       const url=location.origin+location.pathname+'#/sign/'+contractToken;
       qrImg=await window.QRCode.toDataURL(url,{margin:1,width:132,color:{dark:'#110A29',light:'#ffffff'}});
-    }catch(e){/* رمز QR تحسيني — فشله لا يوقف التصدير */}
+    }catch(e){
+      toast('تعذّر توليد رمز QR (' + e.message + ') — سيُصدَّر المستند بلا الرمز؛ تحقّق من الاتصال وحاول مجددًا','warn');
+    }
   }
   const snap=bl.snapshot||{};
   const phases=projTrackList();
@@ -3109,17 +3113,21 @@ async function buildContractDoc(baselineId,contractToken){
       </div>
       <p class="cx-cover-note">هذا المستند لقطة ثابتة من الخطة بتاريخ اعتمادها أعلاه — لا يعكس أي تعديل لاحق.
         أُصدر آليًا من منصة حوكمة المشاريع بتاريخ ${today}.</p>
-      ${qrImg?`<div class="cx-qr"><img src="${qrImg}" alt="QR"><span>امسح لعرض العقد الموقَّع ومتابعة سير العمل</span></div>`:''}
+      ${qrImg?`<div class="cx-qr"><img src="${qrImg}" alt="QR"><span><b>رمز خاص بعقد ${esc(clientName)}</b><br>يحيل حصرًا لصفحة توقيع هذا العقد تحديدًا — لا يُستخدم لغير هذا الغرض</span></div>`:''}
     </section>
     ${phasePages}
     <div class="cx-footer">علامة · أثر دائم — مستند مُولَّد آليًا من منصة حوكمة المشاريع · ${esc(bl.label)}</div>
   `;
   document.body.classList.add('printing-contract');
+  const qrEl=doc.querySelector('.cx-qr img');
+  const imgReady=qrEl?new Promise(res=>{qrEl.complete?res():(qrEl.onload=qrEl.onerror=res);}):Promise.resolve();
+  const safetyTimeout=new Promise(res=>setTimeout(res,500)); // لا ننتظر أبدًا إلى ما لا نهاية
+  await Promise.race([imgReady,safetyTimeout]);
   setTimeout(()=>{
     window.print();
     const restore=()=>{document.body.classList.remove('printing-contract');window.removeEventListener('afterprint',restore);};
     window.addEventListener('afterprint',restore);
-  },80);
+  },120);
 }
 
 window.openContractExport=openContractExport;
@@ -3514,7 +3522,7 @@ async function refreshContractPanel(){
     const cEmail=(CLIENTS.find(x=>x.id===CID)||{}).contact_email||'';
     const subject=encodeURIComponent('عقد '+PROJECT.name+' — علامة');
     const body=encodeURIComponent(
-      `تحية طيبة،\n\nنرفق رابط توقيع عقد مشروع «${PROJECT.name}» إلكترونيًا:\n${link}\n\nيمكنكم التوقيع مباشرة من الرابط أعلاه بلا حاجة لإنشاء حساب.\n\nشكرًا لكم،\nفريق علامة`);
+      `تحية طيبة،\n\nنرفق رابط خاص بكم حصرًا لتوقيع عقد مشروع «${PROJECT.name}» إلكترونيًا (لا يُستخدم لغير هذا الغرض):\n${link}\n\nيمكنكم فتح الرابط والاطّلاع على نص العقد كاملًا ثم التوقيع مباشرة، بلا حاجة لإنشاء حساب.\n\nشكرًا لكم،\nفريق علامة`);
     const mailHref=`mailto:${encodeURIComponent(cEmail)}?subject=${subject}&body=${body}`;
     return `<div style="padding:14px 0;border-bottom:1px solid var(--line)">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -3523,6 +3531,7 @@ async function refreshContractPanel(){
       <div class="sa-hint" style="margin:6px 0">علامة: ${al?esc(al.name)+' — '+new Date(al.signed_at).toLocaleDateString('ar'):'لم توقّع بعد'}
         · العميل: ${cl?esc(cl.name)+' — '+new Date(cl.signed_at).toLocaleDateString('ar'):'لم يوقّع بعد'}
         · ${c.includes_ad_spend?'يشمل إنفاقًا إعلانيًا':'بلا إنفاق إعلاني'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}</div>
+      <div class="ctr-link-badge">🔒 الرابط والرمز أدناه خاصّان بـ<b>${esc((CLIENTS.find(x=>x.id===CID)||{}).name||'هذا العميل')}</b> حصرًا — لتوقيع هذا العقد تحديدًا، لا يصلح لغيره</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input readonly value="${link}" style="flex:1;min-width:220px;font-size:.75rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2)">
         <button class="reqbtn" data-copylink="${link}">نسخ الرابط</button>
