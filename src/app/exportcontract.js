@@ -6,7 +6,9 @@
 
 async function ensureQR(){
   if(window.QRCode)return;
-  await loadScript('https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js');
+  try{ await loadScript('https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js'); }
+  catch(e){ await loadScript('https://unpkg.com/qrcode@1.5.4/build/qrcode.min.js'); } // مصدر احتياطي إن تعذّر الأول
+  if(!window.QRCode)throw new Error('تعذّر تحميل مكتبة QR من مصدرَيها — تحقّق من الاتصال بالإنترنت');
 }
 
 async function openContractExport(){
@@ -32,7 +34,9 @@ async function buildContractDoc(baselineId,contractToken){
       await ensureQR();
       const url=location.origin+location.pathname+'#/sign/'+contractToken;
       qrImg=await window.QRCode.toDataURL(url,{margin:1,width:132,color:{dark:'#110A29',light:'#ffffff'}});
-    }catch(e){/* رمز QR تحسيني — فشله لا يوقف التصدير */}
+    }catch(e){
+      toast('تعذّر توليد رمز QR (' + e.message + ') — سيُصدَّر المستند بلا الرمز؛ تحقّق من الاتصال وحاول مجددًا','warn');
+    }
   }
   const snap=bl.snapshot||{};
   const phases=projTrackList();
@@ -73,17 +77,21 @@ async function buildContractDoc(baselineId,contractToken){
       </div>
       <p class="cx-cover-note">هذا المستند لقطة ثابتة من الخطة بتاريخ اعتمادها أعلاه — لا يعكس أي تعديل لاحق.
         أُصدر آليًا من منصة حوكمة المشاريع بتاريخ ${today}.</p>
-      ${qrImg?`<div class="cx-qr"><img src="${qrImg}" alt="QR"><span>امسح لعرض العقد الموقَّع ومتابعة سير العمل</span></div>`:''}
+      ${qrImg?`<div class="cx-qr"><img src="${qrImg}" alt="QR"><span><b>رمز خاص بعقد ${esc(clientName)}</b><br>يحيل حصرًا لصفحة توقيع هذا العقد تحديدًا — لا يُستخدم لغير هذا الغرض</span></div>`:''}
     </section>
     ${phasePages}
     <div class="cx-footer">علامة · أثر دائم — مستند مُولَّد آليًا من منصة حوكمة المشاريع · ${esc(bl.label)}</div>
   `;
   document.body.classList.add('printing-contract');
+  const qrEl=doc.querySelector('.cx-qr img');
+  const imgReady=qrEl?new Promise(res=>{qrEl.complete?res():(qrEl.onload=qrEl.onerror=res);}):Promise.resolve();
+  const safetyTimeout=new Promise(res=>setTimeout(res,500)); // لا ننتظر أبدًا إلى ما لا نهاية
+  await Promise.race([imgReady,safetyTimeout]);
   setTimeout(()=>{
     window.print();
     const restore=()=>{document.body.classList.remove('printing-contract');window.removeEventListener('afterprint',restore);};
     window.addEventListener('afterprint',restore);
-  },80);
+  },120);
 }
 
 window.openContractExport=openContractExport;
