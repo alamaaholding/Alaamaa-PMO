@@ -520,9 +520,22 @@ async function addTeamMember(email,fullName,role){
 }
 
 // ===== العقود والتوقيع الإلكتروني =====
-async function createContract(projectId,baselineId){
-  const {data,error}=await sb.rpc('pmo_create_contract',{p_project_id:projectId,p_baseline_id:baselineId});
+async function createContract(projectId,baselineId,opts){
+  opts=opts||{};
+  const {data,error}=await sb.rpc('pmo_create_contract',{
+    p_project_id:projectId,p_baseline_id:baselineId,
+    p_includes_ad_spend:!!opts.includesAdSpend,
+    p_effective_date:opts.effectiveDate||null,
+    p_contract_value:opts.contractValue!=null?Number(opts.contractValue):null
+  });
   if(error)throw error;return data;
+}
+async function updateClientProfile(clientId,fields){
+  const patch={};
+  ['cr_number','vat_number','national_address_short','rep_name','rep_title','contact_email','contact_phone']
+    .forEach(k=>{if(k in fields)patch[k]=fields[k]||null;});
+  const {error}=await sb.from('pmo_clients').update(patch).eq('id',clientId);
+  if(error)throw error;
 }
 async function fetchContractsForProject(projectId){
   const {data,error}=await sb.rpc('pmo_contract_staff_view',{p_project_id:projectId});
