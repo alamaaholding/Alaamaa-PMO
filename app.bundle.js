@@ -1,4 +1,4 @@
-const BUILD_V='b653d264';
+const BUILD_V='c4989390';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -136,6 +136,34 @@ function preserveFocus(rerenderFn){
     }
   }
   scrollers.forEach(([c,top])=>{if(document.body.contains(c))c.scrollTop=top;});
+}
+
+// ===== توليد معرّف نظيف (Slug) من اسم عربي — تقريب صوتي، يُعرض دائمًا كحقل قابل للتعديل =====
+// لا يوجد تحويل آلي عربي↔لاتيني دقيق ١٠٠٪ (الحروف المتحركة القصيرة لا تُكتب عربيًا أصلًا)،
+// فهذا تقريب معقول يُراجعه المستخدم ويُعدِّله يدويًا قبل الاعتماد — هذا قرار مقصود لا نقص.
+const AR_TRANSLIT={
+  'أ':'a','إ':'i','آ':'a','ا':'a','ء':'','ئ':'e','ؤ':'o',
+  'ب':'b','ت':'t','ث':'th','ج':'j','ح':'h','خ':'kh',
+  'د':'d','ذ':'th','ر':'r','ز':'z','س':'s','ش':'sh',
+  'ص':'s','ض':'d','ط':'t','ظ':'z','ع':'a','غ':'gh',
+  'ف':'f','ق':'q','ك':'k','ل':'l','م':'m','ن':'n',
+  'ه':'h','و':'w','ي':'y','ة':'a','ى':'a',
+  ' ':'-','_':'-','-':'-'
+};
+function transliterateArabic(s){
+  return (s||'').split('').map(ch=>ch in AR_TRANSLIT?AR_TRANSLIT[ch]:(/[a-zA-Z0-9]/.test(ch)?ch:'')).join('');
+}
+function slugify(name){
+  return transliterateArabic(String(name||'').trim().toLowerCase())
+    .replace(/[^a-z0-9-]/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'')||'client';
+}
+// معرّف فريد: يتحقق مقابل القائمة الحالية (CLIENTS)، ويضيف لاحقة رقمية عند التطابق
+function uniqueSlug(name,existing){
+  const base=slugify(name);
+  const taken=new Set((existing||[]).map(c=>c.slug).filter(Boolean));
+  if(!taken.has(base))return base;
+  let i=2;while(taken.has(base+'-'+i))i++;
+  return base+'-'+i;
 }
 
 const I={
@@ -714,7 +742,7 @@ async function updateClientInfo(id, patch){
   if(error) throw error;
 }
 async function insertClient(name, color){
-  const slug='c-'+Date.now().toString(36);
+  const slug=uniqueSlug(name, CLIENTS);
   const {data,error}=await sb.from('pmo_clients')
     .insert({name,color:color||'#C8A06B',slug,lifecycle_state:'active'}).select().single();
   if(error) throw error; return data;
@@ -920,6 +948,16 @@ async function updateClientProfile(clientId,fields){
     .forEach(k=>{if(k in fields)patch[k]=fields[k]||null;});
   const {error}=await sb.from('pmo_clients').update(patch).eq('id',clientId);
   if(error)throw error;
+}
+// تحديث المعرّف النظيف (Slug) — يُنظِّف الصيغة تلقائيًا؛ التفرّد مضمون بقيد فريد في القاعدة
+async function updateClientSlug(clientId,newSlug){
+  const clean=slugify(newSlug);
+  const {error}=await sb.from('pmo_clients').update({slug:clean}).eq('id',clientId);
+  if(error){
+    if(error.code==='23505')throw new Error('هذا المعرّف مُستخدَم لعميل آخر — جرّب صيغة مختلفة');
+    throw error;
+  }
+  return clean;
 }
 async function fetchContractsForProject(projectId){
   const {data,error}=await sb.rpc('pmo_contract_staff_view',{p_project_id:projectId});
@@ -2912,9 +2950,16 @@ async function renderClientHome(clientId){
 }
 
 function writeClientHash(clientId){
-  const h='#/c/'+clientId;
+  const c=CLIENTS.find(x=>x.id===clientId);
+  const h='#/c/'+((c&&c.slug)||clientId);
   if(location.hash===h)return;
   try{history.replaceState(null,'',h);}catch(e){location.hash=h;}
+}
+// يحلّ أي معرّف عميل وارد من الرابط (نظيف أو خام) إلى المعرّف الحقيقي — يضمن أن كل رابط
+// سبق مشاركته يبقى يعمل للأبد، بصرف النظر عن أي تغيير لاحق في معرّف العميل النظيف.
+function resolveClientIdentifier(idOrSlug){
+  const c=(CLIENTS||[]).find(x=>x.slug===idOrSlug)||(CLIENTS||[]).find(x=>x.id===idOrSlug);
+  return c?c.id:null;
 }
 
 function renderCHBody(stats,access){
@@ -2958,6 +3003,15 @@ function renderCHBody(stats,access){
   $('#chBody').innerHTML=`
     <div class="sa-section">${kpis}</div>
     <div class="sa-section">
+      <h4>الرابط الدائم <span class="sa-hint">رابط صفحة هذا العميل — يمكنك تخصيصه ليكون واضحًا وسهل المشاركة بدل معرّف طويل</span></h4>
+      <div class="sa-form">
+        <span style="color:var(--muted);font-size:.82rem;white-space:nowrap">${location.origin}${location.pathname}#/c/</span>
+        <input id="cpSlug" value="${esc(c.slug||'')}" placeholder="مثال: sanam" style="flex:1;min-width:140px;font-family:monospace" dir="ltr">
+        <button class="hbtn" id="cpSlugSave" style="background:var(--gold);border-color:var(--gold)">حفظ الرابط</button>
+      </div>
+      <p class="sa-hint" style="margin-top:6px">حروف لاتينية وأرقام وشرطات فقط — يُنظَّف تلقائيًا. الرابط القديم بالمعرّف الخام يبقى يعمل دائمًا حتى بعد التغيير.</p>
+    </div>
+    <div class="sa-section">
       <h4>الملف التعاقدي <span class="sa-hint">يُستخدم تلقائيًا عند إنشاء أي عقد لهذا العميل — اختياري، لكن يُستحسن إكماله قبل أول عقد</span></h4>
       ${missingFields.length?`<div class="ch-warn-badge">⚠ بيانات غير مكتملة (${missingFields.length} حقول) — يمكنك المتابعة، ويُنصح بإكمالها قبل إرسال أي عقد للعميل</div>`:''}
       <div class="sa-form" style="flex-wrap:wrap">
@@ -2990,6 +3044,17 @@ function renderCHBody(stats,access){
       <div class="sa-grants">${accessRows}</div>
     </div>`;
 
+  $('#cpSlugSave').onclick=async()=>{
+    const btn=$('#cpSlugSave');btn.disabled=true;
+    const raw=$('#cpSlug').value.trim();
+    try{
+      const clean=raw?await updateClientSlug(stats.cid,raw):null;
+      if(!raw){await sb.from('pmo_clients').update({slug:null}).eq('id',stats.cid);}
+      c.slug=clean;
+      toast(clean?'حُفظ الرابط: '+clean:'أُزيل المعرّف النظيف — سيُستخدَم المعرّف الخام','ok');
+      renderCHBody(stats,access);
+    }catch(e){toast(e.message,'err');btn.disabled=false;}
+  };
   $('#cpSave').onclick=async()=>{
     const btn=$('#cpSave');btn.disabled=true;
     const vals={cr_number:$('#cpCr').value.trim(),vat_number:$('#cpVat').value.trim(),
@@ -3754,7 +3819,8 @@ async function startApp(){
     SCREEN='project';CID=CLIENTS[0].id;await loadProject(CID);render();
   }else{
     const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
-    if(cm&&CLIENTS.some(c=>c.id===cm[1])){SCREEN='clienthome';await renderClientHome(cm[1]);}
+    const rid=cm?resolveClientIdentifier(cm[1]):null;
+    if(rid){SCREEN='clienthome';await renderClientHome(rid);}
     else{SCREEN='portfolio';await renderPortfolio();}
   }
 }
@@ -3823,7 +3889,8 @@ window.addEventListener('hashchange',()=>{
   if(typeof SCREEN!=='undefined'&&SCREEN==='project')applyHash();
   else{
     const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
-    if(cm&&CLIENTS.some(c=>c.id===cm[1])&&(ROLE==='pmo'||ROLE==='delivery'))renderClientHome(cm[1]);
+    const rid=cm?resolveClientIdentifier(cm[1]):null;
+    if(rid&&(ROLE==='pmo'||ROLE==='delivery'))renderClientHome(rid);
   }
 });
 
