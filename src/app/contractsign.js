@@ -179,7 +179,7 @@ async function refreshContractPanel(){
         <input readonly value="${link}" style="flex:1;min-width:220px;font-size:.75rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2)">
         <button class="reqbtn" data-copylink="${link}">نسخ الرابط</button>
         <a class="reqbtn" href="${mailHref}" style="text-decoration:none;display:inline-flex;align-items:center">📧 إرسال بالبريد</a>
-        <button class="reqbtn" data-exportqr="${c.baseline_id}" data-token="${c.token}">📄 تصدير PDF بـ QR</button>
+        <button class="reqbtn" data-exportqr="${c.id}">📄 تصدير PDF بـ QR (العقد كاملًا + الخطة)</button>
         <button class="reqbtn" data-viewtext="${c.id}">عرض نص العقد الكامل</button>
         ${!al?`<button class="reqbtn" data-signalamaa="${c.id}" style="background:var(--ok);border-color:var(--ok);color:#fff">توقيع علامة الآن</button>`:''}
       </div>
@@ -252,8 +252,10 @@ async function refreshContractPanel(){
     catch(e){toast('انسخ الرابط يدويًا من الحقل','warn');}
   });
   document.querySelectorAll('[data-exportqr]').forEach(b=>b.onclick=async()=>{
+    const c=list.find(x=>x.id===b.dataset.exportqr);
+    if(!c){toast('العقد غير موجود','err');return;}
     b.disabled=true;const old=b.textContent;b.textContent='جارٍ التحضير...';
-    try{ await buildContractDoc(b.dataset.exportqr,b.dataset.token); }
+    try{ await buildContractDoc(c.baseline_id,c); }
     catch(e){ toast('تعذّر التصدير: '+e.message,'err'); }
     b.disabled=false;b.textContent=old;
   });
