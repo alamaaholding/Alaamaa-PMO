@@ -330,7 +330,7 @@ async function updateClientInfo(id, patch){
   if(error) throw error;
 }
 async function insertClient(name, color){
-  const slug='c-'+Date.now().toString(36);
+  const slug=uniqueSlug(name, CLIENTS);
   const {data,error}=await sb.from('pmo_clients')
     .insert({name,color:color||'#C8A06B',slug,lifecycle_state:'active'}).select().single();
   if(error) throw error; return data;
@@ -536,6 +536,16 @@ async function updateClientProfile(clientId,fields){
     .forEach(k=>{if(k in fields)patch[k]=fields[k]||null;});
   const {error}=await sb.from('pmo_clients').update(patch).eq('id',clientId);
   if(error)throw error;
+}
+// تحديث المعرّف النظيف (Slug) — يُنظِّف الصيغة تلقائيًا؛ التفرّد مضمون بقيد فريد في القاعدة
+async function updateClientSlug(clientId,newSlug){
+  const clean=slugify(newSlug);
+  const {error}=await sb.from('pmo_clients').update({slug:clean}).eq('id',clientId);
+  if(error){
+    if(error.code==='23505')throw new Error('هذا المعرّف مُستخدَم لعميل آخر — جرّب صيغة مختلفة');
+    throw error;
+  }
+  return clean;
 }
 async function fetchContractsForProject(projectId){
   const {data,error}=await sb.rpc('pmo_contract_staff_view',{p_project_id:projectId});
