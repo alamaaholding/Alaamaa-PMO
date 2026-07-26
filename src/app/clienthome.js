@@ -83,8 +83,23 @@ function renderCHBody(stats,access){
       <button data-chrevoke="${a.id}" aria-label="سحب" title="سحب">✕</button></span>`;
   }).join('')||'<span class="sa-empty">لا أحد لديه صلاحية مخصَّصة لهذا العميل تحديدًا</span>';
 
+  const c=stats.c;
+  const missingFields=['cr_number','vat_number','national_address_short','rep_name','rep_title'].filter(k=>!c[k]);
+
   $('#chBody').innerHTML=`
     <div class="sa-section">${kpis}</div>
+    <div class="sa-section">
+      <h4>الملف التعاقدي <span class="sa-hint">يُستخدم تلقائيًا عند إنشاء أي عقد لهذا العميل — اختياري، لكن يُستحسن إكماله قبل أول عقد</span></h4>
+      ${missingFields.length?`<div class="ch-warn-badge">⚠ بيانات غير مكتملة (${missingFields.length} حقول) — يمكنك المتابعة، ويُنصح بإكمالها قبل إرسال أي عقد للعميل</div>`:''}
+      <div class="sa-form" style="flex-wrap:wrap">
+        <input id="cpCr" placeholder="رقم السجل التجاري" value="${esc(c.cr_number||'')}" style="flex:1;min-width:160px">
+        <input id="cpVat" placeholder="الرقم الضريبي (VAT)" value="${esc(c.vat_number||'')}" style="flex:1;min-width:160px">
+        <input id="cpAddr" placeholder="العنوان الوطني المختصر" value="${esc(c.national_address_short||'')}" style="flex:1;min-width:180px">
+        <input id="cpRepName" placeholder="اسم الممثل المفوَّض" value="${esc(c.rep_name||'')}" style="flex:1;min-width:160px">
+        <input id="cpRepTitle" placeholder="صفته" value="${esc(c.rep_title||'')}" style="flex:1;min-width:140px">
+        <button class="hbtn" id="cpSave" style="background:var(--gold);border-color:var(--gold)">حفظ الملف</button>
+      </div>
+    </div>
     <div class="sa-section">
       <h4>مشاريع ${esc(stats.c.name)} <span class="sa-hint">(${stats.list.length})</span></h4>
       <div class="ch-pgrid">${projCards}</div>
@@ -105,6 +120,17 @@ function renderCHBody(stats,access){
       </div>
       <div class="sa-grants">${accessRows}</div>
     </div>`;
+
+  $('#cpSave').onclick=async()=>{
+    const btn=$('#cpSave');btn.disabled=true;
+    const vals={cr_number:$('#cpCr').value.trim(),vat_number:$('#cpVat').value.trim(),
+      national_address_short:$('#cpAddr').value.trim(),rep_name:$('#cpRepName').value.trim(),rep_title:$('#cpRepTitle').value.trim()};
+    try{
+      await updateClientProfile(stats.cid,vals);
+      Object.assign(c,vals);
+      toast('حُفظ الملف التعاقدي','ok');renderCHBody(stats,access);
+    }catch(e){toast('تعذّر الحفظ: '+e.message,'err');btn.disabled=false;}
+  };
 
   $$('#chBody [data-openp]').forEach(b=>b.onclick=async()=>{CID=stats.cid;PID=b.dataset.openp;await openProject();});
   const nb=$('#chNewProj');if(nb)nb.onclick=()=>newProjectDialog(stats.cid);
