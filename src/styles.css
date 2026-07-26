@@ -55,6 +55,9 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .ctr-parties td{padding:5px 8px}
 .ch-warn-badge{background:var(--warn-bg,#F8EFD9);color:var(--warn,#8A5E0E);font-size:.78rem;font-weight:600;
   padding:8px 12px;border-radius:8px;margin-bottom:10px}
+.ctr-link-badge{background:var(--soft-2);border-inline-start:3px solid var(--gold);font-size:.78rem;
+  color:var(--muted);padding:7px 12px;border-radius:8px;margin:6px 0}
+.ctr-link-badge b{color:var(--ink)}
 .wrap{max-width:1500px;margin:0 auto;padding:0 var(--s5)}
 .hidden{display:none!important}
 ::selection{background:rgba(200,160,107,.25)}
