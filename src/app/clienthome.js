@@ -43,9 +43,16 @@ async function renderClientHome(clientId){
 }
 
 function writeClientHash(clientId){
-  const h='#/c/'+clientId;
+  const c=CLIENTS.find(x=>x.id===clientId);
+  const h='#/c/'+((c&&c.slug)||clientId);
   if(location.hash===h)return;
   try{history.replaceState(null,'',h);}catch(e){location.hash=h;}
+}
+// يحلّ أي معرّف عميل وارد من الرابط (نظيف أو خام) إلى المعرّف الحقيقي — يضمن أن كل رابط
+// سبق مشاركته يبقى يعمل للأبد، بصرف النظر عن أي تغيير لاحق في معرّف العميل النظيف.
+function resolveClientIdentifier(idOrSlug){
+  const c=(CLIENTS||[]).find(x=>x.slug===idOrSlug)||(CLIENTS||[]).find(x=>x.id===idOrSlug);
+  return c?c.id:null;
 }
 
 function renderCHBody(stats,access){
@@ -89,6 +96,15 @@ function renderCHBody(stats,access){
   $('#chBody').innerHTML=`
     <div class="sa-section">${kpis}</div>
     <div class="sa-section">
+      <h4>الرابط الدائم <span class="sa-hint">رابط صفحة هذا العميل — يمكنك تخصيصه ليكون واضحًا وسهل المشاركة بدل معرّف طويل</span></h4>
+      <div class="sa-form">
+        <span style="color:var(--muted);font-size:.82rem;white-space:nowrap">${location.origin}${location.pathname}#/c/</span>
+        <input id="cpSlug" value="${esc(c.slug||'')}" placeholder="مثال: sanam" style="flex:1;min-width:140px;font-family:monospace" dir="ltr">
+        <button class="hbtn" id="cpSlugSave" style="background:var(--gold);border-color:var(--gold)">حفظ الرابط</button>
+      </div>
+      <p class="sa-hint" style="margin-top:6px">حروف لاتينية وأرقام وشرطات فقط — يُنظَّف تلقائيًا. الرابط القديم بالمعرّف الخام يبقى يعمل دائمًا حتى بعد التغيير.</p>
+    </div>
+    <div class="sa-section">
       <h4>الملف التعاقدي <span class="sa-hint">يُستخدم تلقائيًا عند إنشاء أي عقد لهذا العميل — اختياري، لكن يُستحسن إكماله قبل أول عقد</span></h4>
       ${missingFields.length?`<div class="ch-warn-badge">⚠ بيانات غير مكتملة (${missingFields.length} حقول) — يمكنك المتابعة، ويُنصح بإكمالها قبل إرسال أي عقد للعميل</div>`:''}
       <div class="sa-form" style="flex-wrap:wrap">
@@ -121,6 +137,17 @@ function renderCHBody(stats,access){
       <div class="sa-grants">${accessRows}</div>
     </div>`;
 
+  $('#cpSlugSave').onclick=async()=>{
+    const btn=$('#cpSlugSave');btn.disabled=true;
+    const raw=$('#cpSlug').value.trim();
+    try{
+      const clean=raw?await updateClientSlug(stats.cid,raw):null;
+      if(!raw){await sb.from('pmo_clients').update({slug:null}).eq('id',stats.cid);}
+      c.slug=clean;
+      toast(clean?'حُفظ الرابط: '+clean:'أُزيل المعرّف النظيف — سيُستخدَم المعرّف الخام','ok');
+      renderCHBody(stats,access);
+    }catch(e){toast(e.message,'err');btn.disabled=false;}
+  };
   $('#cpSave').onclick=async()=>{
     const btn=$('#cpSave');btn.disabled=true;
     const vals={cr_number:$('#cpCr').value.trim(),vat_number:$('#cpVat').value.trim(),
