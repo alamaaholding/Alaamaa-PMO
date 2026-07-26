@@ -136,6 +136,34 @@ function preserveFocus(rerenderFn){
   scrollers.forEach(([c,top])=>{if(document.body.contains(c))c.scrollTop=top;});
 }
 
+// ===== توليد معرّف نظيف (Slug) من اسم عربي — تقريب صوتي، يُعرض دائمًا كحقل قابل للتعديل =====
+// لا يوجد تحويل آلي عربي↔لاتيني دقيق ١٠٠٪ (الحروف المتحركة القصيرة لا تُكتب عربيًا أصلًا)،
+// فهذا تقريب معقول يُراجعه المستخدم ويُعدِّله يدويًا قبل الاعتماد — هذا قرار مقصود لا نقص.
+const AR_TRANSLIT={
+  'أ':'a','إ':'i','آ':'a','ا':'a','ء':'','ئ':'e','ؤ':'o',
+  'ب':'b','ت':'t','ث':'th','ج':'j','ح':'h','خ':'kh',
+  'د':'d','ذ':'th','ر':'r','ز':'z','س':'s','ش':'sh',
+  'ص':'s','ض':'d','ط':'t','ظ':'z','ع':'a','غ':'gh',
+  'ف':'f','ق':'q','ك':'k','ل':'l','م':'m','ن':'n',
+  'ه':'h','و':'w','ي':'y','ة':'a','ى':'a',
+  ' ':'-','_':'-','-':'-'
+};
+function transliterateArabic(s){
+  return (s||'').split('').map(ch=>ch in AR_TRANSLIT?AR_TRANSLIT[ch]:(/[a-zA-Z0-9]/.test(ch)?ch:'')).join('');
+}
+function slugify(name){
+  return transliterateArabic(String(name||'').trim().toLowerCase())
+    .replace(/[^a-z0-9-]/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'')||'client';
+}
+// معرّف فريد: يتحقق مقابل القائمة الحالية (CLIENTS)، ويضيف لاحقة رقمية عند التطابق
+function uniqueSlug(name,existing){
+  const base=slugify(name);
+  const taken=new Set((existing||[]).map(c=>c.slug).filter(Boolean));
+  if(!taken.has(base))return base;
+  let i=2;while(taken.has(base+'-'+i))i++;
+  return base+'-'+i;
+}
+
 const I={
  scale:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 21h18M6 7l-3 6h6l-3-6zM18 7l-3 6h6l-3-6zM7 7h10"/></svg>',
  clipboard:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4a2 2 0 0 1 6 0M9 10h6M9 14h6M9 18h4"/></svg>',
