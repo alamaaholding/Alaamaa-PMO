@@ -78,7 +78,7 @@ async function loadProject(clientId, projectId){
     (depMap[d.task_id]=depMap[d.task_id]||[]).push(rf);
     (depMapX[d.task_id]=depMapX[d.task_id]||[]).push({_id:d.id,ref:rf,type:d.dep_type||'FS',lag:d.lag||0});});
   const reqMap={};reqs.forEach(r=>{(reqMap[r.task_id]=reqMap[r.task_id]||[]).push({_id:r.id,desc:r.description,owner:r.owner,sla:r.sla_days,blocking:r.blocking,requested:r.requested_at||'',received:r.received_at||''});});
-  PROJECT={_dbId:p.id,name:p.name,start:p.start_date,status:p.status,lifecycle:p.lifecycle,contractValue:p.contract_value,
+  PROJECT={_dbId:p.id,name:p.name,slug:p.slug,start:p.start_date,status:p.status,lifecycle:p.lifecycle,contractValue:p.contract_value,
     baseline:(bl&&bl.length)?{snapshot:bl[bl.length-1].snapshot}:null,
     baselines:bl||[],
     tasks:(()=>{const _refOf={};tasks.forEach(x=>{_refOf[x.id]=x.ref;});
@@ -336,8 +336,10 @@ async function insertClient(name, color){
   if(error) throw error; return data;
 }
 async function insertProjectForClient(clientId, name, startDate){
+  const {data:siblings}=await sb.from('pmo_projects').select('slug').eq('client_id',clientId);
+  const slug=uniqueSlug(name, siblings||[]);
   const {data,error}=await sb.from('pmo_projects')
-    .insert({client_id:clientId,name,start_date:startDate,status:'draft',lifecycle:'proposal'})
+    .insert({client_id:clientId,name,start_date:startDate,status:'draft',lifecycle:'proposal',slug})
     .select().single();
   if(error) throw error; return data;
 }
@@ -543,6 +545,21 @@ async function updateClientSlug(clientId,newSlug){
   const {error}=await sb.from('pmo_clients').update({slug:clean}).eq('id',clientId);
   if(error){
     if(error.code==='23505')throw new Error('هذا المعرّف مُستخدَم لعميل آخر — جرّب صيغة مختلفة');
+    throw error;
+  }
+  return clean;
+}
+// يحلّ رابطًا عميقًا لمشروع (بصيغته النظيفة أو الخامة، أو مزيجًا) لمعرّفَيه الحقيقيَّين —
+// يُستخدَم فقط عند فتح رابط طازج بلا مشروع مُحمَّل مسبقًا في الذاكرة.
+async function resolveProjectLink(clientRef,projectRef){
+  const {data,error}=await sb.rpc('pmo_resolve_project_link',{p_client_ref:clientRef,p_project_ref:projectRef});
+  if(error)throw error;return data;
+}
+async function updateProjectSlug(projectId,newSlug){
+  const clean=slugify(newSlug);
+  const {error}=await sb.from('pmo_projects').update({slug:clean}).eq('id',projectId);
+  if(error){
+    if(error.code==='23505')throw new Error('هذا المعرّف مُستخدَم لمشروع آخر لنفس العميل — جرّب صيغة مختلفة');
     throw error;
   }
   return clean;
