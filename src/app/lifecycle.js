@@ -39,6 +39,7 @@ async function openProjectMenu(projectId, projectName){
   const r=await dialog({title:'إجراءات المشروع: '+(projectName||''),
     fields:[{key:'action',label:'الإجراء',type:'select',value:'rename',options:[
       {v:'rename',t:'إعادة تسمية المشروع'},
+      {v:'editSlug',t:'🔗 تعديل الرابط الدائم للمشروع'},
       {v:'restore_snap',t:'استرجاع نسخة أمان (ما قبل آخر استبدال)'},
       {v:'assign',t:'إسناد الفريق للمشروع'},
       {v:'trello',t:'لوحة Trello (تنفيذ الفريق)'},
@@ -64,6 +65,16 @@ async function openProjectMenu(projectId, projectName){
       if(PROJECT&&PROJECT._dbId===projectId){PROJECT.name=e.name;render();}
       toast('أُعيدت التسمية','ok');if(SCREEN==='portfolio')renderPortfolio();
     }catch(err){toast('تعذّر: '+err.message,'err');}
+  }else if(r.action==='editSlug'){
+    const cur=(PROJECT&&PROJECT._dbId===projectId)?PROJECT.slug:'';
+    const e=await dialog({title:'الرابط الدائم للمشروع',
+      fields:[{key:'slug',label:'المعرّف (حروف لاتينية وأرقام وشرطات)',value:cur||''}],confirmText:'حفظ'});
+    if(!e||!e.slug)return;
+    try{
+      const clean=await updateProjectSlug(projectId,e.slug);
+      if(PROJECT&&PROJECT._dbId===projectId){PROJECT.slug=clean;writeHash();}
+      toast('حُفظ الرابط: '+clean,'ok');
+    }catch(err){toast(err.message,'err');}
   }else if(r.action==='trello'){
     if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
     openTrello();
