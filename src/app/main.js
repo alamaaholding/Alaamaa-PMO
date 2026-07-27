@@ -88,6 +88,8 @@ async function startApp(){
   // العميل: دخول مباشر لمشروعه الوحيد. الطاقم: شاشة المحفظة
   if(ROLE==='client'){
     SCREEN='project';CID=CLIENTS[0].id;await loadProject(CID);render();
+  }else if(await tryOpenProjectFromHash()){
+    // فُتح مشروع مباشرة من رابط عميق (مجلد فرعي أو الصيغة القديمة) — لا شيء إضافي مطلوب
   }else{
     const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
     const rid=cm?resolveClientIdentifier(cm[1]):null;
@@ -106,20 +108,26 @@ function showChrome(){ $('#kpisRow').style.display=''; $('#tabs').style.display=
 async function loadSummary(clientId){ return null; /* لم تعد مستخدمة — استُبدلت بـpmo_portfolio */ }
 
 // ===== الروابط العميقة =====
-// الشكل: #/p/{projectId}/{view}[/t/{ref}] — يتيح إرسال رابط لبند أو طلب اعتماد مباشرة.
+// الشكل الجديد: #/c/{عميل}/{مشروع}/{تبويب}[/t/{بند}] — مجلد فرعي داخل مجلد العميل.
+// الصيغة القديمة #/p/{معرّف المشروع}/{تبويب}[/t/{بند}] تبقى مدعومة للأبد للتوافق مع أي رابط سبق مشاركته.
 let _hashLock=false,_focusRef=null;
 function writeHash(){
   if(typeof SCREEN==='undefined'||SCREEN!=='project'||!PROJECT||!PROJECT._dbId)return;
-  const h='#/p/'+PROJECT._dbId+'/'+VIEW+(_focusRef?('/t/'+encodeURIComponent(_focusRef)):'');
+  const client=(CLIENTS||[]).find(x=>x.id===CID);
+  const cRef=(client&&client.slug)||CID;
+  const pRef=PROJECT.slug||PROJECT._dbId;
+  const h='#/c/'+cRef+'/'+pRef+'/'+VIEW+(_focusRef?('/t/'+encodeURIComponent(_focusRef)):'');
   if(location.hash===h)return;
   _hashLock=true;
   try{history.replaceState(null,'',h);}catch(e){location.hash=h;}
   setTimeout(()=>{_hashLock=false;},0);
 }
 function parseHash(){
-  const m=/^#\/p\/([^/]+)\/([a-z]+)(?:\/t\/(.+))?$/.exec(location.hash||'');
-  if(!m)return null;
-  return {projectId:m[1],view:m[2],ref:m[3]?decodeURIComponent(m[3]):null};
+  let m=/^#\/c\/([^/]+)\/([^/]+)\/([a-z]+)(?:\/t\/(.+))?$/.exec(location.hash||'');
+  if(m)return {clientRef:m[1],projectRef:m[2],view:m[3],ref:m[4]?decodeURIComponent(m[4]):null};
+  m=/^#\/p\/([^/]+)\/([a-z]+)(?:\/t\/(.+))?$/.exec(location.hash||''); // صيغة قديمة — للتوافق فقط
+  if(m)return {clientRef:null,projectRef:m[1],view:m[2],ref:m[3]?decodeURIComponent(m[3]):null};
+  return null;
 }
 // تبديل التبويب — نقطة الدخول الوحيدة (تحدّث الرابط أيضًا)
 function setView(v,ref){
@@ -144,10 +152,15 @@ function gotoTask(ref){
   TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};
   setView(can('editStruct')||ROLE!=='client'?'table':'gantt',ref);
 }
-// تطبيق الرابط عند الفتح أو عند تغيّره يدويًا
+// تطبيق الرابط عند الفتح أو عند تغيّره يدويًا — يطابق المشروع المُحمَّل حاليًا بمعرّفه
+// النظيف أو الخام معًا (لا يفتح مشروعًا جديدًا؛ ذلك عمل tryOpenProjectFromHash عند الإقلاع)
 function applyHash(){
   const h=parseHash();if(!h)return false;
-  if(PROJECT&&PROJECT._dbId===h.projectId&&PERMS[ROLE]&&PERMS[ROLE].views.indexOf(h.view)>-1){
+  if(!PROJECT||!PROJECT._dbId)return false;
+  const client=(CLIENTS||[]).find(x=>x.id===CID);
+  const cOk=!h.clientRef||CID===h.clientRef||(client&&client.slug===h.clientRef);
+  const pOk=PROJECT._dbId===h.projectRef||PROJECT.slug===h.projectRef;
+  if(cOk&&pOk&&PERMS[ROLE]&&PERMS[ROLE].views.indexOf(h.view)>-1){
     VIEW=h.view;_focusRef=h.ref||null;
     render();
     if(_focusRef)focusTask(_focusRef);
@@ -155,14 +168,31 @@ function applyHash(){
   }
   return false;
 }
-window.addEventListener('hashchange',()=>{
+// فتح مشروع طازج مباشرة من رابط عميق (بلا أي مشروع محمَّل مسبقًا) — يحلّ المعرّفين عبر
+// الخادم أولًا (نظيفَين أو خامَين أو مزيجًا)، ثم يفتح المشروع ويطبّق التبويب/البند المطلوبَين.
+async function tryOpenProjectFromHash(){
+  const h=parseHash();if(!h)return false;
+  try{
+    const r=await resolveProjectLink(h.clientRef,h.projectRef);
+    if(!r||!r.ok)return false;
+    CID=r.client_id;PID=r.project_id;
+    SCREEN='project';
+    await loadProject(CID,PID);
+    if(PROJECT_ACCESS_DENIED||!PROJECT)return false;
+    $('#barClient').style.display='';showChrome();
+    if(PERMS[ROLE]&&PERMS[ROLE].views.indexOf(h.view)>-1){VIEW=h.view;_focusRef=h.ref||null;}
+    render();writeHash();
+    if(_focusRef)focusTask(_focusRef);
+    return true;
+  }catch(e){return false;}
+}
+window.addEventListener('hashchange',async()=>{
   if(_hashLock)return;
-  if(typeof SCREEN!=='undefined'&&SCREEN==='project')applyHash();
-  else{
-    const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
-    const rid=cm?resolveClientIdentifier(cm[1]):null;
-    if(rid&&(ROLE==='pmo'||ROLE==='delivery'))renderClientHome(rid);
-  }
+  if(typeof SCREEN!=='undefined'&&SCREEN==='project'&&applyHash())return;
+  if(await tryOpenProjectFromHash())return;
+  const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
+  const rid=cm?resolveClientIdentifier(cm[1]):null;
+  if(rid&&(ROLE==='pmo'||ROLE==='delivery'))renderClientHome(rid);
 });
 
 // إغلاق لوحة البند: زر، نقر على الخلفية، ومفتاح Esc
