@@ -326,7 +326,7 @@ async function trelloMenu(mode){
   if(!PROJECT)return;
   const {data:pr}=await sb.from('pmo_projects').select('trello_board_id,trello_last_synced_at').eq('id',PROJECT._dbId).single();
   const linked=pr&&pr.trello_board_id;
-  const lastSync=pr&&pr.trello_last_synced_at?new Date(pr.trello_last_synced_at).toLocaleString('ar',{dateStyle:'medium',timeStyle:'short'}):null;
+  const lastSync=pr&&pr.trello_last_synced_at?fmtSyncTime(pr.trello_last_synced_at):null;
   let bname='';
   if(linked){try{const b=await trFetch('/boards/'+linked,'GET','fields=name,url');bname=b.name;TRELLO_CREDS._url=b.url;}catch(_e){bname='(تعذّر قراءة اسم اللوحة)';}}
   const opts=linked
