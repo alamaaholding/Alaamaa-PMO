@@ -563,7 +563,7 @@ async function handleDeleteTask(refId){
   const dependents=PROJECT.tasks.filter(x=>(x.deps||[]).includes(refId)).map(x=>x.id);
   let msg='حذف البند «'+t.name+'» ('+refId+')؟';
   if(dependents.length)msg+='\n\nتنبيه: تعتمد عليه البنود: '+dependents.join('، ')+' — ستُزال هذه الروابط.';
-  if(!await confirmDialog('تأكيد الحذف',msg,true))return;
+  if(!await confirmDialog('تأكيد الحذف',msg,true,'حذف'))return;
   // لقطة كاملة للتراجع: الحقول + الروابط بالاتجاهين + المتطلبات
   const snap={ref:t.id,name:t.name,track:t.track,type:t.type,duration:t.duration||0,
     deliverable:t.deliverable||null,owner:t.owner||null,status:t.status,progress:t.progress||0,
