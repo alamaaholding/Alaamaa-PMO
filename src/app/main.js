@@ -92,7 +92,8 @@ async function startApp(){
     // فُتح مشروع مباشرة من رابط عميق (مجلد فرعي أو الصيغة القديمة) — لا شيء إضافي مطلوب
   }else{
     const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
-    const rid=cm?resolveClientIdentifier(cm[1]):null;
+    let rid=cm?resolveClientIdentifier(cm[1]):null;
+    if(cm&&!rid){ try{const r=await resolveClientLink(cm[1]);if(r&&r.ok)rid=r.client_id;}catch(e){} }
     if(rid){SCREEN='clienthome';await renderClientHome(rid);}
     else{SCREEN='portfolio';await renderPortfolio();}
   }
@@ -191,7 +192,8 @@ window.addEventListener('hashchange',async()=>{
   if(typeof SCREEN!=='undefined'&&SCREEN==='project'&&applyHash())return;
   if(await tryOpenProjectFromHash())return;
   const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
-  const rid=cm?resolveClientIdentifier(cm[1]):null;
+  let rid=cm?resolveClientIdentifier(cm[1]):null;
+  if(cm&&!rid){ try{const r=await resolveClientLink(cm[1]);if(r&&r.ok)rid=r.client_id;}catch(e){} }
   if(rid&&(ROLE==='pmo'||ROLE==='delivery'))renderClientHome(rid);
 });
 
