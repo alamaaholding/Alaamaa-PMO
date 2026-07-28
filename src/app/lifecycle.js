@@ -43,11 +43,11 @@ function fmtSyncTime(iso){
   return new Date(iso).toLocaleDateString('ar-SA',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+
     ' — الساعة '+new Date(iso).toLocaleTimeString('ar-SA',{hour:'numeric',minute:'2-digit'});
 }
-function projectMenuGroups(projectId){
+function projectMenuGroups(projectId,freshTrelloSync){
   const blN=((PROJECT&&PROJECT.baselines)||[]).length+1;
-  const syncTxt=PROJECT&&PROJECT._dbId===projectId
-    ?(PROJECT.trelloLastSync?'آخر سحب فعلي: '+fmtSyncTime(PROJECT.trelloLastSync):'⚠ لم يُسحَب أي تحديث من Trello بعد إطلاقًا')
-    :null;
+  const syncVal=freshTrelloSync!==undefined?freshTrelloSync:
+    (PROJECT&&PROJECT._dbId===projectId?PROJECT.trelloLastSync:null);
+  const syncTxt=syncVal?'آخر سحب فعلي: '+fmtSyncTime(syncVal):'⚠ لم يُسحَب أي تحديث من Trello بعد إطلاقًا';
   return [
     {title:'إدارة أساسية',items:[
       {v:'rename',t:'إعادة تسمية المشروع',icon:'✏️'},
@@ -70,10 +70,18 @@ function projectMenuGroups(projectId){
   ];
 }
 async function openProjectMenu(projectId, projectName){
-  const groups=projectMenuGroups(projectId);
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='إجراءات المشروع: '+(projectName||'');
   document.getElementById('tkTabs').innerHTML='';
+  document.getElementById('tkBody').innerHTML='<div class="skeleton" style="height:200px"></div>';
+  // جلب مباشر وحصري من القاعدة — الحقيقة الوحيدة المعتمَدة لهذه القيمة تحديدًا، بلا أي
+  // اعتماد على حالة محفوظة في ذاكرة المتصفح مهما كان مصدرها أو مدى حداثتها المفترضة.
+  let freshTrelloSync=undefined;
+  try{
+    const {data}=await sb.from('pmo_projects').select('trello_last_synced_at').eq('id',projectId).maybeSingle();
+    freshTrelloSync=data?data.trello_last_synced_at:null;
+  }catch(e){freshTrelloSync=null;}
+  const groups=projectMenuGroups(projectId,freshTrelloSync);
   document.getElementById('tkBody').innerHTML=groups.map(g=>`
     <div class="pmenu-group${g.danger?' pmenu-danger':''}">
       <h4>${esc(g.title)}</h4>
