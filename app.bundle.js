@@ -1,4 +1,4 @@
-const BUILD_V='6d26b343';
+const BUILD_V='f023df10';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -2154,37 +2154,64 @@ async function newProjectDialog(clientId){
 
 // قائمة إجراءات المشروع (PMO فقط): تسمية، أرشفة، حذف بمهلة
 
+// قائمة إجراءات المشروع (PMO فقط) — مُصنَّفة بفئات واضحة: أساسية، حوكمة وعقود، فريق وتنفيذ،
+// ومنطقة خطر مميَّزة بصريًا لا تختلط بصريًا بالإجراءات الروتينية.
+function projectMenuGroups(projectId){
+  const blN=((PROJECT&&PROJECT.baselines)||[]).length+1;
+  return [
+    {title:'إدارة أساسية',items:[
+      {v:'rename',t:'إعادة تسمية المشروع',icon:'✏️'},
+      {v:'editSlug',t:'تعديل الرابط الدائم',icon:'🔗'}
+    ]},
+    {title:'الحوكمة والعقود',items:[
+      {v:'newbl',t:'حفظ أساس جديد (Baseline v'+blN+')',icon:'📌'},
+      {v:'exportContract',t:'تصدير للعقد (PDF)',icon:'📄'},
+      {v:'contracts',t:'العقود والتوقيع الإلكتروني',icon:'✍️'},
+      {v:'restore_snap',t:'استرجاع نسخة أمان',icon:'⏮'}
+    ]},
+    {title:'الفريق والتنفيذ',items:[
+      {v:'assign',t:'إسناد الفريق للمشروع',icon:'👥'},
+      {v:'trello',t:'لوحة Trello (تنفيذ الفريق)',icon:'🗂'}
+    ]},
+    {title:'منطقة خطر',danger:true,items:[
+      {v:'archive',t:'أرشفة المشروع',icon:'🗄'},
+      {v:'delete',t:'طلب حذف المشروع (مهلة 30 يومًا)',icon:'🗑'}
+    ]}
+  ];
+}
 async function openProjectMenu(projectId, projectName){
-  const r=await dialog({title:'إجراءات المشروع: '+(projectName||''),
-    fields:[{key:'action',label:'الإجراء',type:'select',value:'rename',options:[
-      {v:'rename',t:'إعادة تسمية المشروع'},
-      {v:'editSlug',t:'🔗 تعديل الرابط الدائم للمشروع'},
-      {v:'restore_snap',t:'استرجاع نسخة أمان (ما قبل آخر استبدال)'},
-      {v:'assign',t:'إسناد الفريق للمشروع'},
-      {v:'trello',t:'لوحة Trello (تنفيذ الفريق)'},
-      {v:'newbl',t:'حفظ أساس جديد (Baseline v'+(((PROJECT&&PROJECT.baselines)||[]).length+1)+')'},
-      {v:'exportContract',t:'📄 تصدير للعقد (PDF)'},
-      {v:'contracts',t:'✍️ العقود والتوقيع الإلكتروني'},
-      {v:'archive',t:'أرشفة المشروع'},
-      {v:'delete',t:'طلب حذف المشروع (مهلة 30 يومًا)'}
-    ]}],confirmText:'متابعة'});
-  if(!r)return;
-  if(r.action==='exportContract'){
+  const groups=projectMenuGroups(projectId);
+  document.getElementById('taskOverlay').style.display='flex';
+  document.getElementById('tkTitle').textContent='إجراءات المشروع: '+(projectName||'');
+  document.getElementById('tkTabs').innerHTML='';
+  document.getElementById('tkBody').innerHTML=groups.map(g=>`
+    <div class="pmenu-group${g.danger?' pmenu-danger':''}">
+      <h4>${esc(g.title)}</h4>
+      <div class="pmenu-grid">
+        ${g.items.map(it=>`<button class="pmenu-item" data-pmaction="${it.v}">
+          <span class="pmenu-icon">${it.icon}</span><span>${esc(it.t)}</span>
+        </button>`).join('')}
+      </div>
+    </div>`).join('');
+  document.querySelectorAll('[data-pmaction]').forEach(b=>b.onclick=()=>runProjectMenuAction(b.dataset.pmaction,projectId,projectName));
+}
+async function runProjectMenuAction(action,projectId,projectName){
+  if(action==='exportContract'){
     if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
     return openContractExport();
   }
-  if(r.action==='contracts'){
+  if(action==='contracts'){
     if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
     return openContractPanel();
   }
-  if(r.action==='rename'){
+  if(action==='rename'){
     const e=await dialog({title:'إعادة التسمية',fields:[{key:'name',label:'الاسم الجديد',value:projectName||''}],confirmText:'حفظ'});
     if(!e||!e.name)return;
     try{await renameProject(projectId,e.name);
       if(PROJECT&&PROJECT._dbId===projectId){PROJECT.name=e.name;render();}
       toast('أُعيدت التسمية','ok');if(SCREEN==='portfolio')renderPortfolio();
     }catch(err){toast('تعذّر: '+err.message,'err');}
-  }else if(r.action==='editSlug'){
+  }else if(action==='editSlug'){
     const cur=(PROJECT&&PROJECT._dbId===projectId)?(PROJECT.slug||''):await fetchProjectSlug(projectId);
     const e=await dialog({title:'الرابط الدائم للمشروع',
       fields:[{key:'slug',label:'المعرّف (حروف لاتينية وأرقام وشرطات)',value:cur}],confirmText:'حفظ'});
@@ -2194,17 +2221,17 @@ async function openProjectMenu(projectId, projectName){
       if(PROJECT&&PROJECT._dbId===projectId){PROJECT.slug=clean;writeHash();}
       toast('حُفظ الرابط: '+clean,'ok');
     }catch(err){toast(err.message,'err');}
-  }else if(r.action==='trello'){
+  }else if(action==='trello'){
     if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
     openTrello();
-  }else if(r.action==='assign'){
+  }else if(action==='assign'){
     openAssignPanel(projectId,projectName);
-  }else if(r.action==='newbl'){
+  }else if(action==='newbl'){
     if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا لحفظ أساس من جدولته الحالية','warn');return;}
     if(!await confirmDialog('حفظ أساس جديد','سيُحفظ الوضع المجدول الحالي كأساس مرجعي جديد (v'+(((PROJECT.baselines)||[]).length+1)+') للمقارنة في الجانت. يُستخدم عادة بعد اعتماد طلب تعديل خطة.',false))return;
     try{const b=await saveNewBaseline(projectId);toast('حُفظ '+b.label,'ok');render();}
     catch(e){toast('تعذّر: '+e.message,'err');}
-  }else if(r.action==='restore_snap'){
+  }else if(action==='restore_snap'){
     // حوكمة: لا استرجاع فوق خطة مثبّتة
     const {data:pst}=await sb.from('pmo_projects').select('status').eq('id',projectId).single();
     if(pst&&pst.status==='baselined'){toast('الخطة مثبّتة — الاسترجاع يتطلب طلب تعديل خطة معتمدًا','warn');return;}
@@ -2220,7 +2247,7 @@ async function openProjectMenu(projectId, projectName){
       toast('استُرجعت الخطة من نسخة الأمان','ok');
       if(PROJECT&&PROJECT._dbId===projectId){await loadProject(CID,PID);render();}
     }catch(e){toast('تعذّر الاسترجاع: '+e.message,'err');}
-  }else if(r.action==='archive'){
+  }else if(action==='archive'){
     await runLifecycleAction({
       title:'أرشفة المشروع',
       message:'أرشفة «'+(projectName||'')+'»؟ يختفي من المحفظة والخط الزمني، ويُسترجع من المؤرشفة.',
@@ -2228,7 +2255,7 @@ async function openProjectMenu(projectId, projectName){
       successMsg:'أُرشف المشروع',
       onSuccess:()=>{SCREEN='portfolio';renderPortfolio();}
     });
-  }else if(r.action==='delete'){
+  }else if(action==='delete'){
     await runLifecycleAction({
       title:'طلب حذف المشروع',
       message:'سيبدأ عدّاد 30 يومًا لحذف «'+(projectName||'')+'» وكل بنوده. قابل للاسترجاع طوال المهلة، والحذف النهائي لمالك النظام.',
@@ -2957,12 +2984,14 @@ async function renderClientHome(clientId){
   $('#host').innerHTML=`
     <div class="hintbar"><button class="reqbtn" id="chBack">↩ المحفظة</button>
       <button class="reqbtn" id="chMenu" style="margin-inline-start:8px">⋮ إجراءات العميل</button>
+      <button class="reqbtn" id="chSettings" style="margin-inline-start:8px">⚙ إعدادات العميل</button>
       <span style="margin-inline-start:auto">ملف العميل الكامل: لوحة قيادة مجمَّعة، كل مشاريعه، خططه، وفريقه — في مكان واحد.</span></div>
     <div id="chBody"><div class="skeleton" style="height:90px;margin-bottom:10px"></div>
       <div class="skeleton" style="height:160px;margin-bottom:10px"></div>
       <div class="skeleton" style="height:220px"></div></div>`;
   $('#chBack').onclick=renderPortfolio;
   $('#chMenu').onclick=()=>openClientMenu(clientId);
+  $('#chSettings').onclick=()=>openClientSettings(stats,access);
 
   let stats,access=[];
   try{
@@ -3033,30 +3062,11 @@ function renderCHBody(stats,access){
 
   const c=stats.c;
   const missingFields=['cr_number','vat_number','national_address_short','rep_name','rep_title'].filter(k=>!c[k]);
+  const setBtn=$('#chSettings');
+  if(setBtn)setBtn.innerHTML='⚙ إعدادات العميل'+(missingFields.length?' <span class="ch-set-warn">'+missingFields.length+'</span>':'');
 
   $('#chBody').innerHTML=`
     <div class="sa-section">${kpis}</div>
-    <div class="sa-section">
-      <h4>الرابط الدائم <span class="sa-hint">رابط صفحة هذا العميل — يمكنك تخصيصه ليكون واضحًا وسهل المشاركة بدل معرّف طويل</span></h4>
-      <div class="sa-form">
-        <span style="color:var(--muted);font-size:.82rem;white-space:nowrap">${location.origin}${location.pathname}#/c/</span>
-        <input id="cpSlug" value="${esc(c.slug||'')}" placeholder="مثال: sanam" style="flex:1;min-width:140px;font-family:monospace" dir="ltr">
-        <button class="hbtn" id="cpSlugSave" style="background:var(--gold);border-color:var(--gold)">حفظ الرابط</button>
-      </div>
-      <p class="sa-hint" style="margin-top:6px">حروف لاتينية وأرقام وشرطات فقط — يُنظَّف تلقائيًا. الرابط القديم بالمعرّف الخام يبقى يعمل دائمًا حتى بعد التغيير.</p>
-    </div>
-    <div class="sa-section">
-      <h4>الملف التعاقدي <span class="sa-hint">يُستخدم تلقائيًا عند إنشاء أي عقد لهذا العميل — اختياري، لكن يُستحسن إكماله قبل أول عقد</span></h4>
-      ${missingFields.length?`<div class="ch-warn-badge">⚠ بيانات غير مكتملة (${missingFields.length} حقول) — يمكنك المتابعة، ويُنصح بإكمالها قبل إرسال أي عقد للعميل</div>`:''}
-      <div class="sa-form" style="flex-wrap:wrap">
-        <input id="cpCr" placeholder="رقم السجل التجاري" value="${esc(c.cr_number||'')}" style="flex:1;min-width:160px">
-        <input id="cpVat" placeholder="الرقم الضريبي (VAT)" value="${esc(c.vat_number||'')}" style="flex:1;min-width:160px">
-        <input id="cpAddr" placeholder="العنوان الوطني المختصر" value="${esc(c.national_address_short||'')}" style="flex:1;min-width:180px">
-        <input id="cpRepName" placeholder="اسم الممثل المفوَّض" value="${esc(c.rep_name||'')}" style="flex:1;min-width:160px">
-        <input id="cpRepTitle" placeholder="صفته" value="${esc(c.rep_title||'')}" style="flex:1;min-width:140px">
-        <button class="hbtn" id="cpSave" style="background:var(--gold);border-color:var(--gold)">حفظ الملف</button>
-      </div>
-    </div>
     <div class="sa-section">
       <h4>مشاريع ${esc(stats.c.name)} <span class="sa-hint">(${stats.list.length})</span></h4>
       <div class="ch-pgrid">${projCards}</div>
@@ -3077,27 +3087,6 @@ function renderCHBody(stats,access){
       </div>
       <div class="sa-grants">${accessRows}</div>
     </div>`;
-
-  $('#cpSlugSave').onclick=async()=>{
-    const btn=$('#cpSlugSave');btn.disabled=true;
-    const raw=$('#cpSlug').value.trim();
-    try{
-      const clean=await updateClientSlug(stats.cid,raw);
-      c.slug=clean;
-      toast(clean?'حُفظ الرابط: '+clean:'أُزيل المعرّف النظيف — سيُستخدَم المعرّف الخام','ok');
-      renderCHBody(stats,access);
-    }catch(e){toast(e.message,'err');btn.disabled=false;}
-  };
-  $('#cpSave').onclick=async()=>{
-    const btn=$('#cpSave');btn.disabled=true;
-    const vals={cr_number:$('#cpCr').value.trim(),vat_number:$('#cpVat').value.trim(),
-      national_address_short:$('#cpAddr').value.trim(),rep_name:$('#cpRepName').value.trim(),rep_title:$('#cpRepTitle').value.trim()};
-    try{
-      await updateClientProfile(stats.cid,vals);
-      Object.assign(c,vals);
-      toast('حُفظ الملف التعاقدي','ok');renderCHBody(stats,access);
-    }catch(e){toast('تعذّر الحفظ: '+e.message,'err');btn.disabled=false;}
-  };
 
   $$('#chBody [data-openp]').forEach(b=>b.onclick=async()=>{CID=stats.cid;PID=b.dataset.openp;await openProject();});
   const nb=$('#chNewProj');if(nb)nb.onclick=()=>newProjectDialog(stats.cid);
@@ -3129,6 +3118,65 @@ function renderCHBody(stats,access){
 }
 
 window.renderClientHome=renderClientHome;
+
+// ===== لوحة إعدادات العميل — الرابط الدائم والملف التعاقدي، خلف زر مخصَّص لا ظاهرين دائمًا =====
+function openClientSettings(stats,access){
+  if(!stats){toast('لا تزال بيانات العميل قيد التحميل — لحظة واحدة','warn');return;}
+  const c=stats.c;
+  const missingFields=['cr_number','vat_number','national_address_short','rep_name','rep_title'].filter(k=>!c[k]);
+  document.getElementById('taskOverlay').style.display='flex';
+  document.getElementById('tkTitle').textContent='إعدادات العميل: '+c.name;
+  document.getElementById('tkTabs').innerHTML='';
+  document.getElementById('tkBody').innerHTML=`
+    <div class="sa-section">
+      <h4>الرابط الدائم <span class="sa-hint">رابط صفحة هذا العميل — يمكنك تخصيصه ليكون واضحًا وسهل المشاركة بدل معرّف طويل</span></h4>
+      <div class="sa-form">
+        <span style="color:var(--muted);font-size:.82rem;white-space:nowrap">${location.origin}${location.pathname}#/c/</span>
+        <input id="cpSlug" value="${esc(c.slug||'')}" placeholder="مثال: sanam" style="flex:1;min-width:140px;font-family:monospace" dir="ltr">
+        <button class="hbtn" id="cpSlugSave" style="background:var(--gold);border-color:var(--gold)">حفظ الرابط</button>
+      </div>
+      <p class="sa-hint" style="margin-top:6px">حروف لاتينية وأرقام وشرطات فقط — يُنظَّف تلقائيًا. أي رابط سبق مشاركته يبقى يعمل دائمًا حتى بعد التغيير.</p>
+    </div>
+    <div class="sa-section">
+      <h4>الملف التعاقدي <span class="sa-hint">يُستخدم تلقائيًا عند إنشاء أي عقد لهذا العميل — اختياري، لكن يُستحسن إكماله قبل أول عقد</span></h4>
+      ${missingFields.length?`<div class="ch-warn-badge">⚠ بيانات غير مكتملة (${missingFields.length} حقول) — يمكنك المتابعة، ويُنصح بإكمالها قبل إرسال أي عقد للعميل</div>`:''}
+      <div class="sa-form" style="flex-wrap:wrap">
+        <input id="cpCr" placeholder="رقم السجل التجاري" value="${esc(c.cr_number||'')}" style="flex:1;min-width:160px">
+        <input id="cpVat" placeholder="الرقم الضريبي (VAT)" value="${esc(c.vat_number||'')}" style="flex:1;min-width:160px">
+        <input id="cpAddr" placeholder="العنوان الوطني المختصر" value="${esc(c.national_address_short||'')}" style="flex:1;min-width:180px">
+        <input id="cpRepName" placeholder="اسم الممثل المفوَّض" value="${esc(c.rep_name||'')}" style="flex:1;min-width:160px">
+        <input id="cpRepTitle" placeholder="صفته" value="${esc(c.rep_title||'')}" style="flex:1;min-width:140px">
+        <button class="hbtn" id="cpSave" style="background:var(--gold);border-color:var(--gold)">حفظ الملف</button>
+      </div>
+    </div>`;
+
+  document.getElementById('cpSlugSave').onclick=async()=>{
+    const btn=document.getElementById('cpSlugSave');btn.disabled=true;
+    const raw=document.getElementById('cpSlug').value.trim();
+    try{
+      const clean=await updateClientSlug(stats.cid,raw);
+      c.slug=clean;
+      toast(clean?'حُفظ الرابط: '+clean:'أُزيل المعرّف النظيف — سيُستخدَم المعرّف الخام','ok');
+      openClientSettings(stats,access);
+    }catch(e){toast(e.message,'err');btn.disabled=false;}
+  };
+  document.getElementById('cpSave').onclick=async()=>{
+    const btn=document.getElementById('cpSave');btn.disabled=true;
+    const vals={cr_number:document.getElementById('cpCr').value.trim(),vat_number:document.getElementById('cpVat').value.trim(),
+      national_address_short:document.getElementById('cpAddr').value.trim(),rep_name:document.getElementById('cpRepName').value.trim(),
+      rep_title:document.getElementById('cpRepTitle').value.trim()};
+    try{
+      await updateClientProfile(stats.cid,vals);
+      Object.assign(c,vals);
+      toast('حُفظ الملف التعاقدي','ok');
+      openClientSettings(stats,access);
+      const setBtn=document.getElementById('chSettings');
+      const missing2=['cr_number','vat_number','national_address_short','rep_name','rep_title'].filter(k=>!c[k]);
+      if(setBtn)setBtn.innerHTML='⚙ إعدادات العميل'+(missing2.length?' <span class="ch-set-warn">'+missing2.length+'</span>':'');
+    }catch(e){toast('تعذّر الحفظ: '+e.message,'err');btn.disabled=false;}
+  };
+}
+window.openClientSettings=openClientSettings;
 
 
 /* ===== exportcontract.js ===== */
