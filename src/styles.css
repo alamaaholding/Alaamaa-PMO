@@ -55,6 +55,21 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .ctr-parties td{padding:5px 8px}
 .ch-warn-badge{background:var(--warn-bg,#F8EFD9);color:var(--warn,#8A5E0E);font-size:.78rem;font-weight:600;
   padding:8px 12px;border-radius:8px;margin-bottom:10px}
+.ch-set-warn{background:var(--crit);color:#fff;font-size:.68rem;font-weight:700;border-radius:999px;
+  padding:1px 6px;margin-inline-start:4px}
+/* ===== قائمة إجراءات المشروع المصنَّفة ===== */
+.pmenu-group{margin-bottom:20px}
+.pmenu-group h4{font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;
+  margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--line-soft)}
+.pmenu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.pmenu-item{display:flex;align-items:center;gap:10px;padding:11px 14px;border:1.5px solid var(--line);
+  border-radius:10px;background:#fff;font-family:inherit;font-size:.87rem;font-weight:600;color:var(--ink);
+  cursor:pointer;text-align:start;transition:var(--t)}
+.pmenu-item:hover{border-color:var(--gold);background:var(--soft-2);transform:translateY(-1px);box-shadow:var(--e1)}
+.pmenu-icon{font-size:1.05rem;flex-shrink:0}
+.pmenu-danger h4{color:var(--crit)}
+.pmenu-danger .pmenu-item{border-color:var(--crit-bg);color:var(--crit)}
+.pmenu-danger .pmenu-item:hover{border-color:var(--crit);background:var(--crit-bg)}
 .ctr-link-badge{background:var(--soft-2);border-inline-start:3px solid var(--gold);font-size:.78rem;
   color:var(--muted);padding:7px 12px;border-radius:8px;margin:6px 0}
 .ctr-link-badge b{color:var(--ink)}
