@@ -96,7 +96,7 @@ function render(){
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 function vDashboard(){
-  const tasks=PROJECT.tasks.filter(t=>t.type!=='cont'),S=SCHED,T=TRACK,dd=D(DATA_DATE);
+  const tasks=PROJECT.tasks.filter(t=>t.type!=='cont'&&t.type!=='package'),S=SCHED,T=TRACK,dd=D(DATA_DATE);
   const total=tasks.filter(t=>t.type!=='milestone').length;
   const done=tasks.filter(t=>t.status==='done'&&t.type!=='milestone').length;
   const inprog=tasks.filter(t=>T[t.id].effStatus==='inprogress').length;
@@ -678,7 +678,7 @@ function bindDiscuss(){
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
   document.querySelectorAll('[data-delc]').forEach(b=>b.onclick=async()=>{
-    if(!await confirmDialog('حذف التعليق','حذف هذا التعليق؟ لا يمكن التراجع.',true))return;
+    if(!await confirmDialog('حذف التعليق','حذف هذا التعليق؟ لا يمكن التراجع.',true,'حذف'))return;
     try{ await deleteComment(b.dataset.delc); toast('حُذف','ok'); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
@@ -751,7 +751,7 @@ function bindRequests(){
     if(r&&r.who){try{ await updateClientRequest(b.dataset.assign,{assigned_to:r.who}); toast('تم الإسناد','ok'); render(); }catch(e){toast('تعذّر','err');}}
   });
   document.querySelectorAll('[data-delreq]').forEach(b=>b.onclick=async()=>{
-    if(!await confirmDialog('حذف الطلب','حذف هذا الطلب نهائيًا؟',true))return;
+    if(!await confirmDialog('حذف الطلب','حذف هذا الطلب نهائيًا؟',true,'حذف'))return;
     try{ await deleteClientRequest(b.dataset.delreq); toast('حُذف','ok'); render(); }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
