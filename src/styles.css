@@ -92,6 +92,12 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .pmenu-danger .pmenu-item{background:var(--crit-bg);color:var(--crit)}
 .pmenu-danger .pmenu-item .pmenu-icon{background:#fff}
 .pmenu-danger .pmenu-item:hover{border-color:var(--crit);background:#fff}
+/* ===== نظام حالة المشروع الموحّد ===== */
+.pstatus-badge{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;font-weight:700;
+  padding:3px 9px;border-radius:999px;color:var(--sc);background:var(--sbg);white-space:nowrap}
+.legend-row{display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--line-soft)}
+.legend-row:last-of-type{border-bottom:none}
+.legend-desc{font-size:.82rem;color:var(--muted);line-height:1.6}
 .ctr-link-badge{background:var(--soft-2);border-inline-start:3px solid var(--gold);font-size:.78rem;
   color:var(--muted);padding:7px 12px;border-radius:8px;margin:6px 0}
 .ctr-link-badge b{color:var(--ink)}
