@@ -176,7 +176,7 @@ async function renderPortfolio(){
     card.innerHTML=`
       <div class="pcompany-hd" data-toggle="${x.cid}" role="button" tabindex="0">
         <div class="pcv-top">
-          <span class="pdot" style="background:${x.c.color}"></span>
+          <span class="pdot" style="background:${x.c.color}" title="لون تعريفي لهذا العميل — يُستخدم لتمييزه في «الخط الزمني الشامل» وأي عرض مجمَّع آخر"></span>
           <h3>${esc(x.c.name)}</h3>
           ${actBtn}
         </div>
