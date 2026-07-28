@@ -175,7 +175,7 @@ async function delDecision(id){
   const kids=isGate?DOL_DECISIONS.filter(x=>x.parent_gate_id===id).length:0;
   let msg='حذف «'+d.title+'»؟';
   if(kids)msg+='\n\nتنبيه: ستُحذف معها '+kids+' قرار تشغيلي تابع.';
-  if(!await confirmDialog('تأكيد الحذف',msg,true))return;
+  if(!await confirmDialog('تأكيد الحذف',msg,true,'حذف'))return;
   try{await deleteDecision(id);toast('حُذف','ok');await loadDOL();renderDOL();}
   catch(e){toast('تعذّر الحذف: '+e.message,'err');}
 }
