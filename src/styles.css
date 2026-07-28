@@ -68,10 +68,11 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
   font-family:inherit;font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer;transition:var(--t)}
 .chub-pill span{color:inherit;opacity:.7;margin-inline-start:3px}
 .chub-pill.active{background:var(--ink);color:#fff;border-color:var(--ink)}
-.chub-row{display:grid;grid-template-columns:1fr auto;gap:10px;padding:16px 0;border-bottom:1px solid var(--line)}
+.chub-row{display:flex;flex-direction:column;gap:10px;padding:16px 0;border-bottom:1px solid var(--line)}
 .chub-row-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.95rem}
 .chub-sep{color:var(--muted)}
-.chub-row-actions{display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap}
+.chub-row-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-top:4px;border-top:1px dashed var(--line-soft)}
+.chub-row-actions .reqbtn{min-width:80px;text-align:center}
 /* ===== قائمة إجراءات المشروع المصنَّفة ===== */
 .pmenu-group{margin-bottom:22px}
 .pmenu-group h4{font-size:.78rem;font-weight:800;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.04em;
@@ -83,6 +84,10 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .pmenu-item:hover{border-color:var(--gold);background:#fff;transform:translateY(-1px);box-shadow:var(--e2)}
 .pmenu-icon{font-size:1.25rem;flex-shrink:0;width:34px;height:34px;display:flex;align-items:center;justify-content:center;
   background:#fff;border-radius:9px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.pmenu-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pmenu-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pmenu-item-sub{align-items:flex-start;padding-top:12px;padding-bottom:12px}
+.pmenu-subtitle{font-size:.7rem;font-weight:600;color:var(--muted);white-space:normal;line-height:1.5}
 .pmenu-danger h4{color:var(--crit)}
 .pmenu-danger .pmenu-item{background:var(--crit-bg);color:var(--crit)}
 .pmenu-danger .pmenu-item .pmenu-icon{background:#fff}
