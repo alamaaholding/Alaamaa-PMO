@@ -1,4 +1,4 @@
-const BUILD_V='6472a85a';
+const BUILD_V='eb93f708';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
