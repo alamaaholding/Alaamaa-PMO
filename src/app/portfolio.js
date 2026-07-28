@@ -1,6 +1,7 @@
 // ===== app/portfolio.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
 async function renderPortfolio(){
   SCREEN='portfolio';
+  writePortfolioHash();
   $('#hProject').textContent='محفظة المشاريع';
   $('#barClient').style.display='none';hideChrome();
   const isStaff=(ROLE==='pmo'||ROLE==='delivery');
