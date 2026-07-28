@@ -73,10 +73,10 @@ function renderCHBody(stats,access){
       <button class="hbtn" id="chNewProj" style="background:var(--gold);border-color:var(--gold)">+ مشروع جديد</button></div>`
     :stats.list.map(r=>{
       const pct=r.total_tasks>0?Math.round(r.done_tasks/r.total_tasks*100):0;
+      const st=computeProjectStatus(r);
       return `<button class="ch-pcard" data-openp="${r.project_id}">
         <div class="ch-pname">${esc(r.project_name)}</div>
-        <div class="ch-pmeta"><span class="pill" style="background:var(--soft-2);color:var(--muted)">${LIFE[r.lifecycle]||r.lifecycle||''}</span>
-          ${r.blocked_tasks>0?'<span class="pill" style="background:var(--crit-bg);color:var(--crit)">'+r.blocked_tasks+' متوقف</span>':''}</div>
+        <div class="ch-pmeta">${renderStatusBadge(st)}</div>
         <div class="trk-bar" style="margin-top:8px"><div class="trk-bar-fill" style="width:${pct}%;background:var(--ok)"></div></div>
         <div class="ch-ppct">${pct}% · ${r.total_tasks} بند</div>
       </button>`;
