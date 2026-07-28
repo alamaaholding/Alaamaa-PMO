@@ -13,6 +13,7 @@ async function renderPortfolio(){
     toolItems.push({id:'showTimeline',t:'خط التسليمات الشامل',i:'📦'});
     toolItems.push({id:'showDOL',t:'طبقة القرار (DOL)',i:'⚖'});
     toolItems.push({id:'showAudit',t:'سجل المكتب',i:'📋'});
+    toolItems.push({id:'showContractsHub',t:'إدارة العقود',i:'✍️'});
   }
   if(ROLE==='pmo'){
     toolItems.push({id:'showHolidays',t:'العطلات الرسمية',i:'🗓'});
@@ -32,6 +33,7 @@ async function renderPortfolio(){
     const ac=$('#addClientBtn');if(ac)ac.onclick=addNewClient;}
   {const db=$('#showDOL');if(db)db.onclick=openDOL;}
   {const ab=$('#showAudit');if(ab)ab.onclick=renderAuditLog;}
+  {const cb=$('#showContractsHub');if(cb)cb.onclick=renderContractsHub;}
   {const tb=$('#showTimeline');if(tb)tb.onclick=renderPortfolioTimeline;}
   {const hb=$('#showHolidays');if(hb)hb.onclick=openHolidaysManager;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
