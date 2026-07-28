@@ -79,6 +79,7 @@ async function loadProject(clientId, projectId){
     (depMapX[d.task_id]=depMapX[d.task_id]||[]).push({_id:d.id,ref:rf,type:d.dep_type||'FS',lag:d.lag||0});});
   const reqMap={};reqs.forEach(r=>{(reqMap[r.task_id]=reqMap[r.task_id]||[]).push({_id:r.id,desc:r.description,owner:r.owner,sla:r.sla_days,blocking:r.blocking,requested:r.requested_at||'',received:r.received_at||''});});
   PROJECT={_dbId:p.id,name:p.name,slug:p.slug,start:p.start_date,status:p.status,lifecycle:p.lifecycle,contractValue:p.contract_value,
+    trelloLastSync:p.trello_last_synced_at,
     baseline:(bl&&bl.length)?{snapshot:bl[bl.length-1].snapshot}:null,
     baselines:bl||[],
     tasks:(()=>{const _refOf={};tasks.forEach(x=>{_refOf[x.id]=x.ref;});
