@@ -157,7 +157,7 @@ function _tlBind(host,ctx){
     c.onkeydown=(e)=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}};
   });
   host.querySelectorAll('[data-tldel]').forEach(b=>b.onclick=async()=>{
-    if(!await confirmDialog('حذف الحدث','حذف هذا الحدث من خط التسليمات؟',true))return;
+    if(!await confirmDialog('حذف الحدث','حذف هذا الحدث من خط التسليمات؟',true,'حذف'))return;
     try{await deleteDelivery(b.dataset.tldel);toast('حُذف الحدث','ok');await _tlReload();}
     catch(e){toast('تعذّر الحذف','err');}});
 }
