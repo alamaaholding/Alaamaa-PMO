@@ -292,7 +292,7 @@ function renderImpPreview(p){
 async function runImport(mode){
   if(!IMP_DATA) return;
   if(mode==='replace'){
-    const ok=await confirmDialog('تأكيد الاستبدال','سيُحذف كل محتوى الخطة الحالي ويُستبدل بالملف. هل أنت متأكد؟',true);
+    const ok=await confirmDialog('تأكيد الاستبدال','سيُحذف كل محتوى الخطة الحالي ويُستبدل بالملف. هل أنت متأكد؟',true,'استبدال');
     if(!ok) return;
   }
   const btn=$('#impMerge'); if(btn)btn.disabled=true;
