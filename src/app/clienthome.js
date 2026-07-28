@@ -141,8 +141,7 @@ function renderCHBody(stats,access){
     const btn=$('#cpSlugSave');btn.disabled=true;
     const raw=$('#cpSlug').value.trim();
     try{
-      const clean=raw?await updateClientSlug(stats.cid,raw):null;
-      if(!raw){await sb.from('pmo_clients').update({slug:null}).eq('id',stats.cid);}
+      const clean=await updateClientSlug(stats.cid,raw);
       c.slug=clean;
       toast(clean?'حُفظ الرابط: '+clean:'أُزيل المعرّف النظيف — سيُستخدَم المعرّف الخام','ok');
       renderCHBody(stats,access);
