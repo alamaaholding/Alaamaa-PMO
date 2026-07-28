@@ -187,6 +187,7 @@ function mergeContract(data){
     intro:CONTRACT_TEMPLATE.intro,
     partyRows,
     sections,
+    specialTerms:(data.specialTerms||'').trim()||null,
     signatures:{num:CONTRACT_TEMPLATE.signatures.num,title:CONTRACT_TEMPLATE.signatures.title,body:CONTRACT_TEMPLATE.signatures.body}
   };
 }
@@ -205,10 +206,13 @@ function renderMergedContractHTML(merged){
     `<tr><th>${esc(l)}</th><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}</tbody></table>`;
   const sectionsHtml=merged.sections.map(s=>
     `<div class="ctr-sec"><h4>${esc(s.num)}. ${esc(s.title)}</h4>${bodyHtml(s.body)}</div>`).join('');
+  const specialHtml=merged.specialTerms?
+    `<div class="ctr-sec ctr-special"><h4>ملحق — شروط إضافية خاصة بهذا العقد</h4>${bodyHtml(merged.specialTerms)}</div>`:'';
   return `<div class="ctr-doc">
     <div class="ctr-intro">${bodyHtml(merged.intro)}</div>
     <div class="ctr-sec"><h4>١. الأطراف</h4>${partyTable}</div>
     ${sectionsHtml}
+    ${specialHtml}
     <div class="ctr-sec"><h4>${esc(merged.signatures.num)}. ${esc(merged.signatures.title)}</h4>${bodyHtml(merged.signatures.body)}</div>
   </div>`;
 }
