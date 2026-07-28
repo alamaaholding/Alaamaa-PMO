@@ -1,4 +1,4 @@
-const BUILD_V='65f630f6';
+const BUILD_V='1d2362e5';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -997,14 +997,18 @@ async function updateClientSlug(clientId,newSlug){
   const clean=(newSlug&&newSlug.trim())?slugify(newSlug):null;
   const {data,error}=await sb.rpc('pmo_update_client_slug',{p_client_id:clientId,p_new_slug:clean});
   if(error)throw error;
-  if(!data.ok)throw new Error(data.error==='taken'?'هذا المعرّف مُستخدَم لعميل آخر — جرّب صيغة مختلفة':'تعذّر الحفظ');
+  if(!data.ok)throw new Error(
+    data.error==='taken'?'هذا المعرّف مُستخدَم لعميل آخر — جرّب صيغة مختلفة':
+    data.error==='صلاحية غير كافية'?'لا تملك صلاحية تعديل كافية لهذا العميل':'تعذّر الحفظ');
   return data.slug;
 }
 async function updateProjectSlug(projectId,newSlug){
   const clean=(newSlug&&newSlug.trim())?slugify(newSlug):null;
   const {data,error}=await sb.rpc('pmo_update_project_slug',{p_project_id:projectId,p_new_slug:clean});
   if(error)throw error;
-  if(!data.ok)throw new Error(data.error==='taken'?'هذا المعرّف مُستخدَم لمشروع آخر لنفس العميل — جرّب صيغة مختلفة':'تعذّر الحفظ');
+  if(!data.ok)throw new Error(
+    data.error==='taken'?'هذا المعرّف مُستخدَم لمشروع آخر لنفس العميل — جرّب صيغة مختلفة':
+    data.error==='صلاحية غير كافية'?'لا تملك صلاحية تعديل كافية لهذا المشروع':'تعذّر الحفظ');
   return data.slug;
 }
 async function resolveClientLink(ref){
