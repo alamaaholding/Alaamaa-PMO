@@ -57,6 +57,9 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
   padding:8px 12px;border-radius:8px;margin-bottom:10px}
 .ch-set-warn{background:var(--crit);color:#fff;font-size:.68rem;font-weight:700;border-radius:999px;
   padding:1px 6px;margin-inline-start:4px}
+.ctr-integrity{font-size:.8rem;font-weight:600;padding:9px 14px;border-radius:8px;margin:10px 0}
+.ctr-integrity.ok{background:var(--ok-bg);color:var(--ok)}
+.ctr-integrity.warn{background:var(--warn-bg,#F8EFD9);color:var(--warn,#8A5E0E)}
 /* ===== قائمة إجراءات المشروع المصنَّفة ===== */
 .pmenu-group{margin-bottom:20px}
 .pmenu-group h4{font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;
