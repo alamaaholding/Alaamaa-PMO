@@ -1,4 +1,4 @@
-const BUILD_V='3dbcec76';
+const BUILD_V='3eae104b';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1172,7 +1172,7 @@ function render(){
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 function vDashboard(){
-  const tasks=PROJECT.tasks.filter(t=>t.type!=='cont'),S=SCHED,T=TRACK,dd=D(DATA_DATE);
+  const tasks=PROJECT.tasks.filter(t=>t.type!=='cont'&&t.type!=='package'),S=SCHED,T=TRACK,dd=D(DATA_DATE);
   const total=tasks.filter(t=>t.type!=='milestone').length;
   const done=tasks.filter(t=>t.status==='done'&&t.type!=='milestone').length;
   const inprog=tasks.filter(t=>T[t.id].effStatus==='inprogress').length;
@@ -1754,7 +1754,7 @@ function bindDiscuss(){
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
   document.querySelectorAll('[data-delc]').forEach(b=>b.onclick=async()=>{
-    if(!await confirmDialog('حذف التعليق','حذف هذا التعليق؟ لا يمكن التراجع.',true))return;
+    if(!await confirmDialog('حذف التعليق','حذف هذا التعليق؟ لا يمكن التراجع.',true,'حذف'))return;
     try{ await deleteComment(b.dataset.delc); toast('حُذف','ok'); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
@@ -1827,7 +1827,7 @@ function bindRequests(){
     if(r&&r.who){try{ await updateClientRequest(b.dataset.assign,{assigned_to:r.who}); toast('تم الإسناد','ok'); render(); }catch(e){toast('تعذّر','err');}}
   });
   document.querySelectorAll('[data-delreq]').forEach(b=>b.onclick=async()=>{
-    if(!await confirmDialog('حذف الطلب','حذف هذا الطلب نهائيًا؟',true))return;
+    if(!await confirmDialog('حذف الطلب','حذف هذا الطلب نهائيًا؟',true,'حذف'))return;
     try{ await deleteClientRequest(b.dataset.delreq); toast('حُذف','ok'); render(); }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
@@ -2165,8 +2165,8 @@ function dialog(opts){ // {title, message, fields:[{key,label,value,type,placeho
   });
 }
 
-async function confirmDialog(title,message,danger){
-  const r=await dialog({title,message,confirmText:danger?'حذف':'تأكيد',danger});
+async function confirmDialog(title,message,danger,confirmText){
+  const r=await dialog({title,message,confirmText:confirmText||'تأكيد',danger});
   return r!==null;
 }
 
@@ -2181,7 +2181,7 @@ async function confirmDialog(title,message,danger){
 // كان النمط نفسه مكررًا 12 مرة: تأكيد → استدعاء RPC → قراءة data.ok → toast → تحديث.
 // التوحيد يضمن أيضًا التقاط الأخطاء الشبكية التي كانت تمرّ صامتة في النسخ السابقة.
 async function runLifecycleAction(o){
-  if(o.title&&!await confirmDialog(o.title,o.message,!!o.danger))return false;
+  if(o.title&&!await confirmDialog(o.title,o.message,!!o.danger,o.confirmText))return false;
   let data;
   try{ ({data}=await o.rpc()); }
   catch(e){ toast('تعذّر الاتصال: '+(e&&e.message?e.message:'خطأ غير معروف'),'err'); return false; }
@@ -2297,7 +2297,7 @@ async function runProjectMenuAction(action,projectId,projectName){
     if(!snap){toast('لا توجد لقطات أمان محفوظة لهذا المشروع بعد','warn');return;}
     const when=(snap.created_at||'').slice(0,16).replace('T',' ');
     if(!await confirmDialog('استرجاع نسخة أمان',
-      'سيُستبدل الوضع الحالي للخطة كاملًا بنسخة:\n'+when+' — '+(snap.reason||'لقطة')+'\n\nسيُحفظ الوضع الحالي كلقطة أيضًا قبل الاسترجاع.',true))return;
+      'سيُستبدل الوضع الحالي للخطة كاملًا بنسخة:\n'+when+' — '+(snap.reason||'لقطة')+'\n\nسيُحفظ الوضع الحالي كلقطة أيضًا قبل الاسترجاع.',true,'استرجاع'))return;
     try{
       if(PROJECT&&PROJECT._dbId===projectId&&PROJECT.tasks.length)
         await savePlanSnapshot(projectId,'الوضع قبل استرجاع لقطة سابقة');
@@ -2317,7 +2317,7 @@ async function runProjectMenuAction(action,projectId,projectName){
     await runLifecycleAction({
       title:'طلب حذف المشروع',
       message:'سيبدأ عدّاد 30 يومًا لحذف «'+(projectName||'')+'» وكل بنوده. قابل للاسترجاع طوال المهلة، والحذف النهائي لمالك النظام.',
-      danger:true,
+      danger:true,confirmText:'حذف',
       rpc:()=>rpcRequestProjectDeletion(projectId),
       successMsg:'بدأت مهلة حذف المشروع (30 يومًا)',successTone:'warn',
       onSuccess:()=>{SCREEN='portfolio';renderPortfolio();}
@@ -2410,7 +2410,7 @@ async function deleteTrackRow(id,n){
   const msg=n>0
     ? `المرحلة «${t.name}» فيها ${n} بندًا. حذفها لا يحذف البنود، لكنها ستُعرض بلا مرحلة معروفة حتى تُنقل. هل تريد المتابعة؟`
     : `حذف المرحلة «${t.name}»؟`;
-  if(!await confirmDialog('حذف مرحلة',msg,n>0))return;
+  if(!await confirmDialog('حذف مرحلة',msg,n>0,'حذف'))return;
   try{
     await deleteTrack(id);
     PROJECT.tracks=await fetchTracks(PROJECT._dbId);
@@ -2519,7 +2519,7 @@ async function openClientMenu(clientId){
     await runLifecycleAction({
       title:'تأكيد طلب الحذف',
       message:'طلب حذف «'+c.name+'»؟\n\nسيبدأ عدّاد 30 يومًا. يبقى قابلًا للاسترجاع طوال المهلة. الحذف النهائي يتطلب مالك النظام بعد انقضائها.',
-      danger:true,
+      danger:true,confirmText:'حذف',
       rpc:()=>rpcRequestDeletion(clientId),
       successMsg:'بدأت مهلة الحذف (30 يومًا)',successTone:'warn',failMsg:'تعذّر الطلب',
       onSuccess:()=>{CLIENTS=CLIENTS.filter(x=>x.id!==clientId);renderPortfolio();}
@@ -2577,11 +2577,11 @@ async function renderArchived(){
     rpc:()=>rpcRestoreProject(b.dataset.prestore),
     successMsg:'استُرجع المشروع',onSuccess:renderArchived}));
   list.querySelectorAll('[data-pdel]').forEach(b=>b.onclick=()=>runLifecycleAction({
-    title:'طلب حذف مشروع',message:'بدء مهلة 30 يومًا لحذف هذا المشروع وكل بنوده؟',danger:true,
+    title:'طلب حذف مشروع',message:'بدء مهلة 30 يومًا لحذف هذا المشروع وكل بنوده؟',danger:true,confirmText:'حذف',
     rpc:()=>rpcRequestProjectDeletion(b.dataset.pdel),
     successMsg:'بدأت المهلة',successTone:'warn',onSuccess:renderArchived}));
   list.querySelectorAll('[data-ppurge]').forEach(b=>b.onclick=()=>runLifecycleAction({
-    title:'حذف نهائي',message:'حذف نهائي لا رجعة فيه للمشروع وكل بنوده. متأكد؟',danger:true,
+    title:'حذف نهائي',message:'حذف نهائي لا رجعة فيه للمشروع وكل بنوده. متأكد؟',danger:true,confirmText:'حذف نهائي',
     rpc:()=>rpcPurgeProject(b.dataset.ppurge),
     successMsg:'حُذف نهائيًا',failMsg:'تعذّر — تحقق من المهلة والصلاحية',onSuccess:renderArchived}));
   list.querySelectorAll('[data-restore]').forEach(b=>b.onclick=()=>runLifecycleAction({
@@ -2589,11 +2589,11 @@ async function renderArchived(){
     successMsg:'تم الاسترجاع',
     onSuccess:async()=>{CLIENTS=await fetchClientsByState('active');renderArchived();}}));
   list.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>runLifecycleAction({
-    title:'طلب حذف',message:'بدء مهلة 30 يومًا لحذف هذا العميل؟',danger:true,
+    title:'طلب حذف',message:'بدء مهلة 30 يومًا لحذف هذا العميل؟',danger:true,confirmText:'حذف',
     rpc:()=>rpcRequestDeletion(b.dataset.del),
     successMsg:'بدأت مهلة الحذف',successTone:'warn',onSuccess:renderArchived}));
   list.querySelectorAll('[data-purge]').forEach(b=>b.onclick=()=>runLifecycleAction({
-    title:'حذف نهائي',message:'تحذير: حذف نهائي لا رجعة فيه لكل بيانات العميل ومشاريعه. متأكد؟',danger:true,
+    title:'حذف نهائي',message:'تحذير: حذف نهائي لا رجعة فيه لكل بيانات العميل ومشاريعه. متأكد؟',danger:true,confirmText:'حذف نهائي',
     rpc:()=>rpcPurgeClient(b.dataset.purge),
     successMsg:'تم الحذف النهائي',failMsg:'تعذّر — تحقق من المهلة والصلاحية',onSuccess:renderArchived}));
 }
@@ -3850,7 +3850,7 @@ async function refreshContractPanel(){
     box.innerHTML=integrityBadge+renderMergedContractHTML(mergeContract(mergeData));
   });
   document.querySelectorAll('[data-voidcontract]').forEach(b=>b.onclick=async()=>{
-    if(!await confirmDialog('إلغاء العقد','سيصبح هذا العقد ملغى ولا يمكن توقيعه بعد الآن. لا يمكن التراجع عن هذا الإجراء.',true))return;
+    if(!await confirmDialog('إلغاء العقد','سيصبح هذا العقد ملغى ولا يمكن توقيعه بعد الآن. لا يمكن التراجع عن هذا الإجراء.',true,'إلغاء العقد'))return;
     try{
       const r=await voidContract(b.dataset.voidcontract);
       if(r&&r.ok){toast('أُلغي العقد','ok');await refreshContractPanel();}
@@ -4010,7 +4010,7 @@ function renderContractsHubBody(){
     box.innerHTML=badge+renderMergedContractHTML(mergeContract(mergeData));
   });
   $$('#chubBody [data-chubvoid]').forEach(b=>b.onclick=async()=>{
-    if(!await confirmDialog('إلغاء العقد','سيصبح هذا العقد ملغى ولا يمكن توقيعه بعد الآن.',true))return;
+    if(!await confirmDialog('إلغاء العقد','سيصبح هذا العقد ملغى ولا يمكن توقيعه بعد الآن.',true,'إلغاء العقد'))return;
     try{
       const r=await voidContract(b.dataset.chubvoid);
       if(r&&r.ok){toast('أُلغي العقد','ok');CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();}
@@ -4686,7 +4686,7 @@ async function handleDeleteTask(refId){
   const dependents=PROJECT.tasks.filter(x=>(x.deps||[]).includes(refId)).map(x=>x.id);
   let msg='حذف البند «'+t.name+'» ('+refId+')؟';
   if(dependents.length)msg+='\n\nتنبيه: تعتمد عليه البنود: '+dependents.join('، ')+' — ستُزال هذه الروابط.';
-  if(!await confirmDialog('تأكيد الحذف',msg,true))return;
+  if(!await confirmDialog('تأكيد الحذف',msg,true,'حذف'))return;
   // لقطة كاملة للتراجع: الحقول + الروابط بالاتجاهين + المتطلبات
   const snap={ref:t.id,name:t.name,track:t.track,type:t.type,duration:t.duration||0,
     deliverable:t.deliverable||null,owner:t.owner||null,status:t.status,progress:t.progress||0,
