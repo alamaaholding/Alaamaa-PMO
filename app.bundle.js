@@ -1,4 +1,4 @@
-const BUILD_V='4aebbae3';
+const BUILD_V='6d26b343';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -762,6 +762,10 @@ async function rpcRestoreProject(id){return await sb.rpc('pmo_restore_project',{
 async function rpcRequestProjectDeletion(id){return await sb.rpc('pmo_request_project_deletion',{p_project:id});}
 async function rpcPurgeProject(id){return await sb.rpc('pmo_purge_project',{p_project:id});}
 async function renameProject(id,name){const{error}=await sb.from('pmo_projects').update({name}).eq('id',id);if(error)throw error;}
+async function fetchProjectSlug(id){
+  const {data}=await sb.from('pmo_projects').select('slug').eq('id',id).maybeSingle();
+  return (data&&data.slug)||'';
+}
 async function fetchArchivedProjects(){
   const{data}=await sb.from('pmo_projects').select('id,name,lifecycle_state,deletion_scheduled_at,client_id')
     .neq('lifecycle_state','active');return data||[];}
@@ -952,29 +956,31 @@ async function updateClientProfile(clientId,fields){
   if(error)throw error;
 }
 // تحديث المعرّف النظيف (Slug) — يُنظِّف الصيغة تلقائيًا؛ التفرّد مضمون بقيد فريد في القاعدة
+// تحديث المعرّف النظيف (Slug) — يُنظِّف الصيغة تلقائيًا؛ التحديث ذرّي ويسجّل المعرّف
+// القديم في سجلّ التاريخ أولًا، فلا يبقى أي رابط سبق مشاركته يتيمًا بعد تغيير المعرّف.
 async function updateClientSlug(clientId,newSlug){
-  const clean=slugify(newSlug);
-  const {error}=await sb.from('pmo_clients').update({slug:clean}).eq('id',clientId);
-  if(error){
-    if(error.code==='23505')throw new Error('هذا المعرّف مُستخدَم لعميل آخر — جرّب صيغة مختلفة');
-    throw error;
-  }
-  return clean;
+  const clean=(newSlug&&newSlug.trim())?slugify(newSlug):null;
+  const {data,error}=await sb.rpc('pmo_update_client_slug',{p_client_id:clientId,p_new_slug:clean});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error==='taken'?'هذا المعرّف مُستخدَم لعميل آخر — جرّب صيغة مختلفة':'تعذّر الحفظ');
+  return data.slug;
+}
+async function updateProjectSlug(projectId,newSlug){
+  const clean=(newSlug&&newSlug.trim())?slugify(newSlug):null;
+  const {data,error}=await sb.rpc('pmo_update_project_slug',{p_project_id:projectId,p_new_slug:clean});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error==='taken'?'هذا المعرّف مُستخدَم لمشروع آخر لنفس العميل — جرّب صيغة مختلفة':'تعذّر الحفظ');
+  return data.slug;
+}
+async function resolveClientLink(ref){
+  const {data,error}=await sb.rpc('pmo_resolve_client_link',{p_ref:ref});
+  if(error)throw error;return data;
 }
 // يحلّ رابطًا عميقًا لمشروع (بصيغته النظيفة أو الخامة، أو مزيجًا) لمعرّفَيه الحقيقيَّين —
 // يُستخدَم فقط عند فتح رابط طازج بلا مشروع مُحمَّل مسبقًا في الذاكرة.
 async function resolveProjectLink(clientRef,projectRef){
   const {data,error}=await sb.rpc('pmo_resolve_project_link',{p_client_ref:clientRef,p_project_ref:projectRef});
   if(error)throw error;return data;
-}
-async function updateProjectSlug(projectId,newSlug){
-  const clean=slugify(newSlug);
-  const {error}=await sb.from('pmo_projects').update({slug:clean}).eq('id',projectId);
-  if(error){
-    if(error.code==='23505')throw new Error('هذا المعرّف مُستخدَم لمشروع آخر لنفس العميل — جرّب صيغة مختلفة');
-    throw error;
-  }
-  return clean;
 }
 async function fetchContractsForProject(projectId){
   const {data,error}=await sb.rpc('pmo_contract_staff_view',{p_project_id:projectId});
@@ -2179,9 +2185,9 @@ async function openProjectMenu(projectId, projectName){
       toast('أُعيدت التسمية','ok');if(SCREEN==='portfolio')renderPortfolio();
     }catch(err){toast('تعذّر: '+err.message,'err');}
   }else if(r.action==='editSlug'){
-    const cur=(PROJECT&&PROJECT._dbId===projectId)?PROJECT.slug:'';
+    const cur=(PROJECT&&PROJECT._dbId===projectId)?(PROJECT.slug||''):await fetchProjectSlug(projectId);
     const e=await dialog({title:'الرابط الدائم للمشروع',
-      fields:[{key:'slug',label:'المعرّف (حروف لاتينية وأرقام وشرطات)',value:cur||''}],confirmText:'حفظ'});
+      fields:[{key:'slug',label:'المعرّف (حروف لاتينية وأرقام وشرطات)',value:cur}],confirmText:'حفظ'});
     if(!e||!e.slug)return;
     try{
       const clean=await updateProjectSlug(projectId,e.slug);
@@ -3076,8 +3082,7 @@ function renderCHBody(stats,access){
     const btn=$('#cpSlugSave');btn.disabled=true;
     const raw=$('#cpSlug').value.trim();
     try{
-      const clean=raw?await updateClientSlug(stats.cid,raw):null;
-      if(!raw){await sb.from('pmo_clients').update({slug:null}).eq('id',stats.cid);}
+      const clean=await updateClientSlug(stats.cid,raw);
       c.slug=clean;
       toast(clean?'حُفظ الرابط: '+clean:'أُزيل المعرّف النظيف — سيُستخدَم المعرّف الخام','ok');
       renderCHBody(stats,access);
@@ -3849,7 +3854,8 @@ async function startApp(){
     // فُتح مشروع مباشرة من رابط عميق (مجلد فرعي أو الصيغة القديمة) — لا شيء إضافي مطلوب
   }else{
     const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
-    const rid=cm?resolveClientIdentifier(cm[1]):null;
+    let rid=cm?resolveClientIdentifier(cm[1]):null;
+    if(cm&&!rid){ try{const r=await resolveClientLink(cm[1]);if(r&&r.ok)rid=r.client_id;}catch(e){} }
     if(rid){SCREEN='clienthome';await renderClientHome(rid);}
     else{SCREEN='portfolio';await renderPortfolio();}
   }
@@ -3948,7 +3954,8 @@ window.addEventListener('hashchange',async()=>{
   if(typeof SCREEN!=='undefined'&&SCREEN==='project'&&applyHash())return;
   if(await tryOpenProjectFromHash())return;
   const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
-  const rid=cm?resolveClientIdentifier(cm[1]):null;
+  let rid=cm?resolveClientIdentifier(cm[1]):null;
+  if(cm&&!rid){ try{const r=await resolveClientLink(cm[1]);if(r&&r.ok)rid=r.client_id;}catch(e){} }
   if(rid&&(ROLE==='pmo'||ROLE==='delivery'))renderClientHome(rid);
 });
 
