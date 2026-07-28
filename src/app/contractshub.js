@@ -105,7 +105,7 @@ function renderContractsHubBody(){
     box.innerHTML=badge+renderMergedContractHTML(mergeContract(mergeData));
   });
   $$('#chubBody [data-chubvoid]').forEach(b=>b.onclick=async()=>{
-    if(!await confirmDialog('إلغاء العقد','سيصبح هذا العقد ملغى ولا يمكن توقيعه بعد الآن.',true))return;
+    if(!await confirmDialog('إلغاء العقد','سيصبح هذا العقد ملغى ولا يمكن توقيعه بعد الآن.',true,'إلغاء العقد'))return;
     try{
       const r=await voidContract(b.dataset.chubvoid);
       if(r&&r.ok){toast('أُلغي العقد','ok');CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();}
