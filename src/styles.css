@@ -73,18 +73,20 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .chub-sep{color:var(--muted)}
 .chub-row-actions{display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap}
 /* ===== قائمة إجراءات المشروع المصنَّفة ===== */
-.pmenu-group{margin-bottom:20px}
-.pmenu-group h4{font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;
-  margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--line-soft)}
-.pmenu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
-.pmenu-item{display:flex;align-items:center;gap:10px;padding:11px 14px;border:1.5px solid var(--line);
-  border-radius:10px;background:#fff;font-family:inherit;font-size:.87rem;font-weight:600;color:var(--ink);
-  cursor:pointer;text-align:start;transition:var(--t)}
-.pmenu-item:hover{border-color:var(--gold);background:var(--soft-2);transform:translateY(-1px);box-shadow:var(--e1)}
-.pmenu-icon{font-size:1.05rem;flex-shrink:0}
+.pmenu-group{margin-bottom:22px}
+.pmenu-group h4{font-size:.78rem;font-weight:800;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.04em;
+  margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--line-soft)}
+.pmenu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.pmenu-item{display:flex;align-items:center;gap:12px;padding:13px 16px;border:1.5px solid transparent;
+  border-radius:12px;background:var(--soft-2);font-family:inherit;font-size:.87rem;font-weight:700;color:var(--ink);
+  cursor:pointer;text-align:start;transition:var(--t);box-shadow:var(--e1)}
+.pmenu-item:hover{border-color:var(--gold);background:#fff;transform:translateY(-1px);box-shadow:var(--e2)}
+.pmenu-icon{font-size:1.25rem;flex-shrink:0;width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+  background:#fff;border-radius:9px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .pmenu-danger h4{color:var(--crit)}
-.pmenu-danger .pmenu-item{border-color:var(--crit-bg);color:var(--crit)}
-.pmenu-danger .pmenu-item:hover{border-color:var(--crit);background:var(--crit-bg)}
+.pmenu-danger .pmenu-item{background:var(--crit-bg);color:var(--crit)}
+.pmenu-danger .pmenu-item .pmenu-icon{background:#fff}
+.pmenu-danger .pmenu-item:hover{border-color:var(--crit);background:#fff}
 .ctr-link-badge{background:var(--soft-2);border-inline-start:3px solid var(--gold);font-size:.78rem;
   color:var(--muted);padding:7px 12px;border-radius:8px;margin:6px 0}
 .ctr-link-badge b{color:var(--ink)}
