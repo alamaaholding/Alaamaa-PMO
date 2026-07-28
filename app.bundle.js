@@ -1,4 +1,4 @@
-const BUILD_V='eb93f708';
+const BUILD_V='52c3f813';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -95,7 +95,43 @@ function canSeeClient(clientId,clientProjects){
   return (clientProjects||[]).some(p=>canSeeProject(p.id,p.department,clientId));
 }
 
-// ===== تجميع إحصاءات عميل من صفوف pmo_portfolio() — مصدر حقيقة واحد =====
+// ===== نظام حالة المشروع الموحّد =====
+// كل حالة مبنية على بيانات حقيقية قابلة للحساب من pmo_portfolio() مباشرة، عدا حالة واحدة
+// («قد يحتاج مراجعة») مُعلَّمة صراحة كتقدير لا حساب جدولة دقيق — ذلك موجود فعليًا وبدقة
+// كاملة داخل كل مشروع بمفرده عبر الجانت (شبكة التبعيات الكاملة)، ويكلف كثيرًا حسابه لكل
+// مشروع في المحفظة دفعة واحدة. الترتيب أدناه هو ترتيب الأولوية عند التجميع لعدة مشاريع.
+const PROJECT_STATUS_DEFS=[
+  {key:'blocked',   priority:1,icon:'🔴',label:'متوقف',        color:'var(--crit)',  bg:'var(--crit-bg)'},
+  {key:'attention', priority:2,icon:'🟠',label:'يحتاج انتباه',  color:'#B5651D',      bg:'var(--warn-bg)'},
+  {key:'at_risk',   priority:3,icon:'🟡',label:'قد يحتاج مراجعة',color:'var(--warn)', bg:'var(--warn-bg)'},
+  {key:'not_started',priority:4,icon:'🔵',label:'لم يبدأ التنفيذ',color:'var(--blue)', bg:'var(--blue-bg)'},
+  {key:'active',    priority:5,icon:'🟢',label:'نشط وعلى المسار',color:'var(--ok)',   bg:'var(--ok-bg)'},
+  {key:'done',      priority:6,icon:'✅',label:'مكتمل',         color:'var(--ok)',    bg:'var(--ok-bg)'}
+];
+function computeProjectStatus(row){
+  const total=Number(row.total_tasks||0),done=Number(row.done_tasks||0),blocked=Number(row.blocked_tasks||0);
+  const pending=Number(row.pending_client_reqs||0),discuss=Number(row.open_comments||0);
+  if(blocked>0)return PROJECT_STATUS_DEFS[0];
+  if(pending>0||discuss>0)return PROJECT_STATUS_DEFS[1];
+  if(total===0||row.lifecycle==='proposal'||row.status==='draft')return PROJECT_STATUS_DEFS[3];
+  if(total>0&&done===total)return PROJECT_STATUS_DEFS[5];
+  if(row.start_date){
+    const days=(Date.now()-new Date(row.start_date).getTime())/86400000;
+    const pct=total?done/total:0;
+    if(days>30&&pct<0.2)return PROJECT_STATUS_DEFS[2];
+  }
+  return PROJECT_STATUS_DEFS[4];
+}
+// لعميل بعدة مشاريع: الحالة الأسوأ (الأعلى أولوية) بين كل مشاريعه النشطة
+function worstProjectStatus(rows){
+  if(!rows||!rows.length)return PROJECT_STATUS_DEFS[3];
+  let worst=null;
+  rows.forEach(r=>{const s=computeProjectStatus(r);if(!worst||s.priority<worst.priority)worst=s;});
+  return worst;
+}
+function renderStatusBadge(s,extraClass){
+  return `<span class="pstatus-badge ${extraClass||''}" style="--sc:${s.color};--sbg:${s.bg}" title="${esc(s.label)}">${s.icon} ${esc(s.label)}</span>`;
+}
 // تُستخدم من شبكة المحفظة وصفحة العميل المخصَّصة كليهما؛ لا حساب مكرّر في مكانين
 // (بالضبط الخلل الذي عالجناه سابقًا في مطابقة المراحل — نفس المبدأ هنا).
 function aggregateClientRows(cid,list,fallback){
@@ -2665,6 +2701,29 @@ async function openHolidaysManager(){
 
 /* ===== portfolio.js ===== */
 // ===== app/portfolio.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
+async function openStatusLegend(){
+  document.getElementById('taskOverlay').style.display='flex';
+  document.getElementById('tkTitle').textContent='دليل حالات المشاريع';
+  document.getElementById('tkTabs').innerHTML='';
+  document.getElementById('tkBody').innerHTML=`
+    <p class="sa-hint" style="margin-bottom:16px">كل مشروع أو عميل في المحفظة يحمل شارة حالة واحدة توضّح وضعه الحالي بلمحة — هذا شرح كل شارة:</p>
+    ${PROJECT_STATUS_DEFS.map(s=>`
+      <div class="legend-row">
+        ${renderStatusBadge(s)}
+        <span class="legend-desc">${esc(legendDescOf(s.key))}</span>
+      </div>`).join('')}
+    <p class="sa-hint" style="margin-top:16px">للعميل الذي لديه أكثر من مشروع، تُعرض شارة <b>أسوأ حالة</b> بين كل مشاريعه — فمشروع واحد متوقف يكفي لتظهر الشارة الحمراء على بطاقة العميل كاملة، حتى لو كانت بقية مشاريعه سليمة.</p>`;
+}
+function legendDescOf(key){
+  return {
+    blocked:'يحوي بندًا واحدًا متوقفًا على الأقل — يحتاج تدخلًا لفكّ العائق.',
+    attention:'لديه متطلب معلَّق من العميل، أو نقاش مفتوح لم يُحسَم بعد.',
+    at_risk:'تقدير لا حساب دقيق: مضى أكثر من 30 يومًا منذ البدء والإنجاز أقل من 20٪ — يستحق مراجعة سريعة. (الحساب الدقيق للتأخير الفعلي متاح داخل كل مشروع عبر الجانت).',
+    not_started:'لا بنود بعد، أو المشروع لا يزال في مرحلة الاقتراح/المسودة.',
+    active:'يعمل عليه الفريق حاليًا بلا أي من الإشارات أعلاه.',
+    done:'أُنجزت كل بنوده — 100٪.'
+  }[key]||'';
+}
 async function renderPortfolio(){
   SCREEN='portfolio';
   writePortfolioHash();
@@ -2693,13 +2752,15 @@ async function renderPortfolio(){
     <div class="tools-pop" id="toolsPop" role="menu">${toolItems.map(t=>`<button role="menuitem" id="${t.id}"><span class="ti">${t.i}</span>${t.t}</button>`).join('')}</div>
   </div>`:'';
   const primaryBtn=(ROLE==='pmo')?'<button class="hbtn primary-cta" id="addClientBtn">+ عميل جديد</button>':'';
-  const toolbar=isStaff?`<div class="portfolio-tools">${primaryBtn}${toolsMenu}</div>`:'';
+  const legendBtn=isStaff?'<button class="hbtn" id="statusLegendBtn" title="دليل حالات المشاريع">ⓘ دليل الحالات</button>':'';
+  const toolbar=isStaff?`<div class="portfolio-tools">${primaryBtn}${legendBtn}${toolsMenu}</div>`:'';
   $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
   if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;
     const ac=$('#addClientBtn');if(ac)ac.onclick=addNewClient;}
   {const db=$('#showDOL');if(db)db.onclick=openDOL;}
   {const ab=$('#showAudit');if(ab)ab.onclick=renderAuditLog;}
   {const cb=$('#showContractsHub');if(cb)cb.onclick=renderContractsHub;}
+  {const lb=$('#statusLegendBtn');if(lb)lb.onclick=openStatusLegend;}
   {const tb=$('#showTimeline');if(tb)tb.onclick=renderPortfolioTimeline;}
   {const hb=$('#showHolidays');if(hb)hb.onclick=openHolidaysManager;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
@@ -2847,6 +2908,7 @@ async function renderPortfolio(){
           ${actBtn}
         </div>
         <span class="pcompany-sub">${x.noProjects?'لا مشاريع بعد — انقر لإضافة أول مشروع':(x.list.length>1?x.list.length+' مشاريع':esc(x.list[0].project_name||'مشروع واحد'))+' · '+x.tot+' بند'}</span>
+        ${x.noProjects?'':renderStatusBadge(worstProjectStatus(x.list))}
         ${x.noProjects?'':`<div class="pcompany-pct"><div class="pbar mini" role="progressbar" aria-valuenow="${x.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="نسبة الإنجاز"><div class="pbar-fill" style="width:${x.pct}%"></div></div><b>${x.pct}%</b></div>`}
         ${alertBadges.length?`<div class="palerts">${alertBadges.join('')}</div>`:''}
       </div>
@@ -3113,10 +3175,10 @@ function renderCHBody(stats,access){
       <button class="hbtn" id="chNewProj" style="background:var(--gold);border-color:var(--gold)">+ مشروع جديد</button></div>`
     :stats.list.map(r=>{
       const pct=r.total_tasks>0?Math.round(r.done_tasks/r.total_tasks*100):0;
+      const st=computeProjectStatus(r);
       return `<button class="ch-pcard" data-openp="${r.project_id}">
         <div class="ch-pname">${esc(r.project_name)}</div>
-        <div class="ch-pmeta"><span class="pill" style="background:var(--soft-2);color:var(--muted)">${LIFE[r.lifecycle]||r.lifecycle||''}</span>
-          ${r.blocked_tasks>0?'<span class="pill" style="background:var(--crit-bg);color:var(--crit)">'+r.blocked_tasks+' متوقف</span>':''}</div>
+        <div class="ch-pmeta">${renderStatusBadge(st)}</div>
         <div class="trk-bar" style="margin-top:8px"><div class="trk-bar-fill" style="width:${pct}%;background:var(--ok)"></div></div>
         <div class="ch-ppct">${pct}% · ${r.total_tasks} بند</div>
       </button>`;
