@@ -66,9 +66,9 @@ async function openProjectMenu(projectId, projectName){
       toast('أُعيدت التسمية','ok');if(SCREEN==='portfolio')renderPortfolio();
     }catch(err){toast('تعذّر: '+err.message,'err');}
   }else if(r.action==='editSlug'){
-    const cur=(PROJECT&&PROJECT._dbId===projectId)?PROJECT.slug:'';
+    const cur=(PROJECT&&PROJECT._dbId===projectId)?(PROJECT.slug||''):await fetchProjectSlug(projectId);
     const e=await dialog({title:'الرابط الدائم للمشروع',
-      fields:[{key:'slug',label:'المعرّف (حروف لاتينية وأرقام وشرطات)',value:cur||''}],confirmText:'حفظ'});
+      fields:[{key:'slug',label:'المعرّف (حروف لاتينية وأرقام وشرطات)',value:cur}],confirmText:'حفظ'});
     if(!e||!e.slug)return;
     try{
       const clean=await updateProjectSlug(projectId,e.slug);
