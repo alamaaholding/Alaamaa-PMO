@@ -560,6 +560,25 @@ async function voidContract(contractId){
   const {data,error}=await sb.rpc('pmo_void_contract',{p_contract_id:contractId});
   if(error)throw error;return data;
 }
+async function fetchAllContracts(){
+  const {data,error}=await sb.rpc('pmo_all_contracts_view');
+  if(error)throw error;return data||[];
+}
+async function updateContract(contractId,opts){
+  opts=opts||{};
+  const {data,error}=await sb.rpc('pmo_update_contract',{
+    p_contract_id:contractId,
+    p_includes_ad_spend:!!opts.includesAdSpend,
+    p_effective_date:opts.effectiveDate||null,
+    p_contract_value:opts.contractValue!=null?Number(opts.contractValue):null,
+    p_special_terms:opts.specialTerms||null
+  });
+  if(error)throw error;
+  if(!data.ok)throw new Error(
+    data.error==='signed'?'لا يمكن تعديل عقد وقّع عليه أي طرف بالفعل — أنشئ عقدًا جديدًا بدلًا من ذلك':
+    data.error==='صلاحية غير كافية'?'لا تملك صلاحية تعديل كافية لهذا المشروع':'تعذّر التعديل');
+  return data;
+}
 async function updateClientProfile(clientId,fields){
   const patch={};
   ['cr_number','vat_number','national_address_short','rep_name','rep_title','contact_email','contact_phone']
