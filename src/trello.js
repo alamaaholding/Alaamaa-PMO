@@ -232,6 +232,7 @@ async function trelloPull(){
     ]);
     const listName={};lists.forEach(l=>{listName[l.id]=l.name;});
     const keyOf={};TR_LISTS.forEach(l=>{keyOf[l.name]=l.key;});
+    await sb.from('pmo_projects').update({trello_last_synced_at:new Date().toISOString()}).eq('id',PROJECT._dbId);
     const {data:rows}=await sb.from('pmo_tasks').select('id,ref,status,trello_card_id').eq('project_id',PROJECT._dbId);
     const taskOfCard={};(rows||[]).forEach(r=>{if(r.trello_card_id)taskOfCard[r.trello_card_id]={db:r.id,ref:r.ref,status:r.status};});
     const props=[];
@@ -323,8 +324,9 @@ async function trelloMenu(mode){
     return;
   }
   if(!PROJECT)return;
-  const {data:pr}=await sb.from('pmo_projects').select('trello_board_id').eq('id',PROJECT._dbId).single();
+  const {data:pr}=await sb.from('pmo_projects').select('trello_board_id,trello_last_synced_at').eq('id',PROJECT._dbId).single();
   const linked=pr&&pr.trello_board_id;
+  const lastSync=pr&&pr.trello_last_synced_at?new Date(pr.trello_last_synced_at).toLocaleString('ar',{dateStyle:'medium',timeStyle:'short'}):null;
   let bname='';
   if(linked){try{const b=await trFetch('/boards/'+linked,'GET','fields=name,url');bname=b.name;TRELLO_CREDS._url=b.url;}catch(_e){bname='(تعذّر قراءة اسم اللوحة)';}}
   const opts=linked
@@ -333,7 +335,8 @@ async function trelloMenu(mode){
        {v:'open',t:'فتح اللوحة في Trello'},{v:'unlink',t:'فكّ الارتباط بهذه اللوحة'}]
     : [{v:'new',t:'إنشاء لوحة جديدة لهذا المشروع'},{v:'link',t:'الربط بلوحة موجودة في حسابي'}];
   const r=await dialog({title:'لوحة Trello — '+PROJECT.name,
-    message:linked?('اللوحة المرتبطة حاليًا: «'+bname+'»\n\nالمنصة مصدر الحقيقة للخطة؛ Trello سطح تنفيذ للفريق ولا يراه العميل.')
+    message:linked?('اللوحة المرتبطة حاليًا: «'+bname+'»\n'+(lastSync?'آخر سحب فعلي من اللوحة: '+lastSync:'⚠ لم يُسحَب أي تحديث من هذه اللوحة بعد إطلاقًا')+
+                  '\n\nالمنصة مصدر الحقيقة للخطة؛ Trello سطح تنفيذ للفريق ولا يراه العميل.')
                   :'لا توجد لوحة مرتبطة بهذا المشروع بعد. اختر إنشاء لوحة جديدة أو الربط بواحدة موجودة.',
     fields:[{key:'a',label:'الإجراء',type:'select',value:opts[0].v,options:opts}],confirmText:'متابعة'});
   if(!r)return;
@@ -348,7 +351,7 @@ async function trelloMenu(mode){
     return;
   }
   if(r.a==='unlink'){
-    if(!await confirmDialog('فكّ الارتباط','سيُفكّ ربط المشروع بهذه اللوحة (اللوحة نفسها تبقى في Trello كما هي، ولن تُحذف). يمكنك الربط بلوحة أخرى بعدها.',true))return;
+    if(!await confirmDialog('فكّ الارتباط','سيُفكّ ربط المشروع بهذه اللوحة (اللوحة نفسها تبقى في Trello كما هي، ولن تُحذف). يمكنك الربط بلوحة أخرى بعدها.',true,'فكّ الارتباط'))return;
     await sb.from('pmo_projects').update({trello_board_id:null}).eq('id',PROJECT._dbId);
     await sb.from('pmo_tasks').update({trello_card_id:null}).eq('project_id',PROJECT._dbId);
     toast('فُكّ الارتباط','ok');
