@@ -1,4 +1,27 @@
 // ===== app/portfolio.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
+async function openStatusLegend(){
+  document.getElementById('taskOverlay').style.display='flex';
+  document.getElementById('tkTitle').textContent='دليل حالات المشاريع';
+  document.getElementById('tkTabs').innerHTML='';
+  document.getElementById('tkBody').innerHTML=`
+    <p class="sa-hint" style="margin-bottom:16px">كل مشروع أو عميل في المحفظة يحمل شارة حالة واحدة توضّح وضعه الحالي بلمحة — هذا شرح كل شارة:</p>
+    ${PROJECT_STATUS_DEFS.map(s=>`
+      <div class="legend-row">
+        ${renderStatusBadge(s)}
+        <span class="legend-desc">${esc(legendDescOf(s.key))}</span>
+      </div>`).join('')}
+    <p class="sa-hint" style="margin-top:16px">للعميل الذي لديه أكثر من مشروع، تُعرض شارة <b>أسوأ حالة</b> بين كل مشاريعه — فمشروع واحد متوقف يكفي لتظهر الشارة الحمراء على بطاقة العميل كاملة، حتى لو كانت بقية مشاريعه سليمة.</p>`;
+}
+function legendDescOf(key){
+  return {
+    blocked:'يحوي بندًا واحدًا متوقفًا على الأقل — يحتاج تدخلًا لفكّ العائق.',
+    attention:'لديه متطلب معلَّق من العميل، أو نقاش مفتوح لم يُحسَم بعد.',
+    at_risk:'تقدير لا حساب دقيق: مضى أكثر من 30 يومًا منذ البدء والإنجاز أقل من 20٪ — يستحق مراجعة سريعة. (الحساب الدقيق للتأخير الفعلي متاح داخل كل مشروع عبر الجانت).',
+    not_started:'لا بنود بعد، أو المشروع لا يزال في مرحلة الاقتراح/المسودة.',
+    active:'يعمل عليه الفريق حاليًا بلا أي من الإشارات أعلاه.',
+    done:'أُنجزت كل بنوده — 100٪.'
+  }[key]||'';
+}
 async function renderPortfolio(){
   SCREEN='portfolio';
   writePortfolioHash();
@@ -27,13 +50,15 @@ async function renderPortfolio(){
     <div class="tools-pop" id="toolsPop" role="menu">${toolItems.map(t=>`<button role="menuitem" id="${t.id}"><span class="ti">${t.i}</span>${t.t}</button>`).join('')}</div>
   </div>`:'';
   const primaryBtn=(ROLE==='pmo')?'<button class="hbtn primary-cta" id="addClientBtn">+ عميل جديد</button>':'';
-  const toolbar=isStaff?`<div class="portfolio-tools">${primaryBtn}${toolsMenu}</div>`:'';
+  const legendBtn=isStaff?'<button class="hbtn" id="statusLegendBtn" title="دليل حالات المشاريع">ⓘ دليل الحالات</button>':'';
+  const toolbar=isStaff?`<div class="portfolio-tools">${primaryBtn}${legendBtn}${toolsMenu}</div>`:'';
   $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
   if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;
     const ac=$('#addClientBtn');if(ac)ac.onclick=addNewClient;}
   {const db=$('#showDOL');if(db)db.onclick=openDOL;}
   {const ab=$('#showAudit');if(ab)ab.onclick=renderAuditLog;}
   {const cb=$('#showContractsHub');if(cb)cb.onclick=renderContractsHub;}
+  {const lb=$('#statusLegendBtn');if(lb)lb.onclick=openStatusLegend;}
   {const tb=$('#showTimeline');if(tb)tb.onclick=renderPortfolioTimeline;}
   {const hb=$('#showHolidays');if(hb)hb.onclick=openHolidaysManager;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
@@ -181,6 +206,7 @@ async function renderPortfolio(){
           ${actBtn}
         </div>
         <span class="pcompany-sub">${x.noProjects?'لا مشاريع بعد — انقر لإضافة أول مشروع':(x.list.length>1?x.list.length+' مشاريع':esc(x.list[0].project_name||'مشروع واحد'))+' · '+x.tot+' بند'}</span>
+        ${x.noProjects?'':renderStatusBadge(worstProjectStatus(x.list))}
         ${x.noProjects?'':`<div class="pcompany-pct"><div class="pbar mini" role="progressbar" aria-valuenow="${x.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="نسبة الإنجاز"><div class="pbar-fill" style="width:${x.pct}%"></div></div><b>${x.pct}%</b></div>`}
         ${alertBadges.length?`<div class="palerts">${alertBadges.join('')}</div>`:''}
       </div>
