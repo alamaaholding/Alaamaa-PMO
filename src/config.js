@@ -93,7 +93,43 @@ function canSeeClient(clientId,clientProjects){
   return (clientProjects||[]).some(p=>canSeeProject(p.id,p.department,clientId));
 }
 
-// ===== تجميع إحصاءات عميل من صفوف pmo_portfolio() — مصدر حقيقة واحد =====
+// ===== نظام حالة المشروع الموحّد =====
+// كل حالة مبنية على بيانات حقيقية قابلة للحساب من pmo_portfolio() مباشرة، عدا حالة واحدة
+// («قد يحتاج مراجعة») مُعلَّمة صراحة كتقدير لا حساب جدولة دقيق — ذلك موجود فعليًا وبدقة
+// كاملة داخل كل مشروع بمفرده عبر الجانت (شبكة التبعيات الكاملة)، ويكلف كثيرًا حسابه لكل
+// مشروع في المحفظة دفعة واحدة. الترتيب أدناه هو ترتيب الأولوية عند التجميع لعدة مشاريع.
+const PROJECT_STATUS_DEFS=[
+  {key:'blocked',   priority:1,icon:'🔴',label:'متوقف',        color:'var(--crit)',  bg:'var(--crit-bg)'},
+  {key:'attention', priority:2,icon:'🟠',label:'يحتاج انتباه',  color:'#B5651D',      bg:'var(--warn-bg)'},
+  {key:'at_risk',   priority:3,icon:'🟡',label:'قد يحتاج مراجعة',color:'var(--warn)', bg:'var(--warn-bg)'},
+  {key:'not_started',priority:4,icon:'🔵',label:'لم يبدأ التنفيذ',color:'var(--blue)', bg:'var(--blue-bg)'},
+  {key:'active',    priority:5,icon:'🟢',label:'نشط وعلى المسار',color:'var(--ok)',   bg:'var(--ok-bg)'},
+  {key:'done',      priority:6,icon:'✅',label:'مكتمل',         color:'var(--ok)',    bg:'var(--ok-bg)'}
+];
+function computeProjectStatus(row){
+  const total=Number(row.total_tasks||0),done=Number(row.done_tasks||0),blocked=Number(row.blocked_tasks||0);
+  const pending=Number(row.pending_client_reqs||0),discuss=Number(row.open_comments||0);
+  if(blocked>0)return PROJECT_STATUS_DEFS[0];
+  if(pending>0||discuss>0)return PROJECT_STATUS_DEFS[1];
+  if(total===0||row.lifecycle==='proposal'||row.status==='draft')return PROJECT_STATUS_DEFS[3];
+  if(total>0&&done===total)return PROJECT_STATUS_DEFS[5];
+  if(row.start_date){
+    const days=(Date.now()-new Date(row.start_date).getTime())/86400000;
+    const pct=total?done/total:0;
+    if(days>30&&pct<0.2)return PROJECT_STATUS_DEFS[2];
+  }
+  return PROJECT_STATUS_DEFS[4];
+}
+// لعميل بعدة مشاريع: الحالة الأسوأ (الأعلى أولوية) بين كل مشاريعه النشطة
+function worstProjectStatus(rows){
+  if(!rows||!rows.length)return PROJECT_STATUS_DEFS[3];
+  let worst=null;
+  rows.forEach(r=>{const s=computeProjectStatus(r);if(!worst||s.priority<worst.priority)worst=s;});
+  return worst;
+}
+function renderStatusBadge(s,extraClass){
+  return `<span class="pstatus-badge ${extraClass||''}" style="--sc:${s.color};--sbg:${s.bg}" title="${esc(s.label)}">${s.icon} ${esc(s.label)}</span>`;
+}
 // تُستخدم من شبكة المحفظة وصفحة العميل المخصَّصة كليهما؛ لا حساب مكرّر في مكانين
 // (بالضبط الخلل الذي عالجناه سابقًا في مطابقة المراحل — نفس المبدأ هنا).
 function aggregateClientRows(cid,list,fallback){
