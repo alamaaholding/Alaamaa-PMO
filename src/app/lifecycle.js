@@ -4,7 +4,7 @@
 // كان النمط نفسه مكررًا 12 مرة: تأكيد → استدعاء RPC → قراءة data.ok → toast → تحديث.
 // التوحيد يضمن أيضًا التقاط الأخطاء الشبكية التي كانت تمرّ صامتة في النسخ السابقة.
 async function runLifecycleAction(o){
-  if(o.title&&!await confirmDialog(o.title,o.message,!!o.danger))return false;
+  if(o.title&&!await confirmDialog(o.title,o.message,!!o.danger,o.confirmText))return false;
   let data;
   try{ ({data}=await o.rpc()); }
   catch(e){ toast('تعذّر الاتصال: '+(e&&e.message?e.message:'خطأ غير معروف'),'err'); return false; }
@@ -120,7 +120,7 @@ async function runProjectMenuAction(action,projectId,projectName){
     if(!snap){toast('لا توجد لقطات أمان محفوظة لهذا المشروع بعد','warn');return;}
     const when=(snap.created_at||'').slice(0,16).replace('T',' ');
     if(!await confirmDialog('استرجاع نسخة أمان',
-      'سيُستبدل الوضع الحالي للخطة كاملًا بنسخة:\n'+when+' — '+(snap.reason||'لقطة')+'\n\nسيُحفظ الوضع الحالي كلقطة أيضًا قبل الاسترجاع.',true))return;
+      'سيُستبدل الوضع الحالي للخطة كاملًا بنسخة:\n'+when+' — '+(snap.reason||'لقطة')+'\n\nسيُحفظ الوضع الحالي كلقطة أيضًا قبل الاسترجاع.',true,'استرجاع'))return;
     try{
       if(PROJECT&&PROJECT._dbId===projectId&&PROJECT.tasks.length)
         await savePlanSnapshot(projectId,'الوضع قبل استرجاع لقطة سابقة');
@@ -140,7 +140,7 @@ async function runProjectMenuAction(action,projectId,projectName){
     await runLifecycleAction({
       title:'طلب حذف المشروع',
       message:'سيبدأ عدّاد 30 يومًا لحذف «'+(projectName||'')+'» وكل بنوده. قابل للاسترجاع طوال المهلة، والحذف النهائي لمالك النظام.',
-      danger:true,
+      danger:true,confirmText:'حذف',
       rpc:()=>rpcRequestProjectDeletion(projectId),
       successMsg:'بدأت مهلة حذف المشروع (30 يومًا)',successTone:'warn',
       onSuccess:()=>{SCREEN='portfolio';renderPortfolio();}
@@ -233,7 +233,7 @@ async function deleteTrackRow(id,n){
   const msg=n>0
     ? `المرحلة «${t.name}» فيها ${n} بندًا. حذفها لا يحذف البنود، لكنها ستُعرض بلا مرحلة معروفة حتى تُنقل. هل تريد المتابعة؟`
     : `حذف المرحلة «${t.name}»؟`;
-  if(!await confirmDialog('حذف مرحلة',msg,n>0))return;
+  if(!await confirmDialog('حذف مرحلة',msg,n>0,'حذف'))return;
   try{
     await deleteTrack(id);
     PROJECT.tracks=await fetchTracks(PROJECT._dbId);
@@ -342,7 +342,7 @@ async function openClientMenu(clientId){
     await runLifecycleAction({
       title:'تأكيد طلب الحذف',
       message:'طلب حذف «'+c.name+'»؟\n\nسيبدأ عدّاد 30 يومًا. يبقى قابلًا للاسترجاع طوال المهلة. الحذف النهائي يتطلب مالك النظام بعد انقضائها.',
-      danger:true,
+      danger:true,confirmText:'حذف',
       rpc:()=>rpcRequestDeletion(clientId),
       successMsg:'بدأت مهلة الحذف (30 يومًا)',successTone:'warn',failMsg:'تعذّر الطلب',
       onSuccess:()=>{CLIENTS=CLIENTS.filter(x=>x.id!==clientId);renderPortfolio();}
@@ -400,11 +400,11 @@ async function renderArchived(){
     rpc:()=>rpcRestoreProject(b.dataset.prestore),
     successMsg:'استُرجع المشروع',onSuccess:renderArchived}));
   list.querySelectorAll('[data-pdel]').forEach(b=>b.onclick=()=>runLifecycleAction({
-    title:'طلب حذف مشروع',message:'بدء مهلة 30 يومًا لحذف هذا المشروع وكل بنوده؟',danger:true,
+    title:'طلب حذف مشروع',message:'بدء مهلة 30 يومًا لحذف هذا المشروع وكل بنوده؟',danger:true,confirmText:'حذف',
     rpc:()=>rpcRequestProjectDeletion(b.dataset.pdel),
     successMsg:'بدأت المهلة',successTone:'warn',onSuccess:renderArchived}));
   list.querySelectorAll('[data-ppurge]').forEach(b=>b.onclick=()=>runLifecycleAction({
-    title:'حذف نهائي',message:'حذف نهائي لا رجعة فيه للمشروع وكل بنوده. متأكد؟',danger:true,
+    title:'حذف نهائي',message:'حذف نهائي لا رجعة فيه للمشروع وكل بنوده. متأكد؟',danger:true,confirmText:'حذف نهائي',
     rpc:()=>rpcPurgeProject(b.dataset.ppurge),
     successMsg:'حُذف نهائيًا',failMsg:'تعذّر — تحقق من المهلة والصلاحية',onSuccess:renderArchived}));
   list.querySelectorAll('[data-restore]').forEach(b=>b.onclick=()=>runLifecycleAction({
@@ -412,11 +412,11 @@ async function renderArchived(){
     successMsg:'تم الاسترجاع',
     onSuccess:async()=>{CLIENTS=await fetchClientsByState('active');renderArchived();}}));
   list.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>runLifecycleAction({
-    title:'طلب حذف',message:'بدء مهلة 30 يومًا لحذف هذا العميل؟',danger:true,
+    title:'طلب حذف',message:'بدء مهلة 30 يومًا لحذف هذا العميل؟',danger:true,confirmText:'حذف',
     rpc:()=>rpcRequestDeletion(b.dataset.del),
     successMsg:'بدأت مهلة الحذف',successTone:'warn',onSuccess:renderArchived}));
   list.querySelectorAll('[data-purge]').forEach(b=>b.onclick=()=>runLifecycleAction({
-    title:'حذف نهائي',message:'تحذير: حذف نهائي لا رجعة فيه لكل بيانات العميل ومشاريعه. متأكد؟',danger:true,
+    title:'حذف نهائي',message:'تحذير: حذف نهائي لا رجعة فيه لكل بيانات العميل ومشاريعه. متأكد؟',danger:true,confirmText:'حذف نهائي',
     rpc:()=>rpcPurgeClient(b.dataset.purge),
     successMsg:'تم الحذف النهائي',failMsg:'تعذّر — تحقق من المهلة والصلاحية',onSuccess:renderArchived}));
 }
