@@ -258,7 +258,7 @@ async function refreshContractPanel(){
     box.innerHTML=integrityBadge+renderMergedContractHTML(mergeContract(mergeData));
   });
   document.querySelectorAll('[data-voidcontract]').forEach(b=>b.onclick=async()=>{
-    if(!await confirmDialog('إلغاء العقد','سيصبح هذا العقد ملغى ولا يمكن توقيعه بعد الآن. لا يمكن التراجع عن هذا الإجراء.',true))return;
+    if(!await confirmDialog('إلغاء العقد','سيصبح هذا العقد ملغى ولا يمكن توقيعه بعد الآن. لا يمكن التراجع عن هذا الإجراء.',true,'إلغاء العقد'))return;
     try{
       const r=await voidContract(b.dataset.voidcontract);
       if(r&&r.ok){toast('أُلغي العقد','ok');await refreshContractPanel();}
