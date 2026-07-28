@@ -90,6 +90,8 @@ async function startApp(){
     SCREEN='project';CID=CLIENTS[0].id;await loadProject(CID);render();
   }else if(await tryOpenProjectFromHash()){
     // فُتح مشروع مباشرة من رابط عميق (مجلد فرعي أو الصيغة القديمة) — لا شيء إضافي مطلوب
+  }else if(/^#\/contracts\/?$/.test(location.hash||'')&&(ROLE==='pmo'||ROLE==='delivery')){
+    SCREEN='contractshub';await renderContractsHub();
   }else{
     const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
     let rid=cm?resolveClientIdentifier(cm[1]):null;
@@ -200,6 +202,10 @@ window.addEventListener('hashchange',async()=>{
   if(_hashLock)return;
   if(typeof SCREEN!=='undefined'&&SCREEN==='project'&&applyHash())return;
   if(await tryOpenProjectFromHash())return;
+  if(/^#\/contracts\/?$/.test(location.hash||'')){
+    if(ROLE==='pmo'||ROLE==='delivery')renderContractsHub();
+    return;
+  }
   if(/^#\/?$/.test(location.hash||'')){
     if(ROLE==='pmo'||ROLE==='delivery')renderPortfolio();
     return;
