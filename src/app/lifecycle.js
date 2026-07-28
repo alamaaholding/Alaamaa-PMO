@@ -35,37 +35,64 @@ async function newProjectDialog(clientId){
 
 // قائمة إجراءات المشروع (PMO فقط): تسمية، أرشفة، حذف بمهلة
 
+// قائمة إجراءات المشروع (PMO فقط) — مُصنَّفة بفئات واضحة: أساسية، حوكمة وعقود، فريق وتنفيذ،
+// ومنطقة خطر مميَّزة بصريًا لا تختلط بصريًا بالإجراءات الروتينية.
+function projectMenuGroups(projectId){
+  const blN=((PROJECT&&PROJECT.baselines)||[]).length+1;
+  return [
+    {title:'إدارة أساسية',items:[
+      {v:'rename',t:'إعادة تسمية المشروع',icon:'✏️'},
+      {v:'editSlug',t:'تعديل الرابط الدائم',icon:'🔗'}
+    ]},
+    {title:'الحوكمة والعقود',items:[
+      {v:'newbl',t:'حفظ أساس جديد (Baseline v'+blN+')',icon:'📌'},
+      {v:'exportContract',t:'تصدير للعقد (PDF)',icon:'📄'},
+      {v:'contracts',t:'العقود والتوقيع الإلكتروني',icon:'✍️'},
+      {v:'restore_snap',t:'استرجاع نسخة أمان',icon:'⏮'}
+    ]},
+    {title:'الفريق والتنفيذ',items:[
+      {v:'assign',t:'إسناد الفريق للمشروع',icon:'👥'},
+      {v:'trello',t:'لوحة Trello (تنفيذ الفريق)',icon:'🗂'}
+    ]},
+    {title:'منطقة خطر',danger:true,items:[
+      {v:'archive',t:'أرشفة المشروع',icon:'🗄'},
+      {v:'delete',t:'طلب حذف المشروع (مهلة 30 يومًا)',icon:'🗑'}
+    ]}
+  ];
+}
 async function openProjectMenu(projectId, projectName){
-  const r=await dialog({title:'إجراءات المشروع: '+(projectName||''),
-    fields:[{key:'action',label:'الإجراء',type:'select',value:'rename',options:[
-      {v:'rename',t:'إعادة تسمية المشروع'},
-      {v:'editSlug',t:'🔗 تعديل الرابط الدائم للمشروع'},
-      {v:'restore_snap',t:'استرجاع نسخة أمان (ما قبل آخر استبدال)'},
-      {v:'assign',t:'إسناد الفريق للمشروع'},
-      {v:'trello',t:'لوحة Trello (تنفيذ الفريق)'},
-      {v:'newbl',t:'حفظ أساس جديد (Baseline v'+(((PROJECT&&PROJECT.baselines)||[]).length+1)+')'},
-      {v:'exportContract',t:'📄 تصدير للعقد (PDF)'},
-      {v:'contracts',t:'✍️ العقود والتوقيع الإلكتروني'},
-      {v:'archive',t:'أرشفة المشروع'},
-      {v:'delete',t:'طلب حذف المشروع (مهلة 30 يومًا)'}
-    ]}],confirmText:'متابعة'});
-  if(!r)return;
-  if(r.action==='exportContract'){
+  const groups=projectMenuGroups(projectId);
+  document.getElementById('taskOverlay').style.display='flex';
+  document.getElementById('tkTitle').textContent='إجراءات المشروع: '+(projectName||'');
+  document.getElementById('tkTabs').innerHTML='';
+  document.getElementById('tkBody').innerHTML=groups.map(g=>`
+    <div class="pmenu-group${g.danger?' pmenu-danger':''}">
+      <h4>${esc(g.title)}</h4>
+      <div class="pmenu-grid">
+        ${g.items.map(it=>`<button class="pmenu-item" data-pmaction="${it.v}">
+          <span class="pmenu-icon">${it.icon}</span><span>${esc(it.t)}</span>
+        </button>`).join('')}
+      </div>
+    </div>`).join('');
+  document.querySelectorAll('[data-pmaction]').forEach(b=>b.onclick=()=>runProjectMenuAction(b.dataset.pmaction,projectId,projectName));
+}
+async function runProjectMenuAction(action,projectId,projectName){
+  if(action==='exportContract'){
     if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
     return openContractExport();
   }
-  if(r.action==='contracts'){
+  if(action==='contracts'){
     if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
     return openContractPanel();
   }
-  if(r.action==='rename'){
+  if(action==='rename'){
     const e=await dialog({title:'إعادة التسمية',fields:[{key:'name',label:'الاسم الجديد',value:projectName||''}],confirmText:'حفظ'});
     if(!e||!e.name)return;
     try{await renameProject(projectId,e.name);
       if(PROJECT&&PROJECT._dbId===projectId){PROJECT.name=e.name;render();}
       toast('أُعيدت التسمية','ok');if(SCREEN==='portfolio')renderPortfolio();
     }catch(err){toast('تعذّر: '+err.message,'err');}
-  }else if(r.action==='editSlug'){
+  }else if(action==='editSlug'){
     const cur=(PROJECT&&PROJECT._dbId===projectId)?(PROJECT.slug||''):await fetchProjectSlug(projectId);
     const e=await dialog({title:'الرابط الدائم للمشروع',
       fields:[{key:'slug',label:'المعرّف (حروف لاتينية وأرقام وشرطات)',value:cur}],confirmText:'حفظ'});
@@ -75,17 +102,17 @@ async function openProjectMenu(projectId, projectName){
       if(PROJECT&&PROJECT._dbId===projectId){PROJECT.slug=clean;writeHash();}
       toast('حُفظ الرابط: '+clean,'ok');
     }catch(err){toast(err.message,'err');}
-  }else if(r.action==='trello'){
+  }else if(action==='trello'){
     if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
     openTrello();
-  }else if(r.action==='assign'){
+  }else if(action==='assign'){
     openAssignPanel(projectId,projectName);
-  }else if(r.action==='newbl'){
+  }else if(action==='newbl'){
     if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا لحفظ أساس من جدولته الحالية','warn');return;}
     if(!await confirmDialog('حفظ أساس جديد','سيُحفظ الوضع المجدول الحالي كأساس مرجعي جديد (v'+(((PROJECT.baselines)||[]).length+1)+') للمقارنة في الجانت. يُستخدم عادة بعد اعتماد طلب تعديل خطة.',false))return;
     try{const b=await saveNewBaseline(projectId);toast('حُفظ '+b.label,'ok');render();}
     catch(e){toast('تعذّر: '+e.message,'err');}
-  }else if(r.action==='restore_snap'){
+  }else if(action==='restore_snap'){
     // حوكمة: لا استرجاع فوق خطة مثبّتة
     const {data:pst}=await sb.from('pmo_projects').select('status').eq('id',projectId).single();
     if(pst&&pst.status==='baselined'){toast('الخطة مثبّتة — الاسترجاع يتطلب طلب تعديل خطة معتمدًا','warn');return;}
@@ -101,7 +128,7 @@ async function openProjectMenu(projectId, projectName){
       toast('استُرجعت الخطة من نسخة الأمان','ok');
       if(PROJECT&&PROJECT._dbId===projectId){await loadProject(CID,PID);render();}
     }catch(e){toast('تعذّر الاسترجاع: '+e.message,'err');}
-  }else if(r.action==='archive'){
+  }else if(action==='archive'){
     await runLifecycleAction({
       title:'أرشفة المشروع',
       message:'أرشفة «'+(projectName||'')+'»؟ يختفي من المحفظة والخط الزمني، ويُسترجع من المؤرشفة.',
@@ -109,7 +136,7 @@ async function openProjectMenu(projectId, projectName){
       successMsg:'أُرشف المشروع',
       onSuccess:()=>{SCREEN='portfolio';renderPortfolio();}
     });
-  }else if(r.action==='delete'){
+  }else if(action==='delete'){
     await runLifecycleAction({
       title:'طلب حذف المشروع',
       message:'سيبدأ عدّاد 30 يومًا لحذف «'+(projectName||'')+'» وكل بنوده. قابل للاسترجاع طوال المهلة، والحذف النهائي لمالك النظام.',
