@@ -48,8 +48,8 @@ function dialog(opts){ // {title, message, fields:[{key,label,value,type,placeho
   });
 }
 
-async function confirmDialog(title,message,danger){
-  const r=await dialog({title,message,confirmText:danger?'حذف':'تأكيد',danger});
+async function confirmDialog(title,message,danger,confirmText){
+  const r=await dialog({title,message,confirmText:confirmText||'تأكيد',danger});
   return r!==null;
 }
 
