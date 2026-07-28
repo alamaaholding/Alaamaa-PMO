@@ -37,8 +37,17 @@ async function newProjectDialog(clientId){
 
 // قائمة إجراءات المشروع (PMO فقط) — مُصنَّفة بفئات واضحة: أساسية، حوكمة وعقود، فريق وتنفيذ،
 // ومنطقة خطر مميَّزة بصريًا لا تختلط بصريًا بالإجراءات الروتينية.
+// تنسيق احترافي: اليوم + التاريخ + الوقت — لا رقم مجرَّد
+function fmtSyncTime(iso){
+  if(!iso)return null;
+  return new Date(iso).toLocaleDateString('ar-SA',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+
+    ' — الساعة '+new Date(iso).toLocaleTimeString('ar-SA',{hour:'numeric',minute:'2-digit'});
+}
 function projectMenuGroups(projectId){
   const blN=((PROJECT&&PROJECT.baselines)||[]).length+1;
+  const syncTxt=PROJECT&&PROJECT._dbId===projectId
+    ?(PROJECT.trelloLastSync?'آخر سحب فعلي: '+fmtSyncTime(PROJECT.trelloLastSync):'⚠ لم يُسحَب أي تحديث من Trello بعد إطلاقًا')
+    :null;
   return [
     {title:'إدارة أساسية',items:[
       {v:'rename',t:'إعادة تسمية المشروع',icon:'✏️'},
@@ -52,7 +61,7 @@ function projectMenuGroups(projectId){
     ]},
     {title:'الفريق والتنفيذ',items:[
       {v:'assign',t:'إسناد الفريق للمشروع',icon:'👥'},
-      {v:'trello',t:'لوحة Trello (تنفيذ الفريق)',icon:'🗂'}
+      {v:'trello',t:'لوحة Trello (تنفيذ الفريق)',icon:'🗂',sub:syncTxt}
     ]},
     {title:'منطقة خطر',danger:true,items:[
       {v:'archive',t:'أرشفة المشروع',icon:'🗄'},
@@ -69,8 +78,9 @@ async function openProjectMenu(projectId, projectName){
     <div class="pmenu-group${g.danger?' pmenu-danger':''}">
       <h4>${esc(g.title)}</h4>
       <div class="pmenu-grid">
-        ${g.items.map(it=>`<button class="pmenu-item" data-pmaction="${it.v}">
-          <span class="pmenu-icon">${it.icon}</span><span>${esc(it.t)}</span>
+        ${g.items.map(it=>`<button class="pmenu-item${it.sub?' pmenu-item-sub':''}" data-pmaction="${it.v}">
+          <span class="pmenu-icon">${it.icon}</span>
+          <span class="pmenu-txt"><span class="pmenu-title">${esc(it.t)}</span>${it.sub?`<span class="pmenu-subtitle">${esc(it.sub)}</span>`:''}</span>
         </button>`).join('')}
       </div>
     </div>`).join('');
