@@ -60,6 +60,18 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .ctr-integrity{font-size:.8rem;font-weight:600;padding:9px 14px;border-radius:8px;margin:10px 0}
 .ctr-integrity.ok{background:var(--ok-bg);color:var(--ok)}
 .ctr-integrity.warn{background:var(--warn-bg,#F8EFD9);color:var(--warn,#8A5E0E)}
+.ctr-special{border-inline-start:3px solid var(--gold)}
+/* ===== إدارة العقود الشاملة ===== */
+.chub-filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.chub-status-pills{display:flex;gap:6px;flex-wrap:wrap}
+.chub-pill{border:1.5px solid var(--line);border-radius:999px;padding:6px 14px;background:#fff;
+  font-family:inherit;font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer;transition:var(--t)}
+.chub-pill span{color:inherit;opacity:.7;margin-inline-start:3px}
+.chub-pill.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.chub-row{display:grid;grid-template-columns:1fr auto;gap:10px;padding:16px 0;border-bottom:1px solid var(--line)}
+.chub-row-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.95rem}
+.chub-sep{color:var(--muted)}
+.chub-row-actions{display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap}
 /* ===== قائمة إجراءات المشروع المصنَّفة ===== */
 .pmenu-group{margin-bottom:20px}
 .pmenu-group h4{font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;
