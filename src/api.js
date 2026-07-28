@@ -526,14 +526,38 @@ async function addTeamMember(email,fullName,role){
 }
 
 // ===== العقود والتوقيع الإلكتروني =====
+async function sha256Hex(str){
+  if(!window.crypto||!window.crypto.subtle)return null; // بيئة لا تدعم Web Crypto — تحسيني لا حرج
+  try{
+    const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
+    return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  }catch(e){return null;}
+}
+// يحسب نفس التجزئة من بيانات عقد معيَّن — يُستخدَم عند الإنشاء وعند التحقّق لاحقًا
+async function computeContractHash(mergeData){
+  return sha256Hex(JSON.stringify(mergeContract(mergeData)));
+}
 async function createContract(projectId,baselineId,opts){
   opts=opts||{};
+  const clientC=(CLIENTS||[]).find(x=>x.id===CID)||{};
+  const hash=await computeContractHash({
+    clientName:clientC.name,clientCr:clientC.cr_number,clientAddress:clientC.national_address_short,
+    clientRepName:clientC.rep_name,clientRepTitle:clientC.rep_title,clientEmail:clientC.contact_email,clientPhone:clientC.contact_phone,
+    includesAdSpend:!!opts.includesAdSpend,effectiveDate:opts.effectiveDate,
+    contractValue:opts.contractValue!=null?Number(opts.contractValue):null,
+    latePaymentCap:opts.contractValue?Math.round(Number(opts.contractValue)*0.03*100)/100:null
+  });
   const {data,error}=await sb.rpc('pmo_create_contract',{
     p_project_id:projectId,p_baseline_id:baselineId,
     p_includes_ad_spend:!!opts.includesAdSpend,
     p_effective_date:opts.effectiveDate||null,
-    p_contract_value:opts.contractValue!=null?Number(opts.contractValue):null
+    p_contract_value:opts.contractValue!=null?Number(opts.contractValue):null,
+    p_document_hash:hash
   });
+  if(error)throw error;return data;
+}
+async function voidContract(contractId){
+  const {data,error}=await sb.rpc('pmo_void_contract',{p_contract_id:contractId});
   if(error)throw error;return data;
 }
 async function updateClientProfile(clientId,fields){
