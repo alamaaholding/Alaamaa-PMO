@@ -17,7 +17,18 @@ function todayISO(){return fmtY(new Date());}
 const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:true,crAction:'approve',views:['dashboard','table','gantt','deliv','timeline','cr','requests','discuss','audit']},
   delivery:{editStruct:true,editProg:true,editReqs:true,approveContract:false,crAction:'request',views:['dashboard','table','gantt','deliv','timeline','cr','requests','discuss','audit']},
   client:{editStruct:false,editProg:false,editReqs:false,approveContract:false,crAction:'request',views:['dashboard','gantt','deliv','cr','requests','discuss']}};
-function can(p){return PERMS[ROLE]&&PERMS[ROLE][p];}
+// إجراءات التعديل تخضع أيضًا لمستوى الصلاحية الفعلي على هذا المشروع تحديدًا (myAccessLevelFor) —
+// لا الدور العام وحده. كانت myAccessLevelFor محسوبة منذ إنشاء نظام الصلاحيات لكنها لم تُستخدَم
+// في أي مكان فعليًا — أي منح «عرض فقط» كان شكليًا بالكامل ولا يمنع أي تعديل حقيقي.
+const EDIT_ACTIONS=['editStruct','editProg','editReqs','approveContract'];
+function can(p){
+  if(!(PERMS[ROLE]&&PERMS[ROLE][p]))return false;
+  if(EDIT_ACTIONS.includes(p)&&!IS_OWNER&&(MY_ACCESS||[]).length&&typeof PID!=='undefined'&&PID){
+    const dept=(typeof PROJ_DEPTS!=='undefined'&&PROJ_DEPTS)?PROJ_DEPTS[PID]:null;
+    if(myAccessLevelFor(PID,dept,CID)==='view')return false;
+  }
+  return true;
+}
 
 // ===== سجل التدقيق: قاموس موحّد (مصدر وحيد لسجل المشروع وسجل المكتب) =====
 // المفاتيح مطابقة لأسماء الأفعال التي تكتبها دوال القاعدة (pmo_audit_*) فعليًا.
