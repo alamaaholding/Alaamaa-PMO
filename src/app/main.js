@@ -112,6 +112,15 @@ async function loadSummary(clientId){ return null; /* لم تعد مستخدمة
 // الشكل الجديد: #/c/{عميل}/{مشروع}/{تبويب}[/t/{بند}] — مجلد فرعي داخل مجلد العميل.
 // الصيغة القديمة #/p/{معرّف المشروع}/{تبويب}[/t/{بند}] تبقى مدعومة للأبد للتوافق مع أي رابط سبق مشاركته.
 let _hashLock=false,_focusRef=null;
+// المحفظة نفسها «مجلد جذري» له رابط نظيف خاص به — لا يبقى الرابط عالقًا على آخر مشروع
+// أو عميل كان مفتوحًا قبلها، وهذا بالضبط ما يجعل التنقّل يعكس ما يُعرَض فعليًا دائمًا.
+function writePortfolioHash(){
+  const h='#/';
+  if(location.hash===h)return;
+  _hashLock=true;
+  try{history.replaceState(null,'',h);}catch(e){location.hash=h;}
+  setTimeout(()=>{_hashLock=false;},0);
+}
 function writeHash(){
   if(typeof SCREEN==='undefined'||SCREEN!=='project'||!PROJECT||!PROJECT._dbId)return;
   const client=(CLIENTS||[]).find(x=>x.id===CID);
@@ -191,6 +200,10 @@ window.addEventListener('hashchange',async()=>{
   if(_hashLock)return;
   if(typeof SCREEN!=='undefined'&&SCREEN==='project'&&applyHash())return;
   if(await tryOpenProjectFromHash())return;
+  if(/^#\/?$/.test(location.hash||'')){
+    if(ROLE==='pmo'||ROLE==='delivery')renderPortfolio();
+    return;
+  }
   const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
   let rid=cm?resolveClientIdentifier(cm[1]):null;
   if(cm&&!rid){ try{const r=await resolveClientLink(cm[1]);if(r&&r.ok)rid=r.client_id;}catch(e){} }
