@@ -109,7 +109,7 @@ function PG_RENDER(rows,minD,maxD,mountId){
     const fmt=d=>`${d.getDate()}/${d.getMonth()+1}`;
     rowsHtml+=`<div class="pg-row" data-open="${r.pid}">
       <div class="pg-label">
-        <div class="pg-client"><span class="pg-dot" style="background:${r.color}"></span>${esc(r.client)}</div>
+        <div class="pg-client"><span class="pg-dot" style="background:${r.color}" title="لون تعريفي لهذا العميل"></span>${esc(r.client)}</div>
         <div class="pg-pname">${esc(r.name)}</div>
         <div class="pg-meta">${r.tasks} بند · ${r.milestones} معالم · ${LIFE[r.lifecycle]||''}</div>
       </div>
