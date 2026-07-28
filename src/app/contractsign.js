@@ -73,6 +73,19 @@ async function renderPublicSign(token){
   const sigRow=(label,s)=>s?`<div class="pubsig-row"><b>${label}</b><span>${esc(s.name)} · ${new Date(s.signed_at).toLocaleString('ar')}</span></div>`
     :`<div class="pubsig-row pubsig-pending"><b>${label}</b><span>بانتظار التوقيع</span></div>`;
 
+  const mergeData={
+    clientName:d.client_name,clientCr:d.client_cr,clientAddress:d.client_address,
+    clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title,
+    includesAdSpend:d.includes_ad_spend,effectiveDate:d.effective_date,contractValue:d.contract_value,latePaymentCap:d.late_payment_cap
+  };
+  let integrityBadge='';
+  if(d.document_hash){
+    try{
+      const nowHash=await computeContractHash(mergeData);
+      integrityBadge=nowHash===d.document_hash?'':'<div class="ctr-integrity warn">⚠ تنبيه: النص أدناه يختلف عمّا كان وقت إنشاء هذا العقد — تواصل مع علامة قبل التوقيع.</div>';
+    }catch(e){}
+  }
+
   document.getElementById('publicSign').innerHTML=`
     <div class="pubsign-wrap"><div class="pubsign-card">
       <div class="pubsign-brand">علامة <span>· أثر دائم</span></div>
@@ -83,13 +96,10 @@ async function renderPublicSign(token){
         <div><b>اللقطة المرجعية</b><span>${esc(d.baseline_label)} — ${new Date(d.baseline_date).toLocaleDateString('ar')}</span></div>
       </div>
       <div class="pubsig-status">${sigRow('علامة',alamaaSig)}${sigRow('العميل',clientSig)}</div>
+      ${integrityBadge}
       <details class="pubsign-fulltext" ${clientSigned?'':'open'}>
         <summary>${clientSigned?'عرض نص العقد الكامل':'📄 اقرأ نص العقد كاملًا قبل التوقيع'}</summary>
-        ${renderMergedContractHTML(mergeContract({
-          clientName:d.client_name,clientCr:d.client_cr,clientAddress:d.client_address,
-          clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title,
-          includesAdSpend:d.includes_ad_spend,effectiveDate:d.effective_date,contractValue:d.contract_value,latePaymentCap:d.late_payment_cap
-        }))}
+        ${renderMergedContractHTML(mergeContract(mergeData))}
       </details>
       ${fullySigned?`
         <p class="pubsign-note">✅ عقد ساري ومكتمل التوقيع من الطرفين — هذه النسخة للاطّلاع فقط ولا يمكن التعديل عليها.</p>
@@ -182,6 +192,7 @@ async function refreshContractPanel(){
         <button class="reqbtn" data-exportqr="${c.id}">📄 تصدير PDF بـ QR (العقد كاملًا + الخطة)</button>
         <button class="reqbtn" data-viewtext="${c.id}">عرض نص العقد الكامل</button>
         ${!al?`<button class="reqbtn" data-signalamaa="${c.id}" style="background:var(--ok);border-color:var(--ok);color:#fff">توقيع علامة الآن</button>`:''}
+        ${(c.status!=='signed'&&c.status!=='void')?`<button class="reqbtn" data-voidcontract="${c.id}" style="color:var(--crit);border-color:var(--crit-bg)">🗑 إلغاء العقد</button>`:''}
       </div>
       <div id="ctText-${c.id}" style="display:none;margin-top:10px"></div>
     </div>`;
@@ -224,16 +235,35 @@ async function refreshContractPanel(){
     const area=document.getElementById('ctPreviewArea');
     if(area.style.display!=='none')area.innerHTML=renderMergedContractHTML(mergeContract(buildPreviewData()));
   };
-  document.querySelectorAll('[data-viewtext]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('[data-viewtext]').forEach(b=>b.onclick=async()=>{
     const c=list.find(x=>x.id===b.dataset.viewtext);
     const box=document.getElementById('ctText-'+c.id);
     const show=box.style.display==='none';
     box.style.display=show?'':'none';
-    if(show)box.innerHTML=renderMergedContractHTML(mergeContract({
+    if(!show)return;
+    const mergeData={
       clientName:clientC.name,clientCr:c.client_cr,clientAddress:c.client_address,clientRepName:c.client_rep_name,
       clientRepTitle:c.client_rep_title,clientEmail:c.client_contact_email,clientPhone:c.client_contact_phone,
       includesAdSpend:c.includes_ad_spend,effectiveDate:c.effective_date,contractValue:c.contract_value,latePaymentCap:c.late_payment_cap
-    }));
+    };
+    let integrityBadge='';
+    if(c.document_hash){
+      try{
+        const nowHash=await computeContractHash(mergeData);
+        integrityBadge=nowHash===c.document_hash
+          ?'<div class="ctr-integrity ok">✅ النص مطابق تمامًا لما وُقِّع عليه — لم يتغيّر إطلاقًا منذ الإنشاء</div>'
+          :'<div class="ctr-integrity warn">⚠ النص المعروض يختلف عمّا كان وقت الإنشاء (على الأرجح تحديث لاحق في نظام القالب) — راجع مع الإدارة قبل الاعتماد عليه كمرجع نهائي</div>';
+      }catch(e){}
+    }
+    box.innerHTML=integrityBadge+renderMergedContractHTML(mergeContract(mergeData));
+  });
+  document.querySelectorAll('[data-voidcontract]').forEach(b=>b.onclick=async()=>{
+    if(!await confirmDialog('إلغاء العقد','سيصبح هذا العقد ملغى ولا يمكن توقيعه بعد الآن. لا يمكن التراجع عن هذا الإجراء.',true))return;
+    try{
+      const r=await voidContract(b.dataset.voidcontract);
+      if(r&&r.ok){toast('أُلغي العقد','ok');await refreshContractPanel();}
+      else toast(r&&r.error==='already_signed'?'لا يمكن إلغاء عقد موقَّع بالكامل':'تعذّر الإلغاء','err');
+    }catch(e){toast('تعذّر الإلغاء: '+e.message,'err');}
   });
 
   document.getElementById('ctCreate').onclick=async()=>{
