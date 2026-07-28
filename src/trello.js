@@ -232,7 +232,9 @@ async function trelloPull(){
     ]);
     const listName={};lists.forEach(l=>{listName[l.id]=l.name;});
     const keyOf={};TR_LISTS.forEach(l=>{keyOf[l.name]=l.key;});
-    await sb.from('pmo_projects').update({trello_last_synced_at:new Date().toISOString()}).eq('id',PROJECT._dbId);
+    const _syncNow=new Date().toISOString();
+    await sb.from('pmo_projects').update({trello_last_synced_at:_syncNow}).eq('id',PROJECT._dbId);
+    PROJECT.trelloLastSync=_syncNow; // تحديث فوري في الذاكرة — لا ينتظر إعادة تحميل الصفحة ليظهر على الزر
     const {data:rows}=await sb.from('pmo_tasks').select('id,ref,status,trello_card_id').eq('project_id',PROJECT._dbId);
     const taskOfCard={};(rows||[]).forEach(r=>{if(r.trello_card_id)taskOfCard[r.trello_card_id]={db:r.id,ref:r.ref,status:r.status};});
     const props=[];
