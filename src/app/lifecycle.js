@@ -43,15 +43,21 @@ function fmtSyncTime(iso){
   return new Date(iso).toLocaleDateString('ar-SA',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+
     ' — الساعة '+new Date(iso).toLocaleTimeString('ar-SA',{hour:'numeric',minute:'2-digit'});
 }
-function projectMenuGroups(projectId,freshTrelloSync){
+function projectMenuGroups(projectId,freshTrelloSync,freshLifecycleState){
   const blN=((PROJECT&&PROJECT.baselines)||[]).length+1;
   const syncVal=freshTrelloSync!==undefined?freshTrelloSync:
     (PROJECT&&PROJECT._dbId===projectId?PROJECT.trelloLastSync:null);
   const syncTxt=syncVal?'آخر سحب فعلي: '+fmtSyncTime(syncVal):'⚠ لم يُسحَب أي تحديث من Trello بعد إطلاقًا';
+  const lifecycleState=freshLifecycleState!==undefined?freshLifecycleState:
+    (PROJECT&&PROJECT._dbId===projectId?(PROJECT.lifecycleState||'active'):'active');
+  const isPaused=lifecycleState==='paused';
   return [
     {title:'إدارة أساسية',items:[
       {v:'rename',t:'إعادة تسمية المشروع',icon:'✏️'},
-      {v:'editSlug',t:'تعديل الرابط الدائم',icon:'🔗'}
+      {v:'editSlug',t:'تعديل الرابط الدائم',icon:'🔗'},
+      isPaused
+        ?{v:'resume',t:'استئناف المشروع',icon:'▶️'}
+        :{v:'pause',t:'إيقاف مؤقت',icon:'⏸'}
     ]},
     {title:'الحوكمة والعقود',items:[
       {v:'newbl',t:'حفظ أساس جديد (Baseline v'+blN+')',icon:'📌'},
@@ -76,12 +82,13 @@ async function openProjectMenu(projectId, projectName){
   document.getElementById('tkBody').innerHTML='<div class="skeleton" style="height:200px"></div>';
   // جلب مباشر وحصري من القاعدة — الحقيقة الوحيدة المعتمَدة لهذه القيمة تحديدًا، بلا أي
   // اعتماد على حالة محفوظة في ذاكرة المتصفح مهما كان مصدرها أو مدى حداثتها المفترضة.
-  let freshTrelloSync=undefined;
+  let freshTrelloSync=undefined,freshLifecycleState=undefined;
   try{
-    const {data}=await sb.from('pmo_projects').select('trello_last_synced_at').eq('id',projectId).maybeSingle();
+    const {data}=await sb.from('pmo_projects').select('trello_last_synced_at,lifecycle_state').eq('id',projectId).maybeSingle();
     freshTrelloSync=data?data.trello_last_synced_at:null;
-  }catch(e){freshTrelloSync=null;}
-  const groups=projectMenuGroups(projectId,freshTrelloSync);
+    freshLifecycleState=data?(data.lifecycle_state||'active'):'active';
+  }catch(e){freshTrelloSync=null;freshLifecycleState='active';}
+  const groups=projectMenuGroups(projectId,freshTrelloSync,freshLifecycleState);
   document.getElementById('tkBody').innerHTML=groups.map(g=>`
     <div class="pmenu-group${g.danger?' pmenu-danger':''}">
       <h4>${esc(g.title)}</h4>
@@ -146,6 +153,29 @@ async function runProjectMenuAction(action,projectId,projectName){
       toast('استُرجعت الخطة من نسخة الأمان','ok');
       if(PROJECT&&PROJECT._dbId===projectId){await loadProject(CID,PID);render();}
     }catch(e){toast('تعذّر الاسترجاع: '+e.message,'err');}
+  }else if(action==='pause'){
+    const r=await dialog({title:'إيقاف مؤقت',
+      message:'سيتوقف هذا المشروع تحديدًا مؤقتًا — بياناته وبنوده تبقى كما هي كاملة، ولا يتأثر أي مشروع آخر لنفس العميل. يمكن استئنافه في أي وقت.',
+      fields:[{key:'reason',label:'السبب (اختياري)',value:''}],confirmText:'إيقاف مؤقت'});
+    if(!r)return;
+    try{
+      const {data}=await rpcPauseProject(projectId,r.reason);
+      if(data&&data.ok){
+        toast('أُوقف المشروع مؤقتًا','ok');
+        if(PROJECT&&PROJECT._dbId===projectId){PROJECT.lifecycleState='paused';render();}
+        if(SCREEN==='portfolio')renderPortfolio();
+      }else toast((data&&data.error)||'تعذّر الإيقاف','err');
+    }catch(e){toast('تعذّر الإيقاف: '+e.message,'err');}
+  }else if(action==='resume'){
+    if(!await confirmDialog('استئناف المشروع','استئناف «'+(projectName||'')+'»؟ يعود نشطًا فورًا كما كان.',false))return;
+    try{
+      const {data}=await rpcResumeProject(projectId);
+      if(data&&data.ok){
+        toast('استُؤنف المشروع','ok');
+        if(PROJECT&&PROJECT._dbId===projectId){PROJECT.lifecycleState='active';render();}
+        if(SCREEN==='portfolio')renderPortfolio();
+      }else toast((data&&data.error)||'تعذّر الاستئناف','err');
+    }catch(e){toast('تعذّر الاستئناف: '+e.message,'err');}
   }else if(action==='archive'){
     await runLifecycleAction({
       title:'أرشفة المشروع',
