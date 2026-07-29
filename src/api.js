@@ -79,6 +79,7 @@ async function loadProject(clientId, projectId){
     (depMapX[d.task_id]=depMapX[d.task_id]||[]).push({_id:d.id,ref:rf,type:d.dep_type||'FS',lag:d.lag||0});});
   const reqMap={};reqs.forEach(r=>{(reqMap[r.task_id]=reqMap[r.task_id]||[]).push({_id:r.id,desc:r.description,owner:r.owner,sla:r.sla_days,blocking:r.blocking,requested:r.requested_at||'',received:r.received_at||''});});
   PROJECT={_dbId:p.id,name:p.name,slug:p.slug,start:p.start_date,status:p.status,lifecycle:p.lifecycle,contractValue:p.contract_value,
+    lifecycleState:p.lifecycle_state||'active',
     trelloLastSync:p.trello_last_synced_at,
     baseline:(bl&&bl.length)?{snapshot:bl[bl.length-1].snapshot}:null,
     baselines:bl||[],
@@ -349,6 +350,8 @@ async function insertProjectForClient(clientId, name, startDate){
 async function rpcArchiveProject(id){return await sb.rpc('pmo_archive_project',{p_project:id});}
 async function rpcRestoreProject(id){return await sb.rpc('pmo_restore_project',{p_project:id});}
 async function rpcRequestProjectDeletion(id){return await sb.rpc('pmo_request_project_deletion',{p_project:id});}
+async function rpcPauseProject(id,reason){return await sb.rpc('pmo_pause_project',{p_project_id:id,p_reason:reason||null});}
+async function rpcResumeProject(id){return await sb.rpc('pmo_resume_project',{p_project_id:id});}
 async function rpcPurgeProject(id){return await sb.rpc('pmo_purge_project',{p_project:id});}
 async function renameProject(id,name){const{error}=await sb.from('pmo_projects').update({name}).eq('id',id);if(error)throw error;}
 async function fetchProjectSlug(id){
