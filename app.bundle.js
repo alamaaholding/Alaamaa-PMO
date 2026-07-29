@@ -1,4 +1,4 @@
-const BUILD_V='efa3630f';
+const BUILD_V='94f0cb13';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -101,30 +101,33 @@ function canSeeClient(clientId,clientProjects){
 // كاملة داخل كل مشروع بمفرده عبر الجانت (شبكة التبعيات الكاملة)، ويكلف كثيرًا حسابه لكل
 // مشروع في المحفظة دفعة واحدة. الترتيب أدناه هو ترتيب الأولوية عند التجميع لعدة مشاريع.
 const PROJECT_STATUS_DEFS=[
-  {key:'blocked',   priority:1,icon:'🔴',label:'متوقف',        color:'var(--crit)',  bg:'var(--crit-bg)'},
-  {key:'attention', priority:2,icon:'🟠',label:'يحتاج انتباه',  color:'#B5651D',      bg:'var(--warn-bg)'},
+  {key:'blocked',   priority:0,icon:'🔴',label:'متوقف',        color:'var(--crit)',  bg:'var(--crit-bg)'},
+  {key:'attention', priority:1,icon:'🟠',label:'يحتاج انتباه',  color:'#B5651D',      bg:'var(--warn-bg)'},
+  {key:'paused',    priority:2,icon:'⏸',label:'متوقف مؤقتًا',   color:'var(--muted)', bg:'var(--soft-2)'},
   {key:'at_risk',   priority:3,icon:'🟡',label:'قد يحتاج مراجعة',color:'var(--warn)', bg:'var(--warn-bg)'},
   {key:'not_started',priority:4,icon:'🔵',label:'لم يبدأ التنفيذ',color:'var(--blue)', bg:'var(--blue-bg)'},
   {key:'active',    priority:5,icon:'🟢',label:'نشط وعلى المسار',color:'var(--ok)',   bg:'var(--ok-bg)'},
   {key:'done',      priority:6,icon:'✅',label:'مكتمل',         color:'var(--ok)',    bg:'var(--ok-bg)'}
 ];
+const statusByKey={};PROJECT_STATUS_DEFS.forEach(s=>{statusByKey[s.key]=s;});
 function computeProjectStatus(row){
+  if(row.lifecycle_state==='paused')return statusByKey.paused;
   const total=Number(row.total_tasks||0),done=Number(row.done_tasks||0),blocked=Number(row.blocked_tasks||0);
   const pending=Number(row.pending_client_reqs||0),discuss=Number(row.open_comments||0);
-  if(blocked>0)return PROJECT_STATUS_DEFS[0];
-  if(pending>0||discuss>0)return PROJECT_STATUS_DEFS[1];
-  if(total===0||row.lifecycle==='proposal'||row.status==='draft')return PROJECT_STATUS_DEFS[3];
-  if(total>0&&done===total)return PROJECT_STATUS_DEFS[5];
+  if(blocked>0)return statusByKey.blocked;
+  if(pending>0||discuss>0)return statusByKey.attention;
+  if(total===0||row.lifecycle==='proposal'||row.status==='draft')return statusByKey.not_started;
+  if(total>0&&done===total)return statusByKey.done;
   if(row.start_date){
     const days=(Date.now()-new Date(row.start_date).getTime())/86400000;
     const pct=total?done/total:0;
-    if(days>30&&pct<0.2)return PROJECT_STATUS_DEFS[2];
+    if(days>30&&pct<0.2)return statusByKey.at_risk;
   }
-  return PROJECT_STATUS_DEFS[4];
+  return statusByKey.active;
 }
 // لعميل بعدة مشاريع: الحالة الأسوأ (الأعلى أولوية) بين كل مشاريعه النشطة
 function worstProjectStatus(rows){
-  if(!rows||!rows.length)return PROJECT_STATUS_DEFS[3];
+  if(!rows||!rows.length)return statusByKey.not_started;
   let worst=null;
   rows.forEach(r=>{const s=computeProjectStatus(r);if(!worst||s.priority<worst.priority)worst=s;});
   return worst;
@@ -538,6 +541,7 @@ async function loadProject(clientId, projectId){
     (depMapX[d.task_id]=depMapX[d.task_id]||[]).push({_id:d.id,ref:rf,type:d.dep_type||'FS',lag:d.lag||0});});
   const reqMap={};reqs.forEach(r=>{(reqMap[r.task_id]=reqMap[r.task_id]||[]).push({_id:r.id,desc:r.description,owner:r.owner,sla:r.sla_days,blocking:r.blocking,requested:r.requested_at||'',received:r.received_at||''});});
   PROJECT={_dbId:p.id,name:p.name,slug:p.slug,start:p.start_date,status:p.status,lifecycle:p.lifecycle,contractValue:p.contract_value,
+    lifecycleState:p.lifecycle_state||'active',
     trelloLastSync:p.trello_last_synced_at,
     baseline:(bl&&bl.length)?{snapshot:bl[bl.length-1].snapshot}:null,
     baselines:bl||[],
@@ -808,6 +812,8 @@ async function insertProjectForClient(clientId, name, startDate){
 async function rpcArchiveProject(id){return await sb.rpc('pmo_archive_project',{p_project:id});}
 async function rpcRestoreProject(id){return await sb.rpc('pmo_restore_project',{p_project:id});}
 async function rpcRequestProjectDeletion(id){return await sb.rpc('pmo_request_project_deletion',{p_project:id});}
+async function rpcPauseProject(id,reason){return await sb.rpc('pmo_pause_project',{p_project_id:id,p_reason:reason||null});}
+async function rpcResumeProject(id){return await sb.rpc('pmo_resume_project',{p_project_id:id});}
 async function rpcPurgeProject(id){return await sb.rpc('pmo_purge_project',{p_project:id});}
 async function renameProject(id,name){const{error}=await sb.from('pmo_projects').update({name}).eq('id',id);if(error)throw error;}
 async function fetchProjectSlug(id){
@@ -2257,15 +2263,21 @@ function fmtSyncTime(iso){
   return new Date(iso).toLocaleDateString('ar-SA',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+
     ' — الساعة '+new Date(iso).toLocaleTimeString('ar-SA',{hour:'numeric',minute:'2-digit'});
 }
-function projectMenuGroups(projectId,freshTrelloSync){
+function projectMenuGroups(projectId,freshTrelloSync,freshLifecycleState){
   const blN=((PROJECT&&PROJECT.baselines)||[]).length+1;
   const syncVal=freshTrelloSync!==undefined?freshTrelloSync:
     (PROJECT&&PROJECT._dbId===projectId?PROJECT.trelloLastSync:null);
   const syncTxt=syncVal?'آخر سحب فعلي: '+fmtSyncTime(syncVal):'⚠ لم يُسحَب أي تحديث من Trello بعد إطلاقًا';
+  const lifecycleState=freshLifecycleState!==undefined?freshLifecycleState:
+    (PROJECT&&PROJECT._dbId===projectId?(PROJECT.lifecycleState||'active'):'active');
+  const isPaused=lifecycleState==='paused';
   return [
     {title:'إدارة أساسية',items:[
       {v:'rename',t:'إعادة تسمية المشروع',icon:'✏️'},
-      {v:'editSlug',t:'تعديل الرابط الدائم',icon:'🔗'}
+      {v:'editSlug',t:'تعديل الرابط الدائم',icon:'🔗'},
+      isPaused
+        ?{v:'resume',t:'استئناف المشروع',icon:'▶️'}
+        :{v:'pause',t:'إيقاف مؤقت',icon:'⏸'}
     ]},
     {title:'الحوكمة والعقود',items:[
       {v:'newbl',t:'حفظ أساس جديد (Baseline v'+blN+')',icon:'📌'},
@@ -2290,12 +2302,13 @@ async function openProjectMenu(projectId, projectName){
   document.getElementById('tkBody').innerHTML='<div class="skeleton" style="height:200px"></div>';
   // جلب مباشر وحصري من القاعدة — الحقيقة الوحيدة المعتمَدة لهذه القيمة تحديدًا، بلا أي
   // اعتماد على حالة محفوظة في ذاكرة المتصفح مهما كان مصدرها أو مدى حداثتها المفترضة.
-  let freshTrelloSync=undefined;
+  let freshTrelloSync=undefined,freshLifecycleState=undefined;
   try{
-    const {data}=await sb.from('pmo_projects').select('trello_last_synced_at').eq('id',projectId).maybeSingle();
+    const {data}=await sb.from('pmo_projects').select('trello_last_synced_at,lifecycle_state').eq('id',projectId).maybeSingle();
     freshTrelloSync=data?data.trello_last_synced_at:null;
-  }catch(e){freshTrelloSync=null;}
-  const groups=projectMenuGroups(projectId,freshTrelloSync);
+    freshLifecycleState=data?(data.lifecycle_state||'active'):'active';
+  }catch(e){freshTrelloSync=null;freshLifecycleState='active';}
+  const groups=projectMenuGroups(projectId,freshTrelloSync,freshLifecycleState);
   document.getElementById('tkBody').innerHTML=groups.map(g=>`
     <div class="pmenu-group${g.danger?' pmenu-danger':''}">
       <h4>${esc(g.title)}</h4>
@@ -2360,6 +2373,29 @@ async function runProjectMenuAction(action,projectId,projectName){
       toast('استُرجعت الخطة من نسخة الأمان','ok');
       if(PROJECT&&PROJECT._dbId===projectId){await loadProject(CID,PID);render();}
     }catch(e){toast('تعذّر الاسترجاع: '+e.message,'err');}
+  }else if(action==='pause'){
+    const r=await dialog({title:'إيقاف مؤقت',
+      message:'سيتوقف هذا المشروع تحديدًا مؤقتًا — بياناته وبنوده تبقى كما هي كاملة، ولا يتأثر أي مشروع آخر لنفس العميل. يمكن استئنافه في أي وقت.',
+      fields:[{key:'reason',label:'السبب (اختياري)',value:''}],confirmText:'إيقاف مؤقت'});
+    if(!r)return;
+    try{
+      const {data}=await rpcPauseProject(projectId,r.reason);
+      if(data&&data.ok){
+        toast('أُوقف المشروع مؤقتًا','ok');
+        if(PROJECT&&PROJECT._dbId===projectId){PROJECT.lifecycleState='paused';render();}
+        if(SCREEN==='portfolio')renderPortfolio();
+      }else toast((data&&data.error)||'تعذّر الإيقاف','err');
+    }catch(e){toast('تعذّر الإيقاف: '+e.message,'err');}
+  }else if(action==='resume'){
+    if(!await confirmDialog('استئناف المشروع','استئناف «'+(projectName||'')+'»؟ يعود نشطًا فورًا كما كان.',false))return;
+    try{
+      const {data}=await rpcResumeProject(projectId);
+      if(data&&data.ok){
+        toast('استُؤنف المشروع','ok');
+        if(PROJECT&&PROJECT._dbId===projectId){PROJECT.lifecycleState='active';render();}
+        if(SCREEN==='portfolio')renderPortfolio();
+      }else toast((data&&data.error)||'تعذّر الاستئناف','err');
+    }catch(e){toast('تعذّر الاستئناف: '+e.message,'err');}
   }else if(action==='archive'){
     await runLifecycleAction({
       title:'أرشفة المشروع',
@@ -2724,6 +2760,7 @@ async function openStatusLegend(){
 }
 function legendDescOf(key){
   return {
+    paused:'أُوقف مؤقتًا يدويًا من فريق علامة — بياناته سليمة كاملة، ويُستأنف في أي وقت.',
     blocked:'يحوي بندًا واحدًا متوقفًا على الأقل — يحتاج تدخلًا لفكّ العائق.',
     attention:'لديه متطلب معلَّق من العميل، أو نقاش مفتوح لم يُحسَم بعد.',
     at_risk:'تقدير لا حساب دقيق: مضى أكثر من 30 يومًا منذ البدء والإنجاز أقل من 20٪ — يستحق مراجعة سريعة. (الحساب الدقيق للتأخير الفعلي متاح داخل كل مشروع عبر الجانت).',
