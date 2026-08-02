@@ -1,4 +1,4 @@
-const BUILD_V='459861d7';
+const BUILD_V='a277bf91';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -4362,19 +4362,18 @@ async function openContractDetailPanel(contractId){
   }
 }
 
-// ===== لوحة إنشاء عقد جديد: يختار المستخدم النطاق (مشروع/عميل كامل) والنوع (قياسي/مخصَّص) =====
+// ===== لوحة إنشاء عقد جديد: مستقل تمامًا — لا خيار مشروع هنا إطلاقًا =====
+// الفصل الحقيقي المطلوب: كل عقد يُنشأ هنا مستقلًا (بنطاق العميل)، بلا أي ربط بمشروع.
+// الربط يحدث لاحقًا وحصرًا من داخل ذلك المشروع («🔗 ربط عقد قائم» في تبويب عقوده) —
+// لا خيار "مرتبط بمشروع" هنا نهائيًا، تفاديًا لأي التباس حول أين يحدث الربط فعليًا.
 async function openNewContractPanel(){
-  const rows=(await fetchPortfolio()).data||[];
   const {data:allClients}=await sb.from('pmo_clients').select('id,name').order('name');
   const clients=allClients||[];
   const panel=document.getElementById('chubPanel');
   panel.innerHTML=`<div class="chub-detail">
     <div class="chub-detail-hd"><h3>عقد جديد</h3><button class="reqbtn" id="chnClose" style="margin-inline-start:auto">✕ إغلاق</button></div>
+    <p class="sa-hint">يُنشأ العقد هنا مستقلًا تمامًا، بلا ربط بأي مشروع. لربطه بمشروع لاحقًا، افتح ذلك المشروع ← عقوده ← «🔗 ربط عقد قائم».</p>
 
-    <div class="chub-choice-row">
-      <label class="chub-choice"><input type="radio" name="chnScope" value="project" checked> مرتبط بمشروع محدَّد</label>
-      <label class="chub-choice"><input type="radio" name="chnScope" value="client"> على مستوى العميل كاملًا (بلا مشروع محدَّد)</label>
-    </div>
     <div class="chub-choice-row">
       <label class="chub-choice"><input type="radio" name="chnType" value="standard" checked> نموذج قياسي (17 بندًا رسميًا)</label>
       <label class="chub-choice"><input type="radio" name="chnType" value="custom"> نص مخصَّص أكتبه بنفسي</label>
@@ -4382,8 +4381,6 @@ async function openNewContractPanel(){
 
     <div class="sa-form" style="margin-top:12px">
       <select id="chnClient"><option value="">اختر العميل...</option>${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
-      <select id="chnProject" disabled><option>اختر العميل أولًا</option></select>
-      <select id="chnBl" disabled><option>اختر المشروع أولًا</option></select>
     </div>
     <div id="chnRest" style="display:none;margin-top:14px">
       <div id="chnStandardFields">
@@ -4410,7 +4407,6 @@ async function openNewContractPanel(){
   document.getElementById('chnClose').onclick=()=>{panel.innerHTML='';};
 
   let currentClient={};
-  const scopeOf=()=>document.querySelector('input[name="chnScope"]:checked').value;
   const typeOf=()=>document.querySelector('input[name="chnType"]:checked').value;
   const refreshPreview=()=>{
     document.getElementById('chnPreview').innerHTML=typeOf()==='custom'
@@ -4423,55 +4419,30 @@ async function openNewContractPanel(){
     document.getElementById('chnCustomFields').style.display=isCustom?'':'none';
     refreshPreview();
   };
-  const applyScopeVisibility=()=>{
-    const isClientScope=scopeOf()==='client';
-    document.getElementById('chnProject').style.display=isClientScope?'none':'';
-    document.getElementById('chnBl').style.display=isClientScope?'none':'';
-    if(isClientScope&&document.getElementById('chnClient').value){document.getElementById('chnRest').style.display='';refreshPreview();}
-    else if(!isClientScope){document.getElementById('chnRest').style.display=document.getElementById('chnBl').value?'':'none';}
-  };
-  document.querySelectorAll('input[name="chnScope"]').forEach(r=>r.onchange=applyScopeVisibility);
   document.querySelectorAll('input[name="chnType"]').forEach(r=>r.onchange=applyTypeVisibility);
 
   document.getElementById('chnClient').onchange=async(e)=>{
     const cid=e.target.value;
-    const projSel=document.getElementById('chnProject');
+    if(!cid){document.getElementById('chnRest').style.display='none';return;}
     const {data:clientRow}=await sb.from('pmo_clients').select('*').eq('id',cid).maybeSingle();
     currentClient=clientRow||{};
-    if(!cid){projSel.disabled=true;projSel.innerHTML='<option>اختر العميل أولًا</option>';document.getElementById('chnRest').style.display='none';return;}
-    const projs=rows.filter(r=>r.client_id===cid&&r.project_id);
-    projSel.disabled=false;
-    projSel.innerHTML='<option value="">اختر المشروع...</option>'+(projs.map(p=>`<option value="${p.project_id}">${esc(p.project_name)}</option>`).join('')||'');
-    applyScopeVisibility();
+    document.getElementById('chnRest').style.display='';
+    refreshPreview();
     ['chdValue','chdDate','chdAdSpend','chdSpecial','chdTitle','chdBody'].forEach(id=>{
       const el=document.getElementById(id);
       el.removeEventListener('input',refreshPreview);el.addEventListener('input',refreshPreview);
       el.removeEventListener('change',refreshPreview);el.addEventListener('change',refreshPreview);
     });
   };
-  document.getElementById('chnProject').onchange=async(e)=>{
-    const pid=e.target.value;
-    const blSel=document.getElementById('chnBl');
-    if(!pid){blSel.disabled=true;document.getElementById('chnRest').style.display='none';return;}
-    const {data:bls}=await sb.from('pmo_baselines').select('id,label,approved_at').eq('project_id',pid).order('approved_at',{ascending:false});
-    if(!bls||!bls.length){toast('لا توجد لقطة (Baseline) لهذا المشروع بعد — افتحه وثبّت أساسًا أولًا','warn');document.getElementById('chnRest').style.display='none';return;}
-    blSel.disabled=false;
-    blSel.innerHTML=bls.map(b=>`<option value="${b.id}">${esc(b.label)} — ${new Date(b.approved_at).toLocaleDateString('ar')}</option>`).join('');
-    document.getElementById('chnRest').style.display='';
-    refreshPreview();
-  };
   document.getElementById('chnCreate').onclick=async()=>{
     const cid=document.getElementById('chnClient').value;
-    const scope=scopeOf(),type=typeOf();
-    const pid=scope==='project'?document.getElementById('chnProject').value:null;
-    const blId=scope==='project'?document.getElementById('chnBl').value:null;
+    const type=typeOf();
     if(!cid){toast('اختر العميل','warn');return;}
-    if(scope==='project'&&(!pid||!blId)){toast('أكمل اختيار المشروع واللقطة','warn');return;}
     if(type==='custom'&&!document.getElementById('chdBody').value.trim()){toast('اكتب نص العقد أولًا','warn');return;}
     const btn=document.getElementById('chnCreate');btn.disabled=true;
     try{
       const r=await createContractV2({
-        scopeType:scope,projectId:pid,baselineId:blId,clientId:cid,clientRow:currentClient,
+        scopeType:'client',projectId:null,baselineId:null,clientId:cid,clientRow:currentClient,
         contractType:type,
         customTitle:type==='custom'?document.getElementById('chdTitle').value:null,
         customBody:type==='custom'?document.getElementById('chdBody').value:null,
@@ -4481,7 +4452,7 @@ async function openNewContractPanel(){
         specialTerms:type==='standard'?document.getElementById('chdSpecial').value:null
       });
       if(r&&r.ok){
-        toast('أُنشئ العقد — بانتظار الاعتماد الداخلي قبل الإرسال','ok');panel.innerHTML='';
+        toast('أُنشئ العقد مستقلًا — اربطه بمشروع لاحقًا من داخل ذلك المشروع عند الحاجة','ok');panel.innerHTML='';
         CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();
         openContractDetailPanel(r.id);
       }else toast('تعذّر الإنشاء','err');
