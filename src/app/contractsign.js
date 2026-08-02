@@ -76,12 +76,12 @@ async function renderPublicSign(token){
     :`<div class="pubsig-row pubsig-pending"><b>${label}</b><span>بانتظار التوقيع</span></div>`;
 
   const mergeData={
-    clientName:d.client_name,clientCr:d.client_cr,clientAddress:d.client_address,
+    clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,clientAddress:d.client_address,
     clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title,
     includesAdSpend:d.includes_ad_spend,effectiveDate:d.effective_date,contractValue:d.contract_value,latePaymentCap:d.late_payment_cap,
     specialTerms:d.special_terms
   };
-  const customData={title:d.custom_title,body:d.custom_body,clientName:d.client_name,clientCr:d.client_cr,
+  const customData={title:d.custom_title,body:d.custom_body,clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,
     clientAddress:d.client_address,clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title};
   const contractHtml=isCustom?renderCustomContractHTML(customData):renderMergedContractHTML(mergeContract(mergeData));
   let integrityBadge='';
@@ -103,6 +103,12 @@ async function renderPublicSign(token){
       </div>
       <div class="pubsig-status">${sigRow('علامة',alamaaSig)}${sigRow('العميل',clientSig)}</div>
       ${integrityBadge}
+      ${(d.attachments&&d.attachments.length)?`
+      <div class="pubsign-attach">
+        <b>📎 ملاحق مرفقة بهذا العقد</b>
+        ${d.attachments.map(a=>`<div class="chd-att-row"><span>📄 ${esc(a.label)}</span>${
+          a.url?`<a href="${esc(a.url)}" target="_blank" rel="noopener" class="reqbtn">فتح</a>`:''}</div>`).join('')}
+      </div>`:''}
       <details class="pubsign-fulltext" ${clientSigned?'':'open'}>
         <summary>${clientSigned?'عرض نص العقد الكامل':'📄 اقرأ نص العقد كاملًا قبل التوقيع'}</summary>
         ${contractHtml}
