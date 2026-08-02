@@ -83,7 +83,7 @@ function renderContractsHubBody(){
 
 function chubReadStandardFields(prefix,client){
   return {
-    clientName:client.name,clientCr:client.cr_number,clientAddress:client.national_address_short,
+    clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,clientAddress:client.national_address_short,
     clientRepName:client.rep_name,clientRepTitle:client.rep_title,clientEmail:client.contact_email,clientPhone:client.contact_phone,
     includesAdSpend:document.getElementById(prefix+'AdSpend').checked,
     effectiveDate:document.getElementById(prefix+'Date').value,
@@ -96,7 +96,7 @@ function chubReadCustomFields(prefix,client){
   return {
     title:document.getElementById(prefix+'Title').value,
     body:document.getElementById(prefix+'Body').value,
-    clientName:client.name,clientCr:client.cr_number,clientAddress:client.national_address_short,
+    clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,clientAddress:client.national_address_short,
     clientRepName:client.rep_name,clientRepTitle:client.rep_title,clientEmail:client.contact_email,clientPhone:client.contact_phone
   };
 }
@@ -128,6 +128,7 @@ async function openContractDetailPanel(contractId){
       <h3>${esc(c.contract_name||'عقد بلا اسم')} <span class="chub-num">${esc(c.contract_number||'—')}</span></h3>
       <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
       ${(!c.client_id&&!c.source_contract_id)?'<button class="hbtn" id="chdAssign" style="background:var(--gold);border-color:var(--gold)">👥 إسناد لعميل (إنشاء نسخة)</button>':''}
+      <button class="reqbtn" id="chdDuplicate">📑 تكرار العقد</button>
       ${c.project_id?'<button class="reqbtn" id="chdUnlink">🔓 فك الارتباط بالمشروع</button>':''}
       <button class="reqbtn" id="chdClose" style="margin-inline-start:auto">✕ إغلاق</button>
     </div>
@@ -152,7 +153,7 @@ async function openContractDetailPanel(contractId){
         <input readonly value="${link}" style="width:100%;font-size:.72rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2);margin-top:6px">
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
           <button class="reqbtn" data-chdcopy="${link}">نسخ الرابط</button>
-          ${!isCustom?'<button class="reqbtn" id="chdExport">📄 تصدير PDF</button>':''}
+          <button class="reqbtn" id="chdExport">📄 تصدير PDF (بالملاحق)</button>
         </div>
       </div>
 
@@ -196,11 +197,56 @@ async function openContractDetailPanel(contractId){
       </div>
     </div>
 
+    <div class="sa-section" style="margin-top:14px">
+      <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للعميل في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
+      <div id="chdAttachments"><div class="skeleton" style="height:40px"></div></div>
+    </div>
+
     <details class="pubsign-fulltext" open>
       <summary>📄 معاينة نص العقد الكامل (حيّة — تتحدّث فورًا مع أي تعديل)</summary>
       <div id="chdPreview"></div>
     </details>
   </div>`;
+
+  // ===== المرفقات =====
+  const renderAttachments=async()=>{
+    const box=document.getElementById('chdAttachments');
+    if(!box)return;
+    let atts=[];
+    try{ atts=await fetchContractAttachments(contractId); }
+    catch(e){ box.innerHTML='<p class="sa-hint">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
+    const planAtt=c.baseline_id?`<div class="chd-att-row"><span>📋 <b>ملحق (١) — الخطة المعتمدة</b>
+        <span class="sa-hint">${esc(c.baseline_label||'')} · يُدرَج تلقائيًا في تصدير PDF</span></span>
+        <span class="chub-type-tag">تلقائي</span></div>`:'';
+    box.innerHTML=planAtt+(atts.length?atts.map(a=>`
+      <div class="chd-att-row">
+        <span>📄 <b>${esc(a.label)}</b>${a.url?` <a href="${esc(a.url)}" target="_blank" rel="noopener" class="sa-hint" style="text-decoration:underline">فتح الرابط</a>`:''}</span>
+        ${editable?`<button class="reqbtn" data-delatt="${a.id}" style="color:var(--crit)">حذف</button>`:''}
+      </div>`).join(''):(planAtt?'':'<p class="sa-hint">لا مرفقات إضافية بعد.</p>'))
+      +(editable?`
+      <div class="sa-form" style="margin-top:12px;flex-wrap:wrap">
+        <input id="chdAttLabel" placeholder="اسم المستند (مثال: كشف الأسعار)" style="flex:1;min-width:160px">
+        <input id="chdAttUrl" placeholder="https://..." style="flex:1;min-width:200px" dir="ltr">
+        <button class="reqbtn" id="chdAttAdd">إضافة مرفق</button>
+      </div>
+      <p class="sa-hint" style="margin-top:6px">ارفع الملف على Drive أو أي مساحة تخزين، ثم الصق رابطه هنا ليظهر للعميل مع العقد.</p>`
+      :'<p class="sa-hint" style="margin-top:8px">🔒 لا يمكن تعديل مرفقات عقد وقّع عليه طرف.</p>');
+
+    if(editable){
+      document.getElementById('chdAttAdd').onclick=async()=>{
+        const label=document.getElementById('chdAttLabel').value.trim();
+        const url=document.getElementById('chdAttUrl').value.trim();
+        if(!label){toast('أدخل اسم المستند','warn');return;}
+        try{ await addContractAttachment(contractId,label,url,'link',null); toast('أُضيف المرفق','ok'); await renderAttachments(); }
+        catch(e){toast(e.message,'err');}
+      };
+      document.querySelectorAll('[data-delatt]').forEach(b=>b.onclick=async()=>{
+        try{ await deleteContractAttachment(b.dataset.delatt); toast('حُذف المرفق','ok'); await renderAttachments(); }
+        catch(e){toast(e.message,'err');}
+      });
+    }
+  };
+  renderAttachments();
 
   const refreshPreview=async()=>{
     if(isCustom){
@@ -283,7 +329,26 @@ async function openContractDetailPanel(contractId){
     try{await navigator.clipboard.writeText(b.dataset.chdcopy);toast('نُسخ الرابط','ok');}
     catch(e){toast('انسخ الرابط يدويًا','warn');}
   });
-  if(!isCustom){const exportBtn=document.getElementById('chdExport');if(exportBtn)exportBtn.onclick=()=>buildContractDoc(c.baseline_id,c);}
+  {const exportBtn=document.getElementById('chdExport');
+   if(exportBtn)exportBtn.onclick=async()=>{
+     exportBtn.disabled=true;const old=exportBtn.textContent;exportBtn.textContent='جارٍ التحضير...';
+     try{
+       let atts=[];try{atts=await fetchContractAttachments(contractId);}catch(e){}
+       await buildContractDoc(c.baseline_id,c,atts);
+     }catch(e){toast('تعذّر التصدير: '+e.message,'err');}
+     exportBtn.disabled=false;exportBtn.textContent=old;
+   };}
+  document.getElementById('chdDuplicate').onclick=async()=>{
+    const r=await dialog({title:'تكرار العقد',
+      message:'ستُنشأ نسخة جديدة مستقلة بكل بيانات هذا العقد ومرفقاته، بلا عميل ولا مشروع — قابلة للتعديل والإسناد كأصل جديد.',
+      fields:[{key:'name',label:'اسم النسخة الجديدة',value:(c.contract_name||'')+' (نسخة)'}],confirmText:'تكرار'});
+    if(!r)return;
+    try{
+      const d=await duplicateContract(contractId,r.name);
+      toast('تم التكرار ('+d.number+')','ok');
+      CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(d.id);
+    }catch(e){toast(e.message,'err');}
+  };
   if(canApprove){
     document.getElementById('chdApprove').onclick=async()=>{
       if(!await confirmDialog('اعتماد داخلي','بعد الاعتماد، يصبح هذا العقد قابلًا للإرسال والتوقيع من الطرفين. متابعة؟',false,'اعتماد'))return;
