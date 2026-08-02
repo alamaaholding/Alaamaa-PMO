@@ -35,3 +35,11 @@ print('index.html:',len(html),'حرف (هيكل فقط)')
 print('app.bundle.js:',round(len(core_js)/1024,1),'KB (نواة قابلة للتخزين)')
 for n,c in lazy_js.items(): print(n+':',round(len(c)/1024,1),'KB (كسول)')
 print('styles.css:',round(len(css)/1024,1),'KB')
+
+# ===== حارس النشر: قائمة الملفات المُولَّدة التي يجب نشرها معًا دائمًا =====
+# سبب وجودها: البناء يُولّد ملفات جذرية (styles.css, app.bundle.js, ...) من مصادرها في src/.
+# نشر المصدر وحده لا يغيّر شيئًا على الموقع الحي — الصفحة تخدم الملفات الجذرية فقط.
+# حدث هذا فعليًا: نُشر src/styles.css ونُسي styles.css الجذري، فبقيت الأنماط غائبة تمامًا.
+DEPLOY_ARTIFACTS = ['app.bundle.js','styles.css','index.html'] + [os.path.basename(f) for f in LAZY]
+print('\n⚠ ملفات يجب نشرها معًا (مُولَّدة — نشر src/ وحده لا يكفي):')
+print('   ' + '  '.join(DEPLOY_ARTIFACTS))
