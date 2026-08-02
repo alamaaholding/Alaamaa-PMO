@@ -81,8 +81,11 @@ function renderContractsHubBody(){
   $$('#chubBody [data-chubopen]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.chubopen));
 }
 
+let CHD_OVERRIDES={excluded:[],added:[]};
+let CHD_TEMPLATE='alamaa_v1';
 function chubReadStandardFields(prefix,client){
   return {
+    templateKey:CHD_TEMPLATE, clauseOverrides:CHD_OVERRIDES,
     clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,clientAddress:client.national_address_short,
     clientRepName:client.rep_name,clientRepTitle:client.rep_title,clientEmail:client.contact_email,clientPhone:client.contact_phone,
     includesAdSpend:document.getElementById(prefix+'AdSpend').checked,
@@ -197,6 +200,15 @@ async function openContractDetailPanel(contractId){
       </div>
     </div>
 
+    ${(!isCustom&&editable)?`
+    <div class="sa-section" style="margin-top:14px">
+      <h4>📋 نموذج العقد وبنوده <span class="sa-hint">اختر النموذج، واستبعد أو أضف بنودًا لهذا العقد تحديدًا</span></h4>
+      <div class="sa-form" style="margin-bottom:12px">
+        <select id="chdTemplate">${Object.values(CONTRACT_TEMPLATES).map(t=>
+          `<option value="${t.key}" ${(c.template_key||'alamaa_v1')===t.key?'selected':''}>${esc(t.label)}</option>`).join('')}</select>
+      </div>
+      <div id="chdClauses"></div>
+    </div>`:''}
     <div class="sa-section" style="margin-top:14px">
       <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للعميل في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
       <div id="chdAttachments"><div class="skeleton" style="height:40px"></div></div>
@@ -207,6 +219,56 @@ async function openContractDetailPanel(contractId){
       <div id="chdPreview"></div>
     </details>
   </div>`;
+
+  // ===== نموذج العقد ومحرر البنود =====
+  CHD_TEMPLATE=c.template_key||'alamaa_v1';
+  CHD_OVERRIDES=Object.assign({excluded:[],added:[]},c.clause_overrides||{});
+  if(!Array.isArray(CHD_OVERRIDES.excluded))CHD_OVERRIDES.excluded=[];
+  if(!Array.isArray(CHD_OVERRIDES.added))CHD_OVERRIDES.added=[];
+
+  const renderClauses=()=>{
+    const box=document.getElementById('chdClauses');
+    if(!box)return;
+    const tpl=(CONTRACT_TEMPLATES[CHD_TEMPLATE]||CONTRACT_TEMPLATES.alamaa_v1).tpl;
+    box.innerHTML=`
+      <p class="sa-hint" style="margin-bottom:8px">إلغاء تحديد بند يجعله «غير منطبق» في هذا العقد — <b>يبقى برقمه</b> ولا تُزاح أرقام بقية البنود، حفاظًا على سلامة الإحالات بينها.</p>
+      <div class="chd-clause-grid">
+        ${tpl.sections.map(sec=>`
+          <label class="chd-clause ${CHD_OVERRIDES.excluded.includes(sec.num)?'chd-clause-off':''}">
+            <input type="checkbox" data-clause="${sec.num}" ${CHD_OVERRIDES.excluded.includes(sec.num)?'':'checked'}>
+            <span>${esc(sec.num)}. ${esc(sec.title)}</span>
+          </label>`).join('')}
+      </div>
+      ${CHD_OVERRIDES.added.length?`<div style="margin-top:12px"><b style="font-size:.85rem">بنود مضافة:</b>
+        ${CHD_OVERRIDES.added.map((a,i)=>`<div class="chd-att-row"><span>${esc(a.num||'')} ${esc(a.title)}</span>
+          <button class="reqbtn" data-delclause="${i}" style="color:var(--crit)">حذف</button></div>`).join('')}</div>`:''}
+      <div class="sa-form" style="margin-top:12px;flex-wrap:wrap">
+        <input id="chdNewClauseNum" placeholder="الرقم (مثال: ١٦.٧)" style="width:130px">
+        <input id="chdNewClauseTitle" placeholder="عنوان البند الجديد" style="flex:1;min-width:160px">
+        <button class="reqbtn" id="chdAddClause">إضافة بند</button>
+      </div>
+      <textarea id="chdNewClauseBody" placeholder="نص البند الجديد..." style="width:100%;min-height:60px;margin-top:8px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px"></textarea>`;
+
+    box.querySelectorAll('[data-clause]').forEach(cb=>cb.onchange=()=>{
+      const num=cb.dataset.clause;
+      if(cb.checked)CHD_OVERRIDES.excluded=CHD_OVERRIDES.excluded.filter(x=>x!==num);
+      else if(!CHD_OVERRIDES.excluded.includes(num))CHD_OVERRIDES.excluded.push(num);
+      renderClauses();refreshPreview();
+    });
+    box.querySelectorAll('[data-delclause]').forEach(b=>b.onclick=()=>{
+      CHD_OVERRIDES.added.splice(Number(b.dataset.delclause),1);renderClauses();refreshPreview();
+    });
+    document.getElementById('chdAddClause').onclick=()=>{
+      const title=document.getElementById('chdNewClauseTitle').value.trim();
+      if(!title){toast('أدخل عنوان البند','warn');return;}
+      CHD_OVERRIDES.added.push({
+        num:document.getElementById('chdNewClauseNum').value.trim()||null,
+        title,body:document.getElementById('chdNewClauseBody').value});
+      renderClauses();refreshPreview();
+    };
+  };
+  {const ts=document.getElementById('chdTemplate');
+   if(ts)ts.onchange=()=>{CHD_TEMPLATE=ts.value;CHD_OVERRIDES.excluded=[];renderClauses();refreshPreview();};}
 
   // ===== المرفقات =====
   const renderAttachments=async()=>{
@@ -265,6 +327,7 @@ async function openContractDetailPanel(contractId){
     }
   };
   await refreshPreview();
+  renderClauses();
   const watchIds=isCustom?['chdTitle','chdBody']:['chdValue','chdDate','chdAdSpend','chdSpecial'];
   if(editable)watchIds.forEach(id=>{
     document.getElementById(id).addEventListener('input',refreshPreview);
