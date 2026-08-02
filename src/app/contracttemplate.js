@@ -266,6 +266,11 @@ function mergeContract(data){
     if(excluded.has(s.num)){
       return {num:s.num,title:s.title,body:'لا ينطبق — حُذف هذا البند باتفاق الطرفين في هذا العقد تحديدًا.',removed:true};
     }
+    // نص محرَّر يدويًا لهذا العقد تحديدًا — يتجاوز نص النموذج الأصلي
+    const ed=(ov.edited||{})[s.num];
+    if(ed&&(ed.body||ed.title)){
+      return {num:s.num,title:ed.title||s.title,body:sub(ed.body!=null?ed.body:s.body),edited:true};
+    }
     if(s.conditional==='ad_spend'&&!adSpend){
       return {num:s.num,title:s.title,body:s.bodyIfExcluded};
     }
