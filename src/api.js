@@ -583,7 +583,8 @@ async function createContractV2(opts){
     p_custom_title:opts.customTitle||null, p_custom_body:opts.customBody||null,
     p_includes_ad_spend:!!opts.includesAdSpend, p_effective_date:opts.effectiveDate||null,
     p_contract_value:opts.contractValue!=null?Number(opts.contractValue):null, p_document_hash:hash,
-    p_contract_name:opts.contractName||null, p_contract_number:opts.contractNumber||null
+    p_contract_name:opts.contractName||null, p_contract_number:opts.contractNumber||null,
+    p_template_key:opts.templateKey||'alamaa_v1'
   });
   if(error)throw error;return data;
 }
@@ -651,7 +652,9 @@ async function updateContract(contractId,opts){
     p_custom_title:opts.customTitle||null,
     p_custom_body:opts.customBody||null,
     p_contract_name:opts.contractName||null,
-    p_contract_number:opts.contractNumber||null
+    p_contract_number:opts.contractNumber||null,
+    p_template_key:opts.templateKey||null,
+    p_clause_overrides:opts.clauseOverrides||null
   });
   if(error)throw error;
   if(!data.ok)throw new Error(
