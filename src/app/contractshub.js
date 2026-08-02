@@ -34,7 +34,10 @@ function renderContractsHubBody(){
   const q=CH_FILTER.q.trim().toLowerCase();
   const filtered=CH_CONTRACTS.filter(c=>{
     if(CH_FILTER.status!=='all'&&c.status!==CH_FILTER.status)return false;
-    if(q&&!(c.client_name.toLowerCase().includes(q)||(c.project_name||'').toLowerCase().includes(q)))return false;
+    if(q){
+      const hay=[c.contract_name,c.contract_number,c.client_name,c.project_name].filter(Boolean).join(' ').toLowerCase();
+      if(!hay.includes(q))return false;
+    }
     return true;
   });
 
@@ -43,12 +46,13 @@ function renderContractsHubBody(){
     return `<div class="chub-row" data-chubopen="${c.id}" role="button" tabindex="0">
       <div class="chub-row-main">
         <div class="chub-row-hd">
-          <b>${esc(c.client_name)}</b><span class="chub-sep">·</span>${esc(c.project_name)}
+          <span class="chub-num">${esc(c.contract_number||'—')}</span>
+          <b>${esc(c.contract_name||'عقد بلا اسم')}</b>
           <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
           <span class="chub-type-tag">${c.contract_type==='custom'?'📝 نص مخصَّص':'📋 قياسي'}</span>
           ${!c.internal_approved&&c.status!=='void'&&!(al||cl)?'<span class="chub-type-tag chub-pending-tag">⏳ بانتظار الاعتماد الداخلي</span>':''}
         </div>
-        <div class="sa-hint">${c.baseline_label?esc(c.baseline_label)+' · ':''}${c.includes_ad_spend?'يشمل إنفاقًا إعلانيًا':'بلا إنفاق إعلاني'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}
+        <div class="sa-hint">${c.client_name?'👤 '+esc(c.client_name):'👤 غير مُسنَد لعميل بعد'}${c.project_name?' · 📁 '+esc(c.project_name):' · 📁 غير مرتبط بمشروع'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}
           · علامة: ${al?esc(al.name):'—'} · العميل: ${cl?esc(cl.name):'—'}</div>
       </div>
       <span class="chub-row-arrow">فتح ←</span>
@@ -119,17 +123,17 @@ async function openContractDetailPanel(contractId){
   const panel=document.getElementById('chubPanel');
   panel.innerHTML=`<div class="chub-detail">
     <div class="chub-detail-hd">
-      <h3>${esc(c.client_name)}${c.project_name!=='— (عقد على مستوى الشركة)'?' · '+esc(c.project_name):' — عقد على مستوى الشركة'}</h3>
+      <h3>${esc(c.contract_name||'عقد بلا اسم')} <span class="chub-num">${esc(c.contract_number||'—')}</span></h3>
       <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
       ${c.project_id?'<button class="reqbtn" id="chdUnlink">🔓 فك الارتباط بالمشروع</button>':''}
       <button class="reqbtn" id="chdClose" style="margin-inline-start:auto">✕ إغلاق</button>
     </div>
 
-    ${!c.internal_approved&&c.status!=='void'?`
+    ${(!c.internal_approved&&c.status!=='void'&&!anySigned)?`
     <div class="chub-approval-banner ${canApprove?'':'chub-approval-locked'}">
       <div><b>⏳ بانتظار الاعتماد الداخلي</b><br><span class="sa-hint">لا يمكن إرسال هذا العقد أو توقيعه من أي طرف قبل اعتماده داخليًا أولًا.</span></div>
       ${canApprove?'<button class="hbtn" id="chdApprove" style="background:var(--ok);border-color:var(--ok);color:#fff">✅ اعتماد داخلي الآن</button>':'<span class="sa-hint">بصلاحية مالك/مدير المنصة</span>'}
-    </div>`:c.internal_approved?`<div class="ctr-integrity ok">✅ معتمد داخليًا — قابل للإرسال والتوقيع</div>`:''}
+    </div>`:(c.internal_approved||anySigned)?`<div class="ctr-integrity ok">✅ معتمد داخليًا — قابل للإرسال والتوقيع</div>`:''}
 
     <div class="chub-detail-grid">
       <div class="chub-qr-box">
@@ -143,6 +147,13 @@ async function openContractDetailPanel(contractId){
       </div>
 
       <div class="chub-fields-box">
+        ${editable?`
+        <div class="sa-form" style="flex-wrap:wrap;margin-bottom:12px">
+          <input id="chdName" placeholder="اسم العقد" value="${esc(c.contract_name||'')}" style="flex:1;min-width:180px;font-weight:700">
+          <input id="chdNumber" placeholder="رقم العقد" value="${esc(c.contract_number||'')}" style="width:150px;font-family:monospace" dir="ltr">
+        </div>`:`
+        <input id="chdName" type="hidden" value="${esc(c.contract_name||'')}">
+        <input id="chdNumber" type="hidden" value="${esc(c.contract_number||'')}">`}
         ${isCustom?`
           ${editable?`
           <input id="chdTitle" placeholder="عنوان العقد" value="${esc(c.custom_title||'')}" style="width:100%;margin-bottom:10px;font-weight:700;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
@@ -236,11 +247,12 @@ async function openContractDetailPanel(contractId){
   if(editable){
     document.getElementById('chdSave').onclick=async()=>{
       const btn=document.getElementById('chdSave');btn.disabled=true;
+      const nameNum={contractName:document.getElementById('chdName').value,contractNumber:document.getElementById('chdNumber').value};
       try{
         if(isCustom){
-          await updateContract(contractId,{customTitle:document.getElementById('chdTitle').value,customBody:document.getElementById('chdBody').value});
+          await updateContract(contractId,Object.assign({customTitle:document.getElementById('chdTitle').value,customBody:document.getElementById('chdBody').value},nameNum));
         }else{
-          await updateContract(contractId,chubReadStandardFields('chd',client));
+          await updateContract(contractId,Object.assign(chubReadStandardFields('chd',client),nameNum));
         }
         toast('حُفظت التعديلات وثُبِّتت','ok');
         CH_CONTRACTS=await fetchAllContracts();
@@ -269,17 +281,21 @@ async function openNewContractPanel(){
   const panel=document.getElementById('chubPanel');
   panel.innerHTML=`<div class="chub-detail">
     <div class="chub-detail-hd"><h3>عقد جديد</h3><button class="reqbtn" id="chnClose" style="margin-inline-start:auto">✕ إغلاق</button></div>
-    <p class="sa-hint">يُنشأ العقد هنا مستقلًا تمامًا، بلا ربط بأي مشروع. لربطه بمشروع لاحقًا، افتح ذلك المشروع ← عقوده ← «🔗 ربط عقد قائم».</p>
+    <p class="sa-hint">العقد كيان مستقل في المحفظة: يُنشأ هنا باسمه ورقمه الخاصَّين، بلا ربط بمشروع، والعميل اختياري. الربط بمشروع يحدث لاحقًا من داخل ذلك المشروع ← عقوده ← «🔗 ربط عقد قائم».</p>
 
     <div class="chub-choice-row">
       <label class="chub-choice"><input type="radio" name="chnType" value="standard" checked> نموذج قياسي (17 بندًا رسميًا)</label>
       <label class="chub-choice"><input type="radio" name="chnType" value="custom"> نص مخصَّص أكتبه بنفسي</label>
     </div>
 
-    <div class="sa-form" style="margin-top:12px">
-      <select id="chnClient"><option value="">اختر العميل...</option>${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+    <div class="sa-form" style="margin-top:12px;flex-wrap:wrap">
+      <input id="chnName" placeholder="اسم العقد *" style="flex:1;min-width:200px;font-weight:700">
+      <input id="chnNumber" placeholder="رقم العقد (تلقائي إن تُرك فارغًا)" style="width:220px;font-family:monospace" dir="ltr">
     </div>
-    <div id="chnRest" style="display:none;margin-top:14px">
+    <div class="sa-form" style="margin-top:10px">
+      <select id="chnClient"><option value="">العميل (اختياري — يمكن تحديده لاحقًا عند الربط بمشروع)</option>${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+    </div>
+    <div id="chnRest" style="margin-top:14px">
       <div id="chnStandardFields">
         <div class="sa-form" style="flex-wrap:wrap">
           <input id="chdValue" type="number" placeholder="قيمة العقد (ر.س)">
@@ -318,29 +334,34 @@ async function openNewContractPanel(){
   };
   document.querySelectorAll('input[name="chnType"]').forEach(r=>r.onchange=applyTypeVisibility);
 
+  // العميل اختياري تمامًا: اختياره يُثري المعاينة ببياناته فقط، وغيابه لا يمنع الإنشاء إطلاقًا
   document.getElementById('chnClient').onchange=async(e)=>{
     const cid=e.target.value;
-    if(!cid){document.getElementById('chnRest').style.display='none';return;}
+    if(!cid){currentClient={};refreshPreview();return;}
     const {data:clientRow}=await sb.from('pmo_clients').select('*').eq('id',cid).maybeSingle();
     currentClient=clientRow||{};
-    document.getElementById('chnRest').style.display='';
     refreshPreview();
-    ['chdValue','chdDate','chdAdSpend','chdSpecial','chdTitle','chdBody'].forEach(id=>{
-      const el=document.getElementById(id);
-      el.removeEventListener('input',refreshPreview);el.addEventListener('input',refreshPreview);
-      el.removeEventListener('change',refreshPreview);el.addEventListener('change',refreshPreview);
-    });
   };
+  ['chdValue','chdDate','chdAdSpend','chdSpecial','chdTitle','chdBody'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    el.addEventListener('input',refreshPreview);
+    el.addEventListener('change',refreshPreview);
+  });
+  refreshPreview();
+
   document.getElementById('chnCreate').onclick=async()=>{
-    const cid=document.getElementById('chnClient').value;
+    const cid=document.getElementById('chnClient').value||null;
     const type=typeOf();
-    if(!cid){toast('اختر العميل','warn');return;}
+    const name=document.getElementById('chnName').value.trim();
+    if(!name){toast('أدخل اسم العقد','warn');return;}
     if(type==='custom'&&!document.getElementById('chdBody').value.trim()){toast('اكتب نص العقد أولًا','warn');return;}
     const btn=document.getElementById('chnCreate');btn.disabled=true;
     try{
       const r=await createContractV2({
         scopeType:'client',projectId:null,baselineId:null,clientId:cid,clientRow:currentClient,
         contractType:type,
+        contractName:name,contractNumber:document.getElementById('chnNumber').value.trim()||null,
         customTitle:type==='custom'?document.getElementById('chdTitle').value:null,
         customBody:type==='custom'?document.getElementById('chdBody').value:null,
         includesAdSpend:type==='standard'?document.getElementById('chdAdSpend').checked:false,
@@ -349,7 +370,7 @@ async function openNewContractPanel(){
         specialTerms:type==='standard'?document.getElementById('chdSpecial').value:null
       });
       if(r&&r.ok){
-        toast('أُنشئ العقد مستقلًا — اربطه بمشروع لاحقًا من داخل ذلك المشروع عند الحاجة','ok');panel.innerHTML='';
+        toast('أُنشئ العقد في المحفظة — اربطه بمشروع لاحقًا عند الحاجة','ok');panel.innerHTML='';
         CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();
         openContractDetailPanel(r.id);
       }else toast('تعذّر الإنشاء','err');
