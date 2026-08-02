@@ -84,6 +84,10 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .chub-copy-tag{background:var(--ok-bg);color:var(--ok)}
 .chub-tpl-banner{background:var(--blue-bg);border:1px solid color-mix(in srgb, var(--blue) 25%, transparent);
   border-radius:10px;padding:12px 16px;margin-bottom:16px}
+.chd-clause-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px}
+.chd-clause{display:flex;align-items:center;gap:7px;font-size:.8rem;padding:6px 9px;border-radius:7px;
+  background:var(--soft-2);cursor:pointer;transition:var(--t)}
+.chd-clause-off{opacity:.5;text-decoration:line-through}
 .chd-att-row{display:flex;justify-content:space-between;align-items:center;gap:12px;
   padding:9px 0;border-bottom:1px solid var(--line-soft);font-size:.85rem}
 .chd-att-row:last-child{border-bottom:none}
