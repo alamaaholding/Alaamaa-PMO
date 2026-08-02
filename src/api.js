@@ -659,6 +659,18 @@ async function fetchContractsForProject(projectId){
   const {data,error}=await sb.rpc('pmo_contract_staff_view',{p_project_id:projectId});
   if(error)throw error;return data||[];
 }
+async function linkContractToProject(contractId,projectId,baselineId){
+  const {data,error}=await sb.rpc('pmo_link_contract_to_project',{p_contract_id:contractId,p_project_id:projectId,p_baseline_id:baselineId});
+  if(error)throw error;return data;
+}
+async function unlinkContractFromProject(contractId){
+  const {data,error}=await sb.rpc('pmo_unlink_contract_from_project',{p_contract_id:contractId});
+  if(error)throw error;return data;
+}
+async function fetchUnlinkedClientContracts(clientId){
+  const {data,error}=await sb.rpc('pmo_unlinked_client_contracts',{p_client_id:clientId});
+  if(error)throw error;return data||[];
+}
 async function signContractAsStaff(contractId,name,signatureData){
   const {data,error}=await sb.rpc('pmo_sign_contract_staff',{p_contract_id:contractId,p_name:name,p_signature_data:signatureData});
   if(error)throw error;return data;
