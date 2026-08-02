@@ -1,4 +1,4 @@
-const BUILD_V='c7ce97fb';
+const BUILD_V='459861d7';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1119,6 +1119,18 @@ async function resolveProjectLink(clientRef,projectRef){
 }
 async function fetchContractsForProject(projectId){
   const {data,error}=await sb.rpc('pmo_contract_staff_view',{p_project_id:projectId});
+  if(error)throw error;return data||[];
+}
+async function linkContractToProject(contractId,projectId,baselineId){
+  const {data,error}=await sb.rpc('pmo_link_contract_to_project',{p_contract_id:contractId,p_project_id:projectId,p_baseline_id:baselineId});
+  if(error)throw error;return data;
+}
+async function unlinkContractFromProject(contractId){
+  const {data,error}=await sb.rpc('pmo_unlink_contract_from_project',{p_contract_id:contractId});
+  if(error)throw error;return data;
+}
+async function fetchUnlinkedClientContracts(clientId){
+  const {data,error}=await sb.rpc('pmo_unlinked_client_contracts',{p_client_id:clientId});
   if(error)throw error;return data||[];
 }
 async function signContractAsStaff(contractId,name,signatureData){
@@ -3943,7 +3955,6 @@ async function refreshContractPanel(){
   try{ list=await fetchContractsForProject(PROJECT._dbId); }
   catch(e){ document.getElementById('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
   const STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع العميل',signed:'موقَّع بالكامل ✅',void:'ملغى'};
-  const blOpts=PROJECT.baselines.slice().reverse().map(b=>`<option value="${b.id}">${esc(b.label)} — ${new Date(b.approved_at).toLocaleDateString('ar')}</option>`).join('');
   const rows=list.map(c=>{
     const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
     const link=location.origin+location.pathname+'#/sign/'+c.token;
@@ -3968,6 +3979,7 @@ async function refreshContractPanel(){
         <button class="reqbtn" data-viewtext="${c.id}">عرض نص العقد الكامل</button>
         ${!al?`<button class="reqbtn" data-signalamaa="${c.id}" style="background:var(--ok);border-color:var(--ok);color:#fff">توقيع علامة الآن</button>`:''}
         ${(c.status!=='signed'&&c.status!=='void')?`<button class="reqbtn" data-voidcontract="${c.id}" style="color:var(--crit);border-color:var(--crit-bg)">🗑 إلغاء العقد</button>`:''}
+        <button class="reqbtn" data-unlink="${c.id}">🔓 فك الارتباط بهذا المشروع</button>
       </div>
       <div id="ctText-${c.id}" style="display:none;margin-top:10px"></div>
     </div>`;
@@ -3976,39 +3988,45 @@ async function refreshContractPanel(){
   const clientC=CLIENTS.find(x=>x.id===CID)||{};
   document.getElementById('tkBody').innerHTML=`
     <div class="sa-section" style="margin-bottom:14px">
-      <h4>إنشاء عقد جديد</h4>
-      <div class="sa-form" style="flex-wrap:wrap">
-        <select id="ctNewBl">${blOpts}</select>
-        <input id="ctValue" type="number" placeholder="قيمة العقد (ر.س)" value="${PROJECT.contractValue||''}" style="width:150px">
-        <input id="ctDate" type="date" title="تاريخ سريان العقد" value="${new Date().toISOString().slice(0,10)}">
-        <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="ctAdSpend"> يشمل إدارة إنفاق إعلاني</label>
+      <h4>عقود هذا المشروع <span class="sa-hint">العقد كيان مستقل في محفظة العقود — اربط عقدًا قائمًا بدل إنشاء واحد جديد في كل مرة</span></h4>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="hbtn" id="ctLinkExisting" style="background:var(--gold);border-color:var(--gold)">🔗 ربط عقد قائم بهذا المشروع</button>
+        <button class="reqbtn" id="ctGoHub">+ إنشاء عقد جديد (إدارة العقود)</button>
       </div>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="reqbtn" id="ctPreview">👁 معاينة نص العقد الكامل</button>
-        <button class="hbtn" id="ctCreate" style="background:var(--gold);border-color:var(--gold)">إنشاء العقد</button>
-      </div>
-      <div id="ctPreviewArea" style="display:none;margin-top:14px"></div>
+      <div id="ctLinkPicker" style="display:none;margin-top:14px"></div>
     </div>
     ${rows}
     <div id="ctSignArea"></div>`;
 
-  const buildPreviewData=()=>({
-    clientName:clientC.name,clientCr:clientC.cr_number,clientAddress:clientC.national_address_short,
-    clientRepName:clientC.rep_name,clientRepTitle:clientC.rep_title,clientEmail:clientC.contact_email,clientPhone:clientC.contact_phone,
-    includesAdSpend:document.getElementById('ctAdSpend').checked,
-    effectiveDate:document.getElementById('ctDate').value,
-    contractValue:document.getElementById('ctValue').value,
-    latePaymentCap:document.getElementById('ctValue').value?Math.round(Number(document.getElementById('ctValue').value)*0.03*100)/100:null
-  });
-  document.getElementById('ctPreview').onclick=()=>{
-    const area=document.getElementById('ctPreviewArea');
-    const show=area.style.display==='none';
-    area.style.display=show?'':'none';
-    if(show)area.innerHTML=renderMergedContractHTML(mergeContract(buildPreviewData()));
-  };
-  document.getElementById('ctAdSpend').onchange=document.getElementById('ctValue').oninput=document.getElementById('ctDate').onchange=()=>{
-    const area=document.getElementById('ctPreviewArea');
-    if(area.style.display!=='none')area.innerHTML=renderMergedContractHTML(mergeContract(buildPreviewData()));
+  document.getElementById('ctGoHub').onclick=()=>renderContractsHub();
+  document.getElementById('ctLinkExisting').onclick=async()=>{
+    const picker=document.getElementById('ctLinkPicker');
+    const show=picker.style.display==='none';
+    picker.style.display=show?'':'none';
+    if(!show)return;
+    picker.innerHTML='<div class="skeleton" style="height:60px"></div>';
+    let unlinked;
+    try{ unlinked=await fetchUnlinkedClientContracts(CID); }
+    catch(e){ picker.innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
+    if(!unlinked.length){
+      picker.innerHTML='<p class="sa-hint">لا عقود غير مرتبطة لهذا العميل حاليًا. أنشئ عقدًا جديدًا بنطاق «العميل كاملًا» من إدارة العقود، ثم اربطه هنا لاحقًا.</p>';
+      return;
+    }
+    picker.innerHTML=unlinked.map(u=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line-soft)">
+        <div><b>${u.contract_type==='custom'?esc(u.custom_title||'عقد بنص مخصَّص'):'عقد قياسي'}</b>
+          <span class="sa-hint">${u.contract_value?' · '+Number(u.contract_value).toLocaleString('ar')+' ر.س':''}${u.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}</span></div>
+        <button class="reqbtn" data-linkbl="${u.id}">ربط بهذا المشروع</button>
+      </div>`).join('');
+    document.querySelectorAll('[data-linkbl]').forEach(b=>b.onclick=async()=>{
+      const blSel=PROJECT.baselines[PROJECT.baselines.length-1];
+      if(!blSel){toast('لا توجد لقطة (Baseline) لهذا المشروع','warn');return;}
+      try{
+        const r=await linkContractToProject(b.dataset.linkbl,PROJECT._dbId,blSel.id);
+        if(r&&r.ok){toast('رُبط العقد بهذا المشروع','ok');await refreshContractPanel();}
+        else toast((r&&r.error)||'تعذّر الربط','err');
+      }catch(e){toast('تعذّر الربط: '+e.message,'err');}
+    });
   };
   document.querySelectorAll('[data-viewtext]').forEach(b=>b.onclick=async()=>{
     const c=list.find(x=>x.id===b.dataset.viewtext);
@@ -4041,17 +4059,14 @@ async function refreshContractPanel(){
     }catch(e){toast('تعذّر الإلغاء: '+e.message,'err');}
   });
 
-  document.getElementById('ctCreate').onclick=async()=>{
+  document.querySelectorAll('[data-unlink]').forEach(b=>b.onclick=async()=>{
+    if(!await confirmDialog('فك الارتباط','سيبقى العقد موجودًا في محفظة العقود، لكنه لن يظهر هنا كمرتبط بهذا المشروع بعد الآن. يمكن ربطه بمشروع آخر لاحقًا.',false,'فك الارتباط'))return;
     try{
-      const r=await createContract(PROJECT._dbId,document.getElementById('ctNewBl').value,{
-        includesAdSpend:document.getElementById('ctAdSpend').checked,
-        effectiveDate:document.getElementById('ctDate').value,
-        contractValue:document.getElementById('ctValue').value
-      });
-      if(r&&r.ok){toast('أُنشئ العقد — انسخ الرابط لإرساله للعميل','ok');await refreshContractPanel();}
-      else toast('تعذّر الإنشاء','err');
-    }catch(e){toast('تعذّر الإنشاء: '+e.message,'err');}
-  };
+      const r=await unlinkContractFromProject(b.dataset.unlink);
+      if(r&&r.ok){toast('فُكّ الارتباط — العقد لا يزال في محفظة العقود','ok');await refreshContractPanel();}
+      else toast((r&&r.error)||'تعذّر فك الارتباط','err');
+    }catch(e){toast('تعذّر فك الارتباط: '+e.message,'err');}
+  });
   document.querySelectorAll('[data-copylink]').forEach(b=>b.onclick=async()=>{
     try{await navigator.clipboard.writeText(b.dataset.copylink);toast('نُسخ الرابط','ok');}
     catch(e){toast('انسخ الرابط يدويًا من الحقل','warn');}
@@ -4128,7 +4143,7 @@ function renderContractsHubBody(){
 
   const rows=filtered.map(c=>{
     const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
-    return `<button class="chub-row" data-chubopen="${c.id}">
+    return `<div class="chub-row" data-chubopen="${c.id}" role="button" tabindex="0">
       <div class="chub-row-main">
         <div class="chub-row-hd">
           <b>${esc(c.client_name)}</b><span class="chub-sep">·</span>${esc(c.project_name)}
@@ -4140,7 +4155,7 @@ function renderContractsHubBody(){
           · علامة: ${al?esc(al.name):'—'} · العميل: ${cl?esc(cl.name):'—'}</div>
       </div>
       <span class="chub-row-arrow">فتح ←</span>
-    </button>`;
+    </div>`;
   }).join('')||'<p class="empty">لا عقود تطابق هذا الفلتر.</p>';
 
   $('#chubBody').innerHTML=`
@@ -4209,6 +4224,7 @@ async function openContractDetailPanel(contractId){
     <div class="chub-detail-hd">
       <h3>${esc(c.client_name)}${c.project_name!=='— (عقد على مستوى الشركة)'?' · '+esc(c.project_name):' — عقد على مستوى الشركة'}</h3>
       <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
+      ${c.project_id?'<button class="reqbtn" id="chdUnlink">🔓 فك الارتباط بالمشروع</button>':''}
       <button class="reqbtn" id="chdClose" style="margin-inline-start:auto">✕ إغلاق</button>
     </div>
 
@@ -4295,6 +4311,16 @@ async function openContractDetailPanel(contractId){
 
   if(panel.scrollIntoView)panel.scrollIntoView({behavior:'smooth',block:'start'});
   document.getElementById('chdClose').onclick=()=>{panel.innerHTML='';};
+  if(c.project_id){
+    document.getElementById('chdUnlink').onclick=async()=>{
+      if(!await confirmDialog('فك الارتباط','سيبقى العقد موجودًا في محفظة العقود، لكنه لن يظهر بعد الآن كمرتبط بهذا المشروع.',false,'فك الارتباط'))return;
+      try{
+        const r=await unlinkContractFromProject(contractId);
+        if(r&&r.ok){toast('فُكّ الارتباط','ok');CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();panel.innerHTML='';}
+        else toast((r&&r.error)||'تعذّر فك الارتباط','err');
+      }catch(e){toast('تعذّر فك الارتباط: '+e.message,'err');}
+    };
+  }
   document.querySelectorAll('[data-chdcopy]').forEach(b=>b.onclick=async()=>{
     try{await navigator.clipboard.writeText(b.dataset.chdcopy);toast('نُسخ الرابط','ok');}
     catch(e){toast('انسخ الرابط يدويًا','warn');}
