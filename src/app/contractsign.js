@@ -233,8 +233,8 @@ async function refreshContractPanel(){
     }
     picker.innerHTML=unlinked.map(u=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line-soft)">
-        <div><b>${u.contract_type==='custom'?esc(u.custom_title||'عقد بنص مخصَّص'):'عقد قياسي'}</b>
-          <span class="sa-hint">${u.contract_value?' · '+Number(u.contract_value).toLocaleString('ar')+' ر.س':''}${u.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}</span></div>
+        <div><span class="chub-num">${esc(u.contract_number||'—')}</span> <b>${esc(u.contract_name||u.custom_title||'عقد بلا اسم')}</b>
+          <span class="sa-hint">${u.contract_value?' · '+Number(u.contract_value).toLocaleString('ar')+' ر.س':''}${u.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}${u.has_client?'':' · 🆓 عقد مستقل بلا عميل'}</span></div>
         <button class="reqbtn" data-linkbl="${u.id}">ربط بهذا المشروع</button>
       </div>`).join('');
     document.querySelectorAll('[data-linkbl]').forEach(b=>b.onclick=async()=>{
