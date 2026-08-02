@@ -64,11 +64,13 @@ async function renderPublicSign(token){
     'تعذّر عرض هذا العقد حاليًا.');
 
   if(d.archived) return pubSignError('انتهت صلاحية هذا الرابط العام — المشروع مؤرشف الآن. لعرض التفاصيل، سجّل الدخول من داخل المنصة.',true);
+  if(!d.internal_approved) return pubSignError('هذا العقد قيد المراجعة الداخلية من فريق علامة ولم يُعتمَد بعد للإرسال — يُرجى المحاولة لاحقًا أو التواصل مع من أرسل لك هذا الرابط.');
 
   const clientSigned=(d.signatures||[]).some(s=>s.party==='client');
   const alamaaSig=(d.signatures||[]).find(s=>s.party==='alamaa');
   const clientSig=(d.signatures||[]).find(s=>s.party==='client');
   const fullySigned=d.status==='signed';
+  const isCustom=d.contract_type==='custom';
 
   const sigRow=(label,s)=>s?`<div class="pubsig-row"><b>${label}</b><span>${esc(s.name)} · ${new Date(s.signed_at).toLocaleString('ar')}</span></div>`
     :`<div class="pubsig-row pubsig-pending"><b>${label}</b><span>بانتظار التوقيع</span></div>`;
@@ -76,10 +78,14 @@ async function renderPublicSign(token){
   const mergeData={
     clientName:d.client_name,clientCr:d.client_cr,clientAddress:d.client_address,
     clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title,
-    includesAdSpend:d.includes_ad_spend,effectiveDate:d.effective_date,contractValue:d.contract_value,latePaymentCap:d.late_payment_cap
+    includesAdSpend:d.includes_ad_spend,effectiveDate:d.effective_date,contractValue:d.contract_value,latePaymentCap:d.late_payment_cap,
+    specialTerms:d.special_terms
   };
+  const customData={title:d.custom_title,body:d.custom_body,clientName:d.client_name,clientCr:d.client_cr,
+    clientAddress:d.client_address,clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title};
+  const contractHtml=isCustom?renderCustomContractHTML(customData):renderMergedContractHTML(mergeContract(mergeData));
   let integrityBadge='';
-  if(d.document_hash){
+  if(d.document_hash&&!isCustom){
     try{
       const nowHash=await computeContractHash(mergeData);
       integrityBadge=nowHash===d.document_hash?'':'<div class="ctr-integrity warn">⚠ تنبيه: النص أدناه يختلف عمّا كان وقت إنشاء هذا العقد — تواصل مع علامة قبل التوقيع.</div>';
@@ -92,14 +98,14 @@ async function renderPublicSign(token){
       <h2>${fullySigned?'العقد موقَّع من الطرفين':'توقيع العقد'}</h2>
       <div class="pubsign-meta">
         <div><b>العميل</b><span>${esc(d.client_name)}</span></div>
-        <div><b>المشروع</b><span>${esc(d.project_name)}</span></div>
-        <div><b>اللقطة المرجعية</b><span>${esc(d.baseline_label)} — ${new Date(d.baseline_date).toLocaleDateString('ar')}</span></div>
+        ${d.project_name?`<div><b>المشروع</b><span>${esc(d.project_name)}</span></div>`:''}
+        ${d.baseline_label?`<div><b>اللقطة المرجعية</b><span>${esc(d.baseline_label)} — ${new Date(d.baseline_date).toLocaleDateString('ar')}</span></div>`:''}
       </div>
       <div class="pubsig-status">${sigRow('علامة',alamaaSig)}${sigRow('العميل',clientSig)}</div>
       ${integrityBadge}
       <details class="pubsign-fulltext" ${clientSigned?'':'open'}>
         <summary>${clientSigned?'عرض نص العقد الكامل':'📄 اقرأ نص العقد كاملًا قبل التوقيع'}</summary>
-        ${renderMergedContractHTML(mergeContract(mergeData))}
+        ${contractHtml}
       </details>
       ${fullySigned?`
         <p class="pubsign-note">✅ عقد ساري ومكتمل التوقيع من الطرفين — هذه النسخة للاطّلاع فقط ولا يمكن التعديل عليها.</p>
