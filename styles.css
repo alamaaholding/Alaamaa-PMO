@@ -68,11 +68,35 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
   font-family:inherit;font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer;transition:var(--t)}
 .chub-pill span{color:inherit;opacity:.7;margin-inline-start:3px}
 .chub-pill.active{background:var(--ink);color:#fff;border-color:var(--ink)}
-.chub-row{display:flex;flex-direction:column;gap:10px;padding:16px 0;border-bottom:1px solid var(--line)}
+.chub-list{padding:4px 0}
+.chub-row{display:flex;align-items:center;gap:14px;width:100%;box-sizing:border-box;padding:16px 4px;
+  border:none;border-bottom:1px solid var(--line);background:transparent;cursor:pointer;user-select:none;
+  transition:var(--t);border-radius:8px}
+.chub-row:hover{background:var(--soft-2)}
+.chub-row-main{flex:1;min-width:0}
 .chub-row-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.95rem}
 .chub-sep{color:var(--muted)}
-.chub-row-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-top:4px;border-top:1px dashed var(--line-soft)}
-.chub-row-actions .reqbtn{min-width:80px;text-align:center}
+.chub-row-arrow{font-size:.78rem;font-weight:700;color:var(--gold-dark);white-space:nowrap;flex-shrink:0}
+.chub-type-tag{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--soft-2);color:var(--muted)}
+.chub-pending-tag{background:var(--warn-bg);color:var(--warn)}
+.chub-approval-banner{display:flex;align-items:center;gap:14px;justify-content:space-between;flex-wrap:wrap;
+  background:var(--warn-bg);border:1px solid color-mix(in srgb, var(--warn) 30%, transparent);border-radius:10px;
+  padding:12px 16px;margin-bottom:16px}
+.chub-approval-locked{opacity:.85}
+.chub-choice-row{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px}
+.chub-choice{display:flex;align-items:center;gap:6px;font-size:.85rem;font-weight:600;cursor:pointer;color:var(--ink)}
+.ctr-custom-body{white-space:pre-wrap;line-height:1.8}
+/* ===== اللوحة التفصيلية الموحّدة (عرض/تعديل/إنشاء) ===== */
+.chub-detail{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:20px;margin-top:16px;box-shadow:var(--e2)}
+.chub-detail-hd{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.chub-detail-hd h3{font-size:1.1rem;font-weight:800;margin:0}
+.chub-detail-grid{display:grid;grid-template-columns:220px 1fr;gap:20px;align-items:start}
+@media (max-width:720px){.chub-detail-grid{grid-template-columns:1fr}}
+.chub-qr-box{text-align:center;padding:14px;background:var(--soft-2);border-radius:12px}
+.chub-qr-box img{border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.chub-qr-loading{width:150px;height:150px;display:flex;align-items:center;justify-content:center;margin:0 auto;
+  color:var(--muted);font-size:.8rem;background:#fff;border-radius:8px}
+.chub-fields-box{min-width:0}
 /* ===== قائمة إجراءات المشروع المصنَّفة ===== */
 .pmenu-group{margin-bottom:22px}
 .pmenu-group h4{font-size:.78rem;font-weight:800;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.04em;
@@ -92,6 +116,14 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .pmenu-danger .pmenu-item{background:var(--crit-bg);color:var(--crit)}
 .pmenu-danger .pmenu-item .pmenu-icon{background:#fff}
 .pmenu-danger .pmenu-item:hover{border-color:var(--crit);background:#fff}
+/* ===== نظام حالة المشروع الموحّد ===== */
+.pstatus-badge{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;
+  padding:4px 10px 4px 8px;border-radius:999px;color:var(--sc);background:var(--sbg);
+  border:1px solid color-mix(in srgb, var(--sc) 25%, transparent);white-space:nowrap}
+.pstatus-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;display:inline-block}
+.legend-row{display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--line-soft)}
+.legend-row:last-of-type{border-bottom:none}
+.legend-desc{font-size:.82rem;color:var(--muted);line-height:1.6}
 .ctr-link-badge{background:var(--soft-2);border-inline-start:3px solid var(--gold);font-size:.78rem;
   color:var(--muted);padding:7px 12px;border-radius:8px;margin:6px 0}
 .ctr-link-badge b{color:var(--ink)}
