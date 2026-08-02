@@ -76,6 +76,15 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .chub-row-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.95rem}
 .chub-sep{color:var(--muted)}
 .chub-row-arrow{font-size:.78rem;font-weight:700;color:var(--gold-dark);white-space:nowrap;flex-shrink:0}
+.chub-type-tag{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--soft-2);color:var(--muted)}
+.chub-pending-tag{background:var(--warn-bg);color:var(--warn)}
+.chub-approval-banner{display:flex;align-items:center;gap:14px;justify-content:space-between;flex-wrap:wrap;
+  background:var(--warn-bg);border:1px solid color-mix(in srgb, var(--warn) 30%, transparent);border-radius:10px;
+  padding:12px 16px;margin-bottom:16px}
+.chub-approval-locked{opacity:.85}
+.chub-choice-row{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px}
+.chub-choice{display:flex;align-items:center;gap:6px;font-size:.85rem;font-weight:600;cursor:pointer;color:var(--ink)}
+.ctr-custom-body{white-space:pre-wrap;line-height:1.8}
 /* ===== اللوحة التفصيلية الموحّدة (عرض/تعديل/إنشاء) ===== */
 .chub-detail{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:20px;margin-top:16px;box-shadow:var(--e2)}
 .chub-detail-hd{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
