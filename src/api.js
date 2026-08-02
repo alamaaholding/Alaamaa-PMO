@@ -587,6 +587,18 @@ async function createContractV2(opts){
   });
   if(error)throw error;return data;
 }
+async function assignContractToClient(contractId,clientId){
+  const {data,error}=await sb.rpc('pmo_assign_contract_to_client',{p_contract_id:contractId,p_client_id:clientId});
+  if(error)throw error;
+  if(!data.ok)throw new Error(
+    data.error==='duplicate'?'لهذا العميل نسخة سارية من هذا العقد بالفعل':
+    data.error||'تعذّر الإسناد');
+  return data;
+}
+async function fetchContractInstances(contractId){
+  const {data,error}=await sb.rpc('pmo_contract_instances',{p_contract_id:contractId});
+  if(error)throw error;return data||[];
+}
 async function approveContractInternal(contractId){
   const {data,error}=await sb.rpc('pmo_approve_contract_internal',{p_contract_id:contractId});
   if(error)throw error;
