@@ -69,8 +69,9 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .chub-pill span{color:inherit;opacity:.7;margin-inline-start:3px}
 .chub-pill.active{background:var(--ink);color:#fff;border-color:var(--ink)}
 .chub-list{padding:4px 0}
-.chub-row{display:flex;align-items:center;gap:14px;width:100%;padding:16px 4px;border:none;border-bottom:1px solid var(--line);
-  background:transparent;font-family:inherit;text-align:start;cursor:pointer;transition:var(--t);border-radius:8px}
+.chub-row{display:flex;align-items:center;gap:14px;width:100%;box-sizing:border-box;padding:16px 4px;
+  border:none;border-bottom:1px solid var(--line);background:transparent;cursor:pointer;user-select:none;
+  transition:var(--t);border-radius:8px}
 .chub-row:hover{background:var(--soft-2)}
 .chub-row-main{flex:1;min-width:0}
 .chub-row-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.95rem}
