@@ -1,4 +1,4 @@
-const BUILD_V='aa323896';
+const BUILD_V='2597af39';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1045,7 +1045,8 @@ async function createContractV2(opts){
     p_custom_title:opts.customTitle||null, p_custom_body:opts.customBody||null,
     p_includes_ad_spend:!!opts.includesAdSpend, p_effective_date:opts.effectiveDate||null,
     p_contract_value:opts.contractValue!=null?Number(opts.contractValue):null, p_document_hash:hash,
-    p_contract_name:opts.contractName||null, p_contract_number:opts.contractNumber||null
+    p_contract_name:opts.contractName||null, p_contract_number:opts.contractNumber||null,
+    p_template_key:opts.templateKey||'alamaa_v1'
   });
   if(error)throw error;return data;
 }
@@ -1113,7 +1114,9 @@ async function updateContract(contractId,opts){
     p_custom_title:opts.customTitle||null,
     p_custom_body:opts.customBody||null,
     p_contract_name:opts.contractName||null,
-    p_contract_number:opts.contractNumber||null
+    p_contract_number:opts.contractNumber||null,
+    p_template_key:opts.templateKey||null,
+    p_clause_overrides:opts.clauseOverrides||null
   });
   if(error)throw error;
   if(!data.ok)throw new Error(
@@ -3765,6 +3768,78 @@ const CONTRACT_TEMPLATE = {
   }
 };
 
+
+// ===== النموذج الثاني (alamaa_v2): مبسَّط دوري — مطابق للمستند المعتمَد المرفق =====
+// يختلف عن الأول: نمط دوري فقط (بلا "مشروع محدد النطاق")، والإنفاق الإعلاني مبلغ شهري
+// ثابت مذكور صراحة لا بند إدارة تفصيلي، وبنود ٥ و٦ و١٤ مختصرة، وبلا سقف تعويض تأخير.
+const CONTRACT_TEMPLATE_V2 = {
+  intro: CONTRACT_TEMPLATE.intro,
+  parties: CONTRACT_TEMPLATE.parties,
+  sections:[
+    {num:'٢', title:'تمهيد', body:
+`يهدف هذا العقد إلى تنظيم العلاقة التعاقدية بين الطرفين، وتحديد نطاق الخدمات وآلية تنفيذها، وحقوق والتزامات كل طرف، وآلية احتساب الأتعاب، وذلك وفق الخطة المرفقة (ملحق ١)، والتي تُعد جزءًا لا يتجزأ من هذا العقد.`},
+
+    {num:'٣', title:'التعريفات', body:
+`- الخطة: وثيقة نطاق العمل والمخرجات والجدول الزمني والأتعاب المرفقة بهذا العقد بصفتها ملحقًا (١)، والمعتمدة من الطرفين، وتُعد جزءًا لا يتجزأ من هذا العقد.
+- الأتعاب: المقابل المالي لإدارة علامة للعمل المحدد في الخطة.
+- المخرجات: الأعمال التي تنتجها علامة وتُسلَّم للعميل ضمن النطاق المحدد في الخطة.
+- الأصول: جميع الملفات والمحتويات التي أُنشئت خصيصًا للعميل بموجب هذا العقد من ملفات مصدر، حسابات، صلاحيات، تصاميم، أو بيانات دخول، وفق قائمة تسليم الأصول المرفقة؛ ولا يشمل ذلك بأي حال الأدوات الداخلية، أو القوالب، أو المنهجيات، أو البرمجيات، أو الأصول الفكرية السابقة، والمطورة بصورة مستقلة بواسطة علامة ("الملكية الفكرية السابقة" وفق البند ١٠.١).
+- المعلومات السرية: أي معلومة تجارية أو تقنية أو مالية يفصح عنها أحد الطرفين للآخر، مكتوبة كانت أو شفهية، ويُعقل اعتبارها سرية بحكم طبيعتها أو سياق الإفصاح.
+- جولة التعديل: مراجعة واحدة على مخرَج بناءً على ملاحظات العميل، ضمن السقف المحدد في الخطة.
+- المعتمِد النهائي: ممثل العميل صاحب صلاحية الاعتماد وفق مصفوفة الاعتماد المرفقة.
+- بوابة الاعتماد: نقطة لا يُستكمل العمل قبل اجتيازها.
+- نمط التعاقد: نمط دوري (تشغيل مستمر بأتعاب دورية دون نطاق زمني محدد للعلاقة التعاقدية)، وتُحدَّد صفة كل بند من بنود الخطة صراحةً في الخطة ذاتها.`},
+
+    {num:'٤', title:'نطاق العمل', body:
+`يُنفَّذ نطاق العمل حصرًا وفق ما هو محدد في الخطة المرفقة (ملحق ١)، وتُعد الخطة جزءًا لا يتجزأ من هذا العقد. عند وجود تعارض بين نص هذا العقد ونص الخطة فيما يخص التفاصيل التنفيذية كالمخرجات والجدول الزمني، تُرجَّح الخطة؛ أما فيما يخص الأحكام القانونية والتعاقدية العامة، فيُرجَّح نص هذا العقد.
+
+خارج النطاق صراحةً: كل ما لم يُذكر ضمن الخطة المرفقة لا يُعدّ جزءًا من هذا العقد، ويُتفق عليه بملحق منفصل وأتعاب إضافية.
+
+طلب تغيير النطاق (Change Request): في حال طلب العميل أي أعمال أو خدمات خارج نطاق الخطة المرفقة، أو تعديلًا جوهريًا عليها، فلا يلتزم الطرف الأول بتنفيذها إلا بعد اعتماد نطاق العمل الإضافي وأثره على الجدول الزمني والأتعاب كتابيًا من الطرفين؛ ويُوثَّق كل طلب تغيير كملحق مرقَّم يُضاف إلى الخطة.`},
+
+    {num:'٥', title:'المخرجات والجدول الزمني', body:
+`تُحدَّد المخرجات ومراحل الإنجاز والمواعيد المستهدفة وفق الخطة المرفقة (ملحق ١)، وتُعتمد أي تعديلات عليها كتابيًا من الطرفين.`},
+
+    {num:'٦', title:'الأتعاب وآلية الدفع', body:
+`تُحدَّد قيمة الأتعاب وآلية سدادها وفق نمط التعاقد المبيّن في الخطة المرفقة (ملحق ١){{اجمالي_قيمة_العقد}}، على النحو التالي:
+
+- النمط الدوري: تُستحق الأتعاب دوريًا (شهريًا ما لم يُذكر خلاف ذلك) عن كل دورة تشغيل، وتُسدَّد مقدَّمًا في بداية كل دورة ما لم تنص الخطة على غير ذلك.
+
+**٦.٤** التأخر في السداد: عند تأخر العميل عن سداد أي مبلغ مستحق أكثر من خمسة عشر (١٥) يومًا من تاريخ استحقاقه: يحق للطرف الأول تعليق تنفيذ الأعمال محل هذا العقد حتى استكمال السداد، دون أن يُعد ذلك إخلالًا من جانبه.
+
+**٦.٥** يُقرّ الطرفان أن أي مبلغ يُستوفى بموجب البند ٦.٤ هو تعويض عن ضرر إداري فعلي محدد سلفًا، وليس مقابلًا ماليًا عن مدة التأخير ذاتها، ولا يستفيد الطرف الأول من امتداد مدة التأخير بأي زيادة إضافية على هذا المبلغ.`},
+
+    {num:'٧', title:'الإنفاق الإعلاني', conditional:'ad_spend', body:
+`يشمل هذا العقد إدارة علامة لميزانية إعلانية نيابة عن العميل{{مبلغ_الاعلان_الشهري}}. أي إنفاق إعلاني إضافي مستقبلي يتطلب ملحقًا منفصلًا يُضمَّن أحكام هذا البند.`,
+    bodyIfExcluded:'لا ينطبق — لا يشمل هذا العقد إدارة علامة لأي ميزانية إعلانية نيابة عن العميل.'},
+
+    {num:'٨', title:'الاعتمادات وجولات التعديل', body: CONTRACT_TEMPLATE.sections.find(x=>x.num==='٨').body},
+    {num:'٩', title:'التزامات الطرفين', body: CONTRACT_TEMPLATE.sections.find(x=>x.num==='٩').body},
+    {num:'١٠', title:'الملكية الفكرية وتسليم الأصول', body: CONTRACT_TEMPLATE.sections.find(x=>x.num==='١٠').body},
+    {num:'١١', title:'السرّية وحماية البيانات', body: CONTRACT_TEMPLATE.sections.find(x=>x.num==='١١').body},
+    {num:'١٢', title:'المسؤولية وحدودها', body: CONTRACT_TEMPLATE.sections.find(x=>x.num==='١٢').body},
+    {num:'١٣', title:'القوة القاهرة', body: CONTRACT_TEMPLATE.sections.find(x=>x.num==='١٣').body},
+
+    {num:'١٤', title:'سريان العقد وإنهاؤه', body:
+`**١٤.١** يسري هذا العقد اعتبارًا من تاريخ توقيعه من الطرفين ({{تاريخ_السريان}})، ويستمر نافذًا دون تحديد بمدة زمنية معينة، إلى أن يُنهى أو ينتهي وفقًا لأحكام هذا البند.
+
+**١٤.٢** يحق لأي طرف الإنهاء الفوري في حال إخلال الطرف الآخر بالتزام جوهري وعدم تصحيحه خلال خمسة عشر (١٥) يومًا من إخطاره كتابيًا بذلك.
+
+**١٤.٣** عند الإنهاء لأي سبب، تُسوَّى الأتعاب عن الأعمال المنفَّذة فعليًا حتى تاريخ الإنهاء وفق نسبة الإنجاز{{اعادة_رصيد_اعلان_انهاء}}، وتُسلَّم الأصول وفق البند ١٠.٤.
+
+**١٤.٤** إذا أنهى العميل هذا العقد دون وجود إخلال من الطرف الأول، تستحق علامة قيمة الأعمال المنجزة فعليًا حتى تاريخ الإنهاء، إضافة إلى قيمة الالتزامات التي تعاقدت عليها الطرف الأول مع الغير لتنفيذ نطاق العمل والتي تعذّر إلغاؤها أو الرجوع فيها.`},
+
+    {num:'١٥', title:'عدم الاستقطاب وتضارب المصالح', body: CONTRACT_TEMPLATE.sections.find(x=>x.num==='١٥').body},
+    {num:'١٦', title:'أحكام عامة', body: CONTRACT_TEMPLATE.sections.find(x=>x.num==='١٦').body}
+  ],
+  signatures: CONTRACT_TEMPLATE.signatures
+};
+
+const CONTRACT_TEMPLATES={
+  alamaa_v1:{key:'alamaa_v1',label:'النموذج الشامل (17 بندًا — دوري + مشروع محدد النطاق)',tpl:CONTRACT_TEMPLATE},
+  alamaa_v2:{key:'alamaa_v2',label:'النموذج المبسَّط الدوري (المعتمَد)',tpl:CONTRACT_TEMPLATE_V2}
+};
+
 function mergeContract(data){
   const D={
     اسم_العميل:data.clientName||'—', سجل_العميل:data.clientCr||'—', ضريبي_العميل:data.clientVat||'—', عنوان_العميل:data.clientAddress||'—',
@@ -3787,21 +3862,41 @@ function mergeContract(data){
   D['اعادة_رصيد_اعلان']=adSpend?'، وإعادة رصيد الإعلان المتبقّي إلى العميل':'';
   D['اعادة_رصيد_اعلان_انهاء']=adSpend?'، ويُعاد رصيد الإعلان المتبقّي إلى العميل خلال خمسة عشر (١٥) يومًا من تاريخ الإنهاء':'';
 
+  D['مبلغ_الاعلان_الشهري']=data.adMonthlyBudget
+    ? ' المقدَّرة بـ'+Number(data.adMonthlyBudget).toLocaleString('ar')+' ريال شهريًا'
+    : '';
+
   const sub=s=>s.replace(/\{\{([^}]+)\}\}/g,(_,k)=>(k in D?D[k]:'')).replace(/\n{3,}/g,'\n\n').trim();
 
-  const partyRows=CONTRACT_TEMPLATE.parties.rows.map(([label,a,b])=>[label,a,sub(b)]);
-  const sections=CONTRACT_TEMPLATE.sections.map(s=>{
+  // اختيار النموذج + تعديلات البنود لهذا العقد تحديدًا
+  const TPL=(CONTRACT_TEMPLATES[data.templateKey]||CONTRACT_TEMPLATES.alamaa_v1).tpl;
+  const ov=data.clauseOverrides||{};
+  const excluded=new Set(ov.excluded||[]);
+  const added=(ov.added||[]).filter(a=>a&&a.title);
+
+  const partyRows=TPL.parties.rows.map(([label,a,b])=>[label,a,sub(b)]);
+  const sections=TPL.sections.map(s=>{
+    // الاستبعاد لا يُزيح أي ترقيم — البند يبقى برقمه ويُستبدل متنه، حفاظًا على سلامة
+    // الإحالات الداخلية المتبادلة بين البنود (٦→٧، ١٤→١٠.٤، ١٢.٢→١١ ...).
+    if(excluded.has(s.num)){
+      return {num:s.num,title:s.title,body:'لا ينطبق — حُذف هذا البند باتفاق الطرفين في هذا العقد تحديدًا.',removed:true};
+    }
     if(s.conditional==='ad_spend'&&!adSpend){
       return {num:s.num,title:s.title,body:s.bodyIfExcluded};
     }
     return {num:s.num,title:s.title,body:sub(s.body)};
   });
+  // بنود إضافية خاصة بهذا العقد — تُلحَق بأرقام فرعية بعد الأخير، فلا تمسّ الترقيم الثابت
+  added.forEach((a,i)=>{
+    sections.push({num:a.num||('١٦.'+(i+7)),title:a.title,body:sub(a.body||''),isAdded:true});
+  });
+
   return {
-    intro:CONTRACT_TEMPLATE.intro,
+    intro:TPL.intro,
     partyRows,
     sections,
     specialTerms:(data.specialTerms||'').trim()||null,
-    signatures:{num:CONTRACT_TEMPLATE.signatures.num,title:CONTRACT_TEMPLATE.signatures.title,body:CONTRACT_TEMPLATE.signatures.body}
+    signatures:{num:TPL.signatures.num,title:TPL.signatures.title,body:TPL.signatures.body}
   };
 }
 function fmtLong(d){try{return new Date(d).toLocaleDateString('ar',{year:'numeric',month:'long',day:'numeric'});}catch(e){return '—';}}
@@ -3858,6 +3953,7 @@ window.mergeContract=mergeContract;
 window.renderMergedContractHTML=renderMergedContractHTML;
 window.renderCustomContractHTML=renderCustomContractHTML;
 window.CONTRACT_TEMPLATE=CONTRACT_TEMPLATE;
+window.CONTRACT_TEMPLATES=CONTRACT_TEMPLATES;
 
 
 /* ===== contractsign.js ===== */
@@ -4272,8 +4368,11 @@ function renderContractsHubBody(){
   $$('#chubBody [data-chubopen]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.chubopen));
 }
 
+let CHD_OVERRIDES={excluded:[],added:[]};
+let CHD_TEMPLATE='alamaa_v1';
 function chubReadStandardFields(prefix,client){
   return {
+    templateKey:CHD_TEMPLATE, clauseOverrides:CHD_OVERRIDES,
     clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,clientAddress:client.national_address_short,
     clientRepName:client.rep_name,clientRepTitle:client.rep_title,clientEmail:client.contact_email,clientPhone:client.contact_phone,
     includesAdSpend:document.getElementById(prefix+'AdSpend').checked,
@@ -4388,6 +4487,15 @@ async function openContractDetailPanel(contractId){
       </div>
     </div>
 
+    ${(!isCustom&&editable)?`
+    <div class="sa-section" style="margin-top:14px">
+      <h4>📋 نموذج العقد وبنوده <span class="sa-hint">اختر النموذج، واستبعد أو أضف بنودًا لهذا العقد تحديدًا</span></h4>
+      <div class="sa-form" style="margin-bottom:12px">
+        <select id="chdTemplate">${Object.values(CONTRACT_TEMPLATES).map(t=>
+          `<option value="${t.key}" ${(c.template_key||'alamaa_v1')===t.key?'selected':''}>${esc(t.label)}</option>`).join('')}</select>
+      </div>
+      <div id="chdClauses"></div>
+    </div>`:''}
     <div class="sa-section" style="margin-top:14px">
       <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للعميل في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
       <div id="chdAttachments"><div class="skeleton" style="height:40px"></div></div>
@@ -4398,6 +4506,56 @@ async function openContractDetailPanel(contractId){
       <div id="chdPreview"></div>
     </details>
   </div>`;
+
+  // ===== نموذج العقد ومحرر البنود =====
+  CHD_TEMPLATE=c.template_key||'alamaa_v1';
+  CHD_OVERRIDES=Object.assign({excluded:[],added:[]},c.clause_overrides||{});
+  if(!Array.isArray(CHD_OVERRIDES.excluded))CHD_OVERRIDES.excluded=[];
+  if(!Array.isArray(CHD_OVERRIDES.added))CHD_OVERRIDES.added=[];
+
+  const renderClauses=()=>{
+    const box=document.getElementById('chdClauses');
+    if(!box)return;
+    const tpl=(CONTRACT_TEMPLATES[CHD_TEMPLATE]||CONTRACT_TEMPLATES.alamaa_v1).tpl;
+    box.innerHTML=`
+      <p class="sa-hint" style="margin-bottom:8px">إلغاء تحديد بند يجعله «غير منطبق» في هذا العقد — <b>يبقى برقمه</b> ولا تُزاح أرقام بقية البنود، حفاظًا على سلامة الإحالات بينها.</p>
+      <div class="chd-clause-grid">
+        ${tpl.sections.map(sec=>`
+          <label class="chd-clause ${CHD_OVERRIDES.excluded.includes(sec.num)?'chd-clause-off':''}">
+            <input type="checkbox" data-clause="${sec.num}" ${CHD_OVERRIDES.excluded.includes(sec.num)?'':'checked'}>
+            <span>${esc(sec.num)}. ${esc(sec.title)}</span>
+          </label>`).join('')}
+      </div>
+      ${CHD_OVERRIDES.added.length?`<div style="margin-top:12px"><b style="font-size:.85rem">بنود مضافة:</b>
+        ${CHD_OVERRIDES.added.map((a,i)=>`<div class="chd-att-row"><span>${esc(a.num||'')} ${esc(a.title)}</span>
+          <button class="reqbtn" data-delclause="${i}" style="color:var(--crit)">حذف</button></div>`).join('')}</div>`:''}
+      <div class="sa-form" style="margin-top:12px;flex-wrap:wrap">
+        <input id="chdNewClauseNum" placeholder="الرقم (مثال: ١٦.٧)" style="width:130px">
+        <input id="chdNewClauseTitle" placeholder="عنوان البند الجديد" style="flex:1;min-width:160px">
+        <button class="reqbtn" id="chdAddClause">إضافة بند</button>
+      </div>
+      <textarea id="chdNewClauseBody" placeholder="نص البند الجديد..." style="width:100%;min-height:60px;margin-top:8px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px"></textarea>`;
+
+    box.querySelectorAll('[data-clause]').forEach(cb=>cb.onchange=()=>{
+      const num=cb.dataset.clause;
+      if(cb.checked)CHD_OVERRIDES.excluded=CHD_OVERRIDES.excluded.filter(x=>x!==num);
+      else if(!CHD_OVERRIDES.excluded.includes(num))CHD_OVERRIDES.excluded.push(num);
+      renderClauses();refreshPreview();
+    });
+    box.querySelectorAll('[data-delclause]').forEach(b=>b.onclick=()=>{
+      CHD_OVERRIDES.added.splice(Number(b.dataset.delclause),1);renderClauses();refreshPreview();
+    });
+    document.getElementById('chdAddClause').onclick=()=>{
+      const title=document.getElementById('chdNewClauseTitle').value.trim();
+      if(!title){toast('أدخل عنوان البند','warn');return;}
+      CHD_OVERRIDES.added.push({
+        num:document.getElementById('chdNewClauseNum').value.trim()||null,
+        title,body:document.getElementById('chdNewClauseBody').value});
+      renderClauses();refreshPreview();
+    };
+  };
+  {const ts=document.getElementById('chdTemplate');
+   if(ts)ts.onchange=()=>{CHD_TEMPLATE=ts.value;CHD_OVERRIDES.excluded=[];renderClauses();refreshPreview();};}
 
   // ===== المرفقات =====
   const renderAttachments=async()=>{
@@ -4456,6 +4614,7 @@ async function openContractDetailPanel(contractId){
     }
   };
   await refreshPreview();
+  renderClauses();
   const watchIds=isCustom?['chdTitle','chdBody']:['chdValue','chdDate','chdAdSpend','chdSpecial'];
   if(editable)watchIds.forEach(id=>{
     document.getElementById(id).addEventListener('input',refreshPreview);
