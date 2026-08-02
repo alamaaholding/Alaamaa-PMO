@@ -40,7 +40,7 @@ function renderContractsHubBody(){
 
   const rows=filtered.map(c=>{
     const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
-    return `<button class="chub-row" data-chubopen="${c.id}">
+    return `<div class="chub-row" data-chubopen="${c.id}" role="button" tabindex="0">
       <div class="chub-row-main">
         <div class="chub-row-hd">
           <b>${esc(c.client_name)}</b><span class="chub-sep">·</span>${esc(c.project_name)}
@@ -52,7 +52,7 @@ function renderContractsHubBody(){
           · علامة: ${al?esc(al.name):'—'} · العميل: ${cl?esc(cl.name):'—'}</div>
       </div>
       <span class="chub-row-arrow">فتح ←</span>
-    </button>`;
+    </div>`;
   }).join('')||'<p class="empty">لا عقود تطابق هذا الفلتر.</p>';
 
   $('#chubBody').innerHTML=`
@@ -121,6 +121,7 @@ async function openContractDetailPanel(contractId){
     <div class="chub-detail-hd">
       <h3>${esc(c.client_name)}${c.project_name!=='— (عقد على مستوى الشركة)'?' · '+esc(c.project_name):' — عقد على مستوى الشركة'}</h3>
       <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
+      ${c.project_id?'<button class="reqbtn" id="chdUnlink">🔓 فك الارتباط بالمشروع</button>':''}
       <button class="reqbtn" id="chdClose" style="margin-inline-start:auto">✕ إغلاق</button>
     </div>
 
@@ -207,6 +208,16 @@ async function openContractDetailPanel(contractId){
 
   if(panel.scrollIntoView)panel.scrollIntoView({behavior:'smooth',block:'start'});
   document.getElementById('chdClose').onclick=()=>{panel.innerHTML='';};
+  if(c.project_id){
+    document.getElementById('chdUnlink').onclick=async()=>{
+      if(!await confirmDialog('فك الارتباط','سيبقى العقد موجودًا في محفظة العقود، لكنه لن يظهر بعد الآن كمرتبط بهذا المشروع.',false,'فك الارتباط'))return;
+      try{
+        const r=await unlinkContractFromProject(contractId);
+        if(r&&r.ok){toast('فُكّ الارتباط','ok');CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();panel.innerHTML='';}
+        else toast((r&&r.error)||'تعذّر فك الارتباط','err');
+      }catch(e){toast('تعذّر فك الارتباط: '+e.message,'err');}
+    };
+  }
   document.querySelectorAll('[data-chdcopy]').forEach(b=>b.onclick=async()=>{
     try{await navigator.clipboard.writeText(b.dataset.chdcopy);toast('نُسخ الرابط','ok');}
     catch(e){toast('انسخ الرابط يدويًا','warn');}
