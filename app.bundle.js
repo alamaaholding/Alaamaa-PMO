@@ -1,4 +1,4 @@
-const BUILD_V='ce4fdacc';
+const BUILD_V='aa323896';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1047,6 +1047,33 @@ async function createContractV2(opts){
     p_contract_value:opts.contractValue!=null?Number(opts.contractValue):null, p_document_hash:hash,
     p_contract_name:opts.contractName||null, p_contract_number:opts.contractNumber||null
   });
+  if(error)throw error;return data;
+}
+async function duplicateContract(contractId,newName){
+  const {data,error}=await sb.rpc('pmo_duplicate_contract',{p_contract_id:contractId,p_new_name:newName||null});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error||'تعذّر التكرار');
+  return data;
+}
+async function fetchContractAttachments(contractId){
+  const {data,error}=await sb.rpc('pmo_contract_attachments_list',{p_contract_id:contractId});
+  if(error)throw error;return data||[];
+}
+async function addContractAttachment(contractId,label,url,kind,baselineId){
+  const {data,error}=await sb.rpc('pmo_add_contract_attachment',
+    {p_contract_id:contractId,p_label:label,p_url:url||null,p_kind:kind||'link',p_baseline_id:baselineId||null});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error==='signed'?'لا يمكن تعديل مرفقات عقد وقّع عليه طرف':'تعذّر الإضافة');
+  return data;
+}
+async function deleteContractAttachment(id){
+  const {data,error}=await sb.rpc('pmo_delete_contract_attachment',{p_id:id});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error==='signed'?'لا يمكن تعديل مرفقات عقد موقَّع':'تعذّر الحذف');
+  return data;
+}
+async function fetchBaselineById(baselineId){
+  const {data,error}=await sb.rpc('pmo_baseline_by_id',{p_baseline_id:baselineId});
   if(error)throw error;return data;
 }
 async function assignContractToClient(contractId,clientId){
@@ -3301,7 +3328,7 @@ function renderCHBody(stats,access){
   }).join('')||'<span class="sa-empty">لا أحد لديه صلاحية مخصَّصة لهذا العميل تحديدًا</span>';
 
   const c=stats.c;
-  const missingFields=['cr_number','vat_number','national_address_short','rep_name','rep_title'].filter(k=>!c[k]);
+  const missingFields=['cr_number','vat_number','national_address_short','rep_name','rep_title','contact_email','contact_phone'].filter(k=>!c[k]);
   const setBtn=$('#chSettings');
   if(setBtn)setBtn.innerHTML='⚙ إعدادات العميل'+(missingFields.length?' <span class="ch-set-warn">'+missingFields.length+'</span>':'');
 
@@ -3363,7 +3390,7 @@ window.renderClientHome=renderClientHome;
 function openClientSettings(stats,access){
   if(!stats){toast('لا تزال بيانات العميل قيد التحميل — لحظة واحدة','warn');return;}
   const c=stats.c;
-  const missingFields=['cr_number','vat_number','national_address_short','rep_name','rep_title'].filter(k=>!c[k]);
+  const missingFields=['cr_number','vat_number','national_address_short','rep_name','rep_title','contact_email','contact_phone'].filter(k=>!c[k]);
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='إعدادات العميل: '+c.name;
   document.getElementById('tkTabs').innerHTML='';
@@ -3386,6 +3413,8 @@ function openClientSettings(stats,access){
         <input id="cpAddr" placeholder="العنوان الوطني المختصر" value="${esc(c.national_address_short||'')}" style="flex:1;min-width:180px">
         <input id="cpRepName" placeholder="اسم الممثل المفوَّض" value="${esc(c.rep_name||'')}" style="flex:1;min-width:160px">
         <input id="cpRepTitle" placeholder="صفته" value="${esc(c.rep_title||'')}" style="flex:1;min-width:140px">
+        <input id="cpEmail" placeholder="البريد الرسمي (يظهر في العقد)" value="${esc(c.contact_email||'')}" style="flex:1;min-width:180px" dir="ltr">
+        <input id="cpPhone" placeholder="رقم الجوال (يظهر في العقد)" value="${esc(c.contact_phone||'')}" style="flex:1;min-width:150px" dir="ltr">
         <button class="hbtn" id="cpSave" style="background:var(--gold);border-color:var(--gold)">حفظ الملف</button>
       </div>
     </div>`;
@@ -3404,7 +3433,9 @@ function openClientSettings(stats,access){
     const btn=document.getElementById('cpSave');btn.disabled=true;
     const vals={cr_number:document.getElementById('cpCr').value.trim(),vat_number:document.getElementById('cpVat').value.trim(),
       national_address_short:document.getElementById('cpAddr').value.trim(),rep_name:document.getElementById('cpRepName').value.trim(),
-      rep_title:document.getElementById('cpRepTitle').value.trim()};
+      rep_title:document.getElementById('cpRepTitle').value.trim(),
+      contact_email:document.getElementById('cpEmail').value.trim(),
+      contact_phone:document.getElementById('cpPhone').value.trim()};
     try{
       await updateClientProfile(stats.cid,vals);
       Object.assign(c,vals);
@@ -3452,87 +3483,122 @@ async function openContractExport(){
 
 // contract (اختياري): كائن العقد الكامل من fetchContractsForProject — إن وُجد، يُدمَج متن
 // العقد القانوني الكامل (17 بندًا) قبل ملحق الخطة في مستند واحد، مع رمز QR يحيل لتوقيعه.
-async function buildContractDoc(baselineId,contract){
-  const bl=(PROJECT.baselines||[]).find(b=>b.id===baselineId);
-  if(!bl){toast('لقطة غير موجودة','err');return;}
-  const clientName=(CLIENTS.find(c=>c.id===CID)||{}).name||'';
+// contract: كائن العقد الكامل. يعمل الآن مستقلًا تمامًا — لا يتطلب فتح المشروع أولًا،
+// ولا وجود لقطة أصلًا. كان يفشل فورًا من محفظة العقود لأنه كان يبحث عن اللقطة داخل
+// PROJECT المحمَّل حاليًا فقط (وهو غير محمَّل هناك) فيخرج برسالة "لقطة غير موجودة".
+async function buildContractDoc(baselineId,contract,attachments){
+  const clientName=(contract&&contract.client_name)||((CLIENTS.find(c=>c.id===CID)||{}).name)||'';
+
+  // اللقطة: من المشروع المحمَّل إن وُجدت، وإلا تُجلَب من القاعدة مباشرة بمعرّفها
+  let bl=null;
+  if(baselineId){
+    bl=(typeof PROJECT!=='undefined'&&PROJECT&&PROJECT.baselines||[]).find(b=>b.id===baselineId)||null;
+    if(!bl){
+      try{
+        const fetched=await fetchBaselineById(baselineId);
+        if(fetched&&fetched.id)bl=fetched;
+      }catch(e){}
+    }
+  }
 
   let qrImg='';
   if(contract&&contract.token){
     try{
       await ensureQR();
-      const url=location.origin+location.pathname+'#/sign/'+contract.token;
-      qrImg=generateQRDataURL(url);
+      qrImg=generateQRDataURL(location.origin+location.pathname+'#/sign/'+contract.token);
     }catch(e){
-      toast('تعذّر توليد رمز QR (' + e.message + ') — سيُصدَّر المستند بلا الرمز؛ أعد المحاولة','warn');
+      toast('تعذّر توليد رمز QR ('+e.message+') — سيُصدَّر المستند بلا الرمز','warn');
     }
   }
 
-  // متن العقد الكامل — فقط إن مُرِّر كائن عقد فعلي (لا عند التصدير المبدئي بلا عقد بعد)
+  // متن العقد: مخصَّص أو قياسي، بحسب نوعه الفعلي
   let contractHtml='';
   if(contract){
-    const merged=mergeContract({
-      clientName,clientCr:contract.client_cr,clientAddress:contract.client_address,
-      clientRepName:contract.client_rep_name,clientRepTitle:contract.client_rep_title,
-      clientEmail:contract.client_contact_email,clientPhone:contract.client_contact_phone,
-      includesAdSpend:contract.includes_ad_spend,effectiveDate:contract.effective_date,
-      contractValue:contract.contract_value,latePaymentCap:contract.late_payment_cap
-    });
-    contractHtml=`<section class="cx-page cx-contract-body">${renderMergedContractHTML(merged)}</section>`;
+    if(contract.contract_type==='custom'){
+      contractHtml=`<section class="cx-page cx-contract-body">${renderCustomContractHTML({
+        title:contract.custom_title||contract.contract_name,body:contract.custom_body,
+        clientName,clientCr:contract.client_cr,clientVat:contract.client_vat,clientAddress:contract.client_address,
+        clientRepName:contract.client_rep_name,clientRepTitle:contract.client_rep_title,
+        clientEmail:contract.client_contact_email,clientPhone:contract.client_contact_phone
+      })}</section>`;
+    }else{
+      contractHtml=`<section class="cx-page cx-contract-body">${renderMergedContractHTML(mergeContract({
+        clientName,clientCr:contract.client_cr,clientVat:contract.client_vat,clientAddress:contract.client_address,
+        clientRepName:contract.client_rep_name,clientRepTitle:contract.client_rep_title,
+        clientEmail:contract.client_contact_email,clientPhone:contract.client_contact_phone,
+        includesAdSpend:contract.includes_ad_spend,effectiveDate:contract.effective_date,
+        contractValue:contract.contract_value,latePaymentCap:contract.late_payment_cap,
+        specialTerms:contract.special_terms
+      }))}</section>`;
+    }
   }
 
-  const snap=bl.snapshot||{};
-  const phases=projTrackList();
-  const byPhase={};phases.forEach(p=>{byPhase[p.key]=[];});
-  PROJECT.tasks.forEach(t=>{
-    if(t.type==='package')return;
-    const row=snap[t.id]||{};
-    (byPhase[t.track]=byPhase[t.track]||[]).push({
-      id:t.id,name:t.name,type:t.type,
-      duration:row.duration!=null?row.duration:t.duration,
-      ES:row.ES?fmt(new Date(row.ES)):'—', EF:row.EF?fmt(new Date(row.EF)):'—'
+  // ملحق الخطة — يُدرَج فقط إن توفّرت لقطة فعلية
+  let annexHtml='';
+  if(bl){
+    const snap=bl.snapshot||{};
+    const usingLive=(typeof PROJECT!=='undefined'&&PROJECT&&PROJECT.baselines||[]).some(b=>b.id===baselineId);
+    const tasks=usingLive?PROJECT.tasks.filter(t=>t.type!=='package').map(t=>({
+        id:t.id,name:t.name,type:t.type,duration:t.duration,track:t.track}))
+      :(bl.tasks||[]).map(t=>({id:t.ref,name:t.name,type:t.type,duration:t.duration,track:t.track}));
+    const phases=usingLive?projTrackList()
+      :(bl.tracks||[]).map(tr=>({key:tr.key,name:tr.name,color:tr.color||'#C8A06B'}));
+    const byPhase={};phases.forEach(p=>{byPhase[p.key]=[];});
+    tasks.forEach(t=>{
+      const row=snap[t.id]||{};
+      (byPhase[t.track]=byPhase[t.track]||[]).push({
+        id:t.id,name:t.name,type:t.type,
+        duration:row.duration!=null?row.duration:t.duration,
+        ES:row.ES?fmt(new Date(row.ES)):'—', EF:row.EF?fmt(new Date(row.EF)):'—'});
     });
-  });
+    const phasePages=phases.filter(p=>(byPhase[p.key]||[]).length).map(p=>{
+      const rows=byPhase[p.key].map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.name)}</td><td>${TYPES[x.type]||x.type}</td>
+        <td>${x.type==='milestone'?'—':(x.duration||0)+' يوم'}</td><td>${x.ES}</td><td>${x.EF}</td></tr>`).join('');
+      return `<section class="cx-page">
+        <div class="cx-phase-hd" style="--pc:${p.color}"><span></span>${esc(p.name)}</div>
+        <table class="cx-table"><thead><tr><th>المعرّف</th><th>الاسم</th><th>النوع</th><th>المدة</th><th>البداية</th><th>النهاية</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+      </section>`;
+    }).join('');
+    if(phasePages)annexHtml=`<div class="cx-annex-hd">ملحق (١) — الخطة المعتمدة (${esc(bl.label||'')})</div>${phasePages}`;
+  }
+
+  // قائمة المرفقات الأخرى (روابط/مستندات) — تُدرَج كصفحة ملحق مستقلة
+  let attachHtml='';
+  const links=(attachments||[]).filter(a=>a.kind==='link'&&a.url);
+  if(links.length){
+    attachHtml=`<div class="cx-annex-hd">ملحق — مستندات مرفقة</div>
+      <section class="cx-page"><table class="cx-table"><thead><tr><th>المستند</th><th>الرابط</th></tr></thead><tbody>
+      ${links.map(a=>`<tr><td>${esc(a.label)}</td><td style="direction:ltr;font-size:.7rem">${esc(a.url)}</td></tr>`).join('')}
+      </tbody></table></section>`;
+  }
+
   const today=new Date().toLocaleDateString('ar',{year:'numeric',month:'long',day:'numeric'});
-  const blDate=new Date(bl.approved_at).toLocaleDateString('ar',{year:'numeric',month:'long',day:'numeric'});
-
-  const phasePages=phases.filter(p=>(byPhase[p.key]||[]).length).map(p=>{
-    const rows=byPhase[p.key].map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.name)}</td><td>${TYPES[x.type]||x.type}</td>
-      <td>${x.type==='milestone'?'—':x.duration+' يوم'}</td><td>${x.ES}</td><td>${x.EF}</td></tr>`).join('');
-    return `<section class="cx-page">
-      <div class="cx-phase-hd" style="--pc:${p.color}"><span></span>${esc(p.name)}</div>
-      <table class="cx-table"><thead><tr><th>المعرّف</th><th>الاسم</th><th>النوع</th><th>المدة</th><th>البداية</th><th>النهاية</th></tr></thead>
-      <tbody>${rows}</tbody></table>
-    </section>`;
-  }).join('');
-  const annexHd=contract?`<div class="cx-annex-hd">ملحق (١) — الخطة المعتمدة</div>`:'';
-
   const doc=document.getElementById('contractPrint');
   doc.innerHTML=`
     <section class="cx-cover">
       <div class="cx-cover-brand">علامة <span>· أثر دائم</span></div>
-      <h1>${contract?'عقد تقديم خدمات':'الخطة المعتمدة'}</h1>
+      <h1>${contract?esc(contract.contract_name||'عقد تقديم خدمات'):'الخطة المعتمدة'}</h1>
       <div class="cx-cover-meta">
-        <div><b>العميل</b><span>${esc(clientName)}</span></div>
-        <div><b>المشروع</b><span>${esc(PROJECT.name)}</span></div>
-        <div><b>اللقطة المرجعية (ملحق الخطة)</b><span>${esc(bl.label)}</span></div>
-        <div><b>تاريخ الاعتماد</b><span>${blDate}</span></div>
+        ${contract&&contract.contract_number?`<div><b>رقم العقد</b><span>${esc(contract.contract_number)}</span></div>`:''}
+        <div><b>العميل</b><span>${esc(clientName||'—')}</span></div>
+        ${contract&&contract.project_name?`<div><b>المشروع</b><span>${esc(contract.project_name)}</span></div>`:''}
+        ${bl?`<div><b>اللقطة المرجعية (ملحق الخطة)</b><span>${esc(bl.label||'')}</span></div>`:''}
       </div>
-      <p class="cx-cover-note">${contract
+      <p class="cx-cover-note">${bl
         ?'هذا المستند يضمّ متن العقد الكامل وملحق الخطة المعتمدة معًا كوثيقة واحدة — بُني بتاريخ '+today+'.'
-        :'هذا المستند لقطة ثابتة من الخطة بتاريخ اعتمادها أعلاه — لا يعكس أي تعديل لاحق. أُصدر آليًا بتاريخ '+today+'.'}</p>
-      ${qrImg?`<div class="cx-qr"><img src="${qrImg}" alt="QR"><span><b>رمز خاص بعقد ${esc(clientName)}</b><br>يحيل حصرًا لصفحة توقيع هذا العقد تحديدًا — لا يُستخدم لغير هذا الغرض</span></div>`:''}
+        :'متن العقد الكامل — بُني بتاريخ '+today+'.'}</p>
+      ${qrImg?`<div class="cx-qr"><img src="${qrImg}" alt="QR"><span><b>رمز خاص بعقد ${esc(clientName)}</b><br>يحيل حصرًا لصفحة توقيع هذا العقد تحديدًا</span></div>`:''}
     </section>
     ${contractHtml}
-    ${annexHd}
-    ${phasePages}
-    <div class="cx-footer">علامة · أثر دائم — مستند مُولَّد آليًا من منصة حوكمة المشاريع · ${esc(bl.label)}</div>
+    ${annexHtml}
+    ${attachHtml}
+    <div class="cx-footer">علامة · أثر دائم — مستند مُولَّد آليًا من منصة حوكمة المشاريع${contract&&contract.contract_number?' · '+esc(contract.contract_number):''}</div>
   `;
   document.body.classList.add('printing-contract');
   const qrEl=doc.querySelector('.cx-qr img');
   const imgReady=qrEl?new Promise(res=>{qrEl.complete?res():(qrEl.onload=qrEl.onerror=res);}):Promise.resolve();
-  const safetyTimeout=new Promise(res=>setTimeout(res,500)); // لا ننتظر أبدًا إلى ما لا نهاية
-  await Promise.race([imgReady,safetyTimeout]);
+  await Promise.race([imgReady,new Promise(res=>setTimeout(res,500))]);
   setTimeout(()=>{
     window.print();
     const restore=()=>{document.body.classList.remove('printing-contract');window.removeEventListener('afterprint',restore);};
@@ -3558,6 +3624,7 @@ const CONTRACT_TEMPLATE = {
     rows:[
       ['الاسم','علامة','{{اسم_العميل}}'],
       ['السجل التجاري','','{{سجل_العميل}}'],
+      ['الرقم الضريبي','','{{ضريبي_العميل}}'],
       ['العنوان','','{{عنوان_العميل}}'],
       ['الممثل المفوَّض','','{{ممثل_العميل}} — {{صفة_ممثل_العميل}}'],
       ['بيانات التواصل','','{{بريد_العميل}} · {{هاتف_العميل}}']
@@ -3700,7 +3767,7 @@ const CONTRACT_TEMPLATE = {
 
 function mergeContract(data){
   const D={
-    اسم_العميل:data.clientName||'—', سجل_العميل:data.clientCr||'—', عنوان_العميل:data.clientAddress||'—',
+    اسم_العميل:data.clientName||'—', سجل_العميل:data.clientCr||'—', ضريبي_العميل:data.clientVat||'—', عنوان_العميل:data.clientAddress||'—',
     ممثل_العميل:data.clientRepName||'—', صفة_ممثل_العميل:data.clientRepTitle||'—',
     بريد_العميل:data.clientEmail||'—', هاتف_العميل:data.clientPhone||'—',
     تاريخ_السريان:data.effectiveDate?fmtLong(data.effectiveDate):'—',
@@ -3872,12 +3939,12 @@ async function renderPublicSign(token){
     :`<div class="pubsig-row pubsig-pending"><b>${label}</b><span>بانتظار التوقيع</span></div>`;
 
   const mergeData={
-    clientName:d.client_name,clientCr:d.client_cr,clientAddress:d.client_address,
+    clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,clientAddress:d.client_address,
     clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title,
     includesAdSpend:d.includes_ad_spend,effectiveDate:d.effective_date,contractValue:d.contract_value,latePaymentCap:d.late_payment_cap,
     specialTerms:d.special_terms
   };
-  const customData={title:d.custom_title,body:d.custom_body,clientName:d.client_name,clientCr:d.client_cr,
+  const customData={title:d.custom_title,body:d.custom_body,clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,
     clientAddress:d.client_address,clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title};
   const contractHtml=isCustom?renderCustomContractHTML(customData):renderMergedContractHTML(mergeContract(mergeData));
   let integrityBadge='';
@@ -3899,6 +3966,12 @@ async function renderPublicSign(token){
       </div>
       <div class="pubsig-status">${sigRow('علامة',alamaaSig)}${sigRow('العميل',clientSig)}</div>
       ${integrityBadge}
+      ${(d.attachments&&d.attachments.length)?`
+      <div class="pubsign-attach">
+        <b>📎 ملاحق مرفقة بهذا العقد</b>
+        ${d.attachments.map(a=>`<div class="chd-att-row"><span>📄 ${esc(a.label)}</span>${
+          a.url?`<a href="${esc(a.url)}" target="_blank" rel="noopener" class="reqbtn">فتح</a>`:''}</div>`).join('')}
+      </div>`:''}
       <details class="pubsign-fulltext" ${clientSigned?'':'open'}>
         <summary>${clientSigned?'عرض نص العقد الكامل':'📄 اقرأ نص العقد كاملًا قبل التوقيع'}</summary>
         ${contractHtml}
@@ -4201,7 +4274,7 @@ function renderContractsHubBody(){
 
 function chubReadStandardFields(prefix,client){
   return {
-    clientName:client.name,clientCr:client.cr_number,clientAddress:client.national_address_short,
+    clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,clientAddress:client.national_address_short,
     clientRepName:client.rep_name,clientRepTitle:client.rep_title,clientEmail:client.contact_email,clientPhone:client.contact_phone,
     includesAdSpend:document.getElementById(prefix+'AdSpend').checked,
     effectiveDate:document.getElementById(prefix+'Date').value,
@@ -4214,7 +4287,7 @@ function chubReadCustomFields(prefix,client){
   return {
     title:document.getElementById(prefix+'Title').value,
     body:document.getElementById(prefix+'Body').value,
-    clientName:client.name,clientCr:client.cr_number,clientAddress:client.national_address_short,
+    clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,clientAddress:client.national_address_short,
     clientRepName:client.rep_name,clientRepTitle:client.rep_title,clientEmail:client.contact_email,clientPhone:client.contact_phone
   };
 }
@@ -4246,6 +4319,7 @@ async function openContractDetailPanel(contractId){
       <h3>${esc(c.contract_name||'عقد بلا اسم')} <span class="chub-num">${esc(c.contract_number||'—')}</span></h3>
       <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
       ${(!c.client_id&&!c.source_contract_id)?'<button class="hbtn" id="chdAssign" style="background:var(--gold);border-color:var(--gold)">👥 إسناد لعميل (إنشاء نسخة)</button>':''}
+      <button class="reqbtn" id="chdDuplicate">📑 تكرار العقد</button>
       ${c.project_id?'<button class="reqbtn" id="chdUnlink">🔓 فك الارتباط بالمشروع</button>':''}
       <button class="reqbtn" id="chdClose" style="margin-inline-start:auto">✕ إغلاق</button>
     </div>
@@ -4270,7 +4344,7 @@ async function openContractDetailPanel(contractId){
         <input readonly value="${link}" style="width:100%;font-size:.72rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2);margin-top:6px">
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
           <button class="reqbtn" data-chdcopy="${link}">نسخ الرابط</button>
-          ${!isCustom?'<button class="reqbtn" id="chdExport">📄 تصدير PDF</button>':''}
+          <button class="reqbtn" id="chdExport">📄 تصدير PDF (بالملاحق)</button>
         </div>
       </div>
 
@@ -4314,11 +4388,56 @@ async function openContractDetailPanel(contractId){
       </div>
     </div>
 
+    <div class="sa-section" style="margin-top:14px">
+      <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للعميل في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
+      <div id="chdAttachments"><div class="skeleton" style="height:40px"></div></div>
+    </div>
+
     <details class="pubsign-fulltext" open>
       <summary>📄 معاينة نص العقد الكامل (حيّة — تتحدّث فورًا مع أي تعديل)</summary>
       <div id="chdPreview"></div>
     </details>
   </div>`;
+
+  // ===== المرفقات =====
+  const renderAttachments=async()=>{
+    const box=document.getElementById('chdAttachments');
+    if(!box)return;
+    let atts=[];
+    try{ atts=await fetchContractAttachments(contractId); }
+    catch(e){ box.innerHTML='<p class="sa-hint">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
+    const planAtt=c.baseline_id?`<div class="chd-att-row"><span>📋 <b>ملحق (١) — الخطة المعتمدة</b>
+        <span class="sa-hint">${esc(c.baseline_label||'')} · يُدرَج تلقائيًا في تصدير PDF</span></span>
+        <span class="chub-type-tag">تلقائي</span></div>`:'';
+    box.innerHTML=planAtt+(atts.length?atts.map(a=>`
+      <div class="chd-att-row">
+        <span>📄 <b>${esc(a.label)}</b>${a.url?` <a href="${esc(a.url)}" target="_blank" rel="noopener" class="sa-hint" style="text-decoration:underline">فتح الرابط</a>`:''}</span>
+        ${editable?`<button class="reqbtn" data-delatt="${a.id}" style="color:var(--crit)">حذف</button>`:''}
+      </div>`).join(''):(planAtt?'':'<p class="sa-hint">لا مرفقات إضافية بعد.</p>'))
+      +(editable?`
+      <div class="sa-form" style="margin-top:12px;flex-wrap:wrap">
+        <input id="chdAttLabel" placeholder="اسم المستند (مثال: كشف الأسعار)" style="flex:1;min-width:160px">
+        <input id="chdAttUrl" placeholder="https://..." style="flex:1;min-width:200px" dir="ltr">
+        <button class="reqbtn" id="chdAttAdd">إضافة مرفق</button>
+      </div>
+      <p class="sa-hint" style="margin-top:6px">ارفع الملف على Drive أو أي مساحة تخزين، ثم الصق رابطه هنا ليظهر للعميل مع العقد.</p>`
+      :'<p class="sa-hint" style="margin-top:8px">🔒 لا يمكن تعديل مرفقات عقد وقّع عليه طرف.</p>');
+
+    if(editable){
+      document.getElementById('chdAttAdd').onclick=async()=>{
+        const label=document.getElementById('chdAttLabel').value.trim();
+        const url=document.getElementById('chdAttUrl').value.trim();
+        if(!label){toast('أدخل اسم المستند','warn');return;}
+        try{ await addContractAttachment(contractId,label,url,'link',null); toast('أُضيف المرفق','ok'); await renderAttachments(); }
+        catch(e){toast(e.message,'err');}
+      };
+      document.querySelectorAll('[data-delatt]').forEach(b=>b.onclick=async()=>{
+        try{ await deleteContractAttachment(b.dataset.delatt); toast('حُذف المرفق','ok'); await renderAttachments(); }
+        catch(e){toast(e.message,'err');}
+      });
+    }
+  };
+  renderAttachments();
 
   const refreshPreview=async()=>{
     if(isCustom){
@@ -4401,7 +4520,26 @@ async function openContractDetailPanel(contractId){
     try{await navigator.clipboard.writeText(b.dataset.chdcopy);toast('نُسخ الرابط','ok');}
     catch(e){toast('انسخ الرابط يدويًا','warn');}
   });
-  if(!isCustom){const exportBtn=document.getElementById('chdExport');if(exportBtn)exportBtn.onclick=()=>buildContractDoc(c.baseline_id,c);}
+  {const exportBtn=document.getElementById('chdExport');
+   if(exportBtn)exportBtn.onclick=async()=>{
+     exportBtn.disabled=true;const old=exportBtn.textContent;exportBtn.textContent='جارٍ التحضير...';
+     try{
+       let atts=[];try{atts=await fetchContractAttachments(contractId);}catch(e){}
+       await buildContractDoc(c.baseline_id,c,atts);
+     }catch(e){toast('تعذّر التصدير: '+e.message,'err');}
+     exportBtn.disabled=false;exportBtn.textContent=old;
+   };}
+  document.getElementById('chdDuplicate').onclick=async()=>{
+    const r=await dialog({title:'تكرار العقد',
+      message:'ستُنشأ نسخة جديدة مستقلة بكل بيانات هذا العقد ومرفقاته، بلا عميل ولا مشروع — قابلة للتعديل والإسناد كأصل جديد.',
+      fields:[{key:'name',label:'اسم النسخة الجديدة',value:(c.contract_name||'')+' (نسخة)'}],confirmText:'تكرار'});
+    if(!r)return;
+    try{
+      const d=await duplicateContract(contractId,r.name);
+      toast('تم التكرار ('+d.number+')','ok');
+      CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(d.id);
+    }catch(e){toast(e.message,'err');}
+  };
   if(canApprove){
     document.getElementById('chdApprove').onclick=async()=>{
       if(!await confirmDialog('اعتماد داخلي','بعد الاعتماد، يصبح هذا العقد قابلًا للإرسال والتوقيع من الطرفين. متابعة؟',false,'اعتماد'))return;
