@@ -560,6 +560,38 @@ async function createContract(projectId,baselineId,opts){
   });
   if(error)throw error;return data;
 }
+// إنشاء شامل: يدعم نطاقَي مشروع/عميل كامل، ونوعَي قياسي/مخصَّص بنص حر — دالة واحدة لكل الحالات
+async function createContractV2(opts){
+  opts=opts||{};
+  const client=opts.clientRow||{};
+  let hash;
+  if(opts.contractType==='custom'){
+    hash=await sha256Hex(JSON.stringify({title:opts.customTitle,body:opts.customBody,client:client.name}));
+  }else{
+    hash=await computeContractHash({
+      clientName:client.name,clientCr:client.cr_number,clientAddress:client.national_address_short,
+      clientRepName:client.rep_name,clientRepTitle:client.rep_title,clientEmail:client.contact_email,clientPhone:client.contact_phone,
+      includesAdSpend:!!opts.includesAdSpend,effectiveDate:opts.effectiveDate,
+      contractValue:opts.contractValue!=null?Number(opts.contractValue):null,
+      latePaymentCap:opts.contractValue?Math.round(Number(opts.contractValue)*0.03*100)/100:null,
+      specialTerms:opts.specialTerms
+    });
+  }
+  const {data,error}=await sb.rpc('pmo_create_contract_v2',{
+    p_scope_type:opts.scopeType, p_project_id:opts.projectId||null, p_baseline_id:opts.baselineId||null,
+    p_client_id:opts.clientId||null, p_contract_type:opts.contractType,
+    p_custom_title:opts.customTitle||null, p_custom_body:opts.customBody||null,
+    p_includes_ad_spend:!!opts.includesAdSpend, p_effective_date:opts.effectiveDate||null,
+    p_contract_value:opts.contractValue!=null?Number(opts.contractValue):null, p_document_hash:hash
+  });
+  if(error)throw error;return data;
+}
+async function approveContractInternal(contractId){
+  const {data,error}=await sb.rpc('pmo_approve_contract_internal',{p_contract_id:contractId});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error||'تعذّر الاعتماد');
+  return data;
+}
 async function voidContract(contractId){
   const {data,error}=await sb.rpc('pmo_void_contract',{p_contract_id:contractId});
   if(error)throw error;return data;
@@ -575,7 +607,9 @@ async function updateContract(contractId,opts){
     p_includes_ad_spend:!!opts.includesAdSpend,
     p_effective_date:opts.effectiveDate||null,
     p_contract_value:opts.contractValue!=null?Number(opts.contractValue):null,
-    p_special_terms:opts.specialTerms||null
+    p_special_terms:opts.specialTerms||null,
+    p_custom_title:opts.customTitle||null,
+    p_custom_body:opts.customBody||null
   });
   if(error)throw error;
   if(!data.ok)throw new Error(
