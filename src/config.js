@@ -131,7 +131,7 @@ function worstProjectStatus(rows){
   return worst;
 }
 function renderStatusBadge(s,extraClass){
-  return `<span class="pstatus-badge ${extraClass||''}" style="--sc:${s.color};--sbg:${s.bg}" title="${esc(s.label)}">${s.icon} ${esc(s.label)}</span>`;
+  return `<span class="pstatus-badge ${extraClass||''}" style="--sc:${s.color};--sbg:${s.bg}" title="${esc(s.label)}"><i class="pstatus-dot" style="background:${s.color}"></i>${esc(s.label)}</span>`;
 }
 // تُستخدم من شبكة المحفظة وصفحة العميل المخصَّصة كليهما؛ لا حساب مكرّر في مكانين
 // (بالضبط الخلل الذي عالجناه سابقًا في مطابقة المراحل — نفس المبدأ هنا).
