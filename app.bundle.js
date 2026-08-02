@@ -1,4 +1,4 @@
-const BUILD_V='58cc13e9';
+const BUILD_V='ce4fdacc';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1048,6 +1048,18 @@ async function createContractV2(opts){
     p_contract_name:opts.contractName||null, p_contract_number:opts.contractNumber||null
   });
   if(error)throw error;return data;
+}
+async function assignContractToClient(contractId,clientId){
+  const {data,error}=await sb.rpc('pmo_assign_contract_to_client',{p_contract_id:contractId,p_client_id:clientId});
+  if(error)throw error;
+  if(!data.ok)throw new Error(
+    data.error==='duplicate'?'لهذا العميل نسخة سارية من هذا العقد بالفعل':
+    data.error||'تعذّر الإسناد');
+  return data;
+}
+async function fetchContractInstances(contractId){
+  const {data,error}=await sb.rpc('pmo_contract_instances',{p_contract_id:contractId});
+  if(error)throw error;return data||[];
 }
 async function approveContractInternal(contractId){
   const {data,error}=await sb.rpc('pmo_approve_contract_internal',{p_contract_id:contractId});
@@ -4156,6 +4168,8 @@ function renderContractsHubBody(){
           <b>${esc(c.contract_name||'عقد بلا اسم')}</b>
           <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
           <span class="chub-type-tag">${c.contract_type==='custom'?'📝 نص مخصَّص':'📋 قياسي'}</span>
+          ${!c.client_id&&!c.source_contract_id?`<span class="chub-type-tag chub-tpl-tag">📄 أصل${c.instance_count>0?' · '+c.instance_count+' نسخة':''}</span>`:''}
+          ${c.source_contract_id?`<span class="chub-type-tag chub-copy-tag">📎 نسخة من: ${esc(c.source_name||'أصل')}</span>`:''}
           ${!c.internal_approved&&c.status!=='void'&&!(al||cl)?'<span class="chub-type-tag chub-pending-tag">⏳ بانتظار الاعتماد الداخلي</span>':''}
         </div>
         <div class="sa-hint">${c.client_name?'👤 '+esc(c.client_name):'👤 غير مُسنَد لعميل بعد'}${c.project_name?' · 📁 '+esc(c.project_name):' · 📁 غير مرتبط بمشروع'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}
@@ -4231,9 +4245,17 @@ async function openContractDetailPanel(contractId){
     <div class="chub-detail-hd">
       <h3>${esc(c.contract_name||'عقد بلا اسم')} <span class="chub-num">${esc(c.contract_number||'—')}</span></h3>
       <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
+      ${(!c.client_id&&!c.source_contract_id)?'<button class="hbtn" id="chdAssign" style="background:var(--gold);border-color:var(--gold)">👥 إسناد لعميل (إنشاء نسخة)</button>':''}
       ${c.project_id?'<button class="reqbtn" id="chdUnlink">🔓 فك الارتباط بالمشروع</button>':''}
       <button class="reqbtn" id="chdClose" style="margin-inline-start:auto">✕ إغلاق</button>
     </div>
+
+    ${(!c.client_id&&!c.source_contract_id)?`
+    <div class="chub-tpl-banner">
+      <div><b>📄 هذا عقد أصل (قالب)</b><br><span class="sa-hint">إسناده لعميل يُنشئ <b>نسخة مستقلة تمامًا</b> خاصة به — بمعرّف ورقم ورابط توقيع خاص — والأصل يبقى هنا كما هو بلا أي تعديل. يمكن إسناده لعدد غير محدود من العملاء بلا أي تداخل بينهم.</span></div>
+    </div>
+    <div id="chdInstances"></div>`:''}
+    ${c.source_contract_id?`<div class="ctr-integrity ok">📎 هذه نسخة خاصة بـ<b>${esc(c.client_name||'—')}</b> من الأصل «${esc(c.source_name||'')}» — تعديلها لا يمسّ الأصل ولا نسخ العملاء الآخرين إطلاقًا.</div>`:''}
 
     ${(!c.internal_approved&&c.status!=='void'&&!anySigned)?`
     <div class="chub-approval-banner ${canApprove?'':'chub-approval-locked'}">
@@ -4325,6 +4347,46 @@ async function openContractDetailPanel(contractId){
 
   if(panel.scrollIntoView)panel.scrollIntoView({behavior:'smooth',block:'start'});
   document.getElementById('chdClose').onclick=()=>{panel.innerHTML='';};
+  // الأصل: عرض نسخه الحالية + إتاحة إسناده لعميل جديد (نسخة مستقلة)
+  if(!c.client_id&&!c.source_contract_id){
+    (async()=>{
+      const box=document.getElementById('chdInstances');
+      if(!box)return;
+      let insts=[];
+      try{ insts=await fetchContractInstances(contractId); }catch(e){}
+      const {data:allCl}=await sb.from('pmo_clients').select('id,name').order('name');
+      const taken=new Set(insts.filter(i=>i.status!=='void').map(i=>i.client_name));
+      box.innerHTML=`
+        <div class="sa-section" style="margin-bottom:14px">
+          <h4>النسخ المُنشأة من هذا الأصل <span class="sa-hint">(${insts.length})</span></h4>
+          ${insts.length?insts.map(i=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft)">
+              <div><span class="chub-num">${esc(i.contract_number||'—')}</span> <b>${esc(i.client_name||'—')}</b>
+                <span class="sa-hint"> · ${CH_STL[i.status]||i.status}${i.project_name?' · 📁 '+esc(i.project_name):''}${i.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}</span></div>
+              <button class="reqbtn" data-openinst="${i.id}">فتح ←</button>
+            </div>`).join(''):'<p class="sa-hint">لا نسخ بعد — أسنِد هذا الأصل لعميل لإنشاء أول نسخة.</p>'}
+          <div class="sa-form" style="margin-top:12px">
+            <select id="chdAssignClient"><option value="">اختر العميل لإنشاء نسخة له...</option>${
+              (allCl||[]).filter(x=>!taken.has(x.name)).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
+            <button class="reqbtn" id="chdAssignGo">إنشاء نسخة</button>
+          </div>
+        </div>`;
+      document.querySelectorAll('[data-openinst]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.openinst));
+      const go=async()=>{
+        const cid=document.getElementById('chdAssignClient').value;
+        if(!cid){toast('اختر العميل','warn');return;}
+        try{
+          const r=await assignContractToClient(contractId,cid);
+          toast('أُنشئت نسخة خاصة بالعميل ('+r.number+') — الأصل بقي كما هو','ok');
+          CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();
+          openContractDetailPanel(r.id);
+        }catch(e){toast(e.message,'err');}
+      };
+      document.getElementById('chdAssignGo').onclick=go;
+      const topBtn=document.getElementById('chdAssign');
+      if(topBtn)topBtn.onclick=()=>{const sel=document.getElementById('chdAssignClient');if(sel&&sel.scrollIntoView)sel.scrollIntoView({behavior:'smooth',block:'center'});};
+    })();
+  }
   if(c.project_id){
     document.getElementById('chdUnlink').onclick=async()=>{
       if(!await confirmDialog('فك الارتباط','سيبقى العقد موجودًا في محفظة العقود، لكنه لن يظهر بعد الآن كمرتبط بهذا المشروع.',false,'فك الارتباط'))return;
