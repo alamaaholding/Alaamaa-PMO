@@ -78,6 +78,8 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .chub-sep{color:var(--muted)}
 .chub-row-arrow{font-size:.78rem;font-weight:700;color:var(--gold-dark);white-space:nowrap;flex-shrink:0}
 .chub-type-tag{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--soft-2);color:var(--muted)}
+.chub-num{font-family:monospace;font-size:.72rem;font-weight:700;color:var(--gold-dark);
+  background:var(--soft-2);padding:2px 7px;border-radius:5px;direction:ltr;display:inline-block}
 .chub-pending-tag{background:var(--warn-bg);color:var(--warn)}
 .chub-approval-banner{display:flex;align-items:center;gap:14px;justify-content:space-between;flex-wrap:wrap;
   background:var(--warn-bg);border:1px solid color-mix(in srgb, var(--warn) 30%, transparent);border-radius:10px;
