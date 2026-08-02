@@ -587,6 +587,33 @@ async function createContractV2(opts){
   });
   if(error)throw error;return data;
 }
+async function duplicateContract(contractId,newName){
+  const {data,error}=await sb.rpc('pmo_duplicate_contract',{p_contract_id:contractId,p_new_name:newName||null});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error||'تعذّر التكرار');
+  return data;
+}
+async function fetchContractAttachments(contractId){
+  const {data,error}=await sb.rpc('pmo_contract_attachments_list',{p_contract_id:contractId});
+  if(error)throw error;return data||[];
+}
+async function addContractAttachment(contractId,label,url,kind,baselineId){
+  const {data,error}=await sb.rpc('pmo_add_contract_attachment',
+    {p_contract_id:contractId,p_label:label,p_url:url||null,p_kind:kind||'link',p_baseline_id:baselineId||null});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error==='signed'?'لا يمكن تعديل مرفقات عقد وقّع عليه طرف':'تعذّر الإضافة');
+  return data;
+}
+async function deleteContractAttachment(id){
+  const {data,error}=await sb.rpc('pmo_delete_contract_attachment',{p_id:id});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error==='signed'?'لا يمكن تعديل مرفقات عقد موقَّع':'تعذّر الحذف');
+  return data;
+}
+async function fetchBaselineById(baselineId){
+  const {data,error}=await sb.rpc('pmo_baseline_by_id',{p_baseline_id:baselineId});
+  if(error)throw error;return data;
+}
 async function assignContractToClient(contractId,clientId){
   const {data,error}=await sb.rpc('pmo_assign_contract_to_client',{p_contract_id:contractId,p_client_id:clientId});
   if(error)throw error;
