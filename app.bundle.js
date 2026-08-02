@@ -1,4 +1,4 @@
-const BUILD_V='2597af39';
+const BUILD_V='f7cecd4d';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -3881,6 +3881,11 @@ function mergeContract(data){
     if(excluded.has(s.num)){
       return {num:s.num,title:s.title,body:'لا ينطبق — حُذف هذا البند باتفاق الطرفين في هذا العقد تحديدًا.',removed:true};
     }
+    // نص محرَّر يدويًا لهذا العقد تحديدًا — يتجاوز نص النموذج الأصلي
+    const ed=(ov.edited||{})[s.num];
+    if(ed&&(ed.body||ed.title)){
+      return {num:s.num,title:ed.title||s.title,body:sub(ed.body!=null?ed.body:s.body),edited:true};
+    }
     if(s.conditional==='ad_spend'&&!adSpend){
       return {num:s.num,title:s.title,body:s.bodyIfExcluded};
     }
@@ -4399,6 +4404,83 @@ async function chubRenderQR(elId,link){
   }
 }
 
+
+// ===== محرر بنود العقد — مشترك بين لوحتي الإنشاء والتعديل =====
+// الاستبعاد لا يُزيح ترقيمًا أبدًا (البند يبقى برقمه بنص "غير منطبق")، والتحرير المباشر
+// يستبدل نص البند لهذا العقد وحده دون المساس بالنموذج الأصلي المشترك بين كل العقود.
+function chubRenderClauseEditor(boxId,onChange){
+  const box=document.getElementById(boxId);
+  if(!box)return;
+  const tpl=(CONTRACT_TEMPLATES[CHD_TEMPLATE]||CONTRACT_TEMPLATES.alamaa_v1).tpl;
+  if(!CHD_OVERRIDES.edited)CHD_OVERRIDES.edited={};
+  box.innerHTML=`
+    <p class="sa-hint" style="margin-bottom:8px">إلغاء تحديد بند يجعله «غير منطبق» — <b>يبقى برقمه</b> ولا تُزاح أرقام بقية البنود (حفاظًا على سلامة الإحالات بينها). زر «تحرير» يتيح تعديل نص البند لهذا العقد وحده.</p>
+    <div class="chd-clause-grid">
+      ${tpl.sections.map(sec=>{
+        const off=CHD_OVERRIDES.excluded.includes(sec.num);
+        const ed=CHD_OVERRIDES.edited[sec.num];
+        return `<div class="chd-clause ${off?'chd-clause-off':''}">
+          <input type="checkbox" data-clause="${sec.num}" ${off?'':'checked'}>
+          <span style="flex:1">${esc(sec.num)}. ${esc((ed&&ed.title)||sec.title)}${ed?' <span class="chub-type-tag">محرَّر</span>':''}</span>
+          <button class="reqbtn" data-editclause="${sec.num}" style="padding:2px 8px;font-size:.7rem">تحرير</button>
+        </div>`;}).join('')}
+    </div>
+    <div id="${boxId}-edit"></div>
+    ${CHD_OVERRIDES.added.length?`<div style="margin-top:12px"><b style="font-size:.85rem">بنود مضافة:</b>
+      ${CHD_OVERRIDES.added.map((a,i)=>`<div class="chd-att-row"><span>${esc(a.num||'')} ${esc(a.title)}</span>
+        <button class="reqbtn" data-delclause="${i}" style="color:var(--crit)">حذف</button></div>`).join('')}</div>`:''}
+    <div class="sa-form" style="margin-top:12px;flex-wrap:wrap">
+      <input id="${boxId}-nnum" placeholder="الرقم (مثال: ١٦.٧)" style="width:130px">
+      <input id="${boxId}-ntitle" placeholder="عنوان البند الجديد" style="flex:1;min-width:160px">
+      <button class="reqbtn" id="${boxId}-nadd">إضافة بند</button>
+    </div>
+    <textarea id="${boxId}-nbody" placeholder="نص البند الجديد..." style="width:100%;min-height:60px;margin-top:8px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px"></textarea>`;
+
+  box.querySelectorAll('[data-clause]').forEach(cb=>cb.onchange=()=>{
+    const num=cb.dataset.clause;
+    if(cb.checked)CHD_OVERRIDES.excluded=CHD_OVERRIDES.excluded.filter(x=>x!==num);
+    else if(!CHD_OVERRIDES.excluded.includes(num))CHD_OVERRIDES.excluded.push(num);
+    chubRenderClauseEditor(boxId,onChange);if(onChange)onChange();
+  });
+  box.querySelectorAll('[data-editclause]').forEach(b=>b.onclick=()=>{
+    const num=b.dataset.editclause;
+    const sec=tpl.sections.find(x=>x.num===num);
+    const ed=CHD_OVERRIDES.edited[num]||{};
+    const area=document.getElementById(boxId+'-edit');
+    area.innerHTML=`<div class="sa-section" style="margin-top:10px;background:var(--soft-2)">
+      <h4>تحرير البند ${esc(num)}</h4>
+      <input id="${boxId}-etitle" value="${esc(ed.title||sec.title)}" style="width:100%;margin-bottom:8px;font-weight:700;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
+      <textarea id="${boxId}-ebody" style="width:100%;min-height:180px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px;line-height:1.7">${esc(ed.body!=null?ed.body:(sec.body||''))}</textarea>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="hbtn" id="${boxId}-esave" style="background:var(--gold);border-color:var(--gold)">تطبيق على هذا العقد</button>
+        ${CHD_OVERRIDES.edited[num]?`<button class="reqbtn" id="${boxId}-ereset">استعادة نص النموذج الأصلي</button>`:''}
+        <button class="reqbtn" id="${boxId}-ecancel">إلغاء</button>
+      </div></div>`;
+    if(area.scrollIntoView)area.scrollIntoView({behavior:'smooth',block:'center'});
+    document.getElementById(boxId+'-ecancel').onclick=()=>{area.innerHTML='';};
+    document.getElementById(boxId+'-esave').onclick=()=>{
+      CHD_OVERRIDES.edited[num]={title:document.getElementById(boxId+'-etitle').value,
+        body:document.getElementById(boxId+'-ebody').value};
+      area.innerHTML='';chubRenderClauseEditor(boxId,onChange);if(onChange)onChange();
+      toast('طُبِّق التعديل على هذا العقد — النموذج الأصلي لم يتغيّر','ok');
+    };
+    const rs=document.getElementById(boxId+'-ereset');
+    if(rs)rs.onclick=()=>{delete CHD_OVERRIDES.edited[num];area.innerHTML='';
+      chubRenderClauseEditor(boxId,onChange);if(onChange)onChange();};
+  });
+  box.querySelectorAll('[data-delclause]').forEach(b=>b.onclick=()=>{
+    CHD_OVERRIDES.added.splice(Number(b.dataset.delclause),1);
+    chubRenderClauseEditor(boxId,onChange);if(onChange)onChange();
+  });
+  document.getElementById(boxId+'-nadd').onclick=()=>{
+    const title=document.getElementById(boxId+'-ntitle').value.trim();
+    if(!title){toast('أدخل عنوان البند','warn');return;}
+    CHD_OVERRIDES.added.push({num:document.getElementById(boxId+'-nnum').value.trim()||null,
+      title,body:document.getElementById(boxId+'-nbody').value});
+    chubRenderClauseEditor(boxId,onChange);if(onChange)onChange();
+  };
+}
+
 // ===== لوحة تفصيلية موحّدة: تعرض/تعدّل عقدًا قائمًا (قياسيًا أو مخصَّصًا) =====
 async function openContractDetailPanel(contractId){
   const c=CH_CONTRACTS.find(x=>x.id===contractId);
@@ -4513,7 +4595,8 @@ async function openContractDetailPanel(contractId){
   if(!Array.isArray(CHD_OVERRIDES.excluded))CHD_OVERRIDES.excluded=[];
   if(!Array.isArray(CHD_OVERRIDES.added))CHD_OVERRIDES.added=[];
 
-  const renderClauses=()=>{
+  const renderClauses=()=>chubRenderClauseEditor('chdClauses',refreshPreview);
+  const _unusedClauses=()=>{
     const box=document.getElementById('chdClauses');
     if(!box)return;
     const tpl=(CONTRACT_TEMPLATES[CHD_TEMPLATE]||CONTRACT_TEMPLATES.alamaa_v1).tpl;
@@ -4762,12 +4845,21 @@ async function openNewContractPanel(){
     </div>
     <div id="chnRest" style="margin-top:14px">
       <div id="chnStandardFields">
+        <div class="sa-form" style="flex-wrap:wrap;margin-bottom:10px">
+          <label style="font-size:.85rem;font-weight:700;align-self:center">نموذج العقد:</label>
+          <select id="chnTemplate" style="flex:1;min-width:240px">${Object.values(CONTRACT_TEMPLATES).map(t=>
+            `<option value="${t.key}">${esc(t.label)}</option>`).join('')}</select>
+        </div>
         <div class="sa-form" style="flex-wrap:wrap">
           <input id="chdValue" type="number" placeholder="قيمة العقد (ر.س)">
           <input id="chdDate" type="date" value="${new Date().toISOString().slice(0,10)}">
           <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="chdAdSpend"> يشمل إدارة إنفاق إعلاني</label>
         </div>
         <textarea id="chdSpecial" placeholder="شروط إضافية خاصة بهذا العقد (اختياري)" style="width:100%;min-height:70px;margin-top:10px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px"></textarea>
+        <div class="sa-section" style="margin-top:14px;background:var(--soft-2)">
+          <h4>📋 بنود العقد <span class="sa-hint">استبعد بندًا، أو حرّر نصه، أو أضف بندًا — لهذا العقد وحده</span></h4>
+          <div id="chnClauses"></div>
+        </div>
       </div>
       <div id="chnCustomFields" style="display:none">
         <input id="chdTitle" placeholder="عنوان العقد" style="width:100%;margin-bottom:10px;font-weight:700;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
@@ -4785,6 +4877,8 @@ async function openNewContractPanel(){
   document.getElementById('chnClose').onclick=()=>{panel.innerHTML='';};
 
   let currentClient={};
+  CHD_TEMPLATE='alamaa_v1';
+  CHD_OVERRIDES={excluded:[],added:[],edited:{}};
   const typeOf=()=>document.querySelector('input[name="chnType"]:checked').value;
   const refreshPreview=()=>{
     document.getElementById('chnPreview').innerHTML=typeOf()==='custom'
@@ -4798,6 +4892,10 @@ async function openNewContractPanel(){
     refreshPreview();
   };
   document.querySelectorAll('input[name="chnType"]').forEach(r=>r.onchange=applyTypeVisibility);
+  {const ts=document.getElementById('chnTemplate');
+   if(ts)ts.onchange=()=>{CHD_TEMPLATE=ts.value;CHD_OVERRIDES.excluded=[];CHD_OVERRIDES.edited={};
+     chubRenderClauseEditor('chnClauses',refreshPreview);refreshPreview();};}
+  chubRenderClauseEditor('chnClauses',refreshPreview);
 
   // العميل اختياري تمامًا: اختياره يُثري المعاينة ببياناته فقط، وغيابه لا يمنع الإنشاء إطلاقًا
   document.getElementById('chnClient').onchange=async(e)=>{
@@ -4827,6 +4925,7 @@ async function openNewContractPanel(){
         scopeType:'client',projectId:null,baselineId:null,clientId:cid,clientRow:currentClient,
         contractType:type,
         contractName:name,contractNumber:document.getElementById('chnNumber').value.trim()||null,
+        templateKey:CHD_TEMPLATE,
         customTitle:type==='custom'?document.getElementById('chdTitle').value:null,
         customBody:type==='custom'?document.getElementById('chdBody').value:null,
         includesAdSpend:type==='standard'?document.getElementById('chdAdSpend').checked:false,
@@ -4835,6 +4934,17 @@ async function openNewContractPanel(){
         specialTerms:type==='standard'?document.getElementById('chdSpecial').value:null
       });
       if(r&&r.ok){
+        // تعديلات البنود تُحفَظ فور الإنشاء (دالة الإنشاء لا تحملها) — فلا تُفقد إطلاقًا
+        const hasOv=(CHD_OVERRIDES.excluded||[]).length||(CHD_OVERRIDES.added||[]).length
+          ||Object.keys(CHD_OVERRIDES.edited||{}).length;
+        if(hasOv&&type==='standard'){
+          try{ await updateContract(r.id,{
+            includesAdSpend:document.getElementById('chdAdSpend').checked,
+            effectiveDate:document.getElementById('chdDate').value,
+            contractValue:document.getElementById('chdValue').value,
+            specialTerms:document.getElementById('chdSpecial').value,
+            templateKey:CHD_TEMPLATE, clauseOverrides:CHD_OVERRIDES}); }catch(e){}
+        }
         toast('أُنشئ العقد في المحفظة — اربطه بمشروع لاحقًا عند الحاجة','ok');panel.innerHTML='';
         CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();
         openContractDetailPanel(r.id);
