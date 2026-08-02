@@ -193,30 +193,55 @@ function mergeContract(data){
 }
 function fmtLong(d){try{return new Date(d).toLocaleDateString('ar',{year:'numeric',month:'long',day:'numeric'});}catch(e){return '—';}}
 
-function renderMergedContractHTML(merged){
-  const mdInline=t=>esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
-  const bodyHtml=body=>body.split(/\n{2,}/).map(p=>{
+// أدوات عرض مشتركة بين العقد القياسي والمخصَّص — تنسيق فقرات/قوائم بسيط من نص حر
+function ctrMdInline(t){return esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');}
+function ctrBodyHtml(body){
+  return (body||'').split(/\n{2,}/).map(p=>{
     if(/^-\s/.test(p.trim())){
-      const items=p.split(/\n(?=-\s)/).map(li=>'<li>'+mdInline(li.replace(/^-\s*/,''))+'</li>').join('');
+      const items=p.split(/\n(?=-\s)/).map(li=>'<li>'+ctrMdInline(li.replace(/^-\s*/,''))+'</li>').join('');
       return '<ul>'+items+'</ul>';
     }
-    return '<p>'+mdInline(p).replace(/\n/g,'<br>')+'</p>';
+    return '<p>'+ctrMdInline(p).replace(/\n/g,'<br>')+'</p>';
   }).join('');
-  const partyTable=`<table class="ctr-parties"><tbody>${merged.partyRows.map(([l,a,b])=>
+}
+function ctrPartyTable(rows){
+  return `<table class="ctr-parties"><tbody>${rows.map(([l,a,b])=>
     `<tr><th>${esc(l)}</th><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}</tbody></table>`;
+}
+
+function renderMergedContractHTML(merged){
   const sectionsHtml=merged.sections.map(s=>
-    `<div class="ctr-sec"><h4>${esc(s.num)}. ${esc(s.title)}</h4>${bodyHtml(s.body)}</div>`).join('');
+    `<div class="ctr-sec"><h4>${esc(s.num)}. ${esc(s.title)}</h4>${ctrBodyHtml(s.body)}</div>`).join('');
   const specialHtml=merged.specialTerms?
-    `<div class="ctr-sec ctr-special"><h4>ملحق — شروط إضافية خاصة بهذا العقد</h4>${bodyHtml(merged.specialTerms)}</div>`:'';
+    `<div class="ctr-sec ctr-special"><h4>ملحق — شروط إضافية خاصة بهذا العقد</h4>${ctrBodyHtml(merged.specialTerms)}</div>`:'';
   return `<div class="ctr-doc">
-    <div class="ctr-intro">${bodyHtml(merged.intro)}</div>
-    <div class="ctr-sec"><h4>١. الأطراف</h4>${partyTable}</div>
+    <div class="ctr-intro">${ctrBodyHtml(merged.intro)}</div>
+    <div class="ctr-sec"><h4>١. الأطراف</h4>${ctrPartyTable(merged.partyRows)}</div>
     ${sectionsHtml}
     ${specialHtml}
-    <div class="ctr-sec"><h4>${esc(merged.signatures.num)}. ${esc(merged.signatures.title)}</h4>${bodyHtml(merged.signatures.body)}</div>
+    <div class="ctr-sec"><h4>${esc(merged.signatures.num)}. ${esc(merged.signatures.title)}</h4>${ctrBodyHtml(merged.signatures.body)}</div>
+  </div>`;
+}
+
+// عقد بنص حر بالكامل — يحافظ على نفس هوية العرض البصرية (رأس + جدول أطراف + توقيعات)
+// لكن المتن نص حر كتبه المستخدم بنفسه، لا قالبًا مرقَّمًا ثابتًا.
+function renderCustomContractHTML(data){
+  const partyRows=[
+    ['الاسم','علامة',data.clientName||'—'],
+    ['السجل التجاري','',data.clientCr||'—'],
+    ['العنوان','',data.clientAddress||'—'],
+    ['الممثل المفوَّض','',(data.clientRepName||'—')+' — '+(data.clientRepTitle||'—')],
+    ['بيانات التواصل','',(data.clientEmail||'—')+' · '+(data.clientPhone||'—')]
+  ];
+  return `<div class="ctr-doc">
+    <div class="ctr-intro"><p><b>علامة</b></p><p><b>${esc(data.title||'عقد')}</b></p></div>
+    <div class="ctr-sec"><h4>الأطراف</h4>${ctrPartyTable(partyRows)}</div>
+    <div class="ctr-sec ctr-custom-body">${ctrBodyHtml(data.body)}</div>
+    <div class="ctr-sec"><h4>التوقيعات</h4><p>بتوقيع الطرفين أدناه، يُقر كل منهما بأنه اطّلع على هذا العقد وقَبِل الالتزام به.</p></div>
   </div>`;
 }
 
 window.mergeContract=mergeContract;
 window.renderMergedContractHTML=renderMergedContractHTML;
+window.renderCustomContractHTML=renderCustomContractHTML;
 window.CONTRACT_TEMPLATE=CONTRACT_TEMPLATE;
