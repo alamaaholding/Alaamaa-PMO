@@ -93,7 +93,7 @@ function renderCHBody(stats,access){
   }).join('')||'<span class="sa-empty">لا أحد لديه صلاحية مخصَّصة لهذا العميل تحديدًا</span>';
 
   const c=stats.c;
-  const missingFields=['cr_number','vat_number','national_address_short','rep_name','rep_title'].filter(k=>!c[k]);
+  const missingFields=['cr_number','vat_number','national_address_short','rep_name','rep_title','contact_email','contact_phone'].filter(k=>!c[k]);
   const setBtn=$('#chSettings');
   if(setBtn)setBtn.innerHTML='⚙ إعدادات العميل'+(missingFields.length?' <span class="ch-set-warn">'+missingFields.length+'</span>':'');
 
@@ -155,7 +155,7 @@ window.renderClientHome=renderClientHome;
 function openClientSettings(stats,access){
   if(!stats){toast('لا تزال بيانات العميل قيد التحميل — لحظة واحدة','warn');return;}
   const c=stats.c;
-  const missingFields=['cr_number','vat_number','national_address_short','rep_name','rep_title'].filter(k=>!c[k]);
+  const missingFields=['cr_number','vat_number','national_address_short','rep_name','rep_title','contact_email','contact_phone'].filter(k=>!c[k]);
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='إعدادات العميل: '+c.name;
   document.getElementById('tkTabs').innerHTML='';
@@ -178,6 +178,8 @@ function openClientSettings(stats,access){
         <input id="cpAddr" placeholder="العنوان الوطني المختصر" value="${esc(c.national_address_short||'')}" style="flex:1;min-width:180px">
         <input id="cpRepName" placeholder="اسم الممثل المفوَّض" value="${esc(c.rep_name||'')}" style="flex:1;min-width:160px">
         <input id="cpRepTitle" placeholder="صفته" value="${esc(c.rep_title||'')}" style="flex:1;min-width:140px">
+        <input id="cpEmail" placeholder="البريد الرسمي (يظهر في العقد)" value="${esc(c.contact_email||'')}" style="flex:1;min-width:180px" dir="ltr">
+        <input id="cpPhone" placeholder="رقم الجوال (يظهر في العقد)" value="${esc(c.contact_phone||'')}" style="flex:1;min-width:150px" dir="ltr">
         <button class="hbtn" id="cpSave" style="background:var(--gold);border-color:var(--gold)">حفظ الملف</button>
       </div>
     </div>`;
@@ -196,7 +198,9 @@ function openClientSettings(stats,access){
     const btn=document.getElementById('cpSave');btn.disabled=true;
     const vals={cr_number:document.getElementById('cpCr').value.trim(),vat_number:document.getElementById('cpVat').value.trim(),
       national_address_short:document.getElementById('cpAddr').value.trim(),rep_name:document.getElementById('cpRepName').value.trim(),
-      rep_title:document.getElementById('cpRepTitle').value.trim()};
+      rep_title:document.getElementById('cpRepTitle').value.trim(),
+      contact_email:document.getElementById('cpEmail').value.trim(),
+      contact_phone:document.getElementById('cpPhone').value.trim()};
     try{
       await updateClientProfile(stats.cid,vals);
       Object.assign(c,vals);
