@@ -12,6 +12,7 @@ const CONTRACT_TEMPLATE = {
     rows:[
       ['الاسم','علامة','{{اسم_العميل}}'],
       ['السجل التجاري','','{{سجل_العميل}}'],
+      ['الرقم الضريبي','','{{ضريبي_العميل}}'],
       ['العنوان','','{{عنوان_العميل}}'],
       ['الممثل المفوَّض','','{{ممثل_العميل}} — {{صفة_ممثل_العميل}}'],
       ['بيانات التواصل','','{{بريد_العميل}} · {{هاتف_العميل}}']
@@ -154,7 +155,7 @@ const CONTRACT_TEMPLATE = {
 
 function mergeContract(data){
   const D={
-    اسم_العميل:data.clientName||'—', سجل_العميل:data.clientCr||'—', عنوان_العميل:data.clientAddress||'—',
+    اسم_العميل:data.clientName||'—', سجل_العميل:data.clientCr||'—', ضريبي_العميل:data.clientVat||'—', عنوان_العميل:data.clientAddress||'—',
     ممثل_العميل:data.clientRepName||'—', صفة_ممثل_العميل:data.clientRepTitle||'—',
     بريد_العميل:data.clientEmail||'—', هاتف_العميل:data.clientPhone||'—',
     تاريخ_السريان:data.effectiveDate?fmtLong(data.effectiveDate):'—',
