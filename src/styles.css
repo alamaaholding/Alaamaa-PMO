@@ -50,9 +50,14 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .ctr-sec p{margin:0 0 8px}
 .ctr-sec ul{margin:0 0 8px;padding-inline-start:20px}
 .ctr-sec li{margin-bottom:4px}
-.ctr-parties{width:100%;border-collapse:collapse;font-size:.8rem}
-.ctr-parties th{text-align:start;color:var(--muted);font-weight:600;padding:5px 8px;width:110px;vertical-align:top}
-.ctr-parties td{padding:5px 8px}
+.ctr-parties{width:100%;border-collapse:collapse;font-size:.8rem;table-layout:fixed}
+.ctr-parties thead th{padding:8px;font-weight:800;color:var(--ink);border-bottom:2px solid var(--gold);
+  text-align:start;font-size:.82rem}
+.ctr-parties thead th:first-child{width:120px}
+.ctr-party-hd{width:auto}
+.ctr-parties tbody th.ctr-party-lbl{text-align:start;color:var(--muted);font-weight:600;padding:7px 8px;
+  vertical-align:top;width:120px;background:var(--soft-2)}
+.ctr-parties td{padding:7px 8px;vertical-align:top;word-break:break-word;border-bottom:1px solid var(--line-soft)}
 .ch-warn-badge{background:var(--warn-bg,#F8EFD9);color:var(--warn,#8A5E0E);font-size:.78rem;font-weight:600;
   padding:8px 12px;border-radius:8px;margin-bottom:10px}
 .ch-set-warn{background:var(--crit);color:#fff;font-size:.68rem;font-weight:700;border-radius:999px;
@@ -509,7 +514,7 @@ textarea.dlg-i{min-height:80px;resize:vertical}
   .tabs::-webkit-scrollbar{display:none}
   .tab{white-space:nowrap;flex:none}
 }
-/* مؤشّر سياق العميل في الرأس */
+/* مؤشّر سياق الشريك في الرأس */
 .brand h1{display:flex;align-items:center;gap:8px}
 .ctx-dot{width:11px;height:11px;border-radius:50%;flex:none;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
 /* الحالة الفارغة بدعوة فعل */
@@ -574,7 +579,7 @@ textarea.dlg-i{min-height:80px;resize:vertical}
 .sa-chip button{background:none;border:none;cursor:pointer;color:inherit;opacity:.6;font-size:var(--fs-xs);padding:0 2px}
 .sa-chip button:hover{opacity:1}
 .sa-empty{font-size:var(--fs-sm);color:var(--muted)}
-/* ===== صفحة العميل الموحّدة ===== */
+/* ===== صفحة الشريك الموحّدة ===== */
 .ch-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
 .ch-kpi{text-align:center;padding:10px 6px;border-radius:var(--r-sm);background:var(--soft-2)}
 .ch-kpi b{display:block;font-size:var(--fs-xl);font-weight:700;color:var(--ink)}
@@ -659,7 +664,7 @@ textarea.dlg-i{min-height:80px;resize:vertical}
 .pg-date-s{transform:translateX(50%)}
 .pg-date-e{transform:translateX(50%)}
 @media(max-width:640px){.pg-label,.pg-axis-label{width:130px}.pg-meta{display:none}}
-/* طلبات العميل (المرحلة 3) */
+/* طلبات الشريك (المرحلة 3) */
 .rq-card{margin-bottom:10px}
 .rq-badge{font-size:var(--fs-xs);font-weight:700;padding:2px 9px;border-radius:999px;margin-inline-start:8px}
 .rq-tags{display:flex;gap:7px;flex-wrap:wrap;margin:6px 0}
@@ -737,7 +742,7 @@ html[dir="rtl"] .tabs::after{--fade-dir:right}
 .reqbtn,.hbtn{display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .empty-cta .ico .icn{width:44px;height:44px;color:var(--gold-dark)}
 .pcard-menu .icn,.ib .icn{width:16px;height:16px;vertical-align:middle}
-/* داشبورد العميل */
+/* داشبورد الشريك */
 .cdash{display:flex;flex-direction:column;gap:16px}
 .cd-hero{display:flex;gap:20px;align-items:stretch;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:var(--e1);flex-wrap:wrap}
 .cd-hero-right{flex:1;min-width:280px}
