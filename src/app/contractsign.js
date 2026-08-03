@@ -76,12 +76,12 @@ async function renderPublicSign(token){
     :`<div class="pubsig-row pubsig-pending"><b>${label}</b><span>بانتظار التوقيع</span></div>`;
 
   const mergeData={
-    clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,clientAddress:d.client_address,
+    clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,org:d.org||{},clientAddress:d.client_address,
     clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title,
     includesAdSpend:d.includes_ad_spend,effectiveDate:d.effective_date,contractValue:d.contract_value,latePaymentCap:d.late_payment_cap,
     specialTerms:d.special_terms
   };
-  const customData={title:d.custom_title,body:d.custom_body,clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,
+  const customData={title:d.custom_title,body:d.custom_body,clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,org:d.org||{},
     clientAddress:d.client_address,clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title};
   const contractHtml=isCustom?renderCustomContractHTML(customData):renderMergedContractHTML(mergeContract(mergeData));
   let integrityBadge='';
@@ -97,11 +97,11 @@ async function renderPublicSign(token){
       <div class="pubsign-brand">علامة <span>· أثر دائم</span></div>
       <h2>${fullySigned?'العقد موقَّع من الطرفين':'توقيع العقد'}</h2>
       <div class="pubsign-meta">
-        <div><b>العميل</b><span>${esc(d.client_name)}</span></div>
+        <div><b>الشريك</b><span>${esc(d.client_name)}</span></div>
         ${d.project_name?`<div><b>المشروع</b><span>${esc(d.project_name)}</span></div>`:''}
         ${d.baseline_label?`<div><b>اللقطة المرجعية</b><span>${esc(d.baseline_label)} — ${new Date(d.baseline_date).toLocaleDateString('ar')}</span></div>`:''}
       </div>
-      <div class="pubsig-status">${sigRow('علامة',alamaaSig)}${sigRow('العميل',clientSig)}</div>
+      <div class="pubsig-status">${sigRow('علامة',alamaaSig)}${sigRow('الشريك',clientSig)}</div>
       ${integrityBadge}
       ${(d.attachments&&d.attachments.length)?`
       <div class="pubsign-attach">
@@ -149,7 +149,7 @@ async function renderPublicSign(token){
         const r=await signContractPublic(token,name,email,s.data||('نصي: '+s.typed));
         if(r&&r.ok){toast('تم توثيق توقيعك بنجاح','ok');renderPublicSign(token);}
         else{
-          const msgs={already_signed:'تم توقيع هذا العقد من قبل العميل بالفعل.',archived:'انتهت صلاحية هذا الرابط.',void:'أُلغي هذا العقد.',name_required:'الاسم مطلوب.'};
+          const msgs={already_signed:'تم توقيع هذا العقد من قبل الشريك بالفعل.',archived:'انتهت صلاحية هذا الرابط.',void:'أُلغي هذا العقد.',name_required:'الاسم مطلوب.'};
           toast(msgs[r&&r.error]||'تعذّر التوقيع','err');btn.disabled=false;btn.textContent='أوافق وأوقّع';
         }
       }catch(e){toast('تعذّر التوقيع: '+e.message,'err');btn.disabled=false;btn.textContent='أوافق وأوقّع';}
@@ -179,7 +179,7 @@ async function refreshContractPanel(){
   let list;
   try{ list=await fetchContractsForProject(PROJECT._dbId); }
   catch(e){ document.getElementById('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
-  const STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع العميل',signed:'موقَّع بالكامل ✅',void:'ملغى'};
+  const STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع الشريك',signed:'موقَّع بالكامل ✅',void:'ملغى'};
   const rows=list.map(c=>{
     const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
     const link=location.origin+location.pathname+'#/sign/'+c.token;
@@ -193,9 +193,9 @@ async function refreshContractPanel(){
         <b>${esc(c.baseline_label)}</b><span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${STL[c.status]||c.status}</span>
       </div>
       <div class="sa-hint" style="margin:6px 0">علامة: ${al?esc(al.name)+' — '+new Date(al.signed_at).toLocaleDateString('ar'):'لم توقّع بعد'}
-        · العميل: ${cl?esc(cl.name)+' — '+new Date(cl.signed_at).toLocaleDateString('ar'):'لم يوقّع بعد'}
+        · الشريك: ${cl?esc(cl.name)+' — '+new Date(cl.signed_at).toLocaleDateString('ar'):'لم يوقّع بعد'}
         · ${c.includes_ad_spend?'يشمل إنفاقًا إعلانيًا':'بلا إنفاق إعلاني'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}</div>
-      <div class="ctr-link-badge">🔒 الرابط والرمز أدناه خاصّان بـ<b>${esc((CLIENTS.find(x=>x.id===CID)||{}).name||'هذا العميل')}</b> حصرًا — لتوقيع هذا العقد تحديدًا، لا يصلح لغيره</div>
+      <div class="ctr-link-badge">🔒 الرابط والرمز أدناه خاصّان بـ<b>${esc((CLIENTS.find(x=>x.id===CID)||{}).name||'هذا الشريك')}</b> حصرًا — لتوقيع هذا العقد تحديدًا، لا يصلح لغيره</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input readonly value="${link}" style="flex:1;min-width:220px;font-size:.75rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2)">
         <button class="reqbtn" data-copylink="${link}">نسخ الرابط</button>
@@ -234,13 +234,13 @@ async function refreshContractPanel(){
     try{ unlinked=await fetchUnlinkedClientContracts(CID); }
     catch(e){ picker.innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
     if(!unlinked.length){
-      picker.innerHTML='<p class="sa-hint">لا عقود غير مرتبطة لهذا العميل حاليًا. أنشئ عقدًا جديدًا بنطاق «العميل كاملًا» من إدارة العقود، ثم اربطه هنا لاحقًا.</p>';
+      picker.innerHTML='<p class="sa-hint">لا عقود غير مرتبطة لهذا الشريك حاليًا. أنشئ عقدًا جديدًا بنطاق «الشريك كاملًا» من إدارة العقود، ثم اربطه هنا لاحقًا.</p>';
       return;
     }
     picker.innerHTML=unlinked.map(u=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line-soft)">
         <div><span class="chub-num">${esc(u.contract_number||'—')}</span> <b>${esc(u.contract_name||u.custom_title||'عقد بلا اسم')}</b>
-          <span class="sa-hint">${u.contract_value?' · '+Number(u.contract_value).toLocaleString('ar')+' ر.س':''}${u.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}${u.has_client?'':' · 🆓 عقد مستقل بلا عميل'}</span></div>
+          <span class="sa-hint">${u.contract_value?' · '+Number(u.contract_value).toLocaleString('ar')+' ر.س':''}${u.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}${u.has_client?'':' · 🆓 عقد مستقل بلا شريك'}</span></div>
         <button class="reqbtn" data-linkbl="${u.id}">ربط بهذا المشروع</button>
       </div>`).join('');
     document.querySelectorAll('[data-linkbl]').forEach(b=>b.onclick=async()=>{
