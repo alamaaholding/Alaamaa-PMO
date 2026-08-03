@@ -1,6 +1,6 @@
 // ===== app/main.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
 function savePFilters(){try{localStorage.setItem('pmo_pfilters',JSON.stringify({PFILTER,PSORT,PALERTS:[...PALERTS]}));}catch(e){}}
-let SCREEN='portfolio'; // portfolio | project — للطاقم؛ العميل دائمًا project
+let SCREEN='portfolio'; // portfolio | project — للطاقم؛ الشريك دائمًا project
 
 // ===== الإشعارات (Toast) =====
 
@@ -25,7 +25,7 @@ function toastUndo(msg,onUndo){
 
 // ===== نوافذ الحوار المخصّصة (بديل prompt/confirm المتصفح) =====
 
-// ===== مبدّل سريع للعملاء والمشاريع (طاقم فقط) =====
+// ===== مبدّل سريع للشركاء والمشاريع (طاقم فقط) =====
 let QJ_INDEX=[];
 async function refreshQJIndex(){
   try{
@@ -85,7 +85,7 @@ async function startApp(){
   bindQJump();
   $('#dataDate').value=DATA_DATE;$('#dataDate').onchange=e=>{DATA_DATE=e.target.value;if(SCREEN==='project')render();else renderPortfolio();};
   if(!CLIENTS.length){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا توجد مشاريع متاحة لحسابك بعد.</p>';hideChrome();return;}
-  // العميل: دخول مباشر لمشروعه الوحيد. الطاقم: شاشة المحفظة
+  // الشريك: دخول مباشر لمشروعه الوحيد. الطاقم: شاشة المحفظة
   if(ROLE==='client'){
     SCREEN='project';CID=CLIENTS[0].id;await loadProject(CID);render();
   }else if(await tryOpenProjectFromHash()){
@@ -111,11 +111,11 @@ function showChrome(){ $('#kpisRow').style.display=''; $('#tabs').style.display=
 async function loadSummary(clientId){ return null; /* لم تعد مستخدمة — استُبدلت بـpmo_portfolio */ }
 
 // ===== الروابط العميقة =====
-// الشكل الجديد: #/c/{عميل}/{مشروع}/{تبويب}[/t/{بند}] — مجلد فرعي داخل مجلد العميل.
+// الشكل الجديد: #/c/{شريك}/{مشروع}/{تبويب}[/t/{بند}] — مجلد فرعي داخل مجلد الشريك.
 // الصيغة القديمة #/p/{معرّف المشروع}/{تبويب}[/t/{بند}] تبقى مدعومة للأبد للتوافق مع أي رابط سبق مشاركته.
 let _hashLock=false,_focusRef=null;
 // المحفظة نفسها «مجلد جذري» له رابط نظيف خاص به — لا يبقى الرابط عالقًا على آخر مشروع
-// أو عميل كان مفتوحًا قبلها، وهذا بالضبط ما يجعل التنقّل يعكس ما يُعرَض فعليًا دائمًا.
+// أو شريك كان مفتوحًا قبلها، وهذا بالضبط ما يجعل التنقّل يعكس ما يُعرَض فعليًا دائمًا.
 function writePortfolioHash(){
   const h='#/';
   if(location.hash===h)return;
@@ -270,18 +270,18 @@ async function editStartDate(){
   }catch(e){ toast('تعذّر التحديث: '+e.message,'err'); }
 }
 
-// ===== دورة حياة العميل (المرحلة 1) =====
-// حوار مشروع جديد (يُستدعى من قائمة العميل وزر البطاقة)
+// ===== دورة حياة الشريك (المرحلة 1) =====
+// حوار مشروع جديد (يُستدعى من قائمة الشريك وزر البطاقة)
 
 async function renderPortfolioTimeline(){
   SCREEN='ptimeline';$('#hProject').textContent='خط التسليمات — كل المشاريع';hideChrome();
-  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backPT">↩ المحفظة</button><span style="margin-inline-start:auto">📦 <b>خط التسليمات:</b> سجل زمني للتبادل بين علامة والعملاء عبر <b>كل المشاريع</b>.</span></div><div id="ptlWrap"><div class="skeleton" style="height:120px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backPT">↩ المحفظة</button><span style="margin-inline-start:auto">📦 <b>خط التسليمات:</b> سجل زمني للتبادل بين علامة والشركاء عبر <b>كل المشاريع</b>.</span></div><div id="ptlWrap"><div class="skeleton" style="height:120px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
   $('#backPT').onclick=renderPortfolio;
   openTimelinePortfolio('ptlWrap');
 }
 async function renderAuditLog(){
   SCREEN='audit';$('#hProject').textContent='سجل المكتب — كل المشاريع';hideChrome();
-  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">🗂 <b>سجل المكتب:</b> كل الأفعال الحسّاسة عبر <b>كل المشاريع والعملاء</b> — من فعل، ماذا، ومتى. (سجل مشروع واحد: تبويب «سجل المشروع» داخله)</span></div><div id="auditList"><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px"></div></div>';
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">🗂 <b>سجل المكتب:</b> كل الأفعال الحسّاسة عبر <b>كل المشاريع والشركاء</b> — من فعل، ماذا، ومتى. (سجل مشروع واحد: تبويب «سجل المشروع» داخله)</span></div><div id="auditList"><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px"></div></div>';
   $('#backP').onclick=renderPortfolio;
   const rows=await fetchAuditLog(150);
   const list=$('#auditList');
@@ -295,10 +295,10 @@ async function renderAuditLog(){
   }).join('')+'</div>';
 }
 
-// ===== شاشة العملاء المحتملين (PMO) =====
+// ===== شاشة الشركاء المحتملين (PMO) =====
 
 async function renderLeads(){
-  $('#hProject').textContent='العملاء المحتملون';
+  $('#hProject').textContent='الشركاء المحتملون';
   $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backToPortfolio">↩ المحفظة</button><span style="margin-inline-start:auto">النماذج الواردة من الموقع — حوّل أيًّا منها إلى مشروع-مقترح.</span></div><div id="leadsList"><div class="skeleton" style="height:60px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
   $('#backToPortfolio').onclick=renderPortfolio;
   let leads;
@@ -318,21 +318,21 @@ async function renderLeads(){
     </div>`;
   }).join('');
   box.querySelectorAll('[data-convert]').forEach(b=>b.onclick=async()=>{
-    const r=await dialog({title:'تحويل إلى مشروع',message:'سيُنشأ عميل ومشروع في مرحلة «مقترح».',
+    const r=await dialog({title:'تحويل إلى مشروع',message:'سيُنشأ شريك ومشروع في مرحلة «مقترح».',
       fields:[{key:'name',label:'اسم المشروع',value:'مشروع '+(b.dataset.name||'')}],confirmText:'إنشاء'});
     if(!r||!r.name)return;
     b.disabled=true;b.textContent='جارٍ...';
     try{
       await convertLead(b.dataset.convert, r.name);
       await loadClients();
-      toast('تم إنشاء عميل ومشروع-مقترح بنجاح','ok');
+      toast('تم إنشاء شريك ومشروع-مقترح بنجاح','ok');
       renderLeads();
     }catch(e){ toast('تعذّر التحويل: '+e.message,'err'); b.disabled=false;b.textContent='تحويل لمشروع'; }
   });
 }
 
 
-// ===== إدارة وصول العميل (PMO) =====
+// ===== إدارة وصول الشريك (PMO) =====
 
 async function openAccess(){
   const c=CLIENTS.find(x=>x.id===CID);
@@ -485,7 +485,7 @@ function renderReqs(){
   const canEdit=PERMS[ROLE].editReqs;
   const reqs=REQ_TASK.requirements||[];
   const ST={received:'مُستلم',pending:'بانتظار',overdue:'متأخر',notrequested:'لم يُطلب',latejust:'مُستلم متأخرًا'};
-  const OWN={client:'العميل',alamah:'علامة'};
+  const OWN={client:'الشريك',alamah:'علامة'};
   const dis=canEdit?'':'disabled';
   let rows=reqs.map((r,i)=>{
     const ow=Object.keys(OWN).map(k=>`<option value="${k}" ${k===r.owner?'selected':''}>${OWN[k]}</option>`).join('');
@@ -701,8 +701,8 @@ function buildReport(){
   </div>
   <h2>المعالم</h2>
   <table>${miles.map(m=>`<tr><td>◆ ${esc(m.t.name.replace('معلم: ',''))}</td><td style="text-align:left;font-weight:700">${fmt(m.ef)}/${new Date(m.ef).getFullYear()}</td></tr>`).join('')||'<tr><td>لا معالم</td></tr>'}</table>
-  ${delayed.length?`<h2>البنود المتأخرة (${delayed.length})</h2><table>${delayed.map(x=>`<tr><td>${esc(x.t.id)} — ${esc(x.t.name)}</td><td class="del-${x.d}" style="text-align:left;font-weight:700">${x.d==='client'?'بانتظار العميل':'على فريق علامة'}</td></tr>`).join('')}</table>`:''}
-  ${pendingReqs.length?`<h2>متطلبات معلّقة من العميل (${pendingReqs.length})</h2><table>${pendingReqs.map(x=>`<tr><td>${esc(x.r.desc)}</td><td style="text-align:left"><span class="badge">${esc(x.t.id)} · SLA ${x.r.sla}ي</span></td></tr>`).join('')}</table>`:''}
+  ${delayed.length?`<h2>البنود المتأخرة (${delayed.length})</h2><table>${delayed.map(x=>`<tr><td>${esc(x.t.id)} — ${esc(x.t.name)}</td><td class="del-${x.d}" style="text-align:left;font-weight:700">${x.d==='client'?'بانتظار الشريك':'على فريق علامة'}</td></tr>`).join('')}</table>`:''}
+  ${pendingReqs.length?`<h2>متطلبات معلّقة من الشريك (${pendingReqs.length})</h2><table>${pendingReqs.map(x=>`<tr><td>${esc(x.r.desc)}</td><td style="text-align:left"><span class="badge">${esc(x.t.id)} · SLA ${x.r.sla}ي</span></td></tr>`).join('')}</table>`:''}
   <div class="foot">علامة · منصّة حوكمة المشاريع — تقرير مُولّد آليًا · ${PROJECT.name}</div>
   </body></html>`;
   const w=window.open('','_blank');
