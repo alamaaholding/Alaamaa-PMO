@@ -64,13 +64,13 @@ async function buildContractDoc(baselineId,contract,attachments){
     if(contract.contract_type==='custom'){
       contractHtml=`<section class="cx-page cx-contract-body">${renderCustomContractHTML({
         title:contract.custom_title||contract.contract_name,body:contract.custom_body,
-        clientName,clientCr:contract.client_cr,clientVat:contract.client_vat,clientAddress:contract.client_address,
+        clientName,clientCr:contract.client_cr,clientVat:contract.client_vat,org:(contract&&contract.org)||{},clientAddress:contract.client_address,
         clientRepName:contract.client_rep_name,clientRepTitle:contract.client_rep_title,
         clientEmail:contract.client_contact_email,clientPhone:contract.client_contact_phone
       })}</section>`;
     }else{
       contractHtml=`<section class="cx-page cx-contract-body">${renderMergedContractHTML(mergeContract({
-        clientName,clientCr:contract.client_cr,clientVat:contract.client_vat,clientAddress:contract.client_address,
+        clientName,clientCr:contract.client_cr,clientVat:contract.client_vat,org:(contract&&contract.org)||{},clientAddress:contract.client_address,
         clientRepName:contract.client_rep_name,clientRepTitle:contract.client_rep_title,
         clientEmail:contract.client_contact_email,clientPhone:contract.client_contact_phone,
         includesAdSpend:contract.includes_ad_spend,effectiveDate:contract.effective_date,
@@ -128,7 +128,7 @@ async function buildContractDoc(baselineId,contract,attachments){
       <h1>${contract?esc(contract.contract_name||'عقد تقديم خدمات'):'الخطة المعتمدة'}</h1>
       <div class="cx-cover-meta">
         ${contract&&contract.contract_number?`<div><b>رقم العقد</b><span>${esc(contract.contract_number)}</span></div>`:''}
-        <div><b>العميل</b><span>${esc(clientName||'—')}</span></div>
+        <div><b>الشريك</b><span>${esc(clientName||'—')}</span></div>
         ${contract&&contract.project_name?`<div><b>المشروع</b><span>${esc(contract.project_name)}</span></div>`:''}
         ${bl?`<div><b>اللقطة المرجعية (ملحق الخطة)</b><span>${esc(bl.label||'')}</span></div>`:''}
       </div>
