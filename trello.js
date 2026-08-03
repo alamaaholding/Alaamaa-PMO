@@ -40,7 +40,7 @@ async function trelloSettings(){
   const c=await trelloLoadCreds();
   const r=await dialog({
     title:'إعدادات تكامل Trello',
-    message:'بيانات الاعتماد تُخزَّن في قاعدة البيانات بصلاحية مالك المنصة وحده. لا تظهر لأي دور آخر ولا للعميل.',
+    message:'بيانات الاعتماد تُخزَّن في قاعدة البيانات بصلاحية مالك المنصة وحده. لا تظهر لأي دور آخر ولا للشريك.',
     fields:[
       {key:'api_key',label:'API Key',value:(c&&c.api_key)||'',placeholder:'مفتاح الواجهة من إعدادات Power-Up'},
       {key:'token',label:'Token',value:(c&&c.token)||'',placeholder:'التوكن الناتج من صفحة التفويض'}
@@ -338,7 +338,7 @@ async function trelloMenu(mode){
     : [{v:'new',t:'إنشاء لوحة جديدة لهذا المشروع'},{v:'link',t:'الربط بلوحة موجودة في حسابي'}];
   const r=await dialog({title:'لوحة Trello — '+PROJECT.name,
     message:linked?('اللوحة المرتبطة حاليًا: «'+bname+'»\n'+(lastSync?'آخر سحب فعلي من اللوحة: '+lastSync:'⚠ لم يُسحَب أي تحديث من هذه اللوحة بعد إطلاقًا')+
-                  '\n\nالمنصة مصدر الحقيقة للخطة؛ Trello سطح تنفيذ للفريق ولا يراه العميل.')
+                  '\n\nالمنصة مصدر الحقيقة للخطة؛ Trello سطح تنفيذ للفريق ولا يراه الشريك.')
                   :'لا توجد لوحة مرتبطة بهذا المشروع بعد. اختر إنشاء لوحة جديدة أو الربط بواحدة موجودة.',
     fields:[{key:'a',label:'الإجراء',type:'select',value:opts[0].v,options:opts}],confirmText:'متابعة'});
   if(!r)return;
