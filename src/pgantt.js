@@ -19,15 +19,15 @@ function pgDerivePhases(T,registryMap){
   return out;
 }
 
-// clientId (اختياري): نفس الدالة ونفس مصدر البيانات لعرض المحفظة كاملة أو عميل واحد فقط —
+// clientId (اختياري): نفس الدالة ونفس مصدر البيانات لعرض المحفظة كاملة أو شريك واحد فقط —
 // لا استعلام أو منطق تجميع منفصل مكرّر بين الحالتين.
 async function pganttOpen(clientId,mount){
   const embedded=!!mount;
   if(!embedded){
     SCREEN='pgantt';
-    $('#hProject').innerHTML='<span class="ctx-dot" style="background:var(--blue)"></span>الخط الزمني الشامل — '+(clientId?'هذا العميل':'كل المشاريع');
+    $('#hProject').innerHTML='<span class="ctx-dot" style="background:var(--blue)"></span>الخط الزمني الشامل — '+(clientId?'هذا الشريك':'كل المشاريع');
     $('#barClient').style.display='none';hideChrome();
-    $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ '+(clientId?'ملف العميل':'المحفظة')+'</button><span style="margin-inline-start:auto">رؤية شاملة لكل المشاريع النشطة. اضغط أي مشروع للدخول إليه.</span></div><div id="pgWrap"><div class="skeleton" style="height:50px;margin-bottom:8px"></div><div class="skeleton" style="height:50px;margin-bottom:8px"></div><div class="skeleton" style="height:50px"></div></div>';
+    $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ '+(clientId?'ملف الشريك':'المحفظة')+'</button><span style="margin-inline-start:auto">رؤية شاملة لكل المشاريع النشطة. اضغط أي مشروع للدخول إليه.</span></div><div id="pgWrap"><div class="skeleton" style="height:50px;margin-bottom:8px"></div><div class="skeleton" style="height:50px;margin-bottom:8px"></div><div class="skeleton" style="height:50px"></div></div>';
     $('#backP').onclick=clientId?(()=>renderClientHome(clientId)):renderPortfolio;
   }
   const mountId=embedded?mount:'pgWrap';
@@ -109,7 +109,7 @@ function PG_RENDER(rows,minD,maxD,mountId){
     const fmt=d=>`${d.getDate()}/${d.getMonth()+1}`;
     rowsHtml+=`<div class="pg-row" data-open="${r.pid}">
       <div class="pg-label">
-        <div class="pg-client"><span class="pg-dot" style="background:${r.color}" title="لون تعريفي لهذا العميل"></span>${esc(r.client)}</div>
+        <div class="pg-client"><span class="pg-dot" style="background:${r.color}" title="لون تعريفي لهذا الشريك"></span>${esc(r.client)}</div>
         <div class="pg-pname">${esc(r.name)}</div>
         <div class="pg-meta">${r.tasks} بند · ${r.milestones} معالم · ${LIFE[r.lifecycle]||''}</div>
       </div>
