@@ -6,7 +6,7 @@ async function loadIdentity(){
     try{const {data:own}=await sb.rpc('pmo_is_owner');IS_OWNER=(own===true);if(IS_OWNER)ROLE='pmo';}catch(e){IS_OWNER=false;}
     if(!IS_OWNER){try{MY_ACCESS=await fetchMyStaffAccess();}catch(e){MY_ACCESS=[];}}}
   else{
-    // عميل: نتحقق من التصريح بالإيميل (دالة pmo_my_client_ids)
+    // شريك: نتحقق من التصريح بالإيميل (دالة pmo_my_client_ids)
     const {data:ids}=await sb.rpc('pmo_my_client_ids');
     if(ids&&ids.length){ROLE='client';USER._name=user.email;}else ROLE=null;
   }
@@ -97,7 +97,7 @@ async function loadProject(clientId, projectId){
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
 
-// ===== التكامل: العملاء المحتملون (submissions) =====
+// ===== التكامل: الشركاء المحتملون (submissions) =====
 // نجلب النماذج التي لم تُحوّل بعد لمشاريع (ليست مصدرًا لأي pmo_clients)
 async function loadLeads(){
   const [subsR,clientsR]=await Promise.all([
@@ -237,7 +237,7 @@ async function deleteComment(commentId){
   if(error) throw error;
 }
 
-// ===== طلبات العميل الموجّهة للأقسام (المرحلة 3) =====
+// ===== طلبات الشريك الموجّهة للأقسام (المرحلة 3) =====
 async function loadClientRequests(projectId){
   const {data}=await sb.from('pmo_client_requests').select('*').eq('project_id',projectId).order('created_at',{ascending:false});
   return data||[];
@@ -261,7 +261,7 @@ async function deleteClientRequest(id){
 // ===== دوال بيانات معزولة (كانت متناثرة في app/views) =====
 // المحفظة
 async function fetchPortfolio(){ return await sb.rpc('pmo_portfolio'); }
-// وصول العميل
+// وصول الشريك
 async function fetchClientAccess(clientId){ return await sb.from('pmo_client_access').select('*').eq('client_id',clientId).order('created_at'); }
 async function addClientAccess(clientId,email){ return await sb.from('pmo_client_access').insert({client_id:clientId,email}); }
 async function removeClientAccess(id){ return await sb.from('pmo_client_access').delete().eq('id',id); }
@@ -291,13 +291,13 @@ async function insertDeviation(row){ return await sb.from('pmo_v2_deviations').i
 async function fetchDecisionLinks(decisionId){ return (await sb.from('pmo_v2_decision_links').select('*').eq('decision_id',decisionId)).data||[]; }
 async function insertDecisionLink(row){ return await sb.from('pmo_v2_decision_links').insert(row); }
 
-// ===== دورة حياة العميل + المالك + سجل التدقيق (المرحلة 1) =====
+// ===== دورة حياة الشريك + المالك + سجل التدقيق (المرحلة 1) =====
 async function rpcArchiveClient(clientId){ return await sb.rpc('pmo_archive_client',{p_client:clientId}); }
 async function rpcRestoreClient(clientId){ return await sb.rpc('pmo_restore_client',{p_client:clientId}); }
 async function rpcRequestDeletion(clientId){ return await sb.rpc('pmo_request_deletion',{p_client:clientId}); }
 async function rpcPurgeClient(clientId){ return await sb.rpc('pmo_purge_client',{p_client:clientId}); }
 async function checkIsOwner(){ const {data}=await sb.rpc('pmo_is_owner'); return data===true; }
-// عملاء حسب الحالة (نشط/مؤرشف/بانتظار حذف)
+// شركاء حسب الحالة (نشط/مؤرشف/بانتظار حذف)
 async function fetchClientsByState(state){ return (await sb.from('pmo_clients').select('*').eq('lifecycle_state',state).order('name')).data||[]; }
 // سجل التدقيق على مستوى المكتب (كل المشاريع) أو لمشروع
 async function fetchAuditLog(limit, projectId){
@@ -326,7 +326,7 @@ async function updateProjectStart(projectId, newDate){
   if(error) throw error;
 }
 
-// ===== إدارة العملاء والمشاريع من الواجهة (سدّ فجوات الرحلة) =====
+// ===== إدارة الشركاء والمشاريع من الواجهة (سدّ فجوات الرحلة) =====
 async function updateClientInfo(id, patch){
   const {error}=await sb.from('pmo_clients').update(patch).eq('id',id);
   if(error) throw error;
@@ -500,7 +500,7 @@ async function saveNewBaseline(projectId){
 async function fetchHolidays(){const {data}=await sb.from('pmo_holidays').select('*').order('hdate');return data||[];}
 async function addHolidayRow(hdate,name){const {error}=await sb.from('pmo_holidays').insert({hdate,name});if(error)throw error;}
 async function delHolidayRow(id){const {error}=await sb.from('pmo_holidays').delete().eq('id',id);if(error)throw error;}
-// ===== الفريق والإسناد (داخلي — لا يراه العميل) =====
+// ===== الفريق والإسناد (داخلي — لا يراه الشريك) =====
 async function fetchTeamMembers(){const {data}=await sb.from('team_members').select('id,full_name,email,role').eq('is_active',true).order('full_name');return data||[];}
 
 // ===== صلاحيات الفريق (شركة/قسم/مشروع × عرض/تعديل) — مالك النظام فقط يديرها =====
@@ -560,7 +560,7 @@ async function createContract(projectId,baselineId,opts){
   });
   if(error)throw error;return data;
 }
-// إنشاء شامل: يدعم نطاقَي مشروع/عميل كامل، ونوعَي قياسي/مخصَّص بنص حر — دالة واحدة لكل الحالات
+// إنشاء شامل: يدعم نطاقَي مشروع/شريك كامل، ونوعَي قياسي/مخصَّص بنص حر — دالة واحدة لكل الحالات
 async function createContractV2(opts){
   opts=opts||{};
   const client=opts.clientRow||{};
@@ -626,6 +626,21 @@ async function fetchExpiringContracts(){
   const {data,error}=await sb.rpc('pmo_expiring_contracts');
   if(error)throw error;return data||[];
 }
+// ===== الملف التعاقدي لعلامة (الطرف الأول) — يُستورَد تلقائيًا في كل عقد =====
+let ORG_PROFILE=null;
+async function fetchOrgProfile(force){
+  if(ORG_PROFILE&&!force)return ORG_PROFILE;
+  const {data,error}=await sb.rpc('pmo_get_org_profile');
+  if(error)throw error;
+  ORG_PROFILE=data||{};return ORG_PROFILE;
+}
+async function updateOrgProfile(fields){
+  const {data,error}=await sb.rpc('pmo_update_org_profile',{p:fields});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error||'تعذّر الحفظ');
+  ORG_PROFILE=null;
+  return data;
+}
 async function fetchContractAttachments(contractId){
   const {data,error}=await sb.rpc('pmo_contract_attachments_list',{p_contract_id:contractId});
   if(error)throw error;return data||[];
@@ -651,7 +666,7 @@ async function assignContractToClient(contractId,clientId){
   const {data,error}=await sb.rpc('pmo_assign_contract_to_client',{p_contract_id:contractId,p_client_id:clientId});
   if(error)throw error;
   if(!data.ok)throw new Error(
-    data.error==='duplicate'?'لهذا العميل نسخة سارية من هذا العقد بالفعل':
+    data.error==='duplicate'?'لهذا الشريك نسخة سارية من هذا العقد بالفعل':
     data.error||'تعذّر الإسناد');
   return data;
 }
@@ -712,8 +727,8 @@ async function updateClientSlug(clientId,newSlug){
   const {data,error}=await sb.rpc('pmo_update_client_slug',{p_client_id:clientId,p_new_slug:clean});
   if(error)throw error;
   if(!data.ok)throw new Error(
-    data.error==='taken'?'هذا المعرّف مُستخدَم لعميل آخر — جرّب صيغة مختلفة':
-    data.error==='صلاحية غير كافية'?'لا تملك صلاحية تعديل كافية لهذا العميل':'تعذّر الحفظ');
+    data.error==='taken'?'هذا المعرّف مُستخدَم لشريك آخر — جرّب صيغة مختلفة':
+    data.error==='صلاحية غير كافية'?'لا تملك صلاحية تعديل كافية لهذا الشريك':'تعذّر الحفظ');
   return data.slug;
 }
 async function updateProjectSlug(projectId,newSlug){
@@ -721,7 +736,7 @@ async function updateProjectSlug(projectId,newSlug){
   const {data,error}=await sb.rpc('pmo_update_project_slug',{p_project_id:projectId,p_new_slug:clean});
   if(error)throw error;
   if(!data.ok)throw new Error(
-    data.error==='taken'?'هذا المعرّف مُستخدَم لمشروع آخر لنفس العميل — جرّب صيغة مختلفة':
+    data.error==='taken'?'هذا المعرّف مُستخدَم لمشروع آخر لنفس الشريك — جرّب صيغة مختلفة':
     data.error==='صلاحية غير كافية'?'لا تملك صلاحية تعديل كافية لهذا المشروع':'تعذّر الحفظ');
   return data.slug;
 }
@@ -755,7 +770,7 @@ async function signContractAsStaff(contractId,name,signatureData){
   const {data,error}=await sb.rpc('pmo_sign_contract_staff',{p_contract_id:contractId,p_name:name,p_signature_data:signatureData});
   if(error)throw error;return data;
 }
-// الوصول العام (بلا جلسة) — نفس عميل sb، الحارس الحقيقي هو الرمز نفسه داخل الدالة
+// الوصول العام (بلا جلسة) — نفس شريك sb، الحارس الحقيقي هو الرمز نفسه داخل الدالة
 async function fetchPublicContract(token){
   const {data,error}=await sb.rpc('pmo_contract_public_view',{p_token:token});
   if(error)throw error;return data;
