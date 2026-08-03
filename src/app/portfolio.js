@@ -1,22 +1,68 @@
 // ===== app/portfolio.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
+
+// ===== الملف التعاقدي لعلامة (الطرف الأول في كل عقد) =====
+// يُضبط مرة واحدة من أدوات المكتب، ويُستورَد تلقائيًا في كل عقد جديد ويُجمَّد كلقطة داخله،
+// فتغييره لاحقًا لا يمسّ العقود الموقَّعة سابقًا.
+async function openOrgProfile(){
+  document.getElementById('taskOverlay').style.display='flex';
+  document.getElementById('tkTitle').textContent='الملف التعاقدي لعلامة';
+  document.getElementById('tkTabs').innerHTML='';
+  document.getElementById('tkBody').innerHTML='<div class="skeleton" style="height:180px"></div>';
+  let o={};
+  try{ o=await fetchOrgProfile(true); }catch(e){
+    document.getElementById('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>';return; }
+  const miss=['cr_number','vat_number','national_address','rep_name','rep_title','contact_email','contact_phone']
+    .filter(k=>!o[k]);
+  document.getElementById('tkBody').innerHTML=`
+    <p class="sa-hint" style="margin-bottom:14px">بيانات علامة بصفتها <b>الطرف الأول</b> في كل عقد — تُستورَد تلقائيًا عند إنشاء أي عقد جديد، وتُجمَّد داخله كلقطة فلا يتأثر أي عقد موقَّع سابقًا بأي تعديل هنا لاحقًا.</p>
+    ${miss.length?`<div class="ch-warn-badge">⚠ بيانات غير مكتملة (${miss.length} حقول) — ستظهر كـ«—» في جدول أطراف العقد</div>`:''}
+    <div class="sa-form" style="flex-wrap:wrap">
+      <input id="orgName" placeholder="الاسم النظامي" value="${esc(o.legal_name||'علامة')}" style="flex:1;min-width:180px;font-weight:700">
+      <input id="orgCr" placeholder="رقم السجل التجاري" value="${esc(o.cr_number||'')}" style="flex:1;min-width:150px">
+      <input id="orgVat" placeholder="الرقم الضريبي (VAT)" value="${esc(o.vat_number||'')}" style="flex:1;min-width:150px">
+      <input id="orgAddr" placeholder="العنوان الوطني" value="${esc(o.national_address||'')}" style="flex:1;min-width:170px">
+      <input id="orgRep" placeholder="اسم الممثل المفوَّض" value="${esc(o.rep_name||'')}" style="flex:1;min-width:160px">
+      <input id="orgTitle" placeholder="صفته" value="${esc(o.rep_title||'')}" style="flex:1;min-width:130px">
+      <input id="orgEmail" placeholder="البريد الرسمي" value="${esc(o.contact_email||'')}" style="flex:1;min-width:170px" dir="ltr">
+      <input id="orgPhone" placeholder="رقم الجوال" value="${esc(o.contact_phone||'')}" style="flex:1;min-width:140px" dir="ltr">
+      <button class="hbtn" id="orgSave" style="background:var(--gold);border-color:var(--gold)">حفظ الملف</button>
+    </div>`;
+  document.getElementById('orgSave').onclick=async()=>{
+    const btn=document.getElementById('orgSave');btn.disabled=true;
+    try{
+      await updateOrgProfile({
+        legal_name:document.getElementById('orgName').value,
+        cr_number:document.getElementById('orgCr').value,
+        vat_number:document.getElementById('orgVat').value,
+        national_address:document.getElementById('orgAddr').value,
+        rep_name:document.getElementById('orgRep').value,
+        rep_title:document.getElementById('orgTitle').value,
+        contact_email:document.getElementById('orgEmail').value,
+        contact_phone:document.getElementById('orgPhone').value});
+      toast('حُفظ الملف التعاقدي لعلامة','ok');
+      openOrgProfile();
+    }catch(e){toast(e.message,'err');btn.disabled=false;}
+  };
+}
+
 async function openStatusLegend(){
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='دليل حالات المشاريع';
   document.getElementById('tkTabs').innerHTML='';
   document.getElementById('tkBody').innerHTML=`
-    <p class="sa-hint" style="margin-bottom:16px">كل مشروع أو عميل في المحفظة يحمل شارة حالة واحدة توضّح وضعه الحالي بلمحة — هذا شرح كل شارة:</p>
+    <p class="sa-hint" style="margin-bottom:16px">كل مشروع أو شريك في المحفظة يحمل شارة حالة واحدة توضّح وضعه الحالي بلمحة — هذا شرح كل شارة:</p>
     ${PROJECT_STATUS_DEFS.map(s=>`
       <div class="legend-row">
         ${renderStatusBadge(s)}
         <span class="legend-desc">${esc(legendDescOf(s.key))}</span>
       </div>`).join('')}
-    <p class="sa-hint" style="margin-top:16px">للعميل الذي لديه أكثر من مشروع، تُعرض شارة <b>أسوأ حالة</b> بين كل مشاريعه — فمشروع واحد متوقف يكفي لتظهر الشارة الحمراء على بطاقة العميل كاملة، حتى لو كانت بقية مشاريعه سليمة.</p>`;
+    <p class="sa-hint" style="margin-top:16px">للشريك الذي لديه أكثر من مشروع، تُعرض شارة <b>أسوأ حالة</b> بين كل مشاريعه — فمشروع واحد متوقف يكفي لتظهر الشارة الحمراء على بطاقة الشريك كاملة، حتى لو كانت بقية مشاريعه سليمة.</p>`;
 }
 function legendDescOf(key){
   return {
     paused:'أُوقف مؤقتًا يدويًا من فريق علامة — بياناته سليمة كاملة، ويُستأنف في أي وقت.',
     blocked:'يحوي بندًا واحدًا متوقفًا على الأقل — يحتاج تدخلًا لفكّ العائق.',
-    attention:'لديه متطلب معلَّق من العميل، أو نقاش مفتوح لم يُحسَم بعد.',
+    attention:'لديه متطلب معلَّق من الشريك، أو نقاش مفتوح لم يُحسَم بعد.',
     at_risk:'تقدير لا حساب دقيق: مضى أكثر من 30 يومًا منذ البدء والإنجاز أقل من 20٪ — يستحق مراجعة سريعة. (الحساب الدقيق للتأخير الفعلي متاح داخل كل مشروع عبر الجانت).',
     not_started:'لا بنود بعد، أو المشروع لا يزال في مرحلة الاقتراح/المسودة.',
     active:'يعمل عليه الفريق حاليًا بلا أي من الإشارات أعلاه.',
@@ -42,24 +88,26 @@ async function renderPortfolio(){
   if(ROLE==='pmo'){
     toolItems.push({id:'showHolidays',t:'العطلات الرسمية',i:'🗓'});
     toolItems.push({id:'showArchived',t:'المؤرشفة',i:'🗄'});
-    toolItems.push({id:'showLeads',t:'العملاء المحتملون',i:'👥'});
+    toolItems.push({id:'showLeads',t:'الشركاء المحتملون',i:'👥'});
   }
   if(IS_OWNER){toolItems.push({id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
-    toolItems.push({id:'showStaffAccess',t:'صلاحيات الفريق',i:'🔐'});}
+    toolItems.push({id:'showStaffAccess',t:'صلاحيات الفريق',i:'🔐'});
+    toolItems.push({id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});}
   const toolsMenu=toolItems.length?`<div class="tools-wrap">
     <button class="hbtn tools-btn" id="toolsBtn" aria-expanded="false" aria-haspopup="true">⚙ أدوات المكتب <span class="tools-caret">▾</span></button>
     <div class="tools-pop" id="toolsPop" role="menu">${toolItems.map(t=>`<button role="menuitem" id="${t.id}"><span class="ti">${t.i}</span>${t.t}</button>`).join('')}</div>
   </div>`:'';
-  const primaryBtn=(ROLE==='pmo')?'<button class="hbtn primary-cta" id="addClientBtn">+ عميل جديد</button>':'';
+  const primaryBtn=(ROLE==='pmo')?'<button class="hbtn primary-cta" id="addClientBtn">+ شريك جديد</button>':'';
   const legendBtn=isStaff?'<button class="hbtn" id="statusLegendBtn" title="دليل حالات المشاريع">ⓘ دليل الحالات</button>':'';
   const toolbar=isStaff?`<div class="portfolio-tools">${primaryBtn}${legendBtn}${toolsMenu}</div>`:'';
-  $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
+  $('#host').innerHTML='<div class="hintbar">اختر شريكًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
   if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;
     const ac=$('#addClientBtn');if(ac)ac.onclick=addNewClient;}
   {const db=$('#showDOL');if(db)db.onclick=openDOL;}
   {const ab=$('#showAudit');if(ab)ab.onclick=renderAuditLog;}
   {const cb=$('#showContractsHub');if(cb)cb.onclick=renderContractsHub;}
   {const lb=$('#statusLegendBtn');if(lb)lb.onclick=openStatusLegend;}
+  {const op=$('#showOrgProfile');if(op)op.onclick=openOrgProfile;}
   {const tb=$('#showTimeline');if(tb)tb.onclick=renderPortfolioTimeline;}
   {const hb=$('#showHolidays');if(hb)hb.onclick=openHolidaysManager;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
@@ -86,7 +134,7 @@ async function renderPortfolio(){
   const groups={}; 
   projects.forEach(r=>{ (groups[r.client_id]=groups[r.client_id]||[]).push(r); });
   let companies=Object.keys(groups).map(cid=>aggregateClientRows(cid,groups[cid]));
-  // العملاء بلا مشاريع: بطاقة دعوة لإضافة أول مشروع
+  // الشركاء بلا مشاريع: بطاقة دعوة لإضافة أول مشروع
   noProjRows.forEach(r=>{
     companies.push(aggregateClientRows(r.client_id,null,{name:r.client_name,color:r.color||'#C8A06B'}));
   });
@@ -195,14 +243,14 @@ async function renderPortfolio(){
     if(x.blocked>0)alertBadges.push(`<span class="palert red">${x.blocked} متوقف</span>`);
     if(x.reqs>0)alertBadges.push(`<span class="palert amber">${x.reqs} متطلب</span>`);
     if(x.comments>0)alertBadges.push(`<span class="palert blue">${x.comments} نقاش</span>`);
-    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات" aria-label="إجراءات العميل">${I.dots}</button>`:'';
+    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات" aria-label="إجراءات الشريك">${I.dots}</button>`:'';
     const card=document.createElement('div');
     card.className='pcompany'+(x.hasAlerts?' has-alerts':'');
     card.style.cssText=`--cc:${x.c.color}`;
     card.innerHTML=`
       <div class="pcompany-hd" data-toggle="${x.cid}" role="button" tabindex="0">
         <div class="pcv-top">
-          <span class="pdot" style="background:${x.c.color}" title="لون تعريفي لهذا العميل — يُستخدم لتمييزه في «الخط الزمني الشامل» وأي عرض مجمَّع آخر"></span>
+          <span class="pdot" style="background:${x.c.color}" title="لون تعريفي لهذا الشريك — يُستخدم لتمييزه في «الخط الزمني الشامل» وأي عرض مجمَّع آخر"></span>
           <h3>${esc(x.c.name)}</h3>
           ${actBtn}
         </div>
@@ -215,12 +263,12 @@ async function renderPortfolio(){
     grid.appendChild(card);
   };
   withProj.forEach(renderCard);
-  // قسم مطوي للعملاء بلا مشاريع (لا يزاحم النشط)
+  // قسم مطوي للشركاء بلا مشاريع (لا يزاحم النشط)
   if(empty.length){
     const sec=document.createElement('div');sec.className='empty-sec';
     const open=PEXPANDED.has('__empty');
     sec.innerHTML=`<button class="empty-sec-hd" data-emptytoggle="1" aria-expanded="${open}">
-        <span class="es-chev">${open?'▴':'▾'}</span> عملاء بلا مشاريع <span class="es-n">${empty.length}</span>
+        <span class="es-chev">${open?'▴':'▾'}</span> شركاء بلا مشاريع <span class="es-n">${empty.length}</span>
         <span class="es-hint">جاهزون لإضافة أول مشروع</span></button>
       <div class="empty-sec-body" style="display:${open?'flex':'none'}">
         ${empty.map(x=>`<button class="ecard" data-newproj="${x.cid}" style="--cc:${x.c.color}">
@@ -232,7 +280,7 @@ async function renderPortfolio(){
     sec.querySelectorAll('[data-newproj]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();newProjectDialog(b.dataset.newproj);});
   }
 
-  // التفاعل: ترويسة الشركة — تفتح صفحة العميل الموحّدة دائمًا (لوحة قيادة + مشاريعه + خططه + فريقه)
+  // التفاعل: ترويسة الشركة — تفتح صفحة الشريك الموحّدة دائمًا (لوحة قيادة + مشاريعه + خططه + فريقه)
   document.querySelectorAll('[data-toggle]').forEach(el=>el.onclick=async(e)=>{
     if(e.target.closest('[data-cmenu]'))return;
     const cid=el.dataset.toggle;
