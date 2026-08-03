@@ -6,8 +6,8 @@
 <link rel="preconnect" href="https://gxiucsieezkvwztbsrgf.supabase.co">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script defer src="app.bundle.js?v=b5fcb118"></script>
-<link rel="stylesheet" href="styles.css?v=b5fcb118">
+<script defer src="app.bundle.js?v=4caac6ba"></script>
+<link rel="stylesheet" href="styles.css?v=4caac6ba">
 </head><body>
 <!-- شاشة الدخول -->
 <div id="login" class="hidden"><div class="lcard">
@@ -32,7 +32,7 @@
 <header><div class="wrap"><div class="htop">
   <div class="brand"><div class="eb">علامة · أثر دائم — حوكمة المشاريع</div><h1 id="hProject">—</h1></div>
   <div class="qjump-wrap" id="qjumpWrap" style="display:none">
-    <input id="qjumpInput" class="qjump-in" placeholder="🔍 قفز سريع لعميل أو مشروع…" autocomplete="off" aria-label="قفز سريع لعميل أو مشروع">
+    <input id="qjumpInput" class="qjump-in" placeholder="🔍 قفز سريع لشريك أو مشروع…" autocomplete="off" aria-label="قفز سريع لشريك أو مشروع">
     <div id="qjumpList" class="qjump-list" role="listbox" hidden></div>
   </div>
   <div class="hright">
@@ -47,7 +47,7 @@
   <div id="barClient" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
     <span class="tg"><span title="التاريخ الذي تُحسب عنده حالة التقدم والتأخير">تاريخ الحالة (اليوم):</span> <input type="date" id="dataDate" aria-label="تاريخ الحالة"></span>
     <span class="lifebadge" id="lifeBadge">—</span>
-    <button class="hbtn" id="manageAccess" style="display:none;background:var(--gold);border-color:var(--gold)">إدارة وصول العميل</button>
+    <button class="hbtn" id="manageAccess" style="display:none;background:var(--gold);border-color:var(--gold)">إدارة وصول الشريك</button>
     <button class="hbtn" id="projMenuBtn" style="display:none;background:#fff;color:var(--ink);border-color:var(--line)">إجراءات المشروع</button>
     <button class="hbtn" id="exportReport" style="background:#fff;color:var(--ink);border-color:var(--line)">تصدير تقرير</button>
     <button class="hbtn" id="approveContract" style="display:none;background:var(--ok);border-color:var(--ok)">اعتماد العقد + تثبيت الأساس</button>
@@ -59,7 +59,7 @@
     <div class="kpi"><b id="kDur">0</b><span>أيام عمل</span></div>
     <div class="kpi crit"><b id="kCrit">0</b><span>على المسار الحرج</span></div>
     <div class="kpi blk"><b id="kBlk">0</b><span>متوقفة</span></div>
-    <div class="kpi cl"><b id="kCl">0</b><span>تأخير العميل</span></div>
+    <div class="kpi cl"><b id="kCl">0</b><span>تأخير الشريك</span></div>
     <div class="kpi al"><b id="kAl">0</b><span>تأخير علامة</span></div>
   </div>
 </div></div>
@@ -93,15 +93,15 @@
 <footer><b>علامة</b> · منصّة حوكمة المشاريع · المرحلة 2 (الحوكمة الكاملة)</footer>
 </div>
 
-<!-- نافذة إدارة وصول العميل -->
+<!-- نافذة إدارة وصول الشريك -->
 <div id="accessOverlay" style="position:fixed;inset:0;background:rgba(26,26,26,.5);z-index:120;display:none;align-items:flex-start;justify-content:center;padding:50px 16px;overflow:auto">
   <div style="background:#fff;border-radius:14px;max-width:520px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
     <div style="background:var(--ink);color:#fff;padding:14px 18px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center">
-      <h3 id="accTitle" style="font-size:1.02rem">إدارة وصول العميل</h3>
+      <h3 id="accTitle" style="font-size:1.02rem">إدارة وصول الشريك</h3>
       <button id="accClose" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
     </div>
     <div style="padding:16px 18px">
-      <p style="font-size:.82rem;color:var(--muted);margin-bottom:12px">الإيميلات المضافة هنا يمكنها الدخول عبر Google ورؤية داشبورد هذا العميل فقط. يمكن الإضافة قبل أن يسجّل صاحب الإيميل دخوله.</p>
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:12px">الإيميلات المضافة هنا يمكنها الدخول عبر Google ورؤية داشبورد هذا الشريك فقط. يمكن الإضافة قبل أن يسجّل صاحب الإيميل دخوله.</p>
       <div style="display:flex;gap:8px;margin-bottom:14px">
         <input id="accEmail" type="email" placeholder="email@example.com" style="flex:1;border:1.5px solid var(--line);border-radius:9px;padding:9px;font-family:inherit;font-size:.86rem">
         <button id="accAdd" class="hbtn" style="background:var(--gold);border-color:var(--gold);padding:9px 16px">إضافة</button>
