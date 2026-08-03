@@ -1,0 +1,48 @@
+name: اختبارات المنصة
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: بناء وفحص وتشغيل الاختبارات
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: جلب الكود
+        uses: actions/checkout@v4
+
+      - name: تهيئة Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: تهيئة Python (لازم لـ build.py)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: تثبيت اعتماديات الاختبار
+        run: npm install jsdom --no-save
+
+      # يبني المشروع، يفحص الصياغة، يتحقق من تطابق الملفات المُولَّدة، ثم يشغّل كل الاختبارات.
+      # أي إخفاق يوقف التدفّق ويمنع اعتماد الدفعة.
+      - name: تشغيل الاختبارات
+        run: node tests/run.js
+
+      # حارس إضافي: البناء يجب ألا يُنتج أي فرق عن الملفات المدفوعة.
+      # يمنع تكرار خطأ حقيقي وقع سابقًا — نُشر المصدر ونُسي الملف المُولَّد الجذري،
+      # فبقيت أنماط صفحة كاملة غائبة عن الموقع الحي رغم صحة الكود المصدري.
+      - name: التحقق من أن الملفات المُولَّدة محدَّثة ومدفوعة
+        run: |
+          python3 build.py > /dev/null
+          if ! git diff --quiet -- app.bundle.js styles.css index.html dol.js importer.js pgantt.js timeline.js trello.js qrgen.js; then
+            echo "::error::الملفات المُولَّدة غير محدَّثة — شغّل build.py وادفع الناتج معها"
+            git diff --stat -- app.bundle.js styles.css index.html dol.js importer.js pgantt.js timeline.js trello.js qrgen.js
+            exit 1
+          fi
+          echo "✓ الملفات المُولَّدة محدَّثة ومطابقة"
