@@ -90,9 +90,12 @@ async function renderPortfolio(){
     toolItems.push({id:'showArchived',t:'المؤرشفة',i:'🗄'});
     toolItems.push({id:'showLeads',t:'الشركاء المحتملون',i:'👥'});
   }
+  // الملف التعاقدي لعلامة: متاح لمالك المنصة ومديرها معًا — مطابقًا لسياسة القاعدة
+  // (pmo_update_org_profile تسمح لكليهما). كان محصورًا بالمالك في الواجهة فقط، فاختفى
+  // عن مدير المنصة بعد نقل الملكية رغم امتلاكه الصلاحية فعليًا.
+  if(IS_OWNER||ROLE==='pmo'){toolItems.push({id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});}
   if(IS_OWNER){toolItems.push({id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
-    toolItems.push({id:'showStaffAccess',t:'صلاحيات الفريق',i:'🔐'});
-    toolItems.push({id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});}
+    toolItems.push({id:'showStaffAccess',t:'صلاحيات الفريق',i:'🔐'});}
   const toolsMenu=toolItems.length?`<div class="tools-wrap">
     <button class="hbtn tools-btn" id="toolsBtn" aria-expanded="false" aria-haspopup="true">⚙ أدوات المكتب <span class="tools-caret">▾</span></button>
     <div class="tools-pop" id="toolsPop" role="menu">${toolItems.map(t=>`<button role="menuitem" id="${t.id}"><span class="ti">${t.i}</span>${t.t}</button>`).join('')}</div>
