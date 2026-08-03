@@ -1,4 +1,4 @@
-const BUILD_V='b5fcb118';
+const BUILD_V='4caac6ba';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -7,7 +7,7 @@ const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON);
 const TRACKS={"0":{name:"التأسيس المضغوط",code:"0",color:"#1A1A1A"},"A":{name:"النمو السريع والمواسم",code:"A",color:"#C8A06B"},"B":{name:"التحليل والتشخيص بالموجات",code:"B",color:"#7A8B6F"},"C":{name:"الاستراتيجية وبناء الأصول",code:"C",color:"#9C6B4A"}};
 const STATUS={notstarted:'لم تبدأ',inprogress:'جارية',blocked:'متوقفة',done:'مكتملة'};
 const TYPES={task:'مهمة',milestone:'معلم',fixed:'ثابت',cont:'مستمر',package:'حزمة عمل'};
-const ROLE_NAMES={pmo:'مكتب إدارة المشاريع',delivery:'الفريق',client:'العميل'};
+const ROLE_NAMES={pmo:'مكتب إدارة المشاريع',delivery:'الفريق',client:'الشريك'};
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 const fmt=d=>{const x=new Date(d);return('0'+x.getDate()).slice(-2)+'/'+('0'+(x.getMonth()+1)).slice(-2);};
 const fmtY=d=>{const x=new Date(d);return x.getFullYear()+'-'+('0'+(x.getMonth()+1)).slice(-2)+'-'+('0'+x.getDate()).slice(-2);};
@@ -49,15 +49,15 @@ const AUDIT_ACTIONS={
   comment_resolve:'حلّ تعليق',comment_reopen:'إعادة فتح تعليق',
   // طلبات الخدمة
   client_request_add:'طلب خدمة جديد',client_request_status:'تغيير حالة طلب خدمة',
-  // المشاريع والعملاء
+  // المشاريع والشركاء
   project_create:'إنشاء مشروع',project_delete:'حذف مشروع',
   archive_project:'أرشفة مشروع',restore_project:'استرجاع مشروع',
   request_project_deletion:'طلب حذف مشروع',purge_project:'حذف نهائي لمشروع',
-  archive_client:'أرشفة عميل',restore_client:'استرجاع عميل',
-  request_deletion:'طلب حذف عميل',purge_client:'حذف نهائي لعميل'
+  archive_client:'أرشفة شريك',restore_client:'استرجاع شريك',
+  request_deletion:'طلب حذف شريك',purge_client:'حذف نهائي لشريك'
 };
 const AUDIT_ENTITIES={task:'بند',change_request:'طلب تعديل خطة',requirement:'متطلب',
-  comment:'تعليق',client_request:'طلب خدمة',project:'مشروع',client:'عميل'};
+  comment:'تعليق',client_request:'طلب خدمة',project:'مشروع',client:'شريك'};
 
 // ===== نطاق صلاحيات الفريق =====
 // المبدأ: لا تغيير في سلوك أي موظف قائم إطلاقًا حتى يمنحه مالك النظام صلاحية محددة صراحة.
@@ -66,7 +66,7 @@ function hasCompanyScope(){return IS_OWNER||MY_ACCESS.some(a=>a.scope_type==='co
 function myDeptScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='department').map(a=>a.scope_value));}
 function myClientScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='client').map(a=>a.scope_value));}
 function myProjectScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='project').map(a=>a.scope_value));}
-// هل يُسمح لي برؤية مشروع بعينه (بمعرّفه وقسمه وعميله)؟
+// هل يُسمح لي برؤية مشروع بعينه (بمعرّفه وقسمه وشريكه)؟
 function canSeeProject(projectId,dept,clientId){
   if(IS_OWNER||hasCompanyScope())return true;
   if(!MY_ACCESS.length)return true; // لا تخصيص = لا قيود (توافق خلفي)
@@ -87,7 +87,7 @@ function myAccessLevelFor(projectId,dept,clientId){
   if(!rows.length)return null;
   return rows.some(r=>r.access_level==='edit')?'edit':'view';
 }
-// هل يُسمح لي برؤية عميل كامل (له أي مشروع أراه، أو نطاق عميل/شركة مباشر)؟
+// هل يُسمح لي برؤية شريك كامل (له أي مشروع أراه، أو نطاق شريك/شركة مباشر)؟
 function canSeeClient(clientId,clientProjects){
   if(IS_OWNER||hasCompanyScope())return true;
   if(!MY_ACCESS.length)return true;
@@ -125,7 +125,7 @@ function computeProjectStatus(row){
   }
   return statusByKey.active;
 }
-// لعميل بعدة مشاريع: الحالة الأسوأ (الأعلى أولوية) بين كل مشاريعه النشطة
+// لشريك بعدة مشاريع: الحالة الأسوأ (الأعلى أولوية) بين كل مشاريعه النشطة
 function worstProjectStatus(rows){
   if(!rows||!rows.length)return statusByKey.not_started;
   let worst=null;
@@ -135,7 +135,7 @@ function worstProjectStatus(rows){
 function renderStatusBadge(s,extraClass){
   return `<span class="pstatus-badge ${extraClass||''}" style="--sc:${s.color};--sbg:${s.bg}" title="${esc(s.label)}"><i class="pstatus-dot" style="background:${s.color}"></i>${esc(s.label)}</span>`;
 }
-// تُستخدم من شبكة المحفظة وصفحة العميل المخصَّصة كليهما؛ لا حساب مكرّر في مكانين
+// تُستخدم من شبكة المحفظة وصفحة الشريك المخصَّصة كليهما؛ لا حساب مكرّر في مكانين
 // (بالضبط الخلل الذي عالجناه سابقًا في مطابقة المراحل — نفس المبدأ هنا).
 function aggregateClientRows(cid,list,fallback){
   const r0=(list&&list[0])||{};
@@ -289,7 +289,7 @@ function trackMeta(k){
 
 // خط التسليمات: المصادر والأنواع والحالات
 const DELIV_SRC={
-  client:{t:'العميل',c:'#a8442f'},
+  client:{t:'الشريك',c:'#a8442f'},
   pmo:{t:'إدارة المشاريع',c:'#4B3F72'},
   marketing:{t:'التسويق',c:'#B28E67'},
   tech:{t:'التقني',c:'#35608F'},
@@ -468,7 +468,7 @@ async function loadIdentity(){
     try{const {data:own}=await sb.rpc('pmo_is_owner');IS_OWNER=(own===true);if(IS_OWNER)ROLE='pmo';}catch(e){IS_OWNER=false;}
     if(!IS_OWNER){try{MY_ACCESS=await fetchMyStaffAccess();}catch(e){MY_ACCESS=[];}}}
   else{
-    // عميل: نتحقق من التصريح بالإيميل (دالة pmo_my_client_ids)
+    // شريك: نتحقق من التصريح بالإيميل (دالة pmo_my_client_ids)
     const {data:ids}=await sb.rpc('pmo_my_client_ids');
     if(ids&&ids.length){ROLE='client';USER._name=user.email;}else ROLE=null;
   }
@@ -559,7 +559,7 @@ async function loadProject(clientId, projectId){
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
 
-// ===== التكامل: العملاء المحتملون (submissions) =====
+// ===== التكامل: الشركاء المحتملون (submissions) =====
 // نجلب النماذج التي لم تُحوّل بعد لمشاريع (ليست مصدرًا لأي pmo_clients)
 async function loadLeads(){
   const [subsR,clientsR]=await Promise.all([
@@ -699,7 +699,7 @@ async function deleteComment(commentId){
   if(error) throw error;
 }
 
-// ===== طلبات العميل الموجّهة للأقسام (المرحلة 3) =====
+// ===== طلبات الشريك الموجّهة للأقسام (المرحلة 3) =====
 async function loadClientRequests(projectId){
   const {data}=await sb.from('pmo_client_requests').select('*').eq('project_id',projectId).order('created_at',{ascending:false});
   return data||[];
@@ -723,7 +723,7 @@ async function deleteClientRequest(id){
 // ===== دوال بيانات معزولة (كانت متناثرة في app/views) =====
 // المحفظة
 async function fetchPortfolio(){ return await sb.rpc('pmo_portfolio'); }
-// وصول العميل
+// وصول الشريك
 async function fetchClientAccess(clientId){ return await sb.from('pmo_client_access').select('*').eq('client_id',clientId).order('created_at'); }
 async function addClientAccess(clientId,email){ return await sb.from('pmo_client_access').insert({client_id:clientId,email}); }
 async function removeClientAccess(id){ return await sb.from('pmo_client_access').delete().eq('id',id); }
@@ -753,13 +753,13 @@ async function insertDeviation(row){ return await sb.from('pmo_v2_deviations').i
 async function fetchDecisionLinks(decisionId){ return (await sb.from('pmo_v2_decision_links').select('*').eq('decision_id',decisionId)).data||[]; }
 async function insertDecisionLink(row){ return await sb.from('pmo_v2_decision_links').insert(row); }
 
-// ===== دورة حياة العميل + المالك + سجل التدقيق (المرحلة 1) =====
+// ===== دورة حياة الشريك + المالك + سجل التدقيق (المرحلة 1) =====
 async function rpcArchiveClient(clientId){ return await sb.rpc('pmo_archive_client',{p_client:clientId}); }
 async function rpcRestoreClient(clientId){ return await sb.rpc('pmo_restore_client',{p_client:clientId}); }
 async function rpcRequestDeletion(clientId){ return await sb.rpc('pmo_request_deletion',{p_client:clientId}); }
 async function rpcPurgeClient(clientId){ return await sb.rpc('pmo_purge_client',{p_client:clientId}); }
 async function checkIsOwner(){ const {data}=await sb.rpc('pmo_is_owner'); return data===true; }
-// عملاء حسب الحالة (نشط/مؤرشف/بانتظار حذف)
+// شركاء حسب الحالة (نشط/مؤرشف/بانتظار حذف)
 async function fetchClientsByState(state){ return (await sb.from('pmo_clients').select('*').eq('lifecycle_state',state).order('name')).data||[]; }
 // سجل التدقيق على مستوى المكتب (كل المشاريع) أو لمشروع
 async function fetchAuditLog(limit, projectId){
@@ -788,7 +788,7 @@ async function updateProjectStart(projectId, newDate){
   if(error) throw error;
 }
 
-// ===== إدارة العملاء والمشاريع من الواجهة (سدّ فجوات الرحلة) =====
+// ===== إدارة الشركاء والمشاريع من الواجهة (سدّ فجوات الرحلة) =====
 async function updateClientInfo(id, patch){
   const {error}=await sb.from('pmo_clients').update(patch).eq('id',id);
   if(error) throw error;
@@ -962,7 +962,7 @@ async function saveNewBaseline(projectId){
 async function fetchHolidays(){const {data}=await sb.from('pmo_holidays').select('*').order('hdate');return data||[];}
 async function addHolidayRow(hdate,name){const {error}=await sb.from('pmo_holidays').insert({hdate,name});if(error)throw error;}
 async function delHolidayRow(id){const {error}=await sb.from('pmo_holidays').delete().eq('id',id);if(error)throw error;}
-// ===== الفريق والإسناد (داخلي — لا يراه العميل) =====
+// ===== الفريق والإسناد (داخلي — لا يراه الشريك) =====
 async function fetchTeamMembers(){const {data}=await sb.from('team_members').select('id,full_name,email,role').eq('is_active',true).order('full_name');return data||[];}
 
 // ===== صلاحيات الفريق (شركة/قسم/مشروع × عرض/تعديل) — مالك النظام فقط يديرها =====
@@ -1022,7 +1022,7 @@ async function createContract(projectId,baselineId,opts){
   });
   if(error)throw error;return data;
 }
-// إنشاء شامل: يدعم نطاقَي مشروع/عميل كامل، ونوعَي قياسي/مخصَّص بنص حر — دالة واحدة لكل الحالات
+// إنشاء شامل: يدعم نطاقَي مشروع/شريك كامل، ونوعَي قياسي/مخصَّص بنص حر — دالة واحدة لكل الحالات
 async function createContractV2(opts){
   opts=opts||{};
   const client=opts.clientRow||{};
@@ -1088,6 +1088,21 @@ async function fetchExpiringContracts(){
   const {data,error}=await sb.rpc('pmo_expiring_contracts');
   if(error)throw error;return data||[];
 }
+// ===== الملف التعاقدي لعلامة (الطرف الأول) — يُستورَد تلقائيًا في كل عقد =====
+let ORG_PROFILE=null;
+async function fetchOrgProfile(force){
+  if(ORG_PROFILE&&!force)return ORG_PROFILE;
+  const {data,error}=await sb.rpc('pmo_get_org_profile');
+  if(error)throw error;
+  ORG_PROFILE=data||{};return ORG_PROFILE;
+}
+async function updateOrgProfile(fields){
+  const {data,error}=await sb.rpc('pmo_update_org_profile',{p:fields});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error||'تعذّر الحفظ');
+  ORG_PROFILE=null;
+  return data;
+}
 async function fetchContractAttachments(contractId){
   const {data,error}=await sb.rpc('pmo_contract_attachments_list',{p_contract_id:contractId});
   if(error)throw error;return data||[];
@@ -1113,7 +1128,7 @@ async function assignContractToClient(contractId,clientId){
   const {data,error}=await sb.rpc('pmo_assign_contract_to_client',{p_contract_id:contractId,p_client_id:clientId});
   if(error)throw error;
   if(!data.ok)throw new Error(
-    data.error==='duplicate'?'لهذا العميل نسخة سارية من هذا العقد بالفعل':
+    data.error==='duplicate'?'لهذا الشريك نسخة سارية من هذا العقد بالفعل':
     data.error||'تعذّر الإسناد');
   return data;
 }
@@ -1174,8 +1189,8 @@ async function updateClientSlug(clientId,newSlug){
   const {data,error}=await sb.rpc('pmo_update_client_slug',{p_client_id:clientId,p_new_slug:clean});
   if(error)throw error;
   if(!data.ok)throw new Error(
-    data.error==='taken'?'هذا المعرّف مُستخدَم لعميل آخر — جرّب صيغة مختلفة':
-    data.error==='صلاحية غير كافية'?'لا تملك صلاحية تعديل كافية لهذا العميل':'تعذّر الحفظ');
+    data.error==='taken'?'هذا المعرّف مُستخدَم لشريك آخر — جرّب صيغة مختلفة':
+    data.error==='صلاحية غير كافية'?'لا تملك صلاحية تعديل كافية لهذا الشريك':'تعذّر الحفظ');
   return data.slug;
 }
 async function updateProjectSlug(projectId,newSlug){
@@ -1183,7 +1198,7 @@ async function updateProjectSlug(projectId,newSlug){
   const {data,error}=await sb.rpc('pmo_update_project_slug',{p_project_id:projectId,p_new_slug:clean});
   if(error)throw error;
   if(!data.ok)throw new Error(
-    data.error==='taken'?'هذا المعرّف مُستخدَم لمشروع آخر لنفس العميل — جرّب صيغة مختلفة':
+    data.error==='taken'?'هذا المعرّف مُستخدَم لمشروع آخر لنفس الشريك — جرّب صيغة مختلفة':
     data.error==='صلاحية غير كافية'?'لا تملك صلاحية تعديل كافية لهذا المشروع':'تعذّر الحفظ');
   return data.slug;
 }
@@ -1217,7 +1232,7 @@ async function signContractAsStaff(contractId,name,signatureData){
   const {data,error}=await sb.rpc('pmo_sign_contract_staff',{p_contract_id:contractId,p_name:name,p_signature_data:signatureData});
   if(error)throw error;return data;
 }
-// الوصول العام (بلا جلسة) — نفس عميل sb، الحارس الحقيقي هو الرمز نفسه داخل الدالة
+// الوصول العام (بلا جلسة) — نفس شريك sb، الحارس الحقيقي هو الرمز نفسه داخل الدالة
 async function fetchPublicContract(token){
   const {data,error}=await sb.rpc('pmo_contract_public_view',{p_token:token});
   if(error)throw error;return data;
@@ -1246,7 +1261,7 @@ async function openTrello(mode){
 // ===== العرض =====
 const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',timeline:'خط التسليمات',cr:'طلبات تعديل الخطة',requests:'طلبات الخدمة',discuss:'النقاش',audit:'سجل المشروع'};
 function render(){
-  if(!PROJECT){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا يوجد مشروع لهذا العميل.</p>';return;}
+  if(!PROJECT){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا يوجد مشروع لهذا الشريك.</p>';return;}
   $('#backPortfolio').style.display=(ROLE!=='client')?'':'none';
   $('#manageAccess').style.display=(ROLE==='pmo')?'':'none';
   const pmb=$('#projMenuBtn');if(pmb)pmb.style.display=(ROLE==='pmo')?'':'none';
@@ -1323,7 +1338,7 @@ function render(){
     host.innerHTML='<div id="tlWrap"><div class="skeleton" style="height:120px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
     openTimeline('tlWrap',PROJECT._dbId);
   }
-  else if(VIEW==='cr'){host.innerHTML='<div class="hintbar exp-cr">📐 <b>طلبات تعديل الخطة:</b> تغييرات رسمية على بنود الخطة (مدد، تبعيات، إضافة/حذف). يقدّمها العميل أو الفريق، ويعتمدها مكتب إدارة المشاريع — وتُطبَّق على الجدول بعد الموافقة.</div>'+vCR();bindCR();}
+  else if(VIEW==='cr'){host.innerHTML='<div class="hintbar exp-cr">📐 <b>طلبات تعديل الخطة:</b> تغييرات رسمية على بنود الخطة (مدد، تبعيات، إضافة/حذف). يقدّمها الشريك أو الفريق، ويعتمدها مكتب إدارة المشاريع — وتُطبَّق على الجدول بعد الموافقة.</div>'+vCR();bindCR();}
   else if(VIEW==='discuss'){
     host.innerHTML='<div id="discussWrap"><div class="skeleton" style="height:80px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
     loadComments(PROJECT._dbId).then(rows=>{const el=document.getElementById('discussWrap');if(el){el.innerHTML=vDiscuss(rows);bindDiscuss();}});
@@ -1333,7 +1348,7 @@ function render(){
     loadClientRequests(PROJECT._dbId).then(rows=>{const el=document.getElementById('reqWrap');if(el){el.innerHTML=vRequests(rows);bindRequests();}});
   }
   else if(VIEW==='audit'){
-    host.innerHTML='<div class="hintbar">📋 <b>سجل المشروع:</b> آخر 60 تغييرًا على <b>هذا المشروع فقط</b> (الحالة، التقدّم، المدة، طلبات تعديل الخطة). للسجل الشامل لكل المشاريع والعملاء: «سجل المكتب» من شريط المحفظة.</div><div id="auditList"><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px"></div></div>';
+    host.innerHTML='<div class="hintbar">📋 <b>سجل المشروع:</b> آخر 60 تغييرًا على <b>هذا المشروع فقط</b> (الحالة، التقدّم، المدة، طلبات تعديل الخطة). للسجل الشامل لكل المشاريع والشركاء: «سجل المكتب» من شريط المحفظة.</div><div id="auditList"><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px;margin-bottom:8px"></div><div class="skeleton" style="height:48px"></div></div>';
     loadAudit(PROJECT._dbId).then(rows=>{const el=document.getElementById('auditList');if(el)el.innerHTML=vAudit(rows);});
   }
 }
@@ -1351,7 +1366,7 @@ function vDashboard(){
   const week=tasks.filter(t=>t.type!=='milestone'&&D(fmtY(S.R[t.id].ES))<=wkEnd&&D(fmtY(S.R[t.id].EF))>=dd);
   const creqs=[];PROJECT.tasks.forEach(t=>(t.requirements||[]).forEach(r=>{if(r.owner==='client'&&r._state!=='received'&&r._state!=='latejust')creqs.push({t,r});}));
   const miles=PROJECT.tasks.filter(t=>t.type==='milestone').map(t=>({t,ef:S.R[t.id].EF})).filter(m=>D(fmtY(m.ef))>=dd).sort((a,b)=>a.ef-b.ef).slice(0,5);
-  const alerts=[];creqs.filter(x=>x.r._state==='overdue').forEach(x=>alerts.push(['client','متطلب متأخر من العميل: '+x.r.desc+' ('+x.t.id+')'+(x.r._late?' +'+x.r._late+'ي':''),x.t.id]));
+  const alerts=[];creqs.filter(x=>x.r._state==='overdue').forEach(x=>alerts.push(['client','متطلب متأخر من الشريك: '+x.r.desc+' ('+x.t.id+')'+(x.r._late?' +'+x.r._late+'ي':''),x.t.id]));
   tasks.filter(t=>T[t.id].delay==='alamah').forEach(t=>alerts.push(['alamah','تأخير على فريق علامة: '+t.id+' — '+t.name,t.id]));
   tasks.filter(t=>T[t.id].blocked).forEach(t=>alerts.push(['blocked','بند متوقف: '+t.id+' — '+t.name,t.id]));
   const tl=t=>`<li><button class="tlink" data-tkopen="${esc(t.id)}"><span class="tgw" style="--tc:${trackMeta(t.track).color}">${esc(t.id)}</span> ${esc(t.name)} <em>${fmt(S.R[t.id].ES)}–${fmt(S.R[t.id].EF)}</em> <span class="ministat s-${T[t.id].effStatus}">${STATUS[T[t.id].effStatus]}</span></button></li>`;
@@ -1363,7 +1378,7 @@ function vDashboard(){
     <div class="dbox"><h4>مهام هذا الأسبوع (${week.length})</h4><ul class="tlist">${week.length?week.map(tl).join(''):'<li class="empty">لا مهام هذا الأسبوع.</li>'}</ul></div>
   </div>
   <div class="dcols">
-    <div class="dbox"><h4>المتطلبات المطلوبة من العميل (${creqs.length})</h4><ul class="tlist">${creqs.length?creqs.map(x=>`<li><button class="tlink" data-tkopen="${esc(x.t.id)}"><span class="ministat s-${x.r._state==='overdue'?'blocked':'notstarted'}">${x.r._state==='overdue'?'متأخر':'بانتظار'}</span> ${esc(x.r.desc)} <em>SLA ${x.r.sla}ي · ${esc(x.t.id)}</em></button></li>`).join(''):'<li class="empty">لا متطلبات معلّقة.</li>'}</ul></div>
+    <div class="dbox"><h4>المتطلبات المطلوبة من الشريك (${creqs.length})</h4><ul class="tlist">${creqs.length?creqs.map(x=>`<li><button class="tlink" data-tkopen="${esc(x.t.id)}"><span class="ministat s-${x.r._state==='overdue'?'blocked':'notstarted'}">${x.r._state==='overdue'?'متأخر':'بانتظار'}</span> ${esc(x.r.desc)} <em>SLA ${x.r.sla}ي · ${esc(x.t.id)}</em></button></li>`).join(''):'<li class="empty">لا متطلبات معلّقة.</li>'}</ul></div>
     <div class="dbox"><h4>المعالم القادمة</h4><ul class="tlist">${miles.length?miles.map(m=>`<li><button class="tlink" data-tkopen="${esc(m.t.id)}"><span class="md">◆</span> ${esc(m.t.name.replace('معلم: ',''))} <em>${fmt(m.ef)}</em></button></li>`).join(''):'<li class="empty">—</li>'}</ul></div>
   </div>
   <div class="dbox alerts"><h4>التنبيهات (${alerts.length})</h4><ul class="tlist">${alerts.length?alerts.map(a=>`<li class="alert a-${a[0]}">${a[2]?`<button class="tlink" data-tkopen="${esc(a[2])}">⚠ ${esc(a[1])}</button>`:('⚠ '+esc(a[1]))}</li>`).join(''):'<li class="empty">لا تنبيهات.</li>'}</ul></div>`;
@@ -1414,7 +1429,7 @@ function projFilterBar(){
   const phaseChips=projTrackList().map(x=>`<button class="tfchip" data-tf-phase="${x.key}" style="--tc:${x.color}" aria-pressed="${TFILTER.phases.has(x.key)}">${esc(x.name)}</button>`).join('');
   const stAr={notstarted:'لم تبدأ',inprogress:'جارية',blocked:'متوقفة',done:'مكتملة'};
   const statusChips=Object.keys(stAr).map(k=>`<button class="tfchip st-${k}" data-tf-status="${k}" aria-pressed="${TFILTER.statuses.has(k)}">${stAr[k]}</button>`).join('');
-  const smartChips=[['critical','حرجة فقط'],['late','متأخرة'],['client','بانتظار العميل']]
+  const smartChips=[['critical','حرجة فقط'],['late','متأخرة'],['client','بانتظار الشريك']]
     .map(([k,l])=>`<button class="tfchip smart" data-tf-smart="${k}" aria-pressed="${TFILTER.smart.has(k)}">${l}</button>`).join('');
   const anyActive=TFILTER.phases.size||TFILTER.statuses.size||TFILTER.smart.size||TFILTER.q;
   return `<div class="tfilter-bar">
@@ -1453,7 +1468,7 @@ function vTable(){
     if(t.type==='package'){
       const collapsed=PKG_COLLAPSED.has(t.id);
       const kidsN=PROJECT.tasks.filter(x=>x.parent===t.id).length;
-      const pdelay=k&&k.delay==='client'?'<span class="delay client">العميل</span>':(k&&k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>');
+      const pdelay=k&&k.delay==='client'?'<span class="delay client">الشريك</span>':(k&&k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>');
       rows+=`<tr data-id="${esc(t.id)}" class="row-pkg ${r&&r.critical?'crit':''}">
         <td><button class="pkg-tg" data-pkgtoggle="${esc(t.id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'فتح':'طي'} الحزمة">${collapsed?'◂':'▾'}</button><span class="idcell" style="--tc:${tc}">${esc(t.id)}</span></td>
         <td class="pkg-name">${esc(t.name)} <span class="pkg-n">${kidsN} بند</span></td>
@@ -1472,7 +1487,7 @@ function vTable(){
     }
     const sopt=Object.keys(STATUS).map(x=>`<option value="${x}" ${x===t.status?'selected':''}>${STATUS[x]}</option>`).join('');
     const durDis=(t.type==='milestone'||t.type==='cont'||!editStruct)?'disabled':'';
-    const delay=k.delay==='client'?'<span class="delay client">العميل</span>':k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>';
+    const delay=k.delay==='client'?'<span class="delay client">الشريك</span>':k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>';
     const reqs=(t.requirements||[]);const bad=reqs.filter(x=>x._state==='overdue').length;
     // الاسم: قابل للتعديل بنيويًا
     const nameCell=`<input class="cell iname" data-f="name" value="${esc(t.name)}" ${editStruct?'':'disabled'}>`;
@@ -1531,7 +1546,7 @@ function vCards(editStruct,editProg){
     const reqs=(t.requirements||[]);const bad=reqs.filter(x=>x._state==='overdue').length;
     const badges=[];
     if(r&&r.critical)badges.push('<span class="tc-b crit">حرج</span>');
-    if(k&&k.delay==='client')badges.push('<span class="tc-b cl">بانتظار العميل</span>');
+    if(k&&k.delay==='client')badges.push('<span class="tc-b cl">بانتظار الشريك</span>');
     else if(k&&k.delay==='alamah')badges.push('<span class="tc-b al">تأخير علامة</span>');
     if(t.type==='milestone')badges.push('<span class="tc-b ms">◆ معلم</span>');
     out+=`<div class="tcard ${r&&r.critical?'crit':''} ${t.parent?'child':''}" data-id="${esc(t.id)}">
@@ -1678,14 +1693,14 @@ function vGantt(){
       let tail='';
       if(overdue){
         const to=o+len,tl=Math.max(1,off(dd)-to);
-        tail=`<div class="gtail ${who}" style="right:${to*PX}px;width:${tl*PX}px" title="امتداد التأخير حتى اليوم"></div><div class="glate ${who}" style="right:${(to+tl)*PX+5}px">${who==='client'?'بانتظار العميل':'متأخر'} +${lateDays}ي</div>`;
+        tail=`<div class="gtail ${who}" style="right:${to*PX}px;width:${tl*PX}px" title="امتداد التأخير حتى اليوم"></div><div class="glate ${who}" style="right:${(to+tl)*PX+5}px">${who==='client'?'بانتظار الشريك':'متأخر'} +${lateDays}ي</div>`;
       }
       lane+=`<div class="gbar ${cls} ${r.critical?'crit':''} ${overdue?'late late-'+who:''}" data-gid="${esc(t.id)}" style="right:${o*PX}px;width:${wpx}px;background:${tc}" title="${tip}">${fill}</div>${tail}${durEl}`;}
     rows+=`<div class="grow" data-grow="${esc(t.id)}"><div class="glbl ${t.parent?'gchild':''}" role="button" tabindex="0" data-tkopen="${esc(t.id)}" aria-label="لوحة البند ${esc(t.id)} — ${esc(t.name)}"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
   return projFilterBar()+baselineDeviation(BL)+`<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
     <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${HD.top}${HD.bot}</div></div>
     <div id="gcanvas" style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${HD.wkends}${HD.grid}${today}</div>${rows}</div></div></div>
-    <div class="glegend"><span><span class="di"></span>معلم</span><span><span class="ci"></span>حرج</span>${BL?'<span><i class="blleg"></i>الأساس المعتمد</span>':''}<span><span class="dot" style="background:#cbbfa6"></span>لم تبدأ</span><span><span class="dot" style="background:var(--blue)"></span>جارية</span><span><span class="dot" style="background:var(--crit)"></span>متوقفة</span><span><span class="dot" style="background:var(--ok)"></span>مكتملة ✓</span><span><i class="tleg cl"></i>تأخير بانتظار العميل</span><span><i class="tleg al"></i>تأخير علامة</span><span><i class="wkleg"></i>عطلة الأسبوع</span><span><i class="lkleg">⟵</i>رابط تبعية</span></div></div>`;
+    <div class="glegend"><span><span class="di"></span>معلم</span><span><span class="ci"></span>حرج</span>${BL?'<span><i class="blleg"></i>الأساس المعتمد</span>':''}<span><span class="dot" style="background:#cbbfa6"></span>لم تبدأ</span><span><span class="dot" style="background:var(--blue)"></span>جارية</span><span><span class="dot" style="background:var(--crit)"></span>متوقفة</span><span><span class="dot" style="background:var(--ok)"></span>مكتملة ✓</span><span><i class="tleg cl"></i>تأخير بانتظار الشريك</span><span><i class="tleg al"></i>تأخير علامة</span><span><i class="wkleg"></i>عطلة الأسبوع</span><span><i class="lkleg">⟵</i>رابط تبعية</span></div></div>`;
 }
 
 // ===== منحنى S: المخطط تراكميًا من CPM + نقطة المكتسب الحالية =====
@@ -1866,7 +1881,7 @@ function vAudit(rows){
 function vDiscuss(rows){
   const KIND={comment:'تعليق',question:'سؤال',suggestion:'مقترح'};
   const KCLR={comment:'var(--blue)',question:'var(--warn)',suggestion:'var(--gold-dark)'};
-  const ROLE_AR={pmo:'إدارة المشاريع',delivery:'الفريق',client:'العميل'};
+  const ROLE_AR={pmo:'إدارة المشاريع',delivery:'الفريق',client:'الشريك'};
   // الجذور (بلا أب) ثم ردودها
   const roots=rows.filter(r=>!r.parent_id);
   const childrenOf=id=>rows.filter(r=>r.parent_id===id);
@@ -1929,7 +1944,7 @@ function bindDiscuss(){
   });
 }
 
-// ===== طلبات العميل الموجّهة للأقسام (المرحلة 3) =====
+// ===== طلبات الشريك الموجّهة للأقسام (المرحلة 3) =====
 const DEPT_AR={marketing:'التسويق',tech:'التقني',strategy:'الاستراتيجية',consulting:'الاستشارات',other:'أخرى'};
 const REQ_STATUS_AR={new:'جديد',in_progress:'قيد المعالجة',done:'منجز',declined:'مرفوض'};
 const REQ_STATUS_CLR={new:'var(--blue)',in_progress:'var(--warn)',done:'var(--ok)',declined:'var(--muted)'};
@@ -1938,10 +1953,10 @@ const PRIO_CLR={low:'var(--muted)',normal:'var(--ink-soft)',high:'var(--warn)',u
 function vRequests(rows){
   const isStaff=(ROLE==='pmo'||ROLE==='delivery');
   const explainer='<div class="hintbar exp-rq">🛎 <b>طلبات الخدمة:</b> احتياجات تشغيلية تُوجَّه لقسم مختص (تسويق، تقني، استراتيجية…) — مثل تصميم أو محتوى أو دعم. <b>لا تعدّل الخطة</b>؛ لتعديل الخطة استخدم «طلبات تعديل الخطة».</div>';
-  const ROLE_AR={pmo:'إدارة المشاريع',delivery:'الفريق',client:'العميل'};
+  const ROLE_AR={pmo:'إدارة المشاريع',delivery:'الفريق',client:'الشريك'};
   // نموذج تقديم طلب
   const composer=`<div class="crform" style="position:static;margin-bottom:16px">
-    <h4>${ROLE==='client'?'تقديم طلب جديد':'تسجيل طلب نيابة عن العميل'}</h4>
+    <h4>${ROLE==='client'?'تقديم طلب جديد':'تسجيل طلب نيابة عن الشريك'}</h4>
     <input id="rqTitle" placeholder="عنوان الطلب (مثل: تصميم إعلان لعرض رمضان)" style="width:100%;border:1.5px solid var(--line);border-radius:7px;padding:9px;font-family:inherit;margin-bottom:8px">
     <textarea id="rqBody" placeholder="تفاصيل الطلب..." style="margin-bottom:8px"></textarea>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
@@ -2002,7 +2017,7 @@ function bindRequests(){
   });
 }
 
-// ===== داشبورد العميل: أين نحن الآن، المتأخر، المعالم القادمة =====
+// ===== داشبورد الشريك: أين نحن الآن، المتأخر، المعالم القادمة =====
 const CD_PHASES=[['0','التأسيس'],['B','الذكاء والرؤى'],['C','الاستراتيجية'],['A','التنفيذ']];
 function vClientDash(){
   const tasks=PROJECT.tasks, dd=new Date(DATA_DATE);
@@ -2212,7 +2227,7 @@ function tkTalk(){
   if(TK_LOADING||!TK_THREAD)return '<p class="empty">جارٍ التحميل…</p>';
   if(TK_THREAD.error)return '<p class="empty">تعذّر تحميل النقاش: '+esc(TK_THREAD.error)+'</p>';
   const KIND={comment:'تعليق',question:'سؤال',suggestion:'مقترح'};
-  const ROLE_AR={pmo:'إدارة المشاريع',delivery:'الفريق',client:'العميل'};
+  const ROLE_AR={pmo:'إدارة المشاريع',delivery:'الفريق',client:'الشريك'};
   const list=TK_THREAD.comments.map(c=>{
     const when=new Date(c.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
     return `<div class="tkmsg">
@@ -2501,7 +2516,7 @@ async function runProjectMenuAction(action,projectId,projectName){
     }catch(e){toast('تعذّر الاسترجاع: '+e.message,'err');}
   }else if(action==='pause'){
     const r=await dialog({title:'إيقاف مؤقت',
-      message:'سيتوقف هذا المشروع تحديدًا مؤقتًا — بياناته وبنوده تبقى كما هي كاملة، ولا يتأثر أي مشروع آخر لنفس العميل. يمكن استئنافه في أي وقت.',
+      message:'سيتوقف هذا المشروع تحديدًا مؤقتًا — بياناته وبنوده تبقى كما هي كاملة، ولا يتأثر أي مشروع آخر لنفس الشريك. يمكن استئنافه في أي وقت.',
       fields:[{key:'reason',label:'السبب (اختياري)',value:''}],confirmText:'إيقاف مؤقت'});
     if(!r)return;
     try{
@@ -2666,20 +2681,20 @@ async function saveTracks(){
   }catch(e){toast('تعذّر الحفظ (الرمز مكرر؟): '+e.message,'err');if(btn)btn.disabled=false;}
 }
 
-// إنشاء عميل جديد مباشرة (سدّ فجوة الرحلة الأولى)
+// إنشاء شريك جديد مباشرة (سدّ فجوة الرحلة الأولى)
 
 async function addNewClient(){
-  const r=await dialog({title:'عميل جديد',
-    message:'يُنشأ العميل نشطًا. يمكنك بعدها إضافة مشروعه الأول من قائمة ⋮ على بطاقته.',
+  const r=await dialog({title:'شريك جديد',
+    message:'يُنشأ الشريك نشطًا. يمكنك بعدها إضافة مشروعه الأول من قائمة ⋮ على بطاقته.',
     fields:[
-      {key:'name',label:'اسم العميل / الشركة',placeholder:'مثل: شركة الأفق'},
-      {key:'color',label:'لون العميل (للتمييز البصري)',type:'color',value:'#C8A06B'}
-    ],confirmText:'إنشاء العميل'});
+      {key:'name',label:'اسم الشريك / الشركة',placeholder:'مثل: شركة الأفق'},
+      {key:'color',label:'لون الشريك (للتمييز البصري)',type:'color',value:'#C8A06B'}
+    ],confirmText:'إنشاء الشريك'});
   if(!r||!r.name)return;
   try{
     const c=await insertClient(r.name,r.color);
     await loadClients();
-    toast('أُنشئ العميل «'+r.name+'» — أضف مشروعه الأول من ⋮','ok');
+    toast('أُنشئ الشريك «'+r.name+'» — أضف مشروعه الأول من ⋮','ok');
     renderPortfolio();
   }catch(err){toast('تعذّر الإنشاء: '+err.message,'err');}
 }
@@ -2689,24 +2704,24 @@ async function openClientMenu(clientId){
   const c=CLIENTS.find(x=>x.id===clientId); if(!c)return;
   const r=await dialog({title:'إجراءات: '+c.name,
     fields:[{key:'action',label:'الإجراء',type:'select',value:'edit',options:[
-      {v:'edit',t:'تعديل بيانات العميل (الاسم واللون)'},
-      {v:'newproject',t:'+ مشروع جديد لهذا العميل'},
-      {v:'access',t:'إدارة وصول العميل (البريد)'},
-      {v:'archive',t:'أرشفة العميل'},
+      {v:'edit',t:'تعديل بيانات الشريك (الاسم واللون)'},
+      {v:'newproject',t:'+ مشروع جديد لهذا الشريك'},
+      {v:'access',t:'إدارة وصول الشريك (البريد)'},
+      {v:'archive',t:'أرشفة الشريك'},
       {v:'delete',t:'طلب حذف (مهلة 30 يومًا)'}
     ]}],confirmText:'متابعة'});
   if(!r)return;
   if(r.action==='edit'){
     const e=await dialog({title:'تعديل بيانات: '+c.name,
       fields:[
-        {key:'name',label:'اسم العميل',value:c.name},
-        {key:'color',label:'لون العميل',type:'color',value:c.color||'#C8A06B'}
+        {key:'name',label:'اسم الشريك',value:c.name},
+        {key:'color',label:'لون الشريك',type:'color',value:c.color||'#C8A06B'}
       ],confirmText:'حفظ التعديلات'});
     if(!e||!e.name)return;
     try{
       await updateClientInfo(clientId,{name:e.name,color:e.color});
       c.name=e.name;c.color=e.color;
-      toast('حُدّثت بيانات العميل','ok');renderPortfolio();
+      toast('حُدّثت بيانات الشريك','ok');renderPortfolio();
     }catch(err){toast('تعذّر التحديث: '+err.message,'err');}
   }else if(r.action==='newproject'){
     const p=await dialog({title:'مشروع جديد — '+c.name,
@@ -2746,15 +2761,15 @@ async function openClientMenu(clientId){
 
 
 async function renderArchived(){
-  SCREEN='archived';$('#hProject').textContent='العملاء المؤرشفون';hideChrome();
-  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">العملاء المؤرشفون والمجدولون للحذف. الاسترجاع متاح طوال مهلة الـ30 يومًا.</span></div><div id="archList"><div class="skeleton" style="height:60px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
+  SCREEN='archived';$('#hProject').textContent='الشركاء المؤرشفون';hideChrome();
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">الشركاء المؤرشفون والمجدولون للحذف. الاسترجاع متاح طوال مهلة الـ30 يومًا.</span></div><div id="archList"><div class="skeleton" style="height:60px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
   $('#backP').onclick=renderPortfolio;
   const isOwner=await checkIsOwner();
   const arch=await fetchClientsByState('archived');
   const pend=await fetchClientsByState('pending_deletion');
   const aprojs=await fetchArchivedProjects();
   const list=$('#archList');
-  if(!arch.length&&!pend.length&&!aprojs.length){list.innerHTML='<div class="empty-cta"><div class="ico">'+I.archive+'</div><h3>لا عناصر مؤرشفة</h3><p>العملاء والمشاريع المؤرشفة أو المجدولة للحذف تظهر هنا.</p></div>';return;}
+  if(!arch.length&&!pend.length&&!aprojs.length){list.innerHTML='<div class="empty-cta"><div class="ico">'+I.archive+'</div><h3>لا عناصر مؤرشفة</h3><p>الشركاء والمشاريع المؤرشفة أو المجدولة للحذف تظهر هنا.</p></div>';return;}
   let html='';
   if(pend.length){
     html+='<h4 class="arch-sec">بانتظار الحذف</h4>';
@@ -2806,11 +2821,11 @@ async function renderArchived(){
     successMsg:'تم الاسترجاع',
     onSuccess:async()=>{CLIENTS=await fetchClientsByState('active');renderArchived();}}));
   list.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>runLifecycleAction({
-    title:'طلب حذف',message:'بدء مهلة 30 يومًا لحذف هذا العميل؟',danger:true,confirmText:'حذف',
+    title:'طلب حذف',message:'بدء مهلة 30 يومًا لحذف هذا الشريك؟',danger:true,confirmText:'حذف',
     rpc:()=>rpcRequestDeletion(b.dataset.del),
     successMsg:'بدأت مهلة الحذف',successTone:'warn',onSuccess:renderArchived}));
   list.querySelectorAll('[data-purge]').forEach(b=>b.onclick=()=>runLifecycleAction({
-    title:'حذف نهائي',message:'تحذير: حذف نهائي لا رجعة فيه لكل بيانات العميل ومشاريعه. متأكد؟',danger:true,confirmText:'حذف نهائي',
+    title:'حذف نهائي',message:'تحذير: حذف نهائي لا رجعة فيه لكل بيانات الشريك ومشاريعه. متأكد؟',danger:true,confirmText:'حذف نهائي',
     rpc:()=>rpcPurgeClient(b.dataset.purge),
     successMsg:'تم الحذف النهائي',failMsg:'تعذّر — تحقق من المهلة والصلاحية',onSuccess:renderArchived}));
 }
@@ -2818,7 +2833,7 @@ async function renderArchived(){
 // ===== سجل التدقيق على مستوى المكتب =====
 // القاموس موحّد في config.js (AUDIT_ACTIONS) ويشترك فيه سجل المكتب وسجل المشروع.
 
-// ===== إسناد الفريق (داخلي — لا يظهر للعميل بأي شكل) =====
+// ===== إسناد الفريق (داخلي — لا يظهر للشريك بأي شكل) =====
 async function openAssignPanel(projectId,projectName){
   $('#assignOverlay').style.display='flex';
   $('#assignTitle').textContent='إسناد الفريق: '+(projectName||'');
@@ -2828,7 +2843,7 @@ async function openAssignPanel(projectId,projectName){
     const aset=new Set(assigned);
     const roleAr={admin:'إدارة المشاريع',manager:'فريق'};
     body.innerHTML=`
-      <p class="trk-hint">أعضاء الطاقم المسندون يرون هذا المشروع في محفظتهم وخط تسليماته. المالك وإدارة المشاريع يرون الكل دائمًا. <b>العميل لا يرى الإسناد إطلاقًا.</b></p>
+      <p class="trk-hint">أعضاء الطاقم المسندون يرون هذا المشروع في محفظتهم وخط تسليماته. المالك وإدارة المشاريع يرون الكل دائمًا. <b>الشريك لا يرى الإسناد إطلاقًا.</b></p>
       ${members.map(u=>`<label class="assign-row"><input type="checkbox" data-assign="${u.id}" ${aset.has(u.id)?'checked':''}>
         <b>${esc(u.full_name||u.email)}</b><span class="assign-role">${roleAr[u.role]||u.role}</span></label>`).join('')||'<p class="pempty">لا أعضاء طاقم نشطين بعد.</p>'}
       <div class="imp-actions">
@@ -2871,24 +2886,70 @@ async function openHolidaysManager(){
 
 /* ===== portfolio.js ===== */
 // ===== app/portfolio.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
+
+// ===== الملف التعاقدي لعلامة (الطرف الأول في كل عقد) =====
+// يُضبط مرة واحدة من أدوات المكتب، ويُستورَد تلقائيًا في كل عقد جديد ويُجمَّد كلقطة داخله،
+// فتغييره لاحقًا لا يمسّ العقود الموقَّعة سابقًا.
+async function openOrgProfile(){
+  document.getElementById('taskOverlay').style.display='flex';
+  document.getElementById('tkTitle').textContent='الملف التعاقدي لعلامة';
+  document.getElementById('tkTabs').innerHTML='';
+  document.getElementById('tkBody').innerHTML='<div class="skeleton" style="height:180px"></div>';
+  let o={};
+  try{ o=await fetchOrgProfile(true); }catch(e){
+    document.getElementById('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>';return; }
+  const miss=['cr_number','vat_number','national_address','rep_name','rep_title','contact_email','contact_phone']
+    .filter(k=>!o[k]);
+  document.getElementById('tkBody').innerHTML=`
+    <p class="sa-hint" style="margin-bottom:14px">بيانات علامة بصفتها <b>الطرف الأول</b> في كل عقد — تُستورَد تلقائيًا عند إنشاء أي عقد جديد، وتُجمَّد داخله كلقطة فلا يتأثر أي عقد موقَّع سابقًا بأي تعديل هنا لاحقًا.</p>
+    ${miss.length?`<div class="ch-warn-badge">⚠ بيانات غير مكتملة (${miss.length} حقول) — ستظهر كـ«—» في جدول أطراف العقد</div>`:''}
+    <div class="sa-form" style="flex-wrap:wrap">
+      <input id="orgName" placeholder="الاسم النظامي" value="${esc(o.legal_name||'علامة')}" style="flex:1;min-width:180px;font-weight:700">
+      <input id="orgCr" placeholder="رقم السجل التجاري" value="${esc(o.cr_number||'')}" style="flex:1;min-width:150px">
+      <input id="orgVat" placeholder="الرقم الضريبي (VAT)" value="${esc(o.vat_number||'')}" style="flex:1;min-width:150px">
+      <input id="orgAddr" placeholder="العنوان الوطني" value="${esc(o.national_address||'')}" style="flex:1;min-width:170px">
+      <input id="orgRep" placeholder="اسم الممثل المفوَّض" value="${esc(o.rep_name||'')}" style="flex:1;min-width:160px">
+      <input id="orgTitle" placeholder="صفته" value="${esc(o.rep_title||'')}" style="flex:1;min-width:130px">
+      <input id="orgEmail" placeholder="البريد الرسمي" value="${esc(o.contact_email||'')}" style="flex:1;min-width:170px" dir="ltr">
+      <input id="orgPhone" placeholder="رقم الجوال" value="${esc(o.contact_phone||'')}" style="flex:1;min-width:140px" dir="ltr">
+      <button class="hbtn" id="orgSave" style="background:var(--gold);border-color:var(--gold)">حفظ الملف</button>
+    </div>`;
+  document.getElementById('orgSave').onclick=async()=>{
+    const btn=document.getElementById('orgSave');btn.disabled=true;
+    try{
+      await updateOrgProfile({
+        legal_name:document.getElementById('orgName').value,
+        cr_number:document.getElementById('orgCr').value,
+        vat_number:document.getElementById('orgVat').value,
+        national_address:document.getElementById('orgAddr').value,
+        rep_name:document.getElementById('orgRep').value,
+        rep_title:document.getElementById('orgTitle').value,
+        contact_email:document.getElementById('orgEmail').value,
+        contact_phone:document.getElementById('orgPhone').value});
+      toast('حُفظ الملف التعاقدي لعلامة','ok');
+      openOrgProfile();
+    }catch(e){toast(e.message,'err');btn.disabled=false;}
+  };
+}
+
 async function openStatusLegend(){
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='دليل حالات المشاريع';
   document.getElementById('tkTabs').innerHTML='';
   document.getElementById('tkBody').innerHTML=`
-    <p class="sa-hint" style="margin-bottom:16px">كل مشروع أو عميل في المحفظة يحمل شارة حالة واحدة توضّح وضعه الحالي بلمحة — هذا شرح كل شارة:</p>
+    <p class="sa-hint" style="margin-bottom:16px">كل مشروع أو شريك في المحفظة يحمل شارة حالة واحدة توضّح وضعه الحالي بلمحة — هذا شرح كل شارة:</p>
     ${PROJECT_STATUS_DEFS.map(s=>`
       <div class="legend-row">
         ${renderStatusBadge(s)}
         <span class="legend-desc">${esc(legendDescOf(s.key))}</span>
       </div>`).join('')}
-    <p class="sa-hint" style="margin-top:16px">للعميل الذي لديه أكثر من مشروع، تُعرض شارة <b>أسوأ حالة</b> بين كل مشاريعه — فمشروع واحد متوقف يكفي لتظهر الشارة الحمراء على بطاقة العميل كاملة، حتى لو كانت بقية مشاريعه سليمة.</p>`;
+    <p class="sa-hint" style="margin-top:16px">للشريك الذي لديه أكثر من مشروع، تُعرض شارة <b>أسوأ حالة</b> بين كل مشاريعه — فمشروع واحد متوقف يكفي لتظهر الشارة الحمراء على بطاقة الشريك كاملة، حتى لو كانت بقية مشاريعه سليمة.</p>`;
 }
 function legendDescOf(key){
   return {
     paused:'أُوقف مؤقتًا يدويًا من فريق علامة — بياناته سليمة كاملة، ويُستأنف في أي وقت.',
     blocked:'يحوي بندًا واحدًا متوقفًا على الأقل — يحتاج تدخلًا لفكّ العائق.',
-    attention:'لديه متطلب معلَّق من العميل، أو نقاش مفتوح لم يُحسَم بعد.',
+    attention:'لديه متطلب معلَّق من الشريك، أو نقاش مفتوح لم يُحسَم بعد.',
     at_risk:'تقدير لا حساب دقيق: مضى أكثر من 30 يومًا منذ البدء والإنجاز أقل من 20٪ — يستحق مراجعة سريعة. (الحساب الدقيق للتأخير الفعلي متاح داخل كل مشروع عبر الجانت).',
     not_started:'لا بنود بعد، أو المشروع لا يزال في مرحلة الاقتراح/المسودة.',
     active:'يعمل عليه الفريق حاليًا بلا أي من الإشارات أعلاه.',
@@ -2914,24 +2975,26 @@ async function renderPortfolio(){
   if(ROLE==='pmo'){
     toolItems.push({id:'showHolidays',t:'العطلات الرسمية',i:'🗓'});
     toolItems.push({id:'showArchived',t:'المؤرشفة',i:'🗄'});
-    toolItems.push({id:'showLeads',t:'العملاء المحتملون',i:'👥'});
+    toolItems.push({id:'showLeads',t:'الشركاء المحتملون',i:'👥'});
   }
   if(IS_OWNER){toolItems.push({id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
-    toolItems.push({id:'showStaffAccess',t:'صلاحيات الفريق',i:'🔐'});}
+    toolItems.push({id:'showStaffAccess',t:'صلاحيات الفريق',i:'🔐'});
+    toolItems.push({id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});}
   const toolsMenu=toolItems.length?`<div class="tools-wrap">
     <button class="hbtn tools-btn" id="toolsBtn" aria-expanded="false" aria-haspopup="true">⚙ أدوات المكتب <span class="tools-caret">▾</span></button>
     <div class="tools-pop" id="toolsPop" role="menu">${toolItems.map(t=>`<button role="menuitem" id="${t.id}"><span class="ti">${t.i}</span>${t.t}</button>`).join('')}</div>
   </div>`:'';
-  const primaryBtn=(ROLE==='pmo')?'<button class="hbtn primary-cta" id="addClientBtn">+ عميل جديد</button>':'';
+  const primaryBtn=(ROLE==='pmo')?'<button class="hbtn primary-cta" id="addClientBtn">+ شريك جديد</button>':'';
   const legendBtn=isStaff?'<button class="hbtn" id="statusLegendBtn" title="دليل حالات المشاريع">ⓘ دليل الحالات</button>':'';
   const toolbar=isStaff?`<div class="portfolio-tools">${primaryBtn}${legendBtn}${toolsMenu}</div>`:'';
-  $('#host').innerHTML='<div class="hintbar">اختر عميلًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
+  $('#host').innerHTML='<div class="hintbar">اختر شريكًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
   if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;
     const ac=$('#addClientBtn');if(ac)ac.onclick=addNewClient;}
   {const db=$('#showDOL');if(db)db.onclick=openDOL;}
   {const ab=$('#showAudit');if(ab)ab.onclick=renderAuditLog;}
   {const cb=$('#showContractsHub');if(cb)cb.onclick=renderContractsHub;}
   {const lb=$('#statusLegendBtn');if(lb)lb.onclick=openStatusLegend;}
+  {const op=$('#showOrgProfile');if(op)op.onclick=openOrgProfile;}
   {const tb=$('#showTimeline');if(tb)tb.onclick=renderPortfolioTimeline;}
   {const hb=$('#showHolidays');if(hb)hb.onclick=openHolidaysManager;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
@@ -2958,7 +3021,7 @@ async function renderPortfolio(){
   const groups={}; 
   projects.forEach(r=>{ (groups[r.client_id]=groups[r.client_id]||[]).push(r); });
   let companies=Object.keys(groups).map(cid=>aggregateClientRows(cid,groups[cid]));
-  // العملاء بلا مشاريع: بطاقة دعوة لإضافة أول مشروع
+  // الشركاء بلا مشاريع: بطاقة دعوة لإضافة أول مشروع
   noProjRows.forEach(r=>{
     companies.push(aggregateClientRows(r.client_id,null,{name:r.client_name,color:r.color||'#C8A06B'}));
   });
@@ -3067,14 +3130,14 @@ async function renderPortfolio(){
     if(x.blocked>0)alertBadges.push(`<span class="palert red">${x.blocked} متوقف</span>`);
     if(x.reqs>0)alertBadges.push(`<span class="palert amber">${x.reqs} متطلب</span>`);
     if(x.comments>0)alertBadges.push(`<span class="palert blue">${x.comments} نقاش</span>`);
-    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات" aria-label="إجراءات العميل">${I.dots}</button>`:'';
+    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات" aria-label="إجراءات الشريك">${I.dots}</button>`:'';
     const card=document.createElement('div');
     card.className='pcompany'+(x.hasAlerts?' has-alerts':'');
     card.style.cssText=`--cc:${x.c.color}`;
     card.innerHTML=`
       <div class="pcompany-hd" data-toggle="${x.cid}" role="button" tabindex="0">
         <div class="pcv-top">
-          <span class="pdot" style="background:${x.c.color}" title="لون تعريفي لهذا العميل — يُستخدم لتمييزه في «الخط الزمني الشامل» وأي عرض مجمَّع آخر"></span>
+          <span class="pdot" style="background:${x.c.color}" title="لون تعريفي لهذا الشريك — يُستخدم لتمييزه في «الخط الزمني الشامل» وأي عرض مجمَّع آخر"></span>
           <h3>${esc(x.c.name)}</h3>
           ${actBtn}
         </div>
@@ -3087,12 +3150,12 @@ async function renderPortfolio(){
     grid.appendChild(card);
   };
   withProj.forEach(renderCard);
-  // قسم مطوي للعملاء بلا مشاريع (لا يزاحم النشط)
+  // قسم مطوي للشركاء بلا مشاريع (لا يزاحم النشط)
   if(empty.length){
     const sec=document.createElement('div');sec.className='empty-sec';
     const open=PEXPANDED.has('__empty');
     sec.innerHTML=`<button class="empty-sec-hd" data-emptytoggle="1" aria-expanded="${open}">
-        <span class="es-chev">${open?'▴':'▾'}</span> عملاء بلا مشاريع <span class="es-n">${empty.length}</span>
+        <span class="es-chev">${open?'▴':'▾'}</span> شركاء بلا مشاريع <span class="es-n">${empty.length}</span>
         <span class="es-hint">جاهزون لإضافة أول مشروع</span></button>
       <div class="empty-sec-body" style="display:${open?'flex':'none'}">
         ${empty.map(x=>`<button class="ecard" data-newproj="${x.cid}" style="--cc:${x.c.color}">
@@ -3104,7 +3167,7 @@ async function renderPortfolio(){
     sec.querySelectorAll('[data-newproj]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();newProjectDialog(b.dataset.newproj);});
   }
 
-  // التفاعل: ترويسة الشركة — تفتح صفحة العميل الموحّدة دائمًا (لوحة قيادة + مشاريعه + خططه + فريقه)
+  // التفاعل: ترويسة الشركة — تفتح صفحة الشريك الموحّدة دائمًا (لوحة قيادة + مشاريعه + خططه + فريقه)
   document.querySelectorAll('[data-toggle]').forEach(el=>el.onclick=async(e)=>{
     if(e.target.closest('[data-cmenu]'))return;
     const cid=el.dataset.toggle;
@@ -3154,7 +3217,7 @@ async function renderStaffAccess(){
 function saScopeLabel(g){
   if(g.scope_type==='company')return 'الشركة كاملة';
   if(g.scope_type==='department')return DEPTS[g.scope_value]||g.scope_value;
-  if(g.scope_type==='client'){const c=CLIENTS.find(x=>x.id===g.scope_value);return c?('كل مشاريع: '+c.name):'عميل محذوف';}
+  if(g.scope_type==='client'){const c=CLIENTS.find(x=>x.id===g.scope_value);return c?('كل مشاريع: '+c.name):'شريك محذوف';}
   const p=SA_PROJECTS.find(x=>x.id===g.scope_value);
   return p?(p._client+' — '+p.name):'مشروع محذوف';
 }
@@ -3200,7 +3263,7 @@ function renderSABody(){
         <select id="saScopeType">
           <option value="company">الشركة كاملة</option>
           <option value="department">قسم بعينه</option>
-          <option value="client">عميل بعينه (كل مشاريعه)</option>
+          <option value="client">شريك بعينه (كل مشاريعه)</option>
           <option value="project">مشروع بعينه</option>
         </select>
         <select id="saScopeValue" style="display:none">${deptOpts}</select>
@@ -3216,7 +3279,7 @@ function renderSABody(){
     </div>
     <div class="sa-section">
       <h4>قسم كل مشروع <span class="sa-hint">(لازم لعمل صلاحية «قسم» — بلا قسم، المشروع لا يظهر لأي صلاحية قسمية)</span></h4>
-      <table class="tktbl"><thead><tr><th>العميل</th><th>المشروع</th><th>القسم</th></tr></thead><tbody>${deptTable}</tbody></table>
+      <table class="tktbl"><thead><tr><th>الشريك</th><th>المشروع</th><th>القسم</th></tr></thead><tbody>${deptTable}</tbody></table>
     </div>`;
 
   const stEl=$('#saScopeType'),svEl=$('#saScopeValue'),spEl=$('#saScopeProject'),scEl=$('#saScopeClient');
@@ -3271,8 +3334,8 @@ window.renderStaffAccess=renderStaffAccess;
 
 
 /* ===== clienthome.js ===== */
-// ===== app/clienthome.js — صفحة عميل موحّدة =====
-// تحلّ محلّ التوسّع المباشر داخل شبكة المحفظة: نقرة على أي عميل تفتح هنا.
+// ===== app/clienthome.js — صفحة شريك موحّدة =====
+// تحلّ محلّ التوسّع المباشر داخل شبكة المحفظة: نقرة على أي شريك تفتح هنا.
 // مصدر البيانات: نفس fetchPortfolio() المستخدم في شبكة المحفظة، ونفس aggregateClientRows()
 // المستخدمة هناك — لا حساب مكرّر، ولا احتمال انحراف بين الصفحتين.
 
@@ -3281,16 +3344,16 @@ async function ensureMembersCache(){if(!SA_MEMBERS_CACHE)SA_MEMBERS_CACHE=await 
 
 async function renderClientHome(clientId){
   const c=CLIENTS.find(x=>x.id===clientId);
-  if(!c){toast('عميل غير موجود','err');await renderPortfolio();return;}
+  if(!c){toast('شريك غير موجود','err');await renderPortfolio();return;}
   SCREEN='clienthome';CID=clientId;PID=null;
   $('#hProject').textContent=c.name;
   $('#barClient').style.display='none';hideChrome();
   writeClientHash(clientId);
   $('#host').innerHTML=`
     <div class="hintbar"><button class="reqbtn" id="chBack">↩ المحفظة</button>
-      <button class="reqbtn" id="chMenu" style="margin-inline-start:8px">⋮ إجراءات العميل</button>
-      <button class="reqbtn" id="chSettings" style="margin-inline-start:8px">⚙ إعدادات العميل</button>
-      <span style="margin-inline-start:auto">ملف العميل الكامل: لوحة قيادة مجمَّعة، كل مشاريعه، خططه، وفريقه — في مكان واحد.</span></div>
+      <button class="reqbtn" id="chMenu" style="margin-inline-start:8px">⋮ إجراءات الشريك</button>
+      <button class="reqbtn" id="chSettings" style="margin-inline-start:8px">⚙ إعدادات الشريك</button>
+      <span style="margin-inline-start:auto">ملف الشريك الكامل: لوحة قيادة مجمَّعة، كل مشاريعه، خططه، وفريقه — في مكان واحد.</span></div>
     <div id="chBody"><div class="skeleton" style="height:90px;margin-bottom:10px"></div>
       <div class="skeleton" style="height:160px;margin-bottom:10px"></div>
       <div class="skeleton" style="height:220px"></div></div>`;
@@ -3304,7 +3367,7 @@ async function renderClientHome(clientId){
     if(error)throw error;
     const list=(rows||[]).filter(r=>r.client_id===clientId&&r.project_id);
     stats=aggregateClientRows(clientId,list,c);
-  }catch(e){$('#chBody').innerHTML='<p class="pempty">تعذّر تحميل مشاريع العميل: '+esc(e.message||String(e))+'</p>';return;}
+  }catch(e){$('#chBody').innerHTML='<p class="pempty">تعذّر تحميل مشاريع الشريك: '+esc(e.message||String(e))+'</p>';return;}
   // فشل جلب الصلاحيات (مثلًا صلاحيات غير كافية لعرض فريق آخرين) لا يجب أن يمنع عرض المشاريع نفسها
   try{
     await ensureMembersCache();
@@ -3313,7 +3376,7 @@ async function renderClientHome(clientId){
       (a.scope_type==='project'&&stats.list.some(l=>l.project_id===a.scope_value)));
   }catch(e){access=[];}
   renderCHBody(stats,access);
-  // الجانت المجمَّع لهذا العميل — نفس أداة «الخط الزمني الشامل»، بنطاق مُقيَّد فقط
+  // الجانت المجمَّع لهذا الشريك — نفس أداة «الخط الزمني الشامل»، بنطاق مُقيَّد فقط
   if(stats.list.length)renderPortfolioGantt(clientId,'chGanttWrap');
 }
 
@@ -3323,8 +3386,8 @@ function writeClientHash(clientId){
   if(location.hash===h)return;
   try{history.replaceState(null,'',h);}catch(e){location.hash=h;}
 }
-// يحلّ أي معرّف عميل وارد من الرابط (نظيف أو خام) إلى المعرّف الحقيقي — يضمن أن كل رابط
-// سبق مشاركته يبقى يعمل للأبد، بصرف النظر عن أي تغيير لاحق في معرّف العميل النظيف.
+// يحلّ أي معرّف شريك وارد من الرابط (نظيف أو خام) إلى المعرّف الحقيقي — يضمن أن كل رابط
+// سبق مشاركته يبقى يعمل للأبد، بصرف النظر عن أي تغيير لاحق في معرّف الشريك النظيف.
 function resolveClientIdentifier(idOrSlug){
   const c=(CLIENTS||[]).find(x=>x.slug===idOrSlug)||(CLIENTS||[]).find(x=>x.id===idOrSlug);
   return c?c.id:null;
@@ -3337,12 +3400,12 @@ function renderCHBody(stats,access){
     ${kpi('مشاريع',stats.list.length)}
     ${kpi('نسبة الإنجاز',stats.pct+'%')}
     ${kpi('بنود متوقفة',stats.blocked,stats.blocked?'ch-warn':'')}
-    ${kpi('متطلبات بانتظار العميل',stats.reqs,stats.reqs?'ch-warn':'')}
+    ${kpi('متطلبات بانتظار الشريك',stats.reqs,stats.reqs?'ch-warn':'')}
     ${kpi('نقاش مفتوح',stats.comments)}
   </div>`;
 
   const projCards=stats.noProjects?
-    `<div class="empty-cta"><div class="ico">${I.folder||'📁'}</div><h3>لا مشاريع بعد</h3><p>ابدأ أول مشروع لهذا العميل.</p>
+    `<div class="empty-cta"><div class="ico">${I.folder||'📁'}</div><h3>لا مشاريع بعد</h3><p>ابدأ أول مشروع لهذا الشريك.</p>
       <button class="hbtn" id="chNewProj" style="background:var(--gold);border-color:var(--gold)">+ مشروع جديد</button></div>`
     :stats.list.map(r=>{
       const pct=r.total_tasks>0?Math.round(r.done_tasks/r.total_tasks*100):0;
@@ -3359,16 +3422,16 @@ function renderCHBody(stats,access){
   const projOpts=stats.list.map(r=>`<option value="${r.project_id}">${esc(r.project_name)}</option>`).join('');
   const accessRows=access.map(a=>{
     const m=(SA_MEMBERS_CACHE||[]).find(x=>x.id===a.member_id);
-    const scopeLbl=a.scope_type==='client'?'كل مشاريع هذا العميل':
+    const scopeLbl=a.scope_type==='client'?'كل مشاريع هذا الشريك':
       (stats.list.find(r=>r.project_id===a.scope_value)||{}).project_name||'مشروع';
     return `<span class="sa-chip sa-${a.access_level}">${esc(m?(m.full_name||m.email):'—')} — ${esc(scopeLbl)} · ${a.access_level==='edit'?'تعديل':'عرض'}
       <button data-chrevoke="${a.id}" aria-label="سحب" title="سحب">✕</button></span>`;
-  }).join('')||'<span class="sa-empty">لا أحد لديه صلاحية مخصَّصة لهذا العميل تحديدًا</span>';
+  }).join('')||'<span class="sa-empty">لا أحد لديه صلاحية مخصَّصة لهذا الشريك تحديدًا</span>';
 
   const c=stats.c;
   const missingFields=['cr_number','vat_number','national_address_short','rep_name','rep_title','contact_email','contact_phone'].filter(k=>!c[k]);
   const setBtn=$('#chSettings');
-  if(setBtn)setBtn.innerHTML='⚙ إعدادات العميل'+(missingFields.length?' <span class="ch-set-warn">'+missingFields.length+'</span>':'');
+  if(setBtn)setBtn.innerHTML='⚙ إعدادات الشريك'+(missingFields.length?' <span class="ch-set-warn">'+missingFields.length+'</span>':'');
 
   $('#chBody').innerHTML=`
     <div class="sa-section">${kpis}</div>
@@ -3378,14 +3441,14 @@ function renderCHBody(stats,access){
     </div>
     <div class="sa-section">
       <h4>خططه — الخط الزمني المجمَّع
-        <span class="sa-hint">لعرض كل عملاء المحفظة معًا بدل عميل واحد، استخدم «الخط الزمني الشامل» من أدوات المكتب</span></h4>
+        <span class="sa-hint">لعرض كل شركاء المحفظة معًا بدل شريك واحد، استخدم «الخط الزمني الشامل» من أدوات المكتب</span></h4>
       <div id="chGanttWrap">${stats.noProjects?'<p class="empty">لا خطط بعد.</p>':''}</div>
     </div>
     <div class="sa-section">
-      <h4>فريق هذا العميل <span class="sa-hint">دعوة عضو موجود بالفعل — على مستوى العميل كاملًا أو مشروع واحد بعينه</span></h4>
+      <h4>فريق هذا الشريك <span class="sa-hint">دعوة عضو موجود بالفعل — على مستوى الشريك كاملًا أو مشروع واحد بعينه</span></h4>
       <div class="sa-form" style="margin-bottom:14px">
         <select id="chMember">${memberOpts}</select>
-        <select id="chScope"><option value="client">كل مشاريع هذا العميل</option>${projOpts?'<option value="project">مشروع بعينه:</option>':''}</select>
+        <select id="chScope"><option value="client">كل مشاريع هذا الشريك</option>${projOpts?'<option value="project">مشروع بعينه:</option>':''}</select>
         <select id="chProj" style="display:none">${projOpts}</select>
         <select id="chLevel"><option value="view">عرض فقط</option><option value="edit">عرض وتعديل</option></select>
         <button class="hbtn" id="chGrant" style="background:var(--gold);border-color:var(--gold)">منح</button>
@@ -3424,17 +3487,17 @@ function renderCHBody(stats,access){
 
 window.renderClientHome=renderClientHome;
 
-// ===== لوحة إعدادات العميل — الرابط الدائم والملف التعاقدي، خلف زر مخصَّص لا ظاهرين دائمًا =====
+// ===== لوحة إعدادات الشريك — الرابط الدائم والملف التعاقدي، خلف زر مخصَّص لا ظاهرين دائمًا =====
 function openClientSettings(stats,access){
-  if(!stats){toast('لا تزال بيانات العميل قيد التحميل — لحظة واحدة','warn');return;}
+  if(!stats){toast('لا تزال بيانات الشريك قيد التحميل — لحظة واحدة','warn');return;}
   const c=stats.c;
   const missingFields=['cr_number','vat_number','national_address_short','rep_name','rep_title','contact_email','contact_phone'].filter(k=>!c[k]);
   document.getElementById('taskOverlay').style.display='flex';
-  document.getElementById('tkTitle').textContent='إعدادات العميل: '+c.name;
+  document.getElementById('tkTitle').textContent='إعدادات الشريك: '+c.name;
   document.getElementById('tkTabs').innerHTML='';
   document.getElementById('tkBody').innerHTML=`
     <div class="sa-section">
-      <h4>الرابط الدائم <span class="sa-hint">رابط صفحة هذا العميل — يمكنك تخصيصه ليكون واضحًا وسهل المشاركة بدل معرّف طويل</span></h4>
+      <h4>الرابط الدائم <span class="sa-hint">رابط صفحة هذا الشريك — يمكنك تخصيصه ليكون واضحًا وسهل المشاركة بدل معرّف طويل</span></h4>
       <div class="sa-form">
         <span style="color:var(--muted);font-size:.82rem;white-space:nowrap">${location.origin}${location.pathname}#/c/</span>
         <input id="cpSlug" value="${esc(c.slug||'')}" placeholder="مثال: sanam" style="flex:1;min-width:140px;font-family:monospace" dir="ltr">
@@ -3443,8 +3506,8 @@ function openClientSettings(stats,access){
       <p class="sa-hint" style="margin-top:6px">حروف لاتينية وأرقام وشرطات فقط — يُنظَّف تلقائيًا. أي رابط سبق مشاركته يبقى يعمل دائمًا حتى بعد التغيير.</p>
     </div>
     <div class="sa-section">
-      <h4>الملف التعاقدي <span class="sa-hint">يُستخدم تلقائيًا عند إنشاء أي عقد لهذا العميل — اختياري، لكن يُستحسن إكماله قبل أول عقد</span></h4>
-      ${missingFields.length?`<div class="ch-warn-badge">⚠ بيانات غير مكتملة (${missingFields.length} حقول) — يمكنك المتابعة، ويُنصح بإكمالها قبل إرسال أي عقد للعميل</div>`:''}
+      <h4>الملف التعاقدي <span class="sa-hint">يُستخدم تلقائيًا عند إنشاء أي عقد لهذا الشريك — اختياري، لكن يُستحسن إكماله قبل أول عقد</span></h4>
+      ${missingFields.length?`<div class="ch-warn-badge">⚠ بيانات غير مكتملة (${missingFields.length} حقول) — يمكنك المتابعة، ويُنصح بإكمالها قبل إرسال أي عقد للشريك</div>`:''}
       <div class="sa-form" style="flex-wrap:wrap">
         <input id="cpCr" placeholder="رقم السجل التجاري" value="${esc(c.cr_number||'')}" style="flex:1;min-width:160px">
         <input id="cpVat" placeholder="الرقم الضريبي (VAT)" value="${esc(c.vat_number||'')}" style="flex:1;min-width:160px">
@@ -3481,7 +3544,7 @@ function openClientSettings(stats,access){
       openClientSettings(stats,access);
       const setBtn=document.getElementById('chSettings');
       const missing2=['cr_number','vat_number','national_address_short','rep_name','rep_title'].filter(k=>!c[k]);
-      if(setBtn)setBtn.innerHTML='⚙ إعدادات العميل'+(missing2.length?' <span class="ch-set-warn">'+missing2.length+'</span>':'');
+      if(setBtn)setBtn.innerHTML='⚙ إعدادات الشريك'+(missing2.length?' <span class="ch-set-warn">'+missing2.length+'</span>':'');
     }catch(e){toast('تعذّر الحفظ: '+e.message,'err');btn.disabled=false;}
   };
 }
@@ -3555,13 +3618,13 @@ async function buildContractDoc(baselineId,contract,attachments){
     if(contract.contract_type==='custom'){
       contractHtml=`<section class="cx-page cx-contract-body">${renderCustomContractHTML({
         title:contract.custom_title||contract.contract_name,body:contract.custom_body,
-        clientName,clientCr:contract.client_cr,clientVat:contract.client_vat,clientAddress:contract.client_address,
+        clientName,clientCr:contract.client_cr,clientVat:contract.client_vat,org:(contract&&contract.org)||{},clientAddress:contract.client_address,
         clientRepName:contract.client_rep_name,clientRepTitle:contract.client_rep_title,
         clientEmail:contract.client_contact_email,clientPhone:contract.client_contact_phone
       })}</section>`;
     }else{
       contractHtml=`<section class="cx-page cx-contract-body">${renderMergedContractHTML(mergeContract({
-        clientName,clientCr:contract.client_cr,clientVat:contract.client_vat,clientAddress:contract.client_address,
+        clientName,clientCr:contract.client_cr,clientVat:contract.client_vat,org:(contract&&contract.org)||{},clientAddress:contract.client_address,
         clientRepName:contract.client_rep_name,clientRepTitle:contract.client_rep_title,
         clientEmail:contract.client_contact_email,clientPhone:contract.client_contact_phone,
         includesAdSpend:contract.includes_ad_spend,effectiveDate:contract.effective_date,
@@ -3619,7 +3682,7 @@ async function buildContractDoc(baselineId,contract,attachments){
       <h1>${contract?esc(contract.contract_name||'عقد تقديم خدمات'):'الخطة المعتمدة'}</h1>
       <div class="cx-cover-meta">
         ${contract&&contract.contract_number?`<div><b>رقم العقد</b><span>${esc(contract.contract_number)}</span></div>`:''}
-        <div><b>العميل</b><span>${esc(clientName||'—')}</span></div>
+        <div><b>الشريك</b><span>${esc(clientName||'—')}</span></div>
         ${contract&&contract.project_name?`<div><b>المشروع</b><span>${esc(contract.project_name)}</span></div>`:''}
         ${bl?`<div><b>اللقطة المرجعية (ملحق الخطة)</b><span>${esc(bl.label||'')}</span></div>`:''}
       </div>
@@ -3660,12 +3723,13 @@ const CONTRACT_TEMPLATE = {
   parties: {
     num:'١', title:'الأطراف',
     rows:[
-      ['الاسم','علامة','{{اسم_العميل}}'],
-      ['السجل التجاري','','{{سجل_العميل}}'],
-      ['الرقم الضريبي','','{{ضريبي_العميل}}'],
-      ['العنوان','','{{عنوان_العميل}}'],
-      ['الممثل المفوَّض','','{{ممثل_العميل}} — {{صفة_ممثل_العميل}}'],
-      ['بيانات التواصل','','{{بريد_العميل}} · {{هاتف_العميل}}']
+      ['الاسم','{{اسم_علامة}}','{{اسم_الشريك}}'],
+      ['السجل التجاري','{{سجل_علامة}}','{{سجل_الشريك}}'],
+      ['الرقم الضريبي','{{ضريبي_علامة}}','{{ضريبي_الشريك}}'],
+      ['العنوان','{{عنوان_علامة}}','{{عنوان_الشريك}}'],
+      ['الممثل المفوَّض','{{ممثل_علامة}}','{{ممثل_الشريك}}'],
+      ['البريد الإلكتروني','{{بريد_علامة}}','{{بريد_الشريك}}'],
+      ['رقم الجوال','{{هاتف_علامة}}','{{هاتف_الشريك}}']
     ]
   },
   sections:[
@@ -3676,11 +3740,11 @@ const CONTRACT_TEMPLATE = {
 `- الخطة: وثيقة نطاق العمل والمخرجات والجدول الزمني والأتعاب المرفقة بهذا العقد بصفتها ملحقًا (١)، والمعتمدة من الطرفين، وتُعد جزءًا لا يتجزأ من هذا العقد.
 - الأتعاب: المقابل المالي لإدارة علامة للعمل المحدد في الخطة{{استثناء_اعلان_قصير}}.
 {{تعريف_انفاق_اعلاني}}
-- المخرجات: الأعمال التي تنتجها علامة وتُسلَّم للعميل ضمن النطاق المحدد في الخطة.
-- الأصول: جميع الملفات والمحتويات التي أُنشئت خصيصًا للعميل بموجب هذا العقد من ملفات مصدر، حسابات، صلاحيات، تصاميم، أو بيانات دخول، وفق قائمة تسليم الأصول المرفقة؛ ولا يشمل ذلك بأي حال الأدوات الداخلية أو القوالب أو المنهجيات أو البرمجيات أو الأصول الفكرية السابقة أو المطوَّرة بصورة مستقلة بواسطة علامة ("الملكية الفكرية السابقة" وفق البند ١٠.١).
+- المخرجات: الأعمال التي تنتجها علامة وتُسلَّم للشريك ضمن النطاق المحدد في الخطة.
+- الأصول: جميع الملفات والمحتويات التي أُنشئت خصيصًا للشريك بموجب هذا العقد من ملفات مصدر، حسابات، صلاحيات، تصاميم، أو بيانات دخول، وفق قائمة تسليم الأصول المرفقة؛ ولا يشمل ذلك بأي حال الأدوات الداخلية أو القوالب أو المنهجيات أو البرمجيات أو الأصول الفكرية السابقة أو المطوَّرة بصورة مستقلة بواسطة علامة ("الملكية الفكرية السابقة" وفق البند ١٠.١).
 - المعلومات السرية: أي معلومة تجارية أو تقنية أو مالية يفصح عنها أحد الطرفين للآخر، مكتوبة كانت أو شفهية، ويُعقل اعتبارها سرية بحكم طبيعتها أو سياق الإفصاح.
-- جولة التعديل: مراجعة واحدة على مخرَج بناءً على ملاحظات العميل، ضمن السقف المحدد في الخطة.
-- المعتمِد النهائي: ممثل العميل صاحب صلاحية الاعتماد وفق مصفوفة الاعتماد المرفقة.
+- جولة التعديل: مراجعة واحدة على مخرَج بناءً على ملاحظات الشريك، ضمن السقف المحدد في الخطة.
+- المعتمِد النهائي: ممثل الشريك صاحب صلاحية الاعتماد وفق مصفوفة الاعتماد المرفقة.
 - بوابة الاعتماد: نقطة لا يُستكمل العمل قبل اجتيازها.
 - نمط التعاقد: الصفة التي تحدّد آلية الأتعاب والاستمرارية وفق ما تنص عليه الخطة، وهي إما "نمط دوري" (تشغيل مستمر بأتعاب دورية دون نطاق زمني محدد للعلاقة التعاقدية)، أو "نمط مشروع محدد النطاق" (عمل محدد المخرجات ينتهي بتسليمها واعتمادها)، أو نمطًا مختلطًا يجمع بينهما، وتُحدَّد صفة كل بند من بنود الخطة صراحةً في الخطة ذاتها.`},
 
@@ -3689,12 +3753,12 @@ const CONTRACT_TEMPLATE = {
 
 خارج النطاق صراحةً: كل ما لم يُذكر ضمن الخطة المرفقة لا يُعدّ جزءًا من هذا العقد، ويُتفق عليه بملحق منفصل وأتعاب إضافية.
 
-طلب تغيير النطاق (Change Request): في حال طلب العميل أي أعمال أو خدمات خارج نطاق الخطة المرفقة، أو تعديلًا جوهريًا عليها، فلا يلتزم الطرف الأول بتنفيذها إلا بعد اعتماد نطاق العمل الإضافي وأثره على الجدول الزمني والأتعاب كتابيًا من الطرفين؛ ويُوثَّق كل طلب تغيير كملحق مرقَّم يُضاف إلى الخطة.`},
+طلب تغيير النطاق (Change Request): في حال طلب الشريك أي أعمال أو خدمات خارج نطاق الخطة المرفقة، أو تعديلًا جوهريًا عليها، فلا يلتزم الطرف الأول بتنفيذها إلا بعد اعتماد نطاق العمل الإضافي وأثره على الجدول الزمني والأتعاب كتابيًا من الطرفين؛ ويُوثَّق كل طلب تغيير كملحق مرقَّم يُضاف إلى الخطة.`},
 
     {num:'٥', title:'المخرجات والجدول الزمني', body:
 `تُحدَّد المخرجات ومراحل الإنجاز والمواعيد المستهدفة وفق الخطة المرفقة (ملحق ١)، وتُعتمد أي تعديلات عليها كتابيًا من الطرفين.
 
-بالنسبة للبنود ذات نمط "مشروع محدد النطاق": تُحدَّد الخطة مدة تنفيذ تقديرية بأيام العمل تبدأ من تاريخ استلام علامة لكامل البيانات والاعتمادات اللازمة من العميل وفق قائمة طلب البيانات؛ ويُمدَّد هذا التقدير تلقائيًا بما يعادل مدة أي تأخير في تسليم البيانات أو الاعتماد من جهة العميل، أو أي تأخير ناتج عن جهة خارجية أو منصة رقمية أو مزوّد خدمة أو تغييرات تنظيمية لا يملك الطرف الأول السيطرة عليها (كتغييرات سياسات أو أعطال منصات مثل Meta أو Google أو Snapchat أو TikTok أو أدوات الذكاء الاصطناعي المستخدمة في التنفيذ)، دون أن يُعد ذلك إخلالًا من علامة.`},
+بالنسبة للبنود ذات نمط "مشروع محدد النطاق": تُحدَّد الخطة مدة تنفيذ تقديرية بأيام العمل تبدأ من تاريخ استلام علامة لكامل البيانات والاعتمادات اللازمة من الشريك وفق قائمة طلب البيانات؛ ويُمدَّد هذا التقدير تلقائيًا بما يعادل مدة أي تأخير في تسليم البيانات أو الاعتماد من جهة الشريك، أو أي تأخير ناتج عن جهة خارجية أو منصة رقمية أو مزوّد خدمة أو تغييرات تنظيمية لا يملك الطرف الأول السيطرة عليها (كتغييرات سياسات أو أعطال منصات مثل Meta أو Google أو Snapchat أو TikTok أو أدوات الذكاء الاصطناعي المستخدمة في التنفيذ)، دون أن يُعد ذلك إخلالًا من علامة.`},
 
     {num:'٦', title:'الأتعاب وآلية الدفع', body:
 `تُحدَّد قيمة الأتعاب وآلية سدادها وفق نمط التعاقد المبيّن في الخطة المرفقة (ملحق ١){{اجمالي_قيمة_العقد}}، على النحو التالي:
@@ -3704,22 +3768,22 @@ const CONTRACT_TEMPLATE = {
 
 {{فقرة_ميزانية_اعلان_مستقلة}}
 
-**٦.٤** التأخر في السداد: عند تأخر العميل عن سداد أي مبلغ مستحق أكثر من خمسة عشر (١٥) يومًا من تاريخ استحقاقه: (أ) يحق للطرف الأول تعليق تنفيذ الأعمال محل هذا العقد حتى استكمال السداد، دون أن يُعد ذلك إخلالًا من جانبه؛ (ب) يحق للطرف الأول المطالبة بتعويض عن التكاليف الإدارية والتشغيلية الفعلية الناشئة مباشرة عن هذا التأخير، بمبلغ مقطوع يعادل ثلاثة بالمئة (٣٪) من قيمة الدفعة المتأخرة، وبحد أقصى {{سقف_التعويض}} ريال سعودي، يُستحق مرة واحدة عن واقعة التأخير بصرف النظر عن مدة استمراره، ولا يتصاعد أو يتراكم بمرور الوقت؛ (ج) لا يسري البند (ب) إذا أثبت العميل تعذّر السداد لإعساره الفعلي، وفي هذه الحالة يتفق الطرفان على جدولة الدفعات وديًا.
+**٦.٤** التأخر في السداد: عند تأخر الشريك عن سداد أي مبلغ مستحق أكثر من خمسة عشر (١٥) يومًا من تاريخ استحقاقه: (أ) يحق للطرف الأول تعليق تنفيذ الأعمال محل هذا العقد حتى استكمال السداد، دون أن يُعد ذلك إخلالًا من جانبه؛ (ب) يحق للطرف الأول المطالبة بتعويض عن التكاليف الإدارية والتشغيلية الفعلية الناشئة مباشرة عن هذا التأخير، بمبلغ مقطوع يعادل ثلاثة بالمئة (٣٪) من قيمة الدفعة المتأخرة، وبحد أقصى {{سقف_التعويض}} ريال سعودي، يُستحق مرة واحدة عن واقعة التأخير بصرف النظر عن مدة استمراره، ولا يتصاعد أو يتراكم بمرور الوقت؛ (ج) لا يسري البند (ب) إذا أثبت الشريك تعذّر السداد لإعساره الفعلي، وفي هذه الحالة يتفق الطرفان على جدولة الدفعات وديًا.
 
 **٦.٥** يُقرّ الطرفان أن أي مبلغ يُستوفى بموجب البند ٦.٤(ب) هو تعويض عن ضرر إداري فعلي محدد سلفًا، وليس مقابلًا ماليًا عن مدة التأخير ذاتها، ولا يستفيد الطرف الأول من امتداد مدة التأخير بأي زيادة إضافية على هذا المبلغ.`},
 
     {num:'٧', title:'الإنفاق الإعلاني — بند مستقل', conditional:'ad_spend', body:
-`تُدير علامة الإنفاق الإعلاني نيابةً عن العميل عبر حساب مخصّص منفصل عن حساباتها التشغيلية، ووفق ما يلي:
+`تُدير علامة الإنفاق الإعلاني نيابةً عن الشريك عبر حساب مخصّص منفصل عن حساباتها التشغيلية، ووفق ما يلي:
 
-- المبلغ ملك العميل، يُورَّد مقدّمًا إلى الحساب المخصّص قبل بدء الصرف.
+- المبلغ ملك الشريك، يُورَّد مقدّمًا إلى الحساب المخصّص قبل بدء الصرف.
 - يُصرف بالكامل على المنصّات الإعلانية المتفق عليها في الخطة، دون أي هامش أو عمولة لعلامة عليه.
 - لا يُخلط بأتعاب علامة ولا يُحتسب جزءًا منها، ولا يُستخدم لغير الإعلان المتفق عليه.
 - يُسوَّى دوريًا بكشف منفصل مرفق بفواتير المنصّات الفعلية، يبيّن: المُورَّد، والمصروف، والمتبقّي.
-- يُرحَّل الرصيد المتبقّي للفترة التالية، أو يُعاد إلى العميل عند انتهاء هذا العقد.
+- يُرحَّل الرصيد المتبقّي للفترة التالية، أو يُعاد إلى الشريك عند انتهاء هذا العقد.
 - يجوز أن تحدد الخطة المرفقة سقفًا ثابتًا للإنفاق الشهري أو سقوفًا متدرجة عبر مراحل زمنية محددة (مثل مرحلة إطلاق، ثم توسّع، ثم استقرار)؛ ويُعمل بالسقف المقرر لكل مرحلة كما هو محدد في الخطة دون حاجة لتعديل هذا العقد.
-- أي تجاوز للسقف المقرر للمرحلة الجارية، أو انتقال مبكر إلى سقف مرحلة لاحقة، يتطلب موافقة كتابية مسبقة من العميل قبل الصرف الفعلي؛ ولا يجوز لعلامة الصرف بما يتجاوز السقف المعتمد دون هذه الموافقة.
-- لا يضمن الطرف الأول نتائج الحملات الإعلانية أو عدد العملاء أو المبيعات أو العائد على الإنفاق الإعلاني، إذ تعتمد النتائج على عوامل متعددة خارج سيطرته.`,
-    bodyIfExcluded:'لا ينطبق — لا يشمل هذا العقد إدارة علامة لأي ميزانية إعلانية نيابة عن العميل. أي إنفاق إعلاني مستقبلي يتطلب ملحقًا منفصلًا يُضمَّن أحكام هذا البند.'},
+- أي تجاوز للسقف المقرر للمرحلة الجارية، أو انتقال مبكر إلى سقف مرحلة لاحقة، يتطلب موافقة كتابية مسبقة من الشريك قبل الصرف الفعلي؛ ولا يجوز لعلامة الصرف بما يتجاوز السقف المعتمد دون هذه الموافقة.
+- لا يضمن الطرف الأول نتائج الحملات الإعلانية أو عدد الشركاء أو المبيعات أو العائد على الإنفاق الإعلاني، إذ تعتمد النتائج على عوامل متعددة خارج سيطرته.`,
+    bodyIfExcluded:'لا ينطبق — لا يشمل هذا العقد إدارة علامة لأي ميزانية إعلانية نيابة عن الشريك. أي إنفاق إعلاني مستقبلي يتطلب ملحقًا منفصلًا يُضمَّن أحكام هذا البند.'},
 
     {num:'٨', title:'الاعتمادات وجولات التعديل', body:
 `- تخضع الاعتمادات لمدد الاستجابة (SLA) المحدّدة في مصفوفة الاعتماد المرفقة.
@@ -3728,33 +3792,33 @@ const CONTRACT_TEMPLATE = {
 - يُعد المخرَج معتمَدًا إذا اجتاز بوابة الاعتماد المحددة له في الخطة، أو بمرور مهلة الاستجابة دون رد من المعتمِد وفق ما سبق.`},
 
     {num:'٩', title:'التزامات الطرفين', body:
-`تلتزم علامة بـ: التنفيذ وفق النطاق المحدد في الخطة، والجودة المهنية، والالتزام بالمواعيد المتفق عليها، وإخطار العميل فورًا بأي عارض يؤثر على التنفيذ.
+`تلتزم علامة بـ: التنفيذ وفق النطاق المحدد في الخطة، والجودة المهنية، والالتزام بالمواعيد المتفق عليها، وإخطار الشريك فورًا بأي عارض يؤثر على التنفيذ.
 
-يلتزم العميل بـ: إتاحة البيانات والصلاحيات اللازمة وفق قائمة طلب البيانات، والاعتماد ضمن المهلة المحددة{{التزام_ميزانية_اعلان}}، وسداد الأتعاب في مواعيدها. كما يضمن العميل صحة ودقة البيانات والمحتوى والمواد التي يقدّمها للطرف الأول، ويتحمّل وحده المسؤولية النظامية عن أي مطالبات ناشئة عنها.
+يلتزم الشريك بـ: إتاحة البيانات والصلاحيات اللازمة وفق قائمة طلب البيانات، والاعتماد ضمن المهلة المحددة{{التزام_ميزانية_اعلان}}، وسداد الأتعاب في مواعيدها. كما يضمن الشريك صحة ودقة البيانات والمحتوى والمواد التي يقدّمها للطرف الأول، ويتحمّل وحده المسؤولية النظامية عن أي مطالبات ناشئة عنها.
 
-**٩.٣** يلتزم الطرف الأول بإخطار العميل كتابيًا دون تأخير عند رصد أي مخاطر جوهرية قد تؤثر على تنفيذ نطاق العمل أو الجدول الزمني{{او_الميزانية_الاعلانية}}، مع اقتراح الإجراءات المناسبة للتعامل معها؛ ولا يُشكّل هذا الإخطار التزامًا من الطرف الأول بضمان عدم وقوع هذه المخاطر أو تحمّل نتائجها.`},
+**٩.٣** يلتزم الطرف الأول بإخطار الشريك كتابيًا دون تأخير عند رصد أي مخاطر جوهرية قد تؤثر على تنفيذ نطاق العمل أو الجدول الزمني{{او_الميزانية_الاعلانية}}، مع اقتراح الإجراءات المناسبة للتعامل معها؛ ولا يُشكّل هذا الإخطار التزامًا من الطرف الأول بضمان عدم وقوع هذه المخاطر أو تحمّل نتائجها.`},
 
     {num:'١٠', title:'الملكية الفكرية وتسليم الأصول', body:
-`**١٠.١** تحتفظ علامة بملكية كافة الأدوات والمنهجيات والقوالب والأصول التقنية التي طوّرتها أو امتلكتها قبل هذا العقد أو بشكل مستقل عنه ("الملكية الفكرية السابقة")، ولا ينتقل أي حق فيها للعميل بموجب هذا العقد.
+`**١٠.١** تحتفظ علامة بملكية كافة الأدوات والمنهجيات والقوالب والأصول التقنية التي طوّرتها أو امتلكتها قبل هذا العقد أو بشكل مستقل عنه ("الملكية الفكرية السابقة")، ولا ينتقل أي حق فيها للشريك بموجب هذا العقد.
 
-**١٠.٢** تنتقل ملكية المخرجات النهائية المحدّدة في الخطة إلى العميل حصرًا عند سداد كامل الأتعاب المستحقة عنها؛ ويحق للعميل استخدامها لأغراض المراجعة الداخلية قبل ذلك دون حق النشر أو التصرف بها لأي جهة ثالثة.
+**١٠.٢** تنتقل ملكية المخرجات النهائية المحدّدة في الخطة إلى الشريك حصرًا عند سداد كامل الأتعاب المستحقة عنها؛ ويحق للشريك استخدامها لأغراض المراجعة الداخلية قبل ذلك دون حق النشر أو التصرف بها لأي جهة ثالثة.
 
-**١٠.٣** يحق لعلامة عرض المخرجات ضمن أعمالها التعريفية (Portfolio) بصيغة عامة لا تتضمن بيانات تجارية حسّاسة للعميل، وذلك بعد إطلاق المشروع أو المخرَج للجمهور، ما لم يُتفق كتابيًا على خلاف ذلك، أو يطلب العميل كتابيًا عدم الإدراج كليًا.
+**١٠.٣** يحق لعلامة عرض المخرجات ضمن أعمالها التعريفية (Portfolio) بصيغة عامة لا تتضمن بيانات تجارية حسّاسة للشريك، وذلك بعد إطلاق المشروع أو المخرَج للجمهور، ما لم يُتفق كتابيًا على خلاف ذلك، أو يطلب الشريك كتابيًا عدم الإدراج كليًا.
 
-**١٠.٤** عند انتهاء هذا العقد أو إنهائه لأي سبب، تُسلَّم جميع الأصول والصلاحيات إلى العميل خلال خمسة عشر (١٥) يوم عمل، وفق قائمة تسليم الأصول المرفقة كملحق (٢).
+**١٠.٤** عند انتهاء هذا العقد أو إنهائه لأي سبب، تُسلَّم جميع الأصول والصلاحيات إلى الشريك خلال خمسة عشر (١٥) يوم عمل، وفق قائمة تسليم الأصول المرفقة كملحق (٢).
 
-**١٠.٥** لا يحق للعميل إعادة بيع أو ترخيص أو استغلال المخرجات تجاريًا لصالح الغير، إلا إذا نصت الخطة المرفقة على خلاف ذلك صراحةً.`},
+**١٠.٥** لا يحق للشريك إعادة بيع أو ترخيص أو استغلال المخرجات تجاريًا لصالح الغير، إلا إذا نصت الخطة المرفقة على خلاف ذلك صراحةً.`},
 
     {num:'١١', title:'السرّية وحماية البيانات', body:
 `**١١.١** يلتزم كل طرف بالمحافظة على سرّية المعلومات السرية للطرف الآخر طوال مدة سريان هذا العقد ولمدة سنتين بعد انتهائه، ولا يفصح عنها لأي جهة إلا بموافقة كتابية مسبقة من الطرف الآخر أو التزامًا بحكم نظامي.
 
 **١١.٢** لا يشمل الالتزام أعلاه: المعلومات المتاحة للعموم دون إخلال من المتلقي، أو التي كانت بحوزته قبل الإفصاح عنها بحسن نية، أو التي طُلب الإفصاح عنها بأمر قضائي أو نظامي رسمي، مع إخطار الطرف الآخر مسبقًا متى أمكن ذلك.
 
-**١١.٣** تلتزم علامة بمعالجة أي بيانات شخصية يتيحها العميل وفقًا لنظام حماية البيانات الشخصية السعودي ولائحته التنفيذية، وتقتصر المعالجة على أغراض تنفيذ هذا العقد حصرًا.
+**١١.٣** تلتزم علامة بمعالجة أي بيانات شخصية يتيحها الشريك وفقًا لنظام حماية البيانات الشخصية السعودي ولائحته التنفيذية، وتقتصر المعالجة على أغراض تنفيذ هذا العقد حصرًا.
 
-**١١.٤** عند انتهاء هذا العقد، تلتزم علامة بإعادة أو إتلاف بيانات العميل والصلاحيات الممنوحة لها خلال خمسة عشر (١٥) يومًا، وتزويد العميل بما يثبت ذلك عند الطلب.
+**١١.٤** عند انتهاء هذا العقد، تلتزم علامة بإعادة أو إتلاف بيانات الشريك والصلاحيات الممنوحة لها خلال خمسة عشر (١٥) يومًا، وتزويد الشريك بما يثبت ذلك عند الطلب.
 
-**١١.٥** يجوز للطرف الأول استخدام أدوات الذكاء الاصطناعي لمعالجة المحتوى في حدود تنفيذ الخدمات، مع الالتزام بعدم إدخال أي من المعلومات السرية إلى أدوات لا توفر مستوى حماية مناسبًا، أو بما يخالف الأنظمة المعمول بها أو تعليمات العميل المتفق عليها كتابيًا.`},
+**١١.٥** يجوز للطرف الأول استخدام أدوات الذكاء الاصطناعي لمعالجة المحتوى في حدود تنفيذ الخدمات، مع الالتزام بعدم إدخال أي من المعلومات السرية إلى أدوات لا توفر مستوى حماية مناسبًا، أو بما يخالف الأنظمة المعمول بها أو تعليمات الشريك المتفق عليها كتابيًا.`},
 
     {num:'١٢', title:'المسؤولية وحدودها', body:
 `**١٢.١** باستثناء ما يُشترط نظامًا وما ينتج عن الإهمال الجسيم أو سوء التصرف المتعمد، لا تتجاوز المسؤولية الإجمالية لعلامة الناشئة عن هذا العقد قيمة الأتعاب المدفوعة فعليًا خلال الأشهر الستة (٦) السابقة لواقعة المطالبة.
@@ -3763,7 +3827,7 @@ const CONTRACT_TEMPLATE = {
 
 **١٢.٣**{{فقرة_استثناء_مسؤولية_اعلان}}
 
-**١٢.٤** لا يتحمّل الطرف الأول مسؤولية أي خسائر ناتجة عن قرارات العميل التجارية أو التسويقية المبنية على التوصيات المقدَّمة منه، إذ يبقى القرار النهائي واعتماده بيد العميل وحده.`},
+**١٢.٤** لا يتحمّل الطرف الأول مسؤولية أي خسائر ناتجة عن قرارات الشريك التجارية أو التسويقية المبنية على التوصيات المقدَّمة منه، إذ يبقى القرار النهائي واعتماده بيد الشريك وحده.`},
 
     {num:'١٣', title:'القوة القاهرة', body:
 `لا يُسأل أي طرف عن إخلال ناتج عن ظرف قاهر خارج سيطرته المعقولة، بما يشمل على سبيل المثال لا الحصر: الهجمات الإلكترونية، وانقطاع الإنترنت أو الخدمات السحابية، والأوبئة، والحروب أو الاضطرابات الأمنية، وقرارات الجهات الحكومية أو التنظيمية، على أن يُخطر الطرف المتأثر الطرفَ الآخر كتابيًا دون تأخير. وإذا استمر أثر القوة القاهرة لأكثر من ثلاثين (٣٠) يومًا متصلة، يحق لأي طرف إنهاء هذا العقد بإشعار كتابي، مع تسوية الأتعاب عن الأعمال المنفَّذة فعليًا حتى تاريخ التوقف{{اعادة_رصيد_اعلان}}.`},
@@ -3771,7 +3835,7 @@ const CONTRACT_TEMPLATE = {
     {num:'١٤', title:'سريان العقد وإنهاؤه', body:
 `**١٤.١** يسري هذا العقد اعتبارًا من تاريخ توقيعه من الطرفين ({{تاريخ_السريان}})، ويستمر نافذًا دون تحديد بمدة زمنية معينة، إلى أن يُنهى أو ينتهي وفقًا لأحكام هذا البند.
 
-**١٤.٢** بالنسبة للبنود ذات نمط "مشروع محدد النطاق": ينتهي التعاقد بشأنها تلقائيًا بمجرد تسليم المخرجات النهائية واعتمادها من العميل وسداد كامل الأتعاب المستحقة عنها، دون حاجة لإشعار إنهاء، ودون أن يخلّ ذلك باستمرار سريان بقية بنود هذا العقد ذات النمط الدوري إن وُجدت.
+**١٤.٢** بالنسبة للبنود ذات نمط "مشروع محدد النطاق": ينتهي التعاقد بشأنها تلقائيًا بمجرد تسليم المخرجات النهائية واعتمادها من الشريك وسداد كامل الأتعاب المستحقة عنها، دون حاجة لإشعار إنهاء، ودون أن يخلّ ذلك باستمرار سريان بقية بنود هذا العقد ذات النمط الدوري إن وُجدت.
 
 **١٤.٣** بالنسبة للبنود ذات نمط "دوري": لأي طرف إنهاء التعامل بشأنها دون إبداء سبب، بإشعار كتابي مسبق مدته ثلاثون (٣٠) يومًا.
 
@@ -3779,11 +3843,11 @@ const CONTRACT_TEMPLATE = {
 
 **١٤.٥** عند الإنهاء لأي سبب، تُسوَّى الأتعاب عن الأعمال المنفَّذة فعليًا حتى تاريخ الإنهاء وفق نسبة الإنجاز{{اعادة_رصيد_اعلان_انهاء}}، وتُسلَّم الأصول وفق البند ١٠.٤.
 
-**١٤.٦** إذا أنهى العميل هذا العقد دون وجود إخلال من الطرف الأول، تستحق علامة قيمة الأعمال المنجزة فعليًا حتى تاريخ الإنهاء، إضافة إلى قيمة الالتزامات التي تعاقدت عليها الطرف الأول مع الغير لتنفيذ نطاق العمل والتي تعذّر إلغاؤها أو الرجوع فيها.`},
+**١٤.٦** إذا أنهى الشريك هذا العقد دون وجود إخلال من الطرف الأول، تستحق علامة قيمة الأعمال المنجزة فعليًا حتى تاريخ الإنهاء، إضافة إلى قيمة الالتزامات التي تعاقدت عليها الطرف الأول مع الغير لتنفيذ نطاق العمل والتي تعذّر إلغاؤها أو الرجوع فيها.`},
 
     {num:'١٥', title:'عدم الاستقطاب وتضارب المصالح', body:
-`- يلتزم العميل، طوال مدة سريان هذا العقد ولمدة سنة واحدة بعد انتهائه، بعدم استقطاب أو توظيف أو التعاقد بشكل مباشر مع أي من منسوبي أو مقاولي الطرف الأول ممن شاركوا في تنفيذ هذا العقد، دون موافقة كتابية مسبقة من الطرف الأول.
-- يُقرّ الطرف الأول بأنه سيخطر العميل كتابيًا في حال نشوء أي تضارب مصالح جوهري يتعلق بتقديم خدمات مماثلة لجهة منافسة مباشرة للعميل ضمن النطاق المتفق عليه، وذلك للاتفاق على الإجراء المناسب.`},
+`- يلتزم الشريك، طوال مدة سريان هذا العقد ولمدة سنة واحدة بعد انتهائه، بعدم استقطاب أو توظيف أو التعاقد بشكل مباشر مع أي من منسوبي أو مقاولي الطرف الأول ممن شاركوا في تنفيذ هذا العقد، دون موافقة كتابية مسبقة من الطرف الأول.
+- يُقرّ الطرف الأول بأنه سيخطر الشريك كتابيًا في حال نشوء أي تضارب مصالح جوهري يتعلق بتقديم خدمات مماثلة لجهة منافسة مباشرة للشريك ضمن النطاق المتفق عليه، وذلك للاتفاق على الإجراء المناسب.`},
 
     {num:'١٦', title:'أحكام عامة', body:
 `- يخضع هذا العقد للأنظمة المعمول بها في المملكة العربية السعودية، بما في ذلك نظام حماية البيانات الشخصية ولائحته التنفيذية، وأنظمة الفوترة الإلكترونية الصادرة عن هيئة الزكاة والضريبة والجمارك (ZATCA) فيما يخص الفواتير الضريبية الصادرة بموجب هذا العقد.
@@ -3817,11 +3881,11 @@ const CONTRACT_TEMPLATE_V2 = {
     {num:'٣', title:'التعريفات', body:
 `- الخطة: وثيقة نطاق العمل والمخرجات والجدول الزمني والأتعاب المرفقة بهذا العقد بصفتها ملحقًا (١)، والمعتمدة من الطرفين، وتُعد جزءًا لا يتجزأ من هذا العقد.
 - الأتعاب: المقابل المالي لإدارة علامة للعمل المحدد في الخطة.
-- المخرجات: الأعمال التي تنتجها علامة وتُسلَّم للعميل ضمن النطاق المحدد في الخطة.
-- الأصول: جميع الملفات والمحتويات التي أُنشئت خصيصًا للعميل بموجب هذا العقد من ملفات مصدر، حسابات، صلاحيات، تصاميم، أو بيانات دخول، وفق قائمة تسليم الأصول المرفقة؛ ولا يشمل ذلك بأي حال الأدوات الداخلية، أو القوالب، أو المنهجيات، أو البرمجيات، أو الأصول الفكرية السابقة، والمطورة بصورة مستقلة بواسطة علامة ("الملكية الفكرية السابقة" وفق البند ١٠.١).
+- المخرجات: الأعمال التي تنتجها علامة وتُسلَّم للشريك ضمن النطاق المحدد في الخطة.
+- الأصول: جميع الملفات والمحتويات التي أُنشئت خصيصًا للشريك بموجب هذا العقد من ملفات مصدر، حسابات، صلاحيات، تصاميم، أو بيانات دخول، وفق قائمة تسليم الأصول المرفقة؛ ولا يشمل ذلك بأي حال الأدوات الداخلية، أو القوالب، أو المنهجيات، أو البرمجيات، أو الأصول الفكرية السابقة، والمطورة بصورة مستقلة بواسطة علامة ("الملكية الفكرية السابقة" وفق البند ١٠.١).
 - المعلومات السرية: أي معلومة تجارية أو تقنية أو مالية يفصح عنها أحد الطرفين للآخر، مكتوبة كانت أو شفهية، ويُعقل اعتبارها سرية بحكم طبيعتها أو سياق الإفصاح.
-- جولة التعديل: مراجعة واحدة على مخرَج بناءً على ملاحظات العميل، ضمن السقف المحدد في الخطة.
-- المعتمِد النهائي: ممثل العميل صاحب صلاحية الاعتماد وفق مصفوفة الاعتماد المرفقة.
+- جولة التعديل: مراجعة واحدة على مخرَج بناءً على ملاحظات الشريك، ضمن السقف المحدد في الخطة.
+- المعتمِد النهائي: ممثل الشريك صاحب صلاحية الاعتماد وفق مصفوفة الاعتماد المرفقة.
 - بوابة الاعتماد: نقطة لا يُستكمل العمل قبل اجتيازها.
 - نمط التعاقد: نمط دوري (تشغيل مستمر بأتعاب دورية دون نطاق زمني محدد للعلاقة التعاقدية)، وتُحدَّد صفة كل بند من بنود الخطة صراحةً في الخطة ذاتها.`},
 
@@ -3830,7 +3894,7 @@ const CONTRACT_TEMPLATE_V2 = {
 
 خارج النطاق صراحةً: كل ما لم يُذكر ضمن الخطة المرفقة لا يُعدّ جزءًا من هذا العقد، ويُتفق عليه بملحق منفصل وأتعاب إضافية.
 
-طلب تغيير النطاق (Change Request): في حال طلب العميل أي أعمال أو خدمات خارج نطاق الخطة المرفقة، أو تعديلًا جوهريًا عليها، فلا يلتزم الطرف الأول بتنفيذها إلا بعد اعتماد نطاق العمل الإضافي وأثره على الجدول الزمني والأتعاب كتابيًا من الطرفين؛ ويُوثَّق كل طلب تغيير كملحق مرقَّم يُضاف إلى الخطة.`},
+طلب تغيير النطاق (Change Request): في حال طلب الشريك أي أعمال أو خدمات خارج نطاق الخطة المرفقة، أو تعديلًا جوهريًا عليها، فلا يلتزم الطرف الأول بتنفيذها إلا بعد اعتماد نطاق العمل الإضافي وأثره على الجدول الزمني والأتعاب كتابيًا من الطرفين؛ ويُوثَّق كل طلب تغيير كملحق مرقَّم يُضاف إلى الخطة.`},
 
     {num:'٥', title:'المخرجات والجدول الزمني', body:
 `تُحدَّد المخرجات ومراحل الإنجاز والمواعيد المستهدفة وفق الخطة المرفقة (ملحق ١)، وتُعتمد أي تعديلات عليها كتابيًا من الطرفين.`},
@@ -3840,13 +3904,13 @@ const CONTRACT_TEMPLATE_V2 = {
 
 - النمط الدوري: تُستحق الأتعاب دوريًا (شهريًا ما لم يُذكر خلاف ذلك) عن كل دورة تشغيل، وتُسدَّد مقدَّمًا في بداية كل دورة ما لم تنص الخطة على غير ذلك.
 
-**٦.٤** التأخر في السداد: عند تأخر العميل عن سداد أي مبلغ مستحق أكثر من خمسة عشر (١٥) يومًا من تاريخ استحقاقه: يحق للطرف الأول تعليق تنفيذ الأعمال محل هذا العقد حتى استكمال السداد، دون أن يُعد ذلك إخلالًا من جانبه.
+**٦.٤** التأخر في السداد: عند تأخر الشريك عن سداد أي مبلغ مستحق أكثر من خمسة عشر (١٥) يومًا من تاريخ استحقاقه: يحق للطرف الأول تعليق تنفيذ الأعمال محل هذا العقد حتى استكمال السداد، دون أن يُعد ذلك إخلالًا من جانبه.
 
 **٦.٥** يُقرّ الطرفان أن أي مبلغ يُستوفى بموجب البند ٦.٤ هو تعويض عن ضرر إداري فعلي محدد سلفًا، وليس مقابلًا ماليًا عن مدة التأخير ذاتها، ولا يستفيد الطرف الأول من امتداد مدة التأخير بأي زيادة إضافية على هذا المبلغ.`},
 
     {num:'٧', title:'الإنفاق الإعلاني', conditional:'ad_spend', body:
-`يشمل هذا العقد إدارة علامة لميزانية إعلانية نيابة عن العميل{{مبلغ_الاعلان_الشهري}}. أي إنفاق إعلاني إضافي مستقبلي يتطلب ملحقًا منفصلًا يُضمَّن أحكام هذا البند.`,
-    bodyIfExcluded:'لا ينطبق — لا يشمل هذا العقد إدارة علامة لأي ميزانية إعلانية نيابة عن العميل.'},
+`يشمل هذا العقد إدارة علامة لميزانية إعلانية نيابة عن الشريك{{مبلغ_الاعلان_الشهري}}. أي إنفاق إعلاني إضافي مستقبلي يتطلب ملحقًا منفصلًا يُضمَّن أحكام هذا البند.`,
+    bodyIfExcluded:'لا ينطبق — لا يشمل هذا العقد إدارة علامة لأي ميزانية إعلانية نيابة عن الشريك.'},
 
     {num:'٨', title:'الاعتمادات وجولات التعديل', body: CONTRACT_TEMPLATE.sections.find(x=>x.num==='٨').body},
     {num:'٩', title:'التزامات الطرفين', body: CONTRACT_TEMPLATE.sections.find(x=>x.num==='٩').body},
@@ -3862,7 +3926,7 @@ const CONTRACT_TEMPLATE_V2 = {
 
 **١٤.٣** عند الإنهاء لأي سبب، تُسوَّى الأتعاب عن الأعمال المنفَّذة فعليًا حتى تاريخ الإنهاء وفق نسبة الإنجاز{{اعادة_رصيد_اعلان_انهاء}}، وتُسلَّم الأصول وفق البند ١٠.٤.
 
-**١٤.٤** إذا أنهى العميل هذا العقد دون وجود إخلال من الطرف الأول، تستحق علامة قيمة الأعمال المنجزة فعليًا حتى تاريخ الإنهاء، إضافة إلى قيمة الالتزامات التي تعاقدت عليها الطرف الأول مع الغير لتنفيذ نطاق العمل والتي تعذّر إلغاؤها أو الرجوع فيها.`},
+**١٤.٤** إذا أنهى الشريك هذا العقد دون وجود إخلال من الطرف الأول، تستحق علامة قيمة الأعمال المنجزة فعليًا حتى تاريخ الإنهاء، إضافة إلى قيمة الالتزامات التي تعاقدت عليها الطرف الأول مع الغير لتنفيذ نطاق العمل والتي تعذّر إلغاؤها أو الرجوع فيها.`},
 
     {num:'١٥', title:'عدم الاستقطاب وتضارب المصالح', body: CONTRACT_TEMPLATE.sections.find(x=>x.num==='١٥').body},
     {num:'١٦', title:'أحكام عامة', body: CONTRACT_TEMPLATE.sections.find(x=>x.num==='١٦').body}
@@ -3877,16 +3941,23 @@ const CONTRACT_TEMPLATES={
 
 function mergeContract(data){
   const D={
-    اسم_العميل:data.clientName||'—', سجل_العميل:data.clientCr||'—', ضريبي_العميل:data.clientVat||'—', عنوان_العميل:data.clientAddress||'—',
-    ممثل_العميل:data.clientRepName||'—', صفة_ممثل_العميل:data.clientRepTitle||'—',
-    بريد_العميل:data.clientEmail||'—', هاتف_العميل:data.clientPhone||'—',
+    اسم_الشريك:data.clientName||'—', سجل_الشريك:data.clientCr||'—', ضريبي_الشريك:data.clientVat||'—', عنوان_الشريك:data.clientAddress||'—',
+    اسم_علامة:(data.org&&data.org.legal_name)||'علامة',
+    سجل_علامة:(data.org&&data.org.cr_number)||'—',
+    ضريبي_علامة:(data.org&&data.org.vat_number)||'—',
+    عنوان_علامة:(data.org&&data.org.national_address)||'—',
+    ممثل_علامة:((data.org&&data.org.rep_name)||'—')+((data.org&&data.org.rep_title)?' — '+data.org.rep_title:''),
+    بريد_علامة:(data.org&&data.org.contact_email)||'—',
+    هاتف_علامة:(data.org&&data.org.contact_phone)||'—',
+    ممثل_الشريك:(data.clientRepName||'—')+(data.clientRepTitle?' — '+data.clientRepTitle:''), صفة_ممثل_الشريك:data.clientRepTitle||'—',
+    بريد_الشريك:data.clientEmail||'—', هاتف_الشريك:data.clientPhone||'—',
     تاريخ_السريان:data.effectiveDate?fmtLong(data.effectiveDate):'—',
     سقف_التعويض:data.latePaymentCap!=null?Number(data.latePaymentCap).toLocaleString('ar'):'[ـــــ]'
   };
   const adSpend=!!data.includesAdSpend;
   D['وإن_إعلان']=adSpend?' والإنفاق الإعلاني':'';
   D['استثناء_اعلان_قصير']=adSpend?'، ولا يشمل الإنفاق الإعلاني':'';
-  D['تعريف_انفاق_اعلاني']=adSpend?'- الإنفاق الإعلاني: المبالغ المخصّصة للصرف على المنصّات الإعلانية، وهي ملك العميل، ولا تتربّح علامة منها.':'';
+  D['تعريف_انفاق_اعلاني']=adSpend?'- الإنفاق الإعلاني: المبالغ المخصّصة للصرف على المنصّات الإعلانية، وهي ملك الشريك، ولا تتربّح علامة منها.':'';
   D['اجمالي_قيمة_العقد']=data.contractValue?('، بقيمة إجمالية قدرها '+Number(data.contractValue).toLocaleString('ar')+' ريال سعودي (غير شامل ضريبة القيمة المضافة ما لم يُنص على خلاف ذلك)'):'';
   D['فقرة_ميزانية_اعلان_مستقلة']=adSpend?'ميزانية الإعلان مستقلة تمامًا عن الأتعاب في الحالتين، وتخضع لأحكام البند ٧.':'لا توجد ميزانية إعلانية مُدارة ضمن هذا العقد (راجع البند ٧).';
   D['التزام_ميزانية_اعلان']=adSpend?'، وتوريد ميزانية الإعلان مقدّمًا':'';
@@ -3894,8 +3965,8 @@ function mergeContract(data){
   D['فقرة_استثناء_مسؤولية_اعلان']=adSpend
     ?' لا يشمل السقف المحدد في البند ١٢.١ ميزانية الإعلان المودعة لدى علامة وفق البند ٧، والتي تبقى التزامًا كاملًا بحساب دقيق وأمين مهما بلغت قيمتها.'
     :' لا ينطبق (لا توجد ميزانية إعلانية مُدارة ضمن هذا العقد).';
-  D['اعادة_رصيد_اعلان']=adSpend?'، وإعادة رصيد الإعلان المتبقّي إلى العميل':'';
-  D['اعادة_رصيد_اعلان_انهاء']=adSpend?'، ويُعاد رصيد الإعلان المتبقّي إلى العميل خلال خمسة عشر (١٥) يومًا من تاريخ الإنهاء':'';
+  D['اعادة_رصيد_اعلان']=adSpend?'، وإعادة رصيد الإعلان المتبقّي إلى الشريك':'';
+  D['اعادة_رصيد_اعلان_انهاء']=adSpend?'، ويُعاد رصيد الإعلان المتبقّي إلى الشريك خلال خمسة عشر (١٥) يومًا من تاريخ الإنهاء':'';
 
   D['مبلغ_الاعلان_الشهري']=data.adMonthlyBudget
     ? ' المقدَّرة بـ'+Number(data.adMonthlyBudget).toLocaleString('ar')+' ريال شهريًا'
@@ -3934,6 +4005,8 @@ function mergeContract(data){
   return {
     intro:TPL.intro,
     partyRows,
+    orgName:(data.org&&data.org.legal_name)||'علامة',
+    partnerName:data.clientName||'—',
     sections,
     specialTerms:(data.specialTerms||'').trim()||null,
     signatures:{num:TPL.signatures.num,title:TPL.signatures.title,body:TPL.signatures.body}
@@ -3952,9 +4025,13 @@ function ctrBodyHtml(body){
     return '<p>'+ctrMdInline(p).replace(/\n/g,'<br>')+'</p>';
   }).join('');
 }
-function ctrPartyTable(rows){
-  return `<table class="ctr-parties"><tbody>${rows.map(([l,a,b])=>
-    `<tr><th>${esc(l)}</th><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}</tbody></table>`;
+function ctrPartyTable(rows,orgName,partnerName){
+  return `<table class="ctr-parties">
+    <thead><tr><th></th>
+      <th class="ctr-party-hd">الطرف الأول: ${esc(orgName||'علامة')}</th>
+      <th class="ctr-party-hd">الطرف الثاني: ${esc(partnerName||'—')}</th></tr></thead>
+    <tbody>${rows.map(([l,a,b])=>
+      `<tr><th class="ctr-party-lbl">${esc(l)}</th><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}</tbody></table>`;
 }
 
 function renderMergedContractHTML(merged){
@@ -3964,7 +4041,7 @@ function renderMergedContractHTML(merged){
     `<div class="ctr-sec ctr-special"><h4>ملحق — شروط إضافية خاصة بهذا العقد</h4>${ctrBodyHtml(merged.specialTerms)}</div>`:'';
   return `<div class="ctr-doc">
     <div class="ctr-intro">${ctrBodyHtml(merged.intro)}</div>
-    <div class="ctr-sec"><h4>١. الأطراف</h4>${ctrPartyTable(merged.partyRows)}</div>
+    <div class="ctr-sec"><h4>١. الأطراف</h4>${ctrPartyTable(merged.partyRows,merged.orgName,merged.partnerName)}</div>
     ${sectionsHtml}
     ${specialHtml}
     <div class="ctr-sec"><h4>${esc(merged.signatures.num)}. ${esc(merged.signatures.title)}</h4>${ctrBodyHtml(merged.signatures.body)}</div>
@@ -3974,16 +4051,20 @@ function renderMergedContractHTML(merged){
 // عقد بنص حر بالكامل — يحافظ على نفس هوية العرض البصرية (رأس + جدول أطراف + توقيعات)
 // لكن المتن نص حر كتبه المستخدم بنفسه، لا قالبًا مرقَّمًا ثابتًا.
 function renderCustomContractHTML(data){
+  const o=data.org||{};
   const partyRows=[
-    ['الاسم','علامة',data.clientName||'—'],
-    ['السجل التجاري','',data.clientCr||'—'],
-    ['العنوان','',data.clientAddress||'—'],
-    ['الممثل المفوَّض','',(data.clientRepName||'—')+' — '+(data.clientRepTitle||'—')],
-    ['بيانات التواصل','',(data.clientEmail||'—')+' · '+(data.clientPhone||'—')]
+    ['الاسم',o.legal_name||'علامة',data.clientName||'—'],
+    ['السجل التجاري',o.cr_number||'—',data.clientCr||'—'],
+    ['الرقم الضريبي',o.vat_number||'—',data.clientVat||'—'],
+    ['العنوان',o.national_address||'—',data.clientAddress||'—'],
+    ['الممثل المفوَّض',(o.rep_name||'—')+(o.rep_title?' — '+o.rep_title:''),
+      (data.clientRepName||'—')+(data.clientRepTitle?' — '+data.clientRepTitle:'')],
+    ['البريد الإلكتروني',o.contact_email||'—',data.clientEmail||'—'],
+    ['رقم الجوال',o.contact_phone||'—',data.clientPhone||'—']
   ];
   return `<div class="ctr-doc">
     <div class="ctr-intro"><p><b>علامة</b></p><p><b>${esc(data.title||'عقد')}</b></p></div>
-    <div class="ctr-sec"><h4>الأطراف</h4>${ctrPartyTable(partyRows)}</div>
+    <div class="ctr-sec"><h4>الأطراف</h4>${ctrPartyTable(partyRows,(data.org&&data.org.legal_name)||"علامة",data.clientName)}</div>
     <div class="ctr-sec ctr-custom-body">${ctrBodyHtml(data.body)}</div>
     <div class="ctr-sec"><h4>التوقيعات</h4><p>بتوقيع الطرفين أدناه، يُقر كل منهما بأنه اطّلع على هذا العقد وقَبِل الالتزام به.</p></div>
   </div>`;
@@ -4075,12 +4156,12 @@ async function renderPublicSign(token){
     :`<div class="pubsig-row pubsig-pending"><b>${label}</b><span>بانتظار التوقيع</span></div>`;
 
   const mergeData={
-    clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,clientAddress:d.client_address,
+    clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,org:d.org||{},clientAddress:d.client_address,
     clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title,
     includesAdSpend:d.includes_ad_spend,effectiveDate:d.effective_date,contractValue:d.contract_value,latePaymentCap:d.late_payment_cap,
     specialTerms:d.special_terms
   };
-  const customData={title:d.custom_title,body:d.custom_body,clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,
+  const customData={title:d.custom_title,body:d.custom_body,clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,org:d.org||{},
     clientAddress:d.client_address,clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title};
   const contractHtml=isCustom?renderCustomContractHTML(customData):renderMergedContractHTML(mergeContract(mergeData));
   let integrityBadge='';
@@ -4096,11 +4177,11 @@ async function renderPublicSign(token){
       <div class="pubsign-brand">علامة <span>· أثر دائم</span></div>
       <h2>${fullySigned?'العقد موقَّع من الطرفين':'توقيع العقد'}</h2>
       <div class="pubsign-meta">
-        <div><b>العميل</b><span>${esc(d.client_name)}</span></div>
+        <div><b>الشريك</b><span>${esc(d.client_name)}</span></div>
         ${d.project_name?`<div><b>المشروع</b><span>${esc(d.project_name)}</span></div>`:''}
         ${d.baseline_label?`<div><b>اللقطة المرجعية</b><span>${esc(d.baseline_label)} — ${new Date(d.baseline_date).toLocaleDateString('ar')}</span></div>`:''}
       </div>
-      <div class="pubsig-status">${sigRow('علامة',alamaaSig)}${sigRow('العميل',clientSig)}</div>
+      <div class="pubsig-status">${sigRow('علامة',alamaaSig)}${sigRow('الشريك',clientSig)}</div>
       ${integrityBadge}
       ${(d.attachments&&d.attachments.length)?`
       <div class="pubsign-attach">
@@ -4148,7 +4229,7 @@ async function renderPublicSign(token){
         const r=await signContractPublic(token,name,email,s.data||('نصي: '+s.typed));
         if(r&&r.ok){toast('تم توثيق توقيعك بنجاح','ok');renderPublicSign(token);}
         else{
-          const msgs={already_signed:'تم توقيع هذا العقد من قبل العميل بالفعل.',archived:'انتهت صلاحية هذا الرابط.',void:'أُلغي هذا العقد.',name_required:'الاسم مطلوب.'};
+          const msgs={already_signed:'تم توقيع هذا العقد من قبل الشريك بالفعل.',archived:'انتهت صلاحية هذا الرابط.',void:'أُلغي هذا العقد.',name_required:'الاسم مطلوب.'};
           toast(msgs[r&&r.error]||'تعذّر التوقيع','err');btn.disabled=false;btn.textContent='أوافق وأوقّع';
         }
       }catch(e){toast('تعذّر التوقيع: '+e.message,'err');btn.disabled=false;btn.textContent='أوافق وأوقّع';}
@@ -4178,7 +4259,7 @@ async function refreshContractPanel(){
   let list;
   try{ list=await fetchContractsForProject(PROJECT._dbId); }
   catch(e){ document.getElementById('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
-  const STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع العميل',signed:'موقَّع بالكامل ✅',void:'ملغى'};
+  const STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع الشريك',signed:'موقَّع بالكامل ✅',void:'ملغى'};
   const rows=list.map(c=>{
     const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
     const link=location.origin+location.pathname+'#/sign/'+c.token;
@@ -4192,9 +4273,9 @@ async function refreshContractPanel(){
         <b>${esc(c.baseline_label)}</b><span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${STL[c.status]||c.status}</span>
       </div>
       <div class="sa-hint" style="margin:6px 0">علامة: ${al?esc(al.name)+' — '+new Date(al.signed_at).toLocaleDateString('ar'):'لم توقّع بعد'}
-        · العميل: ${cl?esc(cl.name)+' — '+new Date(cl.signed_at).toLocaleDateString('ar'):'لم يوقّع بعد'}
+        · الشريك: ${cl?esc(cl.name)+' — '+new Date(cl.signed_at).toLocaleDateString('ar'):'لم يوقّع بعد'}
         · ${c.includes_ad_spend?'يشمل إنفاقًا إعلانيًا':'بلا إنفاق إعلاني'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}</div>
-      <div class="ctr-link-badge">🔒 الرابط والرمز أدناه خاصّان بـ<b>${esc((CLIENTS.find(x=>x.id===CID)||{}).name||'هذا العميل')}</b> حصرًا — لتوقيع هذا العقد تحديدًا، لا يصلح لغيره</div>
+      <div class="ctr-link-badge">🔒 الرابط والرمز أدناه خاصّان بـ<b>${esc((CLIENTS.find(x=>x.id===CID)||{}).name||'هذا الشريك')}</b> حصرًا — لتوقيع هذا العقد تحديدًا، لا يصلح لغيره</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input readonly value="${link}" style="flex:1;min-width:220px;font-size:.75rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2)">
         <button class="reqbtn" data-copylink="${link}">نسخ الرابط</button>
@@ -4233,13 +4314,13 @@ async function refreshContractPanel(){
     try{ unlinked=await fetchUnlinkedClientContracts(CID); }
     catch(e){ picker.innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
     if(!unlinked.length){
-      picker.innerHTML='<p class="sa-hint">لا عقود غير مرتبطة لهذا العميل حاليًا. أنشئ عقدًا جديدًا بنطاق «العميل كاملًا» من إدارة العقود، ثم اربطه هنا لاحقًا.</p>';
+      picker.innerHTML='<p class="sa-hint">لا عقود غير مرتبطة لهذا الشريك حاليًا. أنشئ عقدًا جديدًا بنطاق «الشريك كاملًا» من إدارة العقود، ثم اربطه هنا لاحقًا.</p>';
       return;
     }
     picker.innerHTML=unlinked.map(u=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line-soft)">
         <div><span class="chub-num">${esc(u.contract_number||'—')}</span> <b>${esc(u.contract_name||u.custom_title||'عقد بلا اسم')}</b>
-          <span class="sa-hint">${u.contract_value?' · '+Number(u.contract_value).toLocaleString('ar')+' ر.س':''}${u.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}${u.has_client?'':' · 🆓 عقد مستقل بلا عميل'}</span></div>
+          <span class="sa-hint">${u.contract_value?' · '+Number(u.contract_value).toLocaleString('ar')+' ر.س':''}${u.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}${u.has_client?'':' · 🆓 عقد مستقل بلا شريك'}</span></div>
         <button class="reqbtn" data-linkbl="${u.id}">ربط بهذا المشروع</button>
       </div>`).join('');
     document.querySelectorAll('[data-linkbl]').forEach(b=>b.onclick=async()=>{
@@ -4326,12 +4407,12 @@ window.openContractPanel=openContractPanel;
 
 /* ===== contractshub.js ===== */
 // ===== app/contractshub.js — إدارة العقود الشاملة (من المحفظة) =====
-// يدعم نطاقَين (مشروع محدَّد / العميل كاملًا) ونوعَين (قياسي بالقالب الرسمي / مخصَّص بنص حر)،
+// يدعم نطاقَين (مشروع محدَّد / الشريك كاملًا) ونوعَين (قياسي بالقالب الرسمي / مخصَّص بنص حر)،
 // مع بوابة اعتماد داخلي صريحة قبل أن يصبح أي عقد قابلًا للإرسال والتوقيع فعليًا.
-// مصدر البيانات: pmo_all_contracts_view — يحترم رؤية كل عقد بحسب نطاقه (مشروع أو عميل).
+// مصدر البيانات: pmo_all_contracts_view — يحترم رؤية كل عقد بحسب نطاقه (مشروع أو شريك).
 
 let CH_CONTRACTS=[],CH_FILTER={status:'all',q:''};
-const CH_STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع العميل',signed:'موقَّع بالكامل ✅',void:'ملغى'};
+const CH_STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع الشريك',signed:'موقَّع بالكامل ✅',void:'ملغى'};
 
 async function renderContractsHub(){
   SCREEN='contractshub';
@@ -4381,8 +4462,8 @@ function renderContractsHubBody(){
           ${c.source_contract_id?`<span class="chub-type-tag chub-copy-tag">📎 نسخة من: ${esc(c.source_name||'أصل')}</span>`:''}
           ${!c.internal_approved&&c.status!=='void'&&!(al||cl)?'<span class="chub-type-tag chub-pending-tag">⏳ بانتظار الاعتماد الداخلي</span>':''}
         </div>
-        <div class="sa-hint">${c.client_name?'👤 '+esc(c.client_name):'👤 غير مُسنَد لعميل بعد'}${c.project_name?' · 📁 '+esc(c.project_name):' · 📁 غير مرتبط بمشروع'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}
-          · علامة: ${al?esc(al.name):'—'} · العميل: ${cl?esc(cl.name):'—'}</div>
+        <div class="sa-hint">${c.client_name?'👤 '+esc(c.client_name):'👤 غير مُسنَد لشريك بعد'}${c.project_name?' · 📁 '+esc(c.project_name):' · 📁 غير مرتبط بمشروع'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}
+          · علامة: ${al?esc(al.name):'—'} · الشريك: ${cl?esc(cl.name):'—'}</div>
       </div>
       <span class="chub-row-arrow">فتح ←</span>
     </div>`;
@@ -4391,7 +4472,7 @@ function renderContractsHubBody(){
   $('#chubBody').innerHTML=`
     <div class="sa-section">
       <div class="chub-filters">
-        <input id="chubSearch" placeholder="🔍 ابحث باسم العميل أو المشروع..." value="${esc(CH_FILTER.q)}" style="flex:1;min-width:200px">
+        <input id="chubSearch" placeholder="🔍 ابحث باسم الشريك أو المشروع..." value="${esc(CH_FILTER.q)}" style="flex:1;min-width:200px">
         <div class="chub-status-pills">
           ${['all','pending_alamaa','pending_client','signed','void'].map(s=>
             `<button class="chub-pill ${CH_FILTER.status===s?'active':''}" data-chubstatus="${s}">${s==='all'?'الكل':CH_STL[s]} <span>${counts[s]||0}</span></button>`).join('')}
@@ -4430,11 +4511,12 @@ function renderContractsHubBody(){
 }
 
 let CHD_OVERRIDES={excluded:[],added:[]};
+let CHD_ORG=null;
 let CHD_TEMPLATE='alamaa_v1';
 function chubReadStandardFields(prefix,client){
   return {
     templateKey:CHD_TEMPLATE, clauseOverrides:CHD_OVERRIDES,
-    clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,clientAddress:client.national_address_short,
+    clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,org:CHD_ORG||ORG_PROFILE||{},clientAddress:client.national_address_short,
     clientRepName:client.rep_name,clientRepTitle:client.rep_title,clientEmail:client.contact_email,clientPhone:client.contact_phone,
     includesAdSpend:document.getElementById(prefix+'AdSpend').checked,
     effectiveDate:document.getElementById(prefix+'Date').value,
@@ -4450,7 +4532,7 @@ function chubReadCustomFields(prefix,client){
   return {
     title:document.getElementById(prefix+'Title').value,
     body:document.getElementById(prefix+'Body').value,
-    clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,clientAddress:client.national_address_short,
+    clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,org:CHD_ORG||ORG_PROFILE||{},clientAddress:client.national_address_short,
     clientRepName:client.rep_name,clientRepTitle:client.rep_title,clientEmail:client.contact_email,clientPhone:client.contact_phone
   };
 }
@@ -4558,7 +4640,7 @@ async function openContractDetailPanel(contractId){
     <div class="chub-detail-hd">
       <h3>${esc(c.contract_name||'عقد بلا اسم')} <span class="chub-num">${esc(c.contract_number||'—')}</span></h3>
       <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
-      ${(!c.client_id&&!c.source_contract_id)?'<button class="hbtn" id="chdAssign" style="background:var(--gold);border-color:var(--gold)">👥 إسناد لعميل (إنشاء نسخة)</button>':''}
+      ${(!c.client_id&&!c.source_contract_id)?'<button class="hbtn" id="chdAssign" style="background:var(--gold);border-color:var(--gold)">👥 إسناد لشريك (إنشاء نسخة)</button>':''}
       <button class="reqbtn" id="chdDuplicate">📑 تكرار العقد</button>
       ${c.project_id?'<button class="reqbtn" id="chdUnlink">🔓 فك الارتباط بالمشروع</button>':''}
       <button class="reqbtn" id="chdClose" style="margin-inline-start:auto">✕ إغلاق</button>
@@ -4566,18 +4648,18 @@ async function openContractDetailPanel(contractId){
 
     ${(!c.client_id&&!c.source_contract_id)?`
     <div class="chub-tpl-banner">
-      <div><b>📄 هذا عقد أصل (قالب)</b><br><span class="sa-hint">إسناده لعميل يُنشئ <b>نسخة مستقلة تمامًا</b> خاصة به — بمعرّف ورقم ورابط توقيع خاص — والأصل يبقى هنا كما هو بلا أي تعديل. يمكن إسناده لعدد غير محدود من العملاء بلا أي تداخل بينهم.</span></div>
+      <div><b>📄 هذا عقد أصل (قالب)</b><br><span class="sa-hint">إسناده لشريك يُنشئ <b>نسخة مستقلة تمامًا</b> خاصة به — بمعرّف ورقم ورابط توقيع خاص — والأصل يبقى هنا كما هو بلا أي تعديل. يمكن إسناده لعدد غير محدود من الشركاء بلا أي تداخل بينهم.</span></div>
     </div>
     <div id="chdInstances"></div>`:''}
-    ${c.source_contract_id?`<div class="ctr-integrity ok">📎 هذه نسخة خاصة بـ<b>${esc(c.client_name||'—')}</b> من الأصل «${esc(c.source_name||'')}» — تعديلها لا يمسّ الأصل ولا نسخ العملاء الآخرين إطلاقًا.</div>`:''}
+    ${c.source_contract_id?`<div class="ctr-integrity ok">📎 هذه نسخة خاصة بـ<b>${esc(c.client_name||'—')}</b> من الأصل «${esc(c.source_name||'')}» — تعديلها لا يمسّ الأصل ولا نسخ الشركاء الآخرين إطلاقًا.</div>`:''}
 
     ${(c.internal_approved&&c.status!=='void'&&!al)?`
     <div class="chub-sign-banner">
-      <div><b>✍️ بانتظار توقيع علامة</b><br><span class="sa-hint">وقّع بصفتك ممثل علامة، ثم أرسل الرابط للعميل لتوقيعه.</span></div>
+      <div><b>✍️ بانتظار توقيع علامة</b><br><span class="sa-hint">وقّع بصفتك ممثل علامة، ثم أرسل الرابط للشريك لتوقيعه.</span></div>
       <button class="hbtn" id="chdSignNow" style="background:var(--ok);border-color:var(--ok);color:#fff">✍️ توقيع علامة الآن</button>
     </div>
     <div id="chdSignArea"></div>`:''}
-    ${(al&&!cl&&c.status!=='void')?`<div class="ctr-integrity ok">✍️ وقّعت علامة (${esc(al.name)}) — بانتظار توقيع العميل عبر الرابط أدناه.</div>`:''}
+    ${(al&&!cl&&c.status!=='void')?`<div class="ctr-integrity ok">✍️ وقّعت علامة (${esc(al.name)}) — بانتظار توقيع الشريك عبر الرابط أدناه.</div>`:''}
 
     ${(!c.internal_approved&&c.status!=='void'&&!anySigned)?`
     <div class="chub-approval-banner ${canApprove?'':'chub-approval-locked'}">
@@ -4596,9 +4678,9 @@ async function openContractDetailPanel(contractId){
         </div>
         ${(c.internal_approved&&c.status!=='void'&&!cl)?`
         <div class="chd-send-box">
-          <input id="chdSendTo" type="email" placeholder="بريد العميل" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin-bottom:6px">
+          <input id="chdSendTo" type="email" placeholder="بريد الشريك" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin-bottom:6px">
           <button class="hbtn" id="chdSendBtn" style="background:var(--gold);border-color:var(--gold);width:100%">
-            ${c.send_count>0?'🔔 إرسال تذكير':'📧 إرسال للعميل'}</button>
+            ${c.send_count>0?'🔔 إرسال تذكير':'📧 إرسال للشريك'}</button>
           ${c.last_sent_at?`<p class="sa-hint" style="margin-top:6px">آخر إرسال: ${new Date(c.last_sent_at).toLocaleString('ar',{dateStyle:'medium',timeStyle:'short'})} · ${c.send_count} مرة</p>`:''}
           <div id="chdSendLog"></div>
         </div>`:''}
@@ -4659,7 +4741,7 @@ async function openContractDetailPanel(contractId){
       <div id="chdClauses"></div>
     </div>`:''}
     <div class="sa-section" style="margin-top:14px">
-      <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للعميل في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
+      <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للشريك في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
       <div id="chdAttachments"><div class="skeleton" style="height:40px"></div></div>
     </div>
 
@@ -4670,6 +4752,7 @@ async function openContractDetailPanel(contractId){
   </div>`;
 
   // ===== نموذج العقد ومحرر البنود =====
+  CHD_ORG=c.org||null;
   CHD_TEMPLATE=c.template_key||'alamaa_v1';
   CHD_OVERRIDES=Object.assign({excluded:[],added:[]},c.clause_overrides||{});
   if(!Array.isArray(CHD_OVERRIDES.excluded))CHD_OVERRIDES.excluded=[];
@@ -4741,7 +4824,7 @@ async function openContractDetailPanel(contractId){
         <input id="chdAttUrl" placeholder="https://..." style="flex:1;min-width:200px" dir="ltr">
         <button class="reqbtn" id="chdAttAdd">إضافة مرفق</button>
       </div>
-      <p class="sa-hint" style="margin-top:6px">ارفع الملف على Drive أو أي مساحة تخزين، ثم الصق رابطه هنا ليظهر للعميل مع العقد.</p>`
+      <p class="sa-hint" style="margin-top:6px">ارفع الملف على Drive أو أي مساحة تخزين، ثم الصق رابطه هنا ليظهر للشريك مع العقد.</p>`
       :'<p class="sa-hint" style="margin-top:8px">🔒 لا يمكن تعديل مرفقات عقد وقّع عليه طرف.</p>');
 
     if(editable){
@@ -4833,13 +4916,13 @@ async function openContractDetailPanel(contractId){
        try{
          const r=await signContractAsStaff(contractId,name,sig.data||('نصي: '+sig.typed));
          if(r&&r.ok){
-           toast('وُقِّع العقد من علامة — أرسل الرابط للعميل الآن','ok');
+           toast('وُقِّع العقد من علامة — أرسل الرابط للشريك الآن','ok');
            CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId);
          }else toast((r&&r.error==='not_approved')?'العقد غير معتمَد داخليًا بعد':'تعذّر التوقيع','err');
        }catch(e){toast('تعذّر التوقيع: '+e.message,'err');btn.disabled=false;}
      };
    };}
-  // الأصل: عرض نسخه الحالية + إتاحة إسناده لعميل جديد (نسخة مستقلة)
+  // الأصل: عرض نسخه الحالية + إتاحة إسناده لشريك جديد (نسخة مستقلة)
   if(!c.client_id&&!c.source_contract_id){
     (async()=>{
       const box=document.getElementById('chdInstances');
@@ -4856,9 +4939,9 @@ async function openContractDetailPanel(contractId){
               <div><span class="chub-num">${esc(i.contract_number||'—')}</span> <b>${esc(i.client_name||'—')}</b>
                 <span class="sa-hint"> · ${CH_STL[i.status]||i.status}${i.project_name?' · 📁 '+esc(i.project_name):''}${i.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}</span></div>
               <button class="reqbtn" data-openinst="${i.id}">فتح ←</button>
-            </div>`).join(''):'<p class="sa-hint">لا نسخ بعد — أسنِد هذا الأصل لعميل لإنشاء أول نسخة.</p>'}
+            </div>`).join(''):'<p class="sa-hint">لا نسخ بعد — أسنِد هذا الأصل لشريك لإنشاء أول نسخة.</p>'}
           <div class="sa-form" style="margin-top:12px">
-            <select id="chdAssignClient"><option value="">اختر العميل لإنشاء نسخة له...</option>${
+            <select id="chdAssignClient"><option value="">اختر الشريك لإنشاء نسخة له...</option>${
               (allCl||[]).filter(x=>!taken.has(x.name)).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
             <button class="reqbtn" id="chdAssignGo">إنشاء نسخة</button>
           </div>
@@ -4866,10 +4949,10 @@ async function openContractDetailPanel(contractId){
       document.querySelectorAll('[data-openinst]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.openinst));
       const go=async()=>{
         const cid=document.getElementById('chdAssignClient').value;
-        if(!cid){toast('اختر العميل','warn');return;}
+        if(!cid){toast('اختر الشريك','warn');return;}
         try{
           const r=await assignContractToClient(contractId,cid);
-          toast('أُنشئت نسخة خاصة بالعميل ('+r.number+') — الأصل بقي كما هو','ok');
+          toast('أُنشئت نسخة خاصة بالشريك ('+r.number+') — الأصل بقي كما هو','ok');
           CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();
           openContractDetailPanel(r.id);
         }catch(e){toast(e.message,'err');}
@@ -4904,7 +4987,7 @@ async function openContractDetailPanel(contractId){
    };}
   document.getElementById('chdDuplicate').onclick=async()=>{
     const r=await dialog({title:'تكرار العقد',
-      message:'ستُنشأ نسخة جديدة مستقلة بكل بيانات هذا العقد ومرفقاته، بلا عميل ولا مشروع — قابلة للتعديل والإسناد كأصل جديد.',
+      message:'ستُنشأ نسخة جديدة مستقلة بكل بيانات هذا العقد ومرفقاته، بلا شريك ولا مشروع — قابلة للتعديل والإسناد كأصل جديد.',
       fields:[{key:'name',label:'اسم النسخة الجديدة',value:(c.contract_name||'')+' (نسخة)'}],confirmText:'تكرار'});
     if(!r)return;
     try{
@@ -4951,7 +5034,7 @@ async function openContractDetailPanel(contractId){
 }
 
 // ===== لوحة إنشاء عقد جديد: مستقل تمامًا — لا خيار مشروع هنا إطلاقًا =====
-// الفصل الحقيقي المطلوب: كل عقد يُنشأ هنا مستقلًا (بنطاق العميل)، بلا أي ربط بمشروع.
+// الفصل الحقيقي المطلوب: كل عقد يُنشأ هنا مستقلًا (بنطاق الشريك)، بلا أي ربط بمشروع.
 // الربط يحدث لاحقًا وحصرًا من داخل ذلك المشروع («🔗 ربط عقد قائم» في تبويب عقوده) —
 // لا خيار "مرتبط بمشروع" هنا نهائيًا، تفاديًا لأي التباس حول أين يحدث الربط فعليًا.
 async function openNewContractPanel(){
@@ -4960,7 +5043,7 @@ async function openNewContractPanel(){
   const panel=document.getElementById('chubPanel');
   panel.innerHTML=`<div class="chub-detail">
     <div class="chub-detail-hd"><h3>عقد جديد</h3><button class="reqbtn" id="chnClose" style="margin-inline-start:auto">✕ إغلاق</button></div>
-    <p class="sa-hint">العقد كيان مستقل في المحفظة: يُنشأ هنا باسمه ورقمه الخاصَّين، بلا ربط بمشروع، والعميل اختياري. الربط بمشروع يحدث لاحقًا من داخل ذلك المشروع ← عقوده ← «🔗 ربط عقد قائم».</p>
+    <p class="sa-hint">العقد كيان مستقل في المحفظة: يُنشأ هنا باسمه ورقمه الخاصَّين، بلا ربط بمشروع، والشريك اختياري. الربط بمشروع يحدث لاحقًا من داخل ذلك المشروع ← عقوده ← «🔗 ربط عقد قائم».</p>
 
     <div class="chub-choice-row">
       <label class="chub-choice"><input type="radio" name="chnType" value="standard" checked> نموذج قياسي (17 بندًا رسميًا)</label>
@@ -4972,7 +5055,7 @@ async function openNewContractPanel(){
       <input id="chnNumber" placeholder="رقم العقد (تلقائي إن تُرك فارغًا)" style="width:220px;font-family:monospace" dir="ltr">
     </div>
     <div class="sa-form" style="margin-top:10px">
-      <select id="chnClient"><option value="">العميل (اختياري — يمكن تحديده لاحقًا عند الربط بمشروع)</option>${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+      <select id="chnClient"><option value="">الشريك (اختياري — يمكن تحديده لاحقًا عند الربط بمشروع)</option>${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
     </div>
     <div id="chnRest" style="margin-top:14px">
       <div id="chnStandardFields">
@@ -5009,6 +5092,7 @@ async function openNewContractPanel(){
 
   let currentClient={};
   CHD_TEMPLATE='alamaa_v1';
+  CHD_ORG=null;
   CHD_OVERRIDES={excluded:[],added:[],edited:{}};
   const typeOf=()=>document.querySelector('input[name="chnType"]:checked').value;
   const refreshPreview=()=>{
@@ -5028,7 +5112,7 @@ async function openNewContractPanel(){
      chubRenderClauseEditor('chnClauses',refreshPreview);refreshPreview();};}
   chubRenderClauseEditor('chnClauses',refreshPreview);
 
-  // العميل اختياري تمامًا: اختياره يُثري المعاينة ببياناته فقط، وغيابه لا يمنع الإنشاء إطلاقًا
+  // الشريك اختياري تمامًا: اختياره يُثري المعاينة ببياناته فقط، وغيابه لا يمنع الإنشاء إطلاقًا
   document.getElementById('chnClient').onchange=async(e)=>{
     const cid=e.target.value;
     if(!cid){currentClient={};refreshPreview();return;}
@@ -5090,7 +5174,7 @@ window.renderContractsHub=renderContractsHub;
 /* ===== main.js ===== */
 // ===== app/main.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
 function savePFilters(){try{localStorage.setItem('pmo_pfilters',JSON.stringify({PFILTER,PSORT,PALERTS:[...PALERTS]}));}catch(e){}}
-let SCREEN='portfolio'; // portfolio | project — للطاقم؛ العميل دائمًا project
+let SCREEN='portfolio'; // portfolio | project — للطاقم؛ الشريك دائمًا project
 
 // ===== الإشعارات (Toast) =====
 
@@ -5115,7 +5199,7 @@ function toastUndo(msg,onUndo){
 
 // ===== نوافذ الحوار المخصّصة (بديل prompt/confirm المتصفح) =====
 
-// ===== مبدّل سريع للعملاء والمشاريع (طاقم فقط) =====
+// ===== مبدّل سريع للشركاء والمشاريع (طاقم فقط) =====
 let QJ_INDEX=[];
 async function refreshQJIndex(){
   try{
@@ -5175,7 +5259,7 @@ async function startApp(){
   bindQJump();
   $('#dataDate').value=DATA_DATE;$('#dataDate').onchange=e=>{DATA_DATE=e.target.value;if(SCREEN==='project')render();else renderPortfolio();};
   if(!CLIENTS.length){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا توجد مشاريع متاحة لحسابك بعد.</p>';hideChrome();return;}
-  // العميل: دخول مباشر لمشروعه الوحيد. الطاقم: شاشة المحفظة
+  // الشريك: دخول مباشر لمشروعه الوحيد. الطاقم: شاشة المحفظة
   if(ROLE==='client'){
     SCREEN='project';CID=CLIENTS[0].id;await loadProject(CID);render();
   }else if(await tryOpenProjectFromHash()){
@@ -5201,11 +5285,11 @@ function showChrome(){ $('#kpisRow').style.display=''; $('#tabs').style.display=
 async function loadSummary(clientId){ return null; /* لم تعد مستخدمة — استُبدلت بـpmo_portfolio */ }
 
 // ===== الروابط العميقة =====
-// الشكل الجديد: #/c/{عميل}/{مشروع}/{تبويب}[/t/{بند}] — مجلد فرعي داخل مجلد العميل.
+// الشكل الجديد: #/c/{شريك}/{مشروع}/{تبويب}[/t/{بند}] — مجلد فرعي داخل مجلد الشريك.
 // الصيغة القديمة #/p/{معرّف المشروع}/{تبويب}[/t/{بند}] تبقى مدعومة للأبد للتوافق مع أي رابط سبق مشاركته.
 let _hashLock=false,_focusRef=null;
 // المحفظة نفسها «مجلد جذري» له رابط نظيف خاص به — لا يبقى الرابط عالقًا على آخر مشروع
-// أو عميل كان مفتوحًا قبلها، وهذا بالضبط ما يجعل التنقّل يعكس ما يُعرَض فعليًا دائمًا.
+// أو شريك كان مفتوحًا قبلها، وهذا بالضبط ما يجعل التنقّل يعكس ما يُعرَض فعليًا دائمًا.
 function writePortfolioHash(){
   const h='#/';
   if(location.hash===h)return;
@@ -5360,18 +5444,18 @@ async function editStartDate(){
   }catch(e){ toast('تعذّر التحديث: '+e.message,'err'); }
 }
 
-// ===== دورة حياة العميل (المرحلة 1) =====
-// حوار مشروع جديد (يُستدعى من قائمة العميل وزر البطاقة)
+// ===== دورة حياة الشريك (المرحلة 1) =====
+// حوار مشروع جديد (يُستدعى من قائمة الشريك وزر البطاقة)
 
 async function renderPortfolioTimeline(){
   SCREEN='ptimeline';$('#hProject').textContent='خط التسليمات — كل المشاريع';hideChrome();
-  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backPT">↩ المحفظة</button><span style="margin-inline-start:auto">📦 <b>خط التسليمات:</b> سجل زمني للتبادل بين علامة والعملاء عبر <b>كل المشاريع</b>.</span></div><div id="ptlWrap"><div class="skeleton" style="height:120px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backPT">↩ المحفظة</button><span style="margin-inline-start:auto">📦 <b>خط التسليمات:</b> سجل زمني للتبادل بين علامة والشركاء عبر <b>كل المشاريع</b>.</span></div><div id="ptlWrap"><div class="skeleton" style="height:120px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
   $('#backPT').onclick=renderPortfolio;
   openTimelinePortfolio('ptlWrap');
 }
 async function renderAuditLog(){
   SCREEN='audit';$('#hProject').textContent='سجل المكتب — كل المشاريع';hideChrome();
-  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">🗂 <b>سجل المكتب:</b> كل الأفعال الحسّاسة عبر <b>كل المشاريع والعملاء</b> — من فعل، ماذا، ومتى. (سجل مشروع واحد: تبويب «سجل المشروع» داخله)</span></div><div id="auditList"><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px"></div></div>';
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">🗂 <b>سجل المكتب:</b> كل الأفعال الحسّاسة عبر <b>كل المشاريع والشركاء</b> — من فعل، ماذا، ومتى. (سجل مشروع واحد: تبويب «سجل المشروع» داخله)</span></div><div id="auditList"><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px;margin-bottom:6px"></div><div class="skeleton" style="height:40px"></div></div>';
   $('#backP').onclick=renderPortfolio;
   const rows=await fetchAuditLog(150);
   const list=$('#auditList');
@@ -5385,10 +5469,10 @@ async function renderAuditLog(){
   }).join('')+'</div>';
 }
 
-// ===== شاشة العملاء المحتملين (PMO) =====
+// ===== شاشة الشركاء المحتملين (PMO) =====
 
 async function renderLeads(){
-  $('#hProject').textContent='العملاء المحتملون';
+  $('#hProject').textContent='الشركاء المحتملون';
   $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backToPortfolio">↩ المحفظة</button><span style="margin-inline-start:auto">النماذج الواردة من الموقع — حوّل أيًّا منها إلى مشروع-مقترح.</span></div><div id="leadsList"><div class="skeleton" style="height:60px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
   $('#backToPortfolio').onclick=renderPortfolio;
   let leads;
@@ -5408,21 +5492,21 @@ async function renderLeads(){
     </div>`;
   }).join('');
   box.querySelectorAll('[data-convert]').forEach(b=>b.onclick=async()=>{
-    const r=await dialog({title:'تحويل إلى مشروع',message:'سيُنشأ عميل ومشروع في مرحلة «مقترح».',
+    const r=await dialog({title:'تحويل إلى مشروع',message:'سيُنشأ شريك ومشروع في مرحلة «مقترح».',
       fields:[{key:'name',label:'اسم المشروع',value:'مشروع '+(b.dataset.name||'')}],confirmText:'إنشاء'});
     if(!r||!r.name)return;
     b.disabled=true;b.textContent='جارٍ...';
     try{
       await convertLead(b.dataset.convert, r.name);
       await loadClients();
-      toast('تم إنشاء عميل ومشروع-مقترح بنجاح','ok');
+      toast('تم إنشاء شريك ومشروع-مقترح بنجاح','ok');
       renderLeads();
     }catch(e){ toast('تعذّر التحويل: '+e.message,'err'); b.disabled=false;b.textContent='تحويل لمشروع'; }
   });
 }
 
 
-// ===== إدارة وصول العميل (PMO) =====
+// ===== إدارة وصول الشريك (PMO) =====
 
 async function openAccess(){
   const c=CLIENTS.find(x=>x.id===CID);
@@ -5575,7 +5659,7 @@ function renderReqs(){
   const canEdit=PERMS[ROLE].editReqs;
   const reqs=REQ_TASK.requirements||[];
   const ST={received:'مُستلم',pending:'بانتظار',overdue:'متأخر',notrequested:'لم يُطلب',latejust:'مُستلم متأخرًا'};
-  const OWN={client:'العميل',alamah:'علامة'};
+  const OWN={client:'الشريك',alamah:'علامة'};
   const dis=canEdit?'':'disabled';
   let rows=reqs.map((r,i)=>{
     const ow=Object.keys(OWN).map(k=>`<option value="${k}" ${k===r.owner?'selected':''}>${OWN[k]}</option>`).join('');
@@ -5791,8 +5875,8 @@ function buildReport(){
   </div>
   <h2>المعالم</h2>
   <table>${miles.map(m=>`<tr><td>◆ ${esc(m.t.name.replace('معلم: ',''))}</td><td style="text-align:left;font-weight:700">${fmt(m.ef)}/${new Date(m.ef).getFullYear()}</td></tr>`).join('')||'<tr><td>لا معالم</td></tr>'}</table>
-  ${delayed.length?`<h2>البنود المتأخرة (${delayed.length})</h2><table>${delayed.map(x=>`<tr><td>${esc(x.t.id)} — ${esc(x.t.name)}</td><td class="del-${x.d}" style="text-align:left;font-weight:700">${x.d==='client'?'بانتظار العميل':'على فريق علامة'}</td></tr>`).join('')}</table>`:''}
-  ${pendingReqs.length?`<h2>متطلبات معلّقة من العميل (${pendingReqs.length})</h2><table>${pendingReqs.map(x=>`<tr><td>${esc(x.r.desc)}</td><td style="text-align:left"><span class="badge">${esc(x.t.id)} · SLA ${x.r.sla}ي</span></td></tr>`).join('')}</table>`:''}
+  ${delayed.length?`<h2>البنود المتأخرة (${delayed.length})</h2><table>${delayed.map(x=>`<tr><td>${esc(x.t.id)} — ${esc(x.t.name)}</td><td class="del-${x.d}" style="text-align:left;font-weight:700">${x.d==='client'?'بانتظار الشريك':'على فريق علامة'}</td></tr>`).join('')}</table>`:''}
+  ${pendingReqs.length?`<h2>متطلبات معلّقة من الشريك (${pendingReqs.length})</h2><table>${pendingReqs.map(x=>`<tr><td>${esc(x.r.desc)}</td><td style="text-align:left"><span class="badge">${esc(x.t.id)} · SLA ${x.r.sla}ي</span></td></tr>`).join('')}</table>`:''}
   <div class="foot">علامة · منصّة حوكمة المشاريع — تقرير مُولّد آليًا · ${PROJECT.name}</div>
   </body></html>`;
   const w=window.open('','_blank');
