@@ -72,8 +72,29 @@ function renderContractsHubBody(){
         <button class="hbtn" id="chubNew" style="background:var(--gold);border-color:var(--gold)">+ عقد جديد</button>
       </div>
     </div>
+    <div id="chubExpiring"></div>
     <div class="sa-section chub-list">${rows}</div>
   `;
+
+  // تنبيهات انتهاء/تجديد العقود السارية
+  (async()=>{
+    const box=document.getElementById('chubExpiring');
+    if(!box)return;
+    let exp=[];try{exp=await fetchExpiringContracts();}catch(e){return;}
+    if(!exp.length)return;
+    box.innerHTML=`<div class="chub-expiry-banner">
+      <b>⏳ عقود تحتاج انتباهك (${exp.length})</b>
+      ${exp.map(x=>`<div class="chd-att-row">
+        <span><span class="chub-num">${esc(x.contract_number||'—')}</span> <b>${esc(x.contract_name||'')}</b>
+          <span class="sa-hint"> · ${esc(x.client_name||'—')} · ${
+            x.expired?'<span style="color:var(--crit);font-weight:700">انتهى في '+new Date(x.end_date).toLocaleDateString('ar')+'</span>'
+            :'يتبقّى '+x.days_left+' يومًا (ينتهي '+new Date(x.end_date).toLocaleDateString('ar')+')'}${
+            x.auto_renew?' · 🔄 تجديد تلقائي':''}</span></span>
+        <button class="reqbtn" data-chubopen="${x.id}">فتح ←</button>
+      </div>`).join('')}
+    </div>`;
+    box.querySelectorAll('[data-chubopen]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.chubopen));
+  })();
 
   $('#chubSearch').oninput=e=>{CH_FILTER.q=e.target.value;renderContractsHubBody();};
   $$('#chubBody [data-chubstatus]').forEach(b=>b.onclick=()=>{CH_FILTER.status=b.dataset.chubstatus;renderContractsHubBody();});
@@ -92,7 +113,10 @@ function chubReadStandardFields(prefix,client){
     effectiveDate:document.getElementById(prefix+'Date').value,
     contractValue:document.getElementById(prefix+'Value').value,
     latePaymentCap:document.getElementById(prefix+'Value').value?Math.round(Number(document.getElementById(prefix+'Value').value)*0.03*100)/100:null,
-    specialTerms:document.getElementById(prefix+'Special').value
+    specialTerms:document.getElementById(prefix+'Special').value,
+    durationMonths:(document.getElementById(prefix+'Duration')||{}).value||null,
+    endDate:(document.getElementById(prefix+'End')||{}).value||null,
+    autoRenew:!!((document.getElementById(prefix+'Renew')||{}).checked)
   };
 }
 function chubReadCustomFields(prefix,client){
@@ -243,6 +267,14 @@ async function openContractDetailPanel(contractId){
           <button class="reqbtn" data-chdcopy="${link}">نسخ الرابط</button>
           <button class="reqbtn" id="chdExport">📄 تصدير PDF (بالملاحق)</button>
         </div>
+        ${(c.internal_approved&&c.status!=='void'&&!cl)?`
+        <div class="chd-send-box">
+          <input id="chdSendTo" type="email" placeholder="بريد العميل" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin-bottom:6px">
+          <button class="hbtn" id="chdSendBtn" style="background:var(--gold);border-color:var(--gold);width:100%">
+            ${c.send_count>0?'🔔 إرسال تذكير':'📧 إرسال للعميل'}</button>
+          ${c.last_sent_at?`<p class="sa-hint" style="margin-top:6px">آخر إرسال: ${new Date(c.last_sent_at).toLocaleString('ar',{dateStyle:'medium',timeStyle:'short'})} · ${c.send_count} مرة</p>`:''}
+          <div id="chdSendLog"></div>
+        </div>`:''}
       </div>
 
       <div class="chub-fields-box">
@@ -268,7 +300,10 @@ async function openContractDetailPanel(contractId){
         ${editable?`
         <div class="sa-form" style="flex-wrap:wrap">
           <input id="chdValue" type="number" placeholder="قيمة العقد (ر.س)" value="${c.contract_value||''}" style="width:150px">
-          <input id="chdDate" type="date" value="${c.effective_date||''}">
+          <input id="chdDate" type="date" title="تاريخ السريان" value="${c.effective_date||''}">
+          <input id="chdDuration" type="number" min="1" placeholder="المدة (أشهر)" value="${c.duration_months||''}" style="width:130px">
+          <input id="chdEnd" type="date" title="تاريخ الانتهاء" value="${c.end_date||''}">
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="chdRenew" ${c.auto_renew?'checked':''}> تجديد تلقائي</label>
           <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="chdAdSpend" ${c.includes_ad_spend?'checked':''}> يشمل إدارة إنفاق إعلاني</label>
         </div>
         <textarea id="chdSpecial" placeholder="شروط إضافية خاصة بهذا العقد (اختياري)" style="width:100%;min-height:70px;margin-top:10px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px">${esc(c.special_terms||'')}</textarea>
@@ -277,6 +312,8 @@ async function openContractDetailPanel(contractId){
           <button class="reqbtn" id="chdVoid" style="color:var(--crit)">🗑 إلغاء العقد</button>
         </div>`:`
         <input id="chdValue" type="hidden" value="${c.contract_value||''}"><input id="chdDate" type="hidden" value="${c.effective_date||''}">
+        <input id="chdDuration" type="hidden" value="${c.duration_months||''}"><input id="chdEnd" type="hidden" value="${c.end_date||''}">
+        <input id="chdRenew" type="checkbox" ${c.auto_renew?'checked':''} style="display:none">
         <input id="chdAdSpend" type="checkbox" ${c.includes_ad_spend?'checked':''} style="display:none">
         <textarea id="chdSpecial" style="display:none">${esc(c.special_terms||'')}</textarea>
         <p class="sa-hint">🔒 عقد ${anySigned?'وقّع عليه طرف على الأقل':'ملغى'} — لم يعد قابلًا للتعديل. لتغييره، ألغِ هذا العقد وأنشئ عقدًا جديدًا.</p>`}
@@ -424,6 +461,28 @@ async function openContractDetailPanel(contractId){
 
   if(panel.scrollIntoView)panel.scrollIntoView({behavior:'smooth',block:'start'});
   document.getElementById('chdClose').onclick=()=>{panel.innerHTML='';};
+  {const sendBtn=document.getElementById('chdSendBtn');
+   if(sendBtn)sendBtn.onclick=async()=>{
+     const to=document.getElementById('chdSendTo').value.trim();
+     if(!to||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)){toast('أدخل بريدًا صحيحًا','warn');return;}
+     sendBtn.disabled=true;const old=sendBtn.textContent;sendBtn.textContent='جارٍ الإرسال...';
+     try{
+       await sendContractEmail(c,to,c.send_count>0?'reminder':'invite');
+       toast('أُرسل العقد إلى '+to,'ok');
+       CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId);
+     }catch(e){toast(e.message,'err');sendBtn.disabled=false;sendBtn.textContent=old;}
+   };}
+  // سجل الإرسال — يعرض النجاح والفشل معًا بصدق
+  (async()=>{
+    const logBox=document.getElementById('chdSendLog');
+    if(!logBox)return;
+    let sends=[];try{sends=await fetchContractSends(contractId);}catch(e){return;}
+    if(!sends.length)return;
+    logBox.innerHTML='<div style="margin-top:8px;text-align:start">'+sends.slice(0,4).map(x=>
+      `<div class="sa-hint" style="padding:3px 0">${x.status==='sent'?'✅':'⚠'} ${esc(x.to_email)} · ${
+        new Date(x.sent_at).toLocaleDateString('ar',{month:'short',day:'numeric'})}${
+        x.status==='failed'?' — فشل':''}</div>`).join('')+'</div>';
+  })();
   {const sb2=document.getElementById('chdSignNow');
    if(sb2)sb2.onclick=()=>{
      const area=document.getElementById('chdSignArea');
