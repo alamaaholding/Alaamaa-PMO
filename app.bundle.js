@@ -1,4 +1,4 @@
-const BUILD_V='f7cecd4d';
+const BUILD_V='97641c87';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -4512,6 +4512,14 @@ async function openContractDetailPanel(contractId){
     <div id="chdInstances"></div>`:''}
     ${c.source_contract_id?`<div class="ctr-integrity ok">📎 هذه نسخة خاصة بـ<b>${esc(c.client_name||'—')}</b> من الأصل «${esc(c.source_name||'')}» — تعديلها لا يمسّ الأصل ولا نسخ العملاء الآخرين إطلاقًا.</div>`:''}
 
+    ${(c.internal_approved&&c.status!=='void'&&!al)?`
+    <div class="chub-sign-banner">
+      <div><b>✍️ بانتظار توقيع علامة</b><br><span class="sa-hint">وقّع بصفتك ممثل علامة، ثم أرسل الرابط للعميل لتوقيعه.</span></div>
+      <button class="hbtn" id="chdSignNow" style="background:var(--ok);border-color:var(--ok);color:#fff">✍️ توقيع علامة الآن</button>
+    </div>
+    <div id="chdSignArea"></div>`:''}
+    ${(al&&!cl&&c.status!=='void')?`<div class="ctr-integrity ok">✍️ وقّعت علامة (${esc(al.name)}) — بانتظار توقيع العميل عبر الرابط أدناه.</div>`:''}
+
     ${(!c.internal_approved&&c.status!=='void'&&!anySigned)?`
     <div class="chub-approval-banner ${canApprove?'':'chub-approval-locked'}">
       <div><b>⏳ بانتظار الاعتماد الداخلي</b><br><span class="sa-hint">لا يمكن إرسال هذا العقد أو توقيعه من أي طرف قبل اعتماده داخليًا أولًا.</span></div>
@@ -4708,6 +4716,35 @@ async function openContractDetailPanel(contractId){
 
   if(panel.scrollIntoView)panel.scrollIntoView({behavior:'smooth',block:'start'});
   document.getElementById('chdClose').onclick=()=>{panel.innerHTML='';};
+  {const sb2=document.getElementById('chdSignNow');
+   if(sb2)sb2.onclick=()=>{
+     const area=document.getElementById('chdSignArea');
+     area.innerHTML=`<div class="sa-section" style="background:var(--soft-2)">
+       <h4>توقيع علامة على «${esc(c.contract_name||'')}»</h4>
+       <input id="chdSignName" placeholder="اسم الموقِّع عن علامة" style="width:100%;margin-bottom:10px;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
+       <div id="chdSignPad"></div>
+       <div style="display:flex;gap:8px;margin-top:10px">
+         <button class="hbtn" id="chdSignConfirm" style="background:var(--ok);border-color:var(--ok);color:#fff">اعتماد التوقيع</button>
+         <button class="reqbtn" id="chdSignCancel">إلغاء</button>
+       </div></div>`;
+     const pad=mountSignaturePad(document.getElementById('chdSignPad'));
+     if(area.scrollIntoView)area.scrollIntoView({behavior:'smooth',block:'center'});
+     document.getElementById('chdSignCancel').onclick=()=>{area.innerHTML='';};
+     document.getElementById('chdSignConfirm').onclick=async()=>{
+       const name=document.getElementById('chdSignName').value.trim();
+       if(!name){toast('أدخل اسم الموقِّع','warn');return;}
+       const sig=pad.getData();
+       if(!sig.ok){toast('ارسم توقيعك أو اكتب اسمك في لوحة التوقيع','warn');return;}
+       const btn=document.getElementById('chdSignConfirm');btn.disabled=true;
+       try{
+         const r=await signContractAsStaff(contractId,name,sig.data||('نصي: '+sig.typed));
+         if(r&&r.ok){
+           toast('وُقِّع العقد من علامة — أرسل الرابط للعميل الآن','ok');
+           CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId);
+         }else toast((r&&r.error==='not_approved')?'العقد غير معتمَد داخليًا بعد':'تعذّر التوقيع','err');
+       }catch(e){toast('تعذّر التوقيع: '+e.message,'err');btn.disabled=false;}
+     };
+   };}
   // الأصل: عرض نسخه الحالية + إتاحة إسناده لعميل جديد (نسخة مستقلة)
   if(!c.client_id&&!c.source_contract_id){
     (async()=>{
