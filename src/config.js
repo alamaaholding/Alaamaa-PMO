@@ -5,7 +5,7 @@ const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON);
 const TRACKS={"0":{name:"التأسيس المضغوط",code:"0",color:"#1A1A1A"},"A":{name:"النمو السريع والمواسم",code:"A",color:"#C8A06B"},"B":{name:"التحليل والتشخيص بالموجات",code:"B",color:"#7A8B6F"},"C":{name:"الاستراتيجية وبناء الأصول",code:"C",color:"#9C6B4A"}};
 const STATUS={notstarted:'لم تبدأ',inprogress:'جارية',blocked:'متوقفة',done:'مكتملة'};
 const TYPES={task:'مهمة',milestone:'معلم',fixed:'ثابت',cont:'مستمر',package:'حزمة عمل'};
-const ROLE_NAMES={pmo:'مكتب إدارة المشاريع',delivery:'الفريق',client:'العميل'};
+const ROLE_NAMES={pmo:'مكتب إدارة المشاريع',delivery:'الفريق',client:'الشريك'};
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 const fmt=d=>{const x=new Date(d);return('0'+x.getDate()).slice(-2)+'/'+('0'+(x.getMonth()+1)).slice(-2);};
 const fmtY=d=>{const x=new Date(d);return x.getFullYear()+'-'+('0'+(x.getMonth()+1)).slice(-2)+'-'+('0'+x.getDate()).slice(-2);};
@@ -47,15 +47,15 @@ const AUDIT_ACTIONS={
   comment_resolve:'حلّ تعليق',comment_reopen:'إعادة فتح تعليق',
   // طلبات الخدمة
   client_request_add:'طلب خدمة جديد',client_request_status:'تغيير حالة طلب خدمة',
-  // المشاريع والعملاء
+  // المشاريع والشركاء
   project_create:'إنشاء مشروع',project_delete:'حذف مشروع',
   archive_project:'أرشفة مشروع',restore_project:'استرجاع مشروع',
   request_project_deletion:'طلب حذف مشروع',purge_project:'حذف نهائي لمشروع',
-  archive_client:'أرشفة عميل',restore_client:'استرجاع عميل',
-  request_deletion:'طلب حذف عميل',purge_client:'حذف نهائي لعميل'
+  archive_client:'أرشفة شريك',restore_client:'استرجاع شريك',
+  request_deletion:'طلب حذف شريك',purge_client:'حذف نهائي لشريك'
 };
 const AUDIT_ENTITIES={task:'بند',change_request:'طلب تعديل خطة',requirement:'متطلب',
-  comment:'تعليق',client_request:'طلب خدمة',project:'مشروع',client:'عميل'};
+  comment:'تعليق',client_request:'طلب خدمة',project:'مشروع',client:'شريك'};
 
 // ===== نطاق صلاحيات الفريق =====
 // المبدأ: لا تغيير في سلوك أي موظف قائم إطلاقًا حتى يمنحه مالك النظام صلاحية محددة صراحة.
@@ -64,7 +64,7 @@ function hasCompanyScope(){return IS_OWNER||MY_ACCESS.some(a=>a.scope_type==='co
 function myDeptScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='department').map(a=>a.scope_value));}
 function myClientScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='client').map(a=>a.scope_value));}
 function myProjectScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='project').map(a=>a.scope_value));}
-// هل يُسمح لي برؤية مشروع بعينه (بمعرّفه وقسمه وعميله)؟
+// هل يُسمح لي برؤية مشروع بعينه (بمعرّفه وقسمه وشريكه)؟
 function canSeeProject(projectId,dept,clientId){
   if(IS_OWNER||hasCompanyScope())return true;
   if(!MY_ACCESS.length)return true; // لا تخصيص = لا قيود (توافق خلفي)
@@ -85,7 +85,7 @@ function myAccessLevelFor(projectId,dept,clientId){
   if(!rows.length)return null;
   return rows.some(r=>r.access_level==='edit')?'edit':'view';
 }
-// هل يُسمح لي برؤية عميل كامل (له أي مشروع أراه، أو نطاق عميل/شركة مباشر)؟
+// هل يُسمح لي برؤية شريك كامل (له أي مشروع أراه، أو نطاق شريك/شركة مباشر)؟
 function canSeeClient(clientId,clientProjects){
   if(IS_OWNER||hasCompanyScope())return true;
   if(!MY_ACCESS.length)return true;
@@ -123,7 +123,7 @@ function computeProjectStatus(row){
   }
   return statusByKey.active;
 }
-// لعميل بعدة مشاريع: الحالة الأسوأ (الأعلى أولوية) بين كل مشاريعه النشطة
+// لشريك بعدة مشاريع: الحالة الأسوأ (الأعلى أولوية) بين كل مشاريعه النشطة
 function worstProjectStatus(rows){
   if(!rows||!rows.length)return statusByKey.not_started;
   let worst=null;
@@ -133,7 +133,7 @@ function worstProjectStatus(rows){
 function renderStatusBadge(s,extraClass){
   return `<span class="pstatus-badge ${extraClass||''}" style="--sc:${s.color};--sbg:${s.bg}" title="${esc(s.label)}"><i class="pstatus-dot" style="background:${s.color}"></i>${esc(s.label)}</span>`;
 }
-// تُستخدم من شبكة المحفظة وصفحة العميل المخصَّصة كليهما؛ لا حساب مكرّر في مكانين
+// تُستخدم من شبكة المحفظة وصفحة الشريك المخصَّصة كليهما؛ لا حساب مكرّر في مكانين
 // (بالضبط الخلل الذي عالجناه سابقًا في مطابقة المراحل — نفس المبدأ هنا).
 function aggregateClientRows(cid,list,fallback){
   const r0=(list&&list[0])||{};
@@ -287,7 +287,7 @@ function trackMeta(k){
 
 // خط التسليمات: المصادر والأنواع والحالات
 const DELIV_SRC={
-  client:{t:'العميل',c:'#a8442f'},
+  client:{t:'الشريك',c:'#a8442f'},
   pmo:{t:'إدارة المشاريع',c:'#4B3F72'},
   marketing:{t:'التسويق',c:'#B28E67'},
   tech:{t:'التقني',c:'#35608F'},
