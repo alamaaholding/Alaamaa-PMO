@@ -133,7 +133,7 @@ function tkTalk(){
   if(TK_LOADING||!TK_THREAD)return '<p class="empty">جارٍ التحميل…</p>';
   if(TK_THREAD.error)return '<p class="empty">تعذّر تحميل النقاش: '+esc(TK_THREAD.error)+'</p>';
   const KIND={comment:'تعليق',question:'سؤال',suggestion:'مقترح'};
-  const ROLE_AR={pmo:'إدارة المشاريع',delivery:'الفريق',client:'العميل'};
+  const ROLE_AR={pmo:'إدارة المشاريع',delivery:'الفريق',client:'الشريك'};
   const list=TK_THREAD.comments.map(c=>{
     const when=new Date(c.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
     return `<div class="tkmsg">
