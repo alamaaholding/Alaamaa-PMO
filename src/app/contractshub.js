@@ -1,10 +1,10 @@
 // ===== app/contractshub.js — إدارة العقود الشاملة (من المحفظة) =====
-// يدعم نطاقَين (مشروع محدَّد / العميل كاملًا) ونوعَين (قياسي بالقالب الرسمي / مخصَّص بنص حر)،
+// يدعم نطاقَين (مشروع محدَّد / الشريك كاملًا) ونوعَين (قياسي بالقالب الرسمي / مخصَّص بنص حر)،
 // مع بوابة اعتماد داخلي صريحة قبل أن يصبح أي عقد قابلًا للإرسال والتوقيع فعليًا.
-// مصدر البيانات: pmo_all_contracts_view — يحترم رؤية كل عقد بحسب نطاقه (مشروع أو عميل).
+// مصدر البيانات: pmo_all_contracts_view — يحترم رؤية كل عقد بحسب نطاقه (مشروع أو شريك).
 
 let CH_CONTRACTS=[],CH_FILTER={status:'all',q:''};
-const CH_STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع العميل',signed:'موقَّع بالكامل ✅',void:'ملغى'};
+const CH_STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع الشريك',signed:'موقَّع بالكامل ✅',void:'ملغى'};
 
 async function renderContractsHub(){
   SCREEN='contractshub';
@@ -54,8 +54,8 @@ function renderContractsHubBody(){
           ${c.source_contract_id?`<span class="chub-type-tag chub-copy-tag">📎 نسخة من: ${esc(c.source_name||'أصل')}</span>`:''}
           ${!c.internal_approved&&c.status!=='void'&&!(al||cl)?'<span class="chub-type-tag chub-pending-tag">⏳ بانتظار الاعتماد الداخلي</span>':''}
         </div>
-        <div class="sa-hint">${c.client_name?'👤 '+esc(c.client_name):'👤 غير مُسنَد لعميل بعد'}${c.project_name?' · 📁 '+esc(c.project_name):' · 📁 غير مرتبط بمشروع'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}
-          · علامة: ${al?esc(al.name):'—'} · العميل: ${cl?esc(cl.name):'—'}</div>
+        <div class="sa-hint">${c.client_name?'👤 '+esc(c.client_name):'👤 غير مُسنَد لشريك بعد'}${c.project_name?' · 📁 '+esc(c.project_name):' · 📁 غير مرتبط بمشروع'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}
+          · علامة: ${al?esc(al.name):'—'} · الشريك: ${cl?esc(cl.name):'—'}</div>
       </div>
       <span class="chub-row-arrow">فتح ←</span>
     </div>`;
@@ -64,7 +64,7 @@ function renderContractsHubBody(){
   $('#chubBody').innerHTML=`
     <div class="sa-section">
       <div class="chub-filters">
-        <input id="chubSearch" placeholder="🔍 ابحث باسم العميل أو المشروع..." value="${esc(CH_FILTER.q)}" style="flex:1;min-width:200px">
+        <input id="chubSearch" placeholder="🔍 ابحث باسم الشريك أو المشروع..." value="${esc(CH_FILTER.q)}" style="flex:1;min-width:200px">
         <div class="chub-status-pills">
           ${['all','pending_alamaa','pending_client','signed','void'].map(s=>
             `<button class="chub-pill ${CH_FILTER.status===s?'active':''}" data-chubstatus="${s}">${s==='all'?'الكل':CH_STL[s]} <span>${counts[s]||0}</span></button>`).join('')}
@@ -103,11 +103,12 @@ function renderContractsHubBody(){
 }
 
 let CHD_OVERRIDES={excluded:[],added:[]};
+let CHD_ORG=null;
 let CHD_TEMPLATE='alamaa_v1';
 function chubReadStandardFields(prefix,client){
   return {
     templateKey:CHD_TEMPLATE, clauseOverrides:CHD_OVERRIDES,
-    clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,clientAddress:client.national_address_short,
+    clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,org:CHD_ORG||ORG_PROFILE||{},clientAddress:client.national_address_short,
     clientRepName:client.rep_name,clientRepTitle:client.rep_title,clientEmail:client.contact_email,clientPhone:client.contact_phone,
     includesAdSpend:document.getElementById(prefix+'AdSpend').checked,
     effectiveDate:document.getElementById(prefix+'Date').value,
@@ -123,7 +124,7 @@ function chubReadCustomFields(prefix,client){
   return {
     title:document.getElementById(prefix+'Title').value,
     body:document.getElementById(prefix+'Body').value,
-    clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,clientAddress:client.national_address_short,
+    clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,org:CHD_ORG||ORG_PROFILE||{},clientAddress:client.national_address_short,
     clientRepName:client.rep_name,clientRepTitle:client.rep_title,clientEmail:client.contact_email,clientPhone:client.contact_phone
   };
 }
@@ -231,7 +232,7 @@ async function openContractDetailPanel(contractId){
     <div class="chub-detail-hd">
       <h3>${esc(c.contract_name||'عقد بلا اسم')} <span class="chub-num">${esc(c.contract_number||'—')}</span></h3>
       <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
-      ${(!c.client_id&&!c.source_contract_id)?'<button class="hbtn" id="chdAssign" style="background:var(--gold);border-color:var(--gold)">👥 إسناد لعميل (إنشاء نسخة)</button>':''}
+      ${(!c.client_id&&!c.source_contract_id)?'<button class="hbtn" id="chdAssign" style="background:var(--gold);border-color:var(--gold)">👥 إسناد لشريك (إنشاء نسخة)</button>':''}
       <button class="reqbtn" id="chdDuplicate">📑 تكرار العقد</button>
       ${c.project_id?'<button class="reqbtn" id="chdUnlink">🔓 فك الارتباط بالمشروع</button>':''}
       <button class="reqbtn" id="chdClose" style="margin-inline-start:auto">✕ إغلاق</button>
@@ -239,18 +240,18 @@ async function openContractDetailPanel(contractId){
 
     ${(!c.client_id&&!c.source_contract_id)?`
     <div class="chub-tpl-banner">
-      <div><b>📄 هذا عقد أصل (قالب)</b><br><span class="sa-hint">إسناده لعميل يُنشئ <b>نسخة مستقلة تمامًا</b> خاصة به — بمعرّف ورقم ورابط توقيع خاص — والأصل يبقى هنا كما هو بلا أي تعديل. يمكن إسناده لعدد غير محدود من العملاء بلا أي تداخل بينهم.</span></div>
+      <div><b>📄 هذا عقد أصل (قالب)</b><br><span class="sa-hint">إسناده لشريك يُنشئ <b>نسخة مستقلة تمامًا</b> خاصة به — بمعرّف ورقم ورابط توقيع خاص — والأصل يبقى هنا كما هو بلا أي تعديل. يمكن إسناده لعدد غير محدود من الشركاء بلا أي تداخل بينهم.</span></div>
     </div>
     <div id="chdInstances"></div>`:''}
-    ${c.source_contract_id?`<div class="ctr-integrity ok">📎 هذه نسخة خاصة بـ<b>${esc(c.client_name||'—')}</b> من الأصل «${esc(c.source_name||'')}» — تعديلها لا يمسّ الأصل ولا نسخ العملاء الآخرين إطلاقًا.</div>`:''}
+    ${c.source_contract_id?`<div class="ctr-integrity ok">📎 هذه نسخة خاصة بـ<b>${esc(c.client_name||'—')}</b> من الأصل «${esc(c.source_name||'')}» — تعديلها لا يمسّ الأصل ولا نسخ الشركاء الآخرين إطلاقًا.</div>`:''}
 
     ${(c.internal_approved&&c.status!=='void'&&!al)?`
     <div class="chub-sign-banner">
-      <div><b>✍️ بانتظار توقيع علامة</b><br><span class="sa-hint">وقّع بصفتك ممثل علامة، ثم أرسل الرابط للعميل لتوقيعه.</span></div>
+      <div><b>✍️ بانتظار توقيع علامة</b><br><span class="sa-hint">وقّع بصفتك ممثل علامة، ثم أرسل الرابط للشريك لتوقيعه.</span></div>
       <button class="hbtn" id="chdSignNow" style="background:var(--ok);border-color:var(--ok);color:#fff">✍️ توقيع علامة الآن</button>
     </div>
     <div id="chdSignArea"></div>`:''}
-    ${(al&&!cl&&c.status!=='void')?`<div class="ctr-integrity ok">✍️ وقّعت علامة (${esc(al.name)}) — بانتظار توقيع العميل عبر الرابط أدناه.</div>`:''}
+    ${(al&&!cl&&c.status!=='void')?`<div class="ctr-integrity ok">✍️ وقّعت علامة (${esc(al.name)}) — بانتظار توقيع الشريك عبر الرابط أدناه.</div>`:''}
 
     ${(!c.internal_approved&&c.status!=='void'&&!anySigned)?`
     <div class="chub-approval-banner ${canApprove?'':'chub-approval-locked'}">
@@ -269,9 +270,9 @@ async function openContractDetailPanel(contractId){
         </div>
         ${(c.internal_approved&&c.status!=='void'&&!cl)?`
         <div class="chd-send-box">
-          <input id="chdSendTo" type="email" placeholder="بريد العميل" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin-bottom:6px">
+          <input id="chdSendTo" type="email" placeholder="بريد الشريك" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin-bottom:6px">
           <button class="hbtn" id="chdSendBtn" style="background:var(--gold);border-color:var(--gold);width:100%">
-            ${c.send_count>0?'🔔 إرسال تذكير':'📧 إرسال للعميل'}</button>
+            ${c.send_count>0?'🔔 إرسال تذكير':'📧 إرسال للشريك'}</button>
           ${c.last_sent_at?`<p class="sa-hint" style="margin-top:6px">آخر إرسال: ${new Date(c.last_sent_at).toLocaleString('ar',{dateStyle:'medium',timeStyle:'short'})} · ${c.send_count} مرة</p>`:''}
           <div id="chdSendLog"></div>
         </div>`:''}
@@ -332,7 +333,7 @@ async function openContractDetailPanel(contractId){
       <div id="chdClauses"></div>
     </div>`:''}
     <div class="sa-section" style="margin-top:14px">
-      <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للعميل في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
+      <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للشريك في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
       <div id="chdAttachments"><div class="skeleton" style="height:40px"></div></div>
     </div>
 
@@ -343,6 +344,7 @@ async function openContractDetailPanel(contractId){
   </div>`;
 
   // ===== نموذج العقد ومحرر البنود =====
+  CHD_ORG=c.org||null;
   CHD_TEMPLATE=c.template_key||'alamaa_v1';
   CHD_OVERRIDES=Object.assign({excluded:[],added:[]},c.clause_overrides||{});
   if(!Array.isArray(CHD_OVERRIDES.excluded))CHD_OVERRIDES.excluded=[];
@@ -414,7 +416,7 @@ async function openContractDetailPanel(contractId){
         <input id="chdAttUrl" placeholder="https://..." style="flex:1;min-width:200px" dir="ltr">
         <button class="reqbtn" id="chdAttAdd">إضافة مرفق</button>
       </div>
-      <p class="sa-hint" style="margin-top:6px">ارفع الملف على Drive أو أي مساحة تخزين، ثم الصق رابطه هنا ليظهر للعميل مع العقد.</p>`
+      <p class="sa-hint" style="margin-top:6px">ارفع الملف على Drive أو أي مساحة تخزين، ثم الصق رابطه هنا ليظهر للشريك مع العقد.</p>`
       :'<p class="sa-hint" style="margin-top:8px">🔒 لا يمكن تعديل مرفقات عقد وقّع عليه طرف.</p>');
 
     if(editable){
@@ -506,13 +508,13 @@ async function openContractDetailPanel(contractId){
        try{
          const r=await signContractAsStaff(contractId,name,sig.data||('نصي: '+sig.typed));
          if(r&&r.ok){
-           toast('وُقِّع العقد من علامة — أرسل الرابط للعميل الآن','ok');
+           toast('وُقِّع العقد من علامة — أرسل الرابط للشريك الآن','ok');
            CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId);
          }else toast((r&&r.error==='not_approved')?'العقد غير معتمَد داخليًا بعد':'تعذّر التوقيع','err');
        }catch(e){toast('تعذّر التوقيع: '+e.message,'err');btn.disabled=false;}
      };
    };}
-  // الأصل: عرض نسخه الحالية + إتاحة إسناده لعميل جديد (نسخة مستقلة)
+  // الأصل: عرض نسخه الحالية + إتاحة إسناده لشريك جديد (نسخة مستقلة)
   if(!c.client_id&&!c.source_contract_id){
     (async()=>{
       const box=document.getElementById('chdInstances');
@@ -529,9 +531,9 @@ async function openContractDetailPanel(contractId){
               <div><span class="chub-num">${esc(i.contract_number||'—')}</span> <b>${esc(i.client_name||'—')}</b>
                 <span class="sa-hint"> · ${CH_STL[i.status]||i.status}${i.project_name?' · 📁 '+esc(i.project_name):''}${i.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}</span></div>
               <button class="reqbtn" data-openinst="${i.id}">فتح ←</button>
-            </div>`).join(''):'<p class="sa-hint">لا نسخ بعد — أسنِد هذا الأصل لعميل لإنشاء أول نسخة.</p>'}
+            </div>`).join(''):'<p class="sa-hint">لا نسخ بعد — أسنِد هذا الأصل لشريك لإنشاء أول نسخة.</p>'}
           <div class="sa-form" style="margin-top:12px">
-            <select id="chdAssignClient"><option value="">اختر العميل لإنشاء نسخة له...</option>${
+            <select id="chdAssignClient"><option value="">اختر الشريك لإنشاء نسخة له...</option>${
               (allCl||[]).filter(x=>!taken.has(x.name)).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
             <button class="reqbtn" id="chdAssignGo">إنشاء نسخة</button>
           </div>
@@ -539,10 +541,10 @@ async function openContractDetailPanel(contractId){
       document.querySelectorAll('[data-openinst]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.openinst));
       const go=async()=>{
         const cid=document.getElementById('chdAssignClient').value;
-        if(!cid){toast('اختر العميل','warn');return;}
+        if(!cid){toast('اختر الشريك','warn');return;}
         try{
           const r=await assignContractToClient(contractId,cid);
-          toast('أُنشئت نسخة خاصة بالعميل ('+r.number+') — الأصل بقي كما هو','ok');
+          toast('أُنشئت نسخة خاصة بالشريك ('+r.number+') — الأصل بقي كما هو','ok');
           CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();
           openContractDetailPanel(r.id);
         }catch(e){toast(e.message,'err');}
@@ -577,7 +579,7 @@ async function openContractDetailPanel(contractId){
    };}
   document.getElementById('chdDuplicate').onclick=async()=>{
     const r=await dialog({title:'تكرار العقد',
-      message:'ستُنشأ نسخة جديدة مستقلة بكل بيانات هذا العقد ومرفقاته، بلا عميل ولا مشروع — قابلة للتعديل والإسناد كأصل جديد.',
+      message:'ستُنشأ نسخة جديدة مستقلة بكل بيانات هذا العقد ومرفقاته، بلا شريك ولا مشروع — قابلة للتعديل والإسناد كأصل جديد.',
       fields:[{key:'name',label:'اسم النسخة الجديدة',value:(c.contract_name||'')+' (نسخة)'}],confirmText:'تكرار'});
     if(!r)return;
     try{
@@ -624,7 +626,7 @@ async function openContractDetailPanel(contractId){
 }
 
 // ===== لوحة إنشاء عقد جديد: مستقل تمامًا — لا خيار مشروع هنا إطلاقًا =====
-// الفصل الحقيقي المطلوب: كل عقد يُنشأ هنا مستقلًا (بنطاق العميل)، بلا أي ربط بمشروع.
+// الفصل الحقيقي المطلوب: كل عقد يُنشأ هنا مستقلًا (بنطاق الشريك)، بلا أي ربط بمشروع.
 // الربط يحدث لاحقًا وحصرًا من داخل ذلك المشروع («🔗 ربط عقد قائم» في تبويب عقوده) —
 // لا خيار "مرتبط بمشروع" هنا نهائيًا، تفاديًا لأي التباس حول أين يحدث الربط فعليًا.
 async function openNewContractPanel(){
@@ -633,7 +635,7 @@ async function openNewContractPanel(){
   const panel=document.getElementById('chubPanel');
   panel.innerHTML=`<div class="chub-detail">
     <div class="chub-detail-hd"><h3>عقد جديد</h3><button class="reqbtn" id="chnClose" style="margin-inline-start:auto">✕ إغلاق</button></div>
-    <p class="sa-hint">العقد كيان مستقل في المحفظة: يُنشأ هنا باسمه ورقمه الخاصَّين، بلا ربط بمشروع، والعميل اختياري. الربط بمشروع يحدث لاحقًا من داخل ذلك المشروع ← عقوده ← «🔗 ربط عقد قائم».</p>
+    <p class="sa-hint">العقد كيان مستقل في المحفظة: يُنشأ هنا باسمه ورقمه الخاصَّين، بلا ربط بمشروع، والشريك اختياري. الربط بمشروع يحدث لاحقًا من داخل ذلك المشروع ← عقوده ← «🔗 ربط عقد قائم».</p>
 
     <div class="chub-choice-row">
       <label class="chub-choice"><input type="radio" name="chnType" value="standard" checked> نموذج قياسي (17 بندًا رسميًا)</label>
@@ -645,7 +647,7 @@ async function openNewContractPanel(){
       <input id="chnNumber" placeholder="رقم العقد (تلقائي إن تُرك فارغًا)" style="width:220px;font-family:monospace" dir="ltr">
     </div>
     <div class="sa-form" style="margin-top:10px">
-      <select id="chnClient"><option value="">العميل (اختياري — يمكن تحديده لاحقًا عند الربط بمشروع)</option>${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+      <select id="chnClient"><option value="">الشريك (اختياري — يمكن تحديده لاحقًا عند الربط بمشروع)</option>${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
     </div>
     <div id="chnRest" style="margin-top:14px">
       <div id="chnStandardFields">
@@ -682,6 +684,7 @@ async function openNewContractPanel(){
 
   let currentClient={};
   CHD_TEMPLATE='alamaa_v1';
+  CHD_ORG=null;
   CHD_OVERRIDES={excluded:[],added:[],edited:{}};
   const typeOf=()=>document.querySelector('input[name="chnType"]:checked').value;
   const refreshPreview=()=>{
@@ -701,7 +704,7 @@ async function openNewContractPanel(){
      chubRenderClauseEditor('chnClauses',refreshPreview);refreshPreview();};}
   chubRenderClauseEditor('chnClauses',refreshPreview);
 
-  // العميل اختياري تمامًا: اختياره يُثري المعاينة ببياناته فقط، وغيابه لا يمنع الإنشاء إطلاقًا
+  // الشريك اختياري تمامًا: اختياره يُثري المعاينة ببياناته فقط، وغيابه لا يمنع الإنشاء إطلاقًا
   document.getElementById('chnClient').onchange=async(e)=>{
     const cid=e.target.value;
     if(!cid){currentClient={};refreshPreview();return;}
