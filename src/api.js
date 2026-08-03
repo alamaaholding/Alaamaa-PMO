@@ -594,6 +594,38 @@ async function duplicateContract(contractId,newName){
   if(!data.ok)throw new Error(data.error||'تعذّر التكرار');
   return data;
 }
+// ===== إرسال العقد بالبريد عبر دالة الحافة (المفتاح يبقى سرًّا على الخادم) =====
+async function sendContractEmail(contract,toEmail,kind){
+  const signUrl=location.origin+location.pathname+'#/sign/'+contract.token;
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session)throw new Error('انتهت الجلسة — سجّل الدخول مجددًا');
+  const url=SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/send-contract-email';
+  let out;
+  try{
+    const res=await fetch(url,{method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},
+      body:JSON.stringify({to:toEmail,contractName:contract.contract_name,
+        contractNumber:contract.contract_number,clientName:contract.client_name,signUrl,kind:kind||'invite'})});
+    out=await res.json();
+  }catch(e){ out={ok:false,error:'network',message:e.message}; }
+  // يُسجَّل النجاح والفشل كلاهما — سجل الإرسال يجب أن يعكس الحقيقة لا النجاح فقط
+  try{ await sb.rpc('pmo_log_contract_send',{p_contract_id:contract.id,p_to_email:toEmail,
+    p_kind:kind||'invite',p_status:out&&out.ok?'sent':'failed',p_error:out&&out.ok?null:(out.message||out.error||'')}); }catch(e){}
+  if(!out||!out.ok){
+    throw new Error(out&&out.error==='missing_key'
+      ?'لم يُضبط مفتاح Resend بعد في إعدادات دالة الإرسال — راجع الإعداد أولًا'
+      :(out&&out.message)||'تعذّر الإرسال');
+  }
+  return out;
+}
+async function fetchContractSends(contractId){
+  const {data,error}=await sb.rpc('pmo_contract_sends_list',{p_contract_id:contractId});
+  if(error)throw error;return data||[];
+}
+async function fetchExpiringContracts(){
+  const {data,error}=await sb.rpc('pmo_expiring_contracts');
+  if(error)throw error;return data||[];
+}
 async function fetchContractAttachments(contractId){
   const {data,error}=await sb.rpc('pmo_contract_attachments_list',{p_contract_id:contractId});
   if(error)throw error;return data||[];
@@ -654,7 +686,10 @@ async function updateContract(contractId,opts){
     p_contract_name:opts.contractName||null,
     p_contract_number:opts.contractNumber||null,
     p_template_key:opts.templateKey||null,
-    p_clause_overrides:opts.clauseOverrides||null
+    p_clause_overrides:opts.clauseOverrides||null,
+    p_duration_months:opts.durationMonths?Number(opts.durationMonths):null,
+    p_end_date:opts.endDate||null,
+    p_auto_renew:opts.autoRenew!=null?!!opts.autoRenew:null
   });
   if(error)throw error;
   if(!data.ok)throw new Error(
