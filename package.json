@@ -1,0 +1,14 @@
+{
+  "name": "alaamaa-pmo",
+  "version": "2.0.0",
+  "private": true,
+  "description": "منصة علامة لحوكمة المشاريع — المرحلة 2 (الحوكمة الكاملة)",
+  "scripts": {
+    "build": "python3 build.py",
+    "test": "node tests/run.js",
+    "check": "node tests/run.js"
+  },
+  "devDependencies": {
+    "jsdom": "^26.0.0"
+  }
+}
