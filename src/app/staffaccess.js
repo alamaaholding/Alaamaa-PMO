@@ -30,7 +30,7 @@ async function renderStaffAccess(){
 function saScopeLabel(g){
   if(g.scope_type==='company')return 'الشركة كاملة';
   if(g.scope_type==='department')return DEPTS[g.scope_value]||g.scope_value;
-  if(g.scope_type==='client'){const c=CLIENTS.find(x=>x.id===g.scope_value);return c?('كل مشاريع: '+c.name):'عميل محذوف';}
+  if(g.scope_type==='client'){const c=CLIENTS.find(x=>x.id===g.scope_value);return c?('كل مشاريع: '+c.name):'شريك محذوف';}
   const p=SA_PROJECTS.find(x=>x.id===g.scope_value);
   return p?(p._client+' — '+p.name):'مشروع محذوف';
 }
@@ -76,7 +76,7 @@ function renderSABody(){
         <select id="saScopeType">
           <option value="company">الشركة كاملة</option>
           <option value="department">قسم بعينه</option>
-          <option value="client">عميل بعينه (كل مشاريعه)</option>
+          <option value="client">شريك بعينه (كل مشاريعه)</option>
           <option value="project">مشروع بعينه</option>
         </select>
         <select id="saScopeValue" style="display:none">${deptOpts}</select>
@@ -92,7 +92,7 @@ function renderSABody(){
     </div>
     <div class="sa-section">
       <h4>قسم كل مشروع <span class="sa-hint">(لازم لعمل صلاحية «قسم» — بلا قسم، المشروع لا يظهر لأي صلاحية قسمية)</span></h4>
-      <table class="tktbl"><thead><tr><th>العميل</th><th>المشروع</th><th>القسم</th></tr></thead><tbody>${deptTable}</tbody></table>
+      <table class="tktbl"><thead><tr><th>الشريك</th><th>المشروع</th><th>القسم</th></tr></thead><tbody>${deptTable}</tbody></table>
     </div>`;
 
   const stEl=$('#saScopeType'),svEl=$('#saScopeValue'),spEl=$('#saScopeProject'),scEl=$('#saScopeClient');
