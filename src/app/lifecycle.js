@@ -155,7 +155,7 @@ async function runProjectMenuAction(action,projectId,projectName){
     }catch(e){toast('تعذّر الاسترجاع: '+e.message,'err');}
   }else if(action==='pause'){
     const r=await dialog({title:'إيقاف مؤقت',
-      message:'سيتوقف هذا المشروع تحديدًا مؤقتًا — بياناته وبنوده تبقى كما هي كاملة، ولا يتأثر أي مشروع آخر لنفس العميل. يمكن استئنافه في أي وقت.',
+      message:'سيتوقف هذا المشروع تحديدًا مؤقتًا — بياناته وبنوده تبقى كما هي كاملة، ولا يتأثر أي مشروع آخر لنفس الشريك. يمكن استئنافه في أي وقت.',
       fields:[{key:'reason',label:'السبب (اختياري)',value:''}],confirmText:'إيقاف مؤقت'});
     if(!r)return;
     try{
@@ -320,20 +320,20 @@ async function saveTracks(){
   }catch(e){toast('تعذّر الحفظ (الرمز مكرر؟): '+e.message,'err');if(btn)btn.disabled=false;}
 }
 
-// إنشاء عميل جديد مباشرة (سدّ فجوة الرحلة الأولى)
+// إنشاء شريك جديد مباشرة (سدّ فجوة الرحلة الأولى)
 
 async function addNewClient(){
-  const r=await dialog({title:'عميل جديد',
-    message:'يُنشأ العميل نشطًا. يمكنك بعدها إضافة مشروعه الأول من قائمة ⋮ على بطاقته.',
+  const r=await dialog({title:'شريك جديد',
+    message:'يُنشأ الشريك نشطًا. يمكنك بعدها إضافة مشروعه الأول من قائمة ⋮ على بطاقته.',
     fields:[
-      {key:'name',label:'اسم العميل / الشركة',placeholder:'مثل: شركة الأفق'},
-      {key:'color',label:'لون العميل (للتمييز البصري)',type:'color',value:'#C8A06B'}
-    ],confirmText:'إنشاء العميل'});
+      {key:'name',label:'اسم الشريك / الشركة',placeholder:'مثل: شركة الأفق'},
+      {key:'color',label:'لون الشريك (للتمييز البصري)',type:'color',value:'#C8A06B'}
+    ],confirmText:'إنشاء الشريك'});
   if(!r||!r.name)return;
   try{
     const c=await insertClient(r.name,r.color);
     await loadClients();
-    toast('أُنشئ العميل «'+r.name+'» — أضف مشروعه الأول من ⋮','ok');
+    toast('أُنشئ الشريك «'+r.name+'» — أضف مشروعه الأول من ⋮','ok');
     renderPortfolio();
   }catch(err){toast('تعذّر الإنشاء: '+err.message,'err');}
 }
@@ -343,24 +343,24 @@ async function openClientMenu(clientId){
   const c=CLIENTS.find(x=>x.id===clientId); if(!c)return;
   const r=await dialog({title:'إجراءات: '+c.name,
     fields:[{key:'action',label:'الإجراء',type:'select',value:'edit',options:[
-      {v:'edit',t:'تعديل بيانات العميل (الاسم واللون)'},
-      {v:'newproject',t:'+ مشروع جديد لهذا العميل'},
-      {v:'access',t:'إدارة وصول العميل (البريد)'},
-      {v:'archive',t:'أرشفة العميل'},
+      {v:'edit',t:'تعديل بيانات الشريك (الاسم واللون)'},
+      {v:'newproject',t:'+ مشروع جديد لهذا الشريك'},
+      {v:'access',t:'إدارة وصول الشريك (البريد)'},
+      {v:'archive',t:'أرشفة الشريك'},
       {v:'delete',t:'طلب حذف (مهلة 30 يومًا)'}
     ]}],confirmText:'متابعة'});
   if(!r)return;
   if(r.action==='edit'){
     const e=await dialog({title:'تعديل بيانات: '+c.name,
       fields:[
-        {key:'name',label:'اسم العميل',value:c.name},
-        {key:'color',label:'لون العميل',type:'color',value:c.color||'#C8A06B'}
+        {key:'name',label:'اسم الشريك',value:c.name},
+        {key:'color',label:'لون الشريك',type:'color',value:c.color||'#C8A06B'}
       ],confirmText:'حفظ التعديلات'});
     if(!e||!e.name)return;
     try{
       await updateClientInfo(clientId,{name:e.name,color:e.color});
       c.name=e.name;c.color=e.color;
-      toast('حُدّثت بيانات العميل','ok');renderPortfolio();
+      toast('حُدّثت بيانات الشريك','ok');renderPortfolio();
     }catch(err){toast('تعذّر التحديث: '+err.message,'err');}
   }else if(r.action==='newproject'){
     const p=await dialog({title:'مشروع جديد — '+c.name,
@@ -400,15 +400,15 @@ async function openClientMenu(clientId){
 
 
 async function renderArchived(){
-  SCREEN='archived';$('#hProject').textContent='العملاء المؤرشفون';hideChrome();
-  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">العملاء المؤرشفون والمجدولون للحذف. الاسترجاع متاح طوال مهلة الـ30 يومًا.</span></div><div id="archList"><div class="skeleton" style="height:60px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
+  SCREEN='archived';$('#hProject').textContent='الشركاء المؤرشفون';hideChrome();
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">الشركاء المؤرشفون والمجدولون للحذف. الاسترجاع متاح طوال مهلة الـ30 يومًا.</span></div><div id="archList"><div class="skeleton" style="height:60px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
   $('#backP').onclick=renderPortfolio;
   const isOwner=await checkIsOwner();
   const arch=await fetchClientsByState('archived');
   const pend=await fetchClientsByState('pending_deletion');
   const aprojs=await fetchArchivedProjects();
   const list=$('#archList');
-  if(!arch.length&&!pend.length&&!aprojs.length){list.innerHTML='<div class="empty-cta"><div class="ico">'+I.archive+'</div><h3>لا عناصر مؤرشفة</h3><p>العملاء والمشاريع المؤرشفة أو المجدولة للحذف تظهر هنا.</p></div>';return;}
+  if(!arch.length&&!pend.length&&!aprojs.length){list.innerHTML='<div class="empty-cta"><div class="ico">'+I.archive+'</div><h3>لا عناصر مؤرشفة</h3><p>الشركاء والمشاريع المؤرشفة أو المجدولة للحذف تظهر هنا.</p></div>';return;}
   let html='';
   if(pend.length){
     html+='<h4 class="arch-sec">بانتظار الحذف</h4>';
@@ -460,11 +460,11 @@ async function renderArchived(){
     successMsg:'تم الاسترجاع',
     onSuccess:async()=>{CLIENTS=await fetchClientsByState('active');renderArchived();}}));
   list.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>runLifecycleAction({
-    title:'طلب حذف',message:'بدء مهلة 30 يومًا لحذف هذا العميل؟',danger:true,confirmText:'حذف',
+    title:'طلب حذف',message:'بدء مهلة 30 يومًا لحذف هذا الشريك؟',danger:true,confirmText:'حذف',
     rpc:()=>rpcRequestDeletion(b.dataset.del),
     successMsg:'بدأت مهلة الحذف',successTone:'warn',onSuccess:renderArchived}));
   list.querySelectorAll('[data-purge]').forEach(b=>b.onclick=()=>runLifecycleAction({
-    title:'حذف نهائي',message:'تحذير: حذف نهائي لا رجعة فيه لكل بيانات العميل ومشاريعه. متأكد؟',danger:true,confirmText:'حذف نهائي',
+    title:'حذف نهائي',message:'تحذير: حذف نهائي لا رجعة فيه لكل بيانات الشريك ومشاريعه. متأكد؟',danger:true,confirmText:'حذف نهائي',
     rpc:()=>rpcPurgeClient(b.dataset.purge),
     successMsg:'تم الحذف النهائي',failMsg:'تعذّر — تحقق من المهلة والصلاحية',onSuccess:renderArchived}));
 }
@@ -472,7 +472,7 @@ async function renderArchived(){
 // ===== سجل التدقيق على مستوى المكتب =====
 // القاموس موحّد في config.js (AUDIT_ACTIONS) ويشترك فيه سجل المكتب وسجل المشروع.
 
-// ===== إسناد الفريق (داخلي — لا يظهر للعميل بأي شكل) =====
+// ===== إسناد الفريق (داخلي — لا يظهر للشريك بأي شكل) =====
 async function openAssignPanel(projectId,projectName){
   $('#assignOverlay').style.display='flex';
   $('#assignTitle').textContent='إسناد الفريق: '+(projectName||'');
@@ -482,7 +482,7 @@ async function openAssignPanel(projectId,projectName){
     const aset=new Set(assigned);
     const roleAr={admin:'إدارة المشاريع',manager:'فريق'};
     body.innerHTML=`
-      <p class="trk-hint">أعضاء الطاقم المسندون يرون هذا المشروع في محفظتهم وخط تسليماته. المالك وإدارة المشاريع يرون الكل دائمًا. <b>العميل لا يرى الإسناد إطلاقًا.</b></p>
+      <p class="trk-hint">أعضاء الطاقم المسندون يرون هذا المشروع في محفظتهم وخط تسليماته. المالك وإدارة المشاريع يرون الكل دائمًا. <b>الشريك لا يرى الإسناد إطلاقًا.</b></p>
       ${members.map(u=>`<label class="assign-row"><input type="checkbox" data-assign="${u.id}" ${aset.has(u.id)?'checked':''}>
         <b>${esc(u.full_name||u.email)}</b><span class="assign-role">${roleAr[u.role]||u.role}</span></label>`).join('')||'<p class="pempty">لا أعضاء طاقم نشطين بعد.</p>'}
       <div class="imp-actions">
