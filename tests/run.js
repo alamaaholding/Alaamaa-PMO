@@ -1,0 +1,96 @@
+#!/usr/bin/env node
+// ===== مشغّل اختبارات منصة علامة =====
+// يبني المشروع أولًا (حتى تُختبر الحزمة المُولَّدة فعليًا لا المصدر وحده)، ثم يشغّل كل
+// ملفات tests/*.js ويجمّع النتائج. يخرج برمز فشل إن أخفق أي اختبار — وهذا ما يوقف
+// النشر في GitHub Actions.
+//
+// التشغيل:  npm test    (أو)    node tests/run.js
+// الاختبارات تقرأ ملفات المشروع بمسارات نسبية من جذر المستودع، لذا يُثبَّت cwd هنا.
+
+const { execFileSync, execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.resolve(__dirname, '..');
+process.chdir(ROOT);
+
+const BOLD = '\x1b[1m', GREEN = '\x1b[32m', RED = '\x1b[31m', DIM = '\x1b[2m', OFF = '\x1b[0m';
+
+// ===== ١) البناء أولًا =====
+console.log(`${BOLD}▸ بناء المشروع...${OFF}`);
+try {
+  execSync('python3 build.py', { stdio: 'pipe' });
+} catch (e) {
+  console.error(`${RED}✗ فشل البناء — لا يمكن تشغيل الاختبارات${OFF}`);
+  console.error(String(e.stdout || '') + String(e.stderr || ''));
+  process.exit(1);
+}
+
+// ===== ٢) فحص صياغي لكل ملفات JS المُولَّدة والمصدرية =====
+console.log(`${BOLD}▸ فحص صياغي...${OFF}`);
+const jsFiles = [
+  'app.bundle.js', 'dol.js', 'importer.js', 'pgantt.js', 'timeline.js', 'trello.js', 'qrgen.js',
+  ...fs.readdirSync('src').filter(f => f.endsWith('.js')).map(f => `src/${f}`),
+  ...fs.readdirSync('src/app').filter(f => f.endsWith('.js')).map(f => `src/app/${f}`)
+].filter(f => fs.existsSync(f));
+
+let syntaxFailed = 0;
+for (const f of jsFiles) {
+  try { execFileSync('node', ['--check', f], { stdio: 'pipe' }); }
+  catch (e) { console.error(`  ${RED}✗ خطأ صياغي: ${f}${OFF}`); syntaxFailed++; }
+}
+if (syntaxFailed) { console.error(`${RED}✗ ${syntaxFailed} ملفًا به خطأ صياغي${OFF}`); process.exit(1); }
+console.log(`  ${GREEN}✓${OFF} ${jsFiles.length} ملفًا سليمًا صياغيًا`);
+
+// ===== ٣) حارس النشر: كل ملف مُولَّد يجب أن يطابق مصدره بعد البناء =====
+// يمنع تكرار خطأ حقيقي وقع سابقًا: نُشر src/styles.css ونُسي styles.css الجذري،
+// فبقيت أنماط صفحة كاملة غائبة عن الموقع الحي رغم صحة الكود المصدري.
+console.log(`${BOLD}▸ حارس تطابق الملفات المُولَّدة...${OFF}`);
+const artifactPairs = [['src/styles.css', 'styles.css']];
+let mismatched = 0;
+for (const [src, out] of artifactPairs) {
+  if (!fs.existsSync(src) || !fs.existsSync(out)) continue;
+  if (fs.readFileSync(src, 'utf8') !== fs.readFileSync(out, 'utf8')) {
+    console.error(`  ${RED}✗ ${out} لا يطابق ${src} — شغّل build.py وانشر كليهما معًا${OFF}`);
+    mismatched++;
+  }
+}
+if (mismatched) process.exit(1);
+console.log(`  ${GREEN}✓${OFF} الملفات المُولَّدة مطابقة لمصادرها`);
+
+// ===== ٤) تشغيل ملفات الاختبار =====
+const testFiles = fs.readdirSync(__dirname)
+  .filter(f => f.startsWith('test_') && f.endsWith('.js')).sort();
+
+if (!testFiles.length) { console.error(`${RED}✗ لا ملفات اختبار${OFF}`); process.exit(1); }
+
+console.log(`${BOLD}▸ تشغيل ${testFiles.length} ملف اختبار...${OFF}\n`);
+
+let totalPass = 0, totalFail = 0, failedFiles = [];
+for (const f of testFiles) {
+  let out = '', code = 0;
+  try { out = execFileSync('node', [path.join('tests', f)], { encoding: 'utf8', timeout: 60000 }); }
+  catch (e) { out = String(e.stdout || '') + String(e.stderr || ''); code = e.status || 1; }
+
+  const m = out.match(/نجح (\d+)\s*·\s*فشل (\d+)/);
+  const pass = m ? +m[1] : 0, fail = m ? +m[2] : (code ? 1 : 0);
+  totalPass += pass; totalFail += fail;
+
+  const name = f.replace(/^test_|\.js$/g, '').padEnd(26);
+  if (fail || code) {
+    failedFiles.push(f);
+    console.log(`  ${RED}✗${OFF} ${name} ${RED}فشل ${fail}${OFF} · نجح ${pass}`);
+    out.split('\n').filter(l => l.includes('✗')).slice(0, 5).forEach(l => console.log(`      ${DIM}${l.trim()}${OFF}`));
+    if (!m) console.log(`      ${DIM}${out.trim().split('\n').slice(-3).join('\n      ')}${OFF}`);
+  } else {
+    console.log(`  ${GREEN}✓${OFF} ${name} ${GREEN}${pass}${OFF}`);
+  }
+}
+
+console.log('\n' + '─'.repeat(46));
+if (totalFail || failedFiles.length) {
+  console.log(`${RED}${BOLD}فشل: ${totalFail} · نجح: ${totalPass}${OFF}`);
+  console.log(`${RED}ملفات بها إخفاق: ${failedFiles.join(', ')}${OFF}`);
+  process.exit(1);
+}
+console.log(`${GREEN}${BOLD}✓ نجح ${totalPass} · صفر فشل${OFF}`);
