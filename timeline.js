@@ -45,7 +45,7 @@ function _tlPaint(){
 function _tlHtml(ctx){
   const rows=ctx.rows||[],today=_tlToday();
   const isProject=ctx.mode==='project';
-  const intro=`<div class="hintbar">📦 <b>خط التسليمات:</b> سجل داخلي زمني للتبادل — ما أرسلناه وما ننتظره من العميل أو الأقسام. ${isProject?'':'(كل المشاريع — نظرة شاملة للمكتب)'} أداة داخلية لا تظهر للعميل.</div>`;
+  const intro=`<div class="hintbar">📦 <b>خط التسليمات:</b> سجل داخلي زمني للتبادل — ما أرسلناه وما ننتظره من الشريك أو الأقسام. ${isProject?'':'(كل المشاريع — نظرة شاملة للمكتب)'} أداة داخلية لا تظهر للشريك.</div>`;
 
   // شريط الأدوات: فلتر المصادر + إضافة (في وضع المشروع فقط)
   const srcChips=Object.keys(DELIV_SRC).map(k=>{
@@ -111,7 +111,7 @@ function _tlHtml(ctx){
   const band=`<div class="tl-scroll"><div class="tl-band" style="width:${W}px;--toph:${topH}px;--both:${botH}px">
     <div class="tl-head" style="width:${W}px">${months}</div>
     <div class="tl-top" style="height:${topH}px">${internal.out}</div>
-    <div class="tl-axis"><span class="tl-axis-lbl up">▲ منّا (الفريق/الأقسام)</span><span class="tl-axis-lbl dn">▼ من العميل</span>${todayLine}</div>
+    <div class="tl-axis"><span class="tl-axis-lbl up">▲ منّا (الفريق/الأقسام)</span><span class="tl-axis-lbl dn">▼ من الشريك</span>${todayLine}</div>
     <div class="tl-bot" style="height:${botH}px">${client.out}</div>
   </div></div>`;
 
