@@ -610,7 +610,9 @@ async function sendContractEmail(contract,toEmail,kind){
   }catch(e){ out={ok:false,error:'network',message:e.message}; }
   // يُسجَّل النجاح والفشل كلاهما — سجل الإرسال يجب أن يعكس الحقيقة لا النجاح فقط
   try{ await sb.rpc('pmo_log_contract_send',{p_contract_id:contract.id,p_to_email:toEmail,
-    p_kind:kind||'invite',p_status:out&&out.ok?'sent':'failed',p_error:out&&out.ok?null:(out.message||out.error||'')}); }catch(e){}
+    p_kind:kind||'invite',p_status:out&&out.ok?'sent':'failed',
+    p_error:out&&out.ok?null:(out.message||out.error||''),
+    p_resend_id:(out&&out.id)||null}); }catch(e){}
   if(!out||!out.ok){
     throw new Error(out&&out.error==='missing_key'
       ?'لم يُضبط مفتاح Resend بعد في إعدادات دالة الإرسال — راجع الإعداد أولًا'
@@ -631,6 +633,16 @@ async function checkEmailReady(){
       :(out&&out.message)||'الدالة غير منشورة أو غير متاحة');
   }
   return out;
+}
+async function fetchContractFunnel(contractId){
+  const {data,error}=await sb.rpc('pmo_contract_funnel',{p_contract_id:contractId});
+  if(error)throw error;return data||{};
+}
+// حفظ بريد الشريك في ملفه مرة واحدة — يُستورَد تلقائيًا في كل عقد لاحق فلا يُعاد إدخاله
+async function saveClientEmail(clientId,email){
+  if(!clientId||!email)return;
+  const {error}=await sb.from('pmo_clients').update({contact_email:email}).eq('id',clientId);
+  if(error)throw error;
 }
 async function fetchContractSends(contractId){
   const {data,error}=await sb.rpc('pmo_contract_sends_list',{p_contract_id:contractId});
