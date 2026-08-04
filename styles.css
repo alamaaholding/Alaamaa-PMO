@@ -87,6 +87,17 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
   background:var(--soft-2);padding:2px 7px;border-radius:5px;direction:ltr;display:inline-block}
 .chub-tpl-tag{background:var(--blue-bg);color:var(--blue)}
 .chub-copy-tag{background:var(--ok-bg);color:var(--ok)}
+.chd-funnel{display:flex;flex-direction:column;gap:2px;text-align:start}
+.chd-step{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;font-size:.75rem;
+  position:relative;transition:var(--t)}
+.chd-step-icon{width:18px;text-align:center;flex-shrink:0;font-size:.85rem}
+.chd-step-label{font-weight:700;flex:1}
+.chd-step-time{font-size:.68rem;color:var(--muted);white-space:nowrap}
+.chd-step.done{background:var(--ok-bg);color:var(--ok)}
+.chd-step.done .chd-step-time{color:var(--ok);opacity:.75}
+.chd-step.next{background:var(--warn-bg);color:var(--warn)}
+.chd-step.next .chd-step-time{color:var(--warn);opacity:.85}
+.chd-step.pending{color:var(--muted);opacity:.5}
 .chd-send-box{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line-soft)}
 .chd-send-box input{padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.8rem}
 .chub-expiry-banner{background:var(--warn-bg);border:1px solid color-mix(in srgb, var(--warn) 30%, transparent);
