@@ -618,6 +618,20 @@ async function sendContractEmail(contract,toEmail,kind){
   }
   return out;
 }
+// فحص جاهزية الإرسال: يؤكد نشر الدالة ووجود السرَّين، دون إرسال أي بريد فعلي
+async function checkEmailReady(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session)throw new Error('انتهت الجلسة — سجّل الدخول مجددًا');
+  const res=await fetch(SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/send-contract-email',{
+    method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},
+    body:JSON.stringify({selfTest:true})});
+  const out=await res.json();
+  if(!out||!out.ok){
+    throw new Error(out&&out.error==='missing_key'?'الدالة منشورة لكن مفتاح RESEND_API_KEY غير مضبوط'
+      :(out&&out.message)||'الدالة غير منشورة أو غير متاحة');
+  }
+  return out;
+}
 async function fetchContractSends(contractId){
   const {data,error}=await sb.rpc('pmo_contract_sends_list',{p_contract_id:contractId});
   if(error)throw error;return data||[];
