@@ -268,15 +268,16 @@ async function openContractDetailPanel(contractId){
           <button class="reqbtn" data-chdcopy="${link}">نسخ الرابط</button>
           <button class="reqbtn" id="chdExport">📄 تصدير PDF (بالملاحق)</button>
         </div>
-        ${(c.internal_approved&&c.status!=='void'&&!cl)?`
+        ${(c.internal_approved&&c.status!=='void')?`
         <div class="chd-send-box">
-          <input id="chdSendTo" type="email" placeholder="بريد الشريك" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin-bottom:6px">
+          <div id="chdFunnel"><p class="sa-hint">جارٍ تحميل حالة الإرسال...</p></div>
+          ${!cl?`
+          <input id="chdSendTo" type="email" placeholder="بريد الشريك" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin:8px 0 6px">
+          ${!c.client_contact_email&&c.client_id?'<label class="sa-hint" style="display:flex;gap:5px;align-items:center;margin-bottom:6px"><input type="checkbox" id="chdSaveEmail" checked> احفظه في ملف الشريك (فلا يُعاد إدخاله)</label>':''}
           <button class="hbtn" id="chdSendBtn" style="background:var(--gold);border-color:var(--gold);width:100%">
-            ${c.send_count>0?'🔔 إرسال تذكير':'📧 إرسال للشريك'}</button>
+            ${c.send_count>0?'🔔 إرسال تذكير':'📧 إرسال للشريك'}</button>`:''}
           <button class="reqbtn" id="chdMailCheck" style="width:100%;margin-top:6px;font-size:.72rem">🔍 فحص جاهزية الإرسال</button>
           <div id="chdMailStatus"></div>
-          ${c.last_sent_at?`<p class="sa-hint" style="margin-top:6px">آخر إرسال: ${new Date(c.last_sent_at).toLocaleString('ar',{dateStyle:'medium',timeStyle:'short'})} · ${c.send_count} مرة</p>`:''}
-          <div id="chdSendLog"></div>
         </div>`:''}
       </div>
 
@@ -471,7 +472,8 @@ async function openContractDetailPanel(contractId){
      box.innerHTML='<p class="sa-hint" style="margin-top:6px">جارٍ الفحص...</p>';
      try{
        const r=await checkEmailReady();
-       box.innerHTML='<div class="ctr-integrity ok" style="margin-top:6px;font-size:.75rem">✅ جاهز للإرسال · المرسِل: '+esc(r.from||'—')+'</div>';
+       box.innerHTML='<div class="ctr-integrity ok" style="margin-top:6px;font-size:.75rem">✅ جاهز للإرسال · المرسِل: '+esc(r.from||'—')
+         +(r.webhookConfigured?'<br>✅ تتبّع الوصول والفتح مفعَّل':'<br>ℹ️ تتبّع الوصول والفتح غير مفعَّل (يحتاج ضبط WEBHOOK_SECRET وربطه في Resend)')+'</div>';
      }catch(e){
        box.innerHTML='<div class="ctr-integrity warn" style="margin-top:6px;font-size:.75rem">⚠ '+esc(e.message)+'</div>';
      }
@@ -483,20 +485,54 @@ async function openContractDetailPanel(contractId){
      sendBtn.disabled=true;const old=sendBtn.textContent;sendBtn.textContent='جارٍ الإرسال...';
      try{
        await sendContractEmail(c,to,c.send_count>0?'reminder':'invite');
+       // حفظ البريد في ملف الشريك مرة واحدة — لا يُعاد إدخاله في أي عقد لاحق
+       const saveBox=document.getElementById('chdSaveEmail');
+       if(saveBox&&saveBox.checked&&c.client_id){
+         try{ await saveClientEmail(c.client_id,to); }catch(e){}
+       }
        toast('أُرسل العقد إلى '+to,'ok');
        CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId);
      }catch(e){toast(e.message,'err');sendBtn.disabled=false;sendBtn.textContent=old;}
    };}
-  // سجل الإرسال — يعرض النجاح والفشل معًا بصدق
+
+  // ===== مسار الرسالة: أُرسلت ← وصلت ← فُتحت ← نُقر ← وُقِّع =====
   (async()=>{
-    const logBox=document.getElementById('chdSendLog');
-    if(!logBox)return;
-    let sends=[];try{sends=await fetchContractSends(contractId);}catch(e){return;}
-    if(!sends.length)return;
-    logBox.innerHTML='<div style="margin-top:8px;text-align:start">'+sends.slice(0,4).map(x=>
-      `<div class="sa-hint" style="padding:3px 0">${x.status==='sent'?'✅':'⚠'} ${esc(x.to_email)} · ${
-        new Date(x.sent_at).toLocaleDateString('ar',{month:'short',day:'numeric'})}${
-        x.status==='failed'?' — فشل':''}</div>`).join('')+'</div>';
+    const box=document.getElementById('chdFunnel');
+    if(!box)return;
+    let f={};
+    try{ f=await fetchContractFunnel(contractId); }
+    catch(e){ box.innerHTML='<p class="sa-hint">تعذّر تحميل حالة الإرسال</p>'; return; }
+
+    if(!f.has_send){
+      box.innerHTML='<p class="sa-hint">📭 لم يُرسل هذا العقد للشريك بعد.</p>';
+      return;
+    }
+    const fmt=d=>d?new Date(d).toLocaleString('ar',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):null;
+    // الخطوة تُعدّ محقَّقة إن تحقّقت هي أو أي خطوة بعدها (البريد قد يصل بلا إشعار فتح مثلًا)
+    const steps=[
+      {k:'أُرسلت',      at:f.sent_at,      icon:'📤'},
+      {k:'وصلت',        at:f.delivered_at, icon:'📬'},
+      {k:'فُتحت',       at:f.opened_at,    icon:'👁'},
+      {k:'نُقر الرابط', at:f.clicked_at,   icon:'🖱'},
+      {k:'وُقِّع',       at:f.signed_at,    icon:'✍️'}
+    ];
+    const lastDone=steps.reduce((acc,s,i)=>s.at?i:acc,-1);
+    box.innerHTML=`
+      <div class="chd-funnel">
+        ${f.bounced_at?`<div class="ctr-integrity warn" style="font-size:.74rem;margin-bottom:8px">
+          ⚠ ارتدّت الرسالة${f.bounce_reason?' — '+esc(f.bounce_reason):''} — تحقّق من صحة البريد</div>`:''}
+        ${steps.map((s,i)=>{
+          const done=!!s.at, current=(i===lastDone+1&&!done);
+          return `<div class="chd-step ${done?'done':(current?'next':'pending')}">
+            <span class="chd-step-icon">${done?s.icon:'○'}</span>
+            <span class="chd-step-label">${s.k}</span>
+            <span class="chd-step-time">${done?fmt(s.at):(current?'بانتظاره':'—')}</span>
+          </div>`;}).join('')}
+      </div>
+      <p class="sa-hint" style="margin-top:6px">
+        📧 ${esc(f.to_email||'')} · ${f.total_sends} إرسال${f.failed_sends?` · ${f.failed_sends} فاشل`:''}
+        ${!f.tracking_active&&f.sent_at?'<br>ℹ️ تتبّع الوصول والفتح يتطلب ربط Webhook في Resend':''}
+      </p>`;
   })();
   {const sb2=document.getElementById('chdSignNow');
    if(sb2)sb2.onclick=()=>{
