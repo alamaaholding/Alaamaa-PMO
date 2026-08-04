@@ -273,6 +273,8 @@ async function openContractDetailPanel(contractId){
           <input id="chdSendTo" type="email" placeholder="بريد الشريك" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin-bottom:6px">
           <button class="hbtn" id="chdSendBtn" style="background:var(--gold);border-color:var(--gold);width:100%">
             ${c.send_count>0?'🔔 إرسال تذكير':'📧 إرسال للشريك'}</button>
+          <button class="reqbtn" id="chdMailCheck" style="width:100%;margin-top:6px;font-size:.72rem">🔍 فحص جاهزية الإرسال</button>
+          <div id="chdMailStatus"></div>
           ${c.last_sent_at?`<p class="sa-hint" style="margin-top:6px">آخر إرسال: ${new Date(c.last_sent_at).toLocaleString('ar',{dateStyle:'medium',timeStyle:'short'})} · ${c.send_count} مرة</p>`:''}
           <div id="chdSendLog"></div>
         </div>`:''}
@@ -463,6 +465,17 @@ async function openContractDetailPanel(contractId){
 
   if(panel.scrollIntoView)panel.scrollIntoView({behavior:'smooth',block:'start'});
   document.getElementById('chdClose').onclick=()=>{panel.innerHTML='';};
+  {const mc=document.getElementById('chdMailCheck');
+   if(mc)mc.onclick=async()=>{
+     const box=document.getElementById('chdMailStatus');
+     box.innerHTML='<p class="sa-hint" style="margin-top:6px">جارٍ الفحص...</p>';
+     try{
+       const r=await checkEmailReady();
+       box.innerHTML='<div class="ctr-integrity ok" style="margin-top:6px;font-size:.75rem">✅ جاهز للإرسال · المرسِل: '+esc(r.from||'—')+'</div>';
+     }catch(e){
+       box.innerHTML='<div class="ctr-integrity warn" style="margin-top:6px;font-size:.75rem">⚠ '+esc(e.message)+'</div>';
+     }
+   };}
   {const sendBtn=document.getElementById('chdSendBtn');
    if(sendBtn)sendBtn.onclick=async()=>{
      const to=document.getElementById('chdSendTo').value.trim();
