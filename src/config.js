@@ -21,6 +21,15 @@ const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:tr
 // لا الدور العام وحده. كانت myAccessLevelFor محسوبة منذ إنشاء نظام الصلاحيات لكنها لم تُستخدَم
 // في أي مكان فعليًا — أي منح «عرض فقط» كان شكليًا بالكامل ولا يمنع أي تعديل حقيقي.
 const EDIT_ACTIONS=['editStruct','editProg','editReqs','approveContract'];
+// ===== نافذة تنفيذ التغيير =====
+// طلب تغيير بنيوي معتمَد ولم يُنفَّذ بعد يفتح تعديل بنية الخطة مؤقتًا رغم تثبيت خط الأساس،
+// وإلا بقي الطلب معتمَدًا بلا سبيل لتنفيذه (أداة الإضافة تختفي عند التثبيت).
+const CR_STRUCTURAL=['add','remove','deps','other'];
+function openCRs(){
+  if(typeof CRS==='undefined'||!CRS)return [];
+  return CRS.filter(c=>c.status==='approved'&&!c.executed_at&&CR_STRUCTURAL.includes(c.kind));
+}
+function structuralUnlocked(){return openCRs().length>0;}
 function can(p){
   if(!(PERMS[ROLE]&&PERMS[ROLE][p]))return false;
   if(EDIT_ACTIONS.includes(p)&&!IS_OWNER&&(MY_ACCESS||[]).length&&typeof PID!=='undefined'&&PID){
