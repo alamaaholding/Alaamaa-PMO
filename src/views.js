@@ -198,7 +198,7 @@ function bindProjFilterBar(){
 }
 
 function vTable(){
-  const S=SCHED,T=TRACK;const editStruct=can('editStruct')&&PROJECT.status!=='baselined';const editProg=can('editProg');
+  const S=SCHED,T=TRACK;const editStruct=can('editStruct')&&(PROJECT.status!=='baselined'||structuralUnlocked());const editProg=can('editProg');
   const colspan=editStruct?12:11;
   let rows='',last=null;
   visibleTasks().forEach(t=>{
@@ -254,7 +254,16 @@ function vTable(){
   });
   const MOBILE=(typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(max-width:700px)').matches);
   const editHead=editStruct?'<th>تحرير</th>':'';
-  const addBar=editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button>${ROLE==='pmo'?'<button class="reqbtn" id="tracksBtn" style="background:var(--ink);border-color:var(--ink);color:#fff">إدارة المراحل</button>':''}<span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'';
+  // شريط نافذة التنفيذ: يوضّح سبب فتح التعديل رغم تثبيت الأساس، وما الذي يجب فعله بعده
+  const crWin=(PROJECT.status==='baselined'&&structuralUnlocked())?`
+    <div class="lockbar cr-window-bar">
+      <span>🔓 نافذة تنفيذ تغيير معتمَد</span>
+      <span style="font-weight:400;font-size:.78rem;color:var(--muted)">
+        الخطة مثبّتة، لكن ${openCRs().length} طلب تعديل معتمَد بانتظار التنفيذ — أدوات البناء مفتوحة مؤقتًا.
+        بعد تنفيذ التعديل، علّم الطلب «نُفِّذ» من تبويب «طلبات تعديل الخطة» ثم ثبّت أساسًا جديدًا.</span>
+      <button class="reqbtn" id="goCRTab" style="background:var(--warn);border-color:var(--warn);color:#fff">↗ طلبات التعديل</button>
+    </div>`:'';
+  const addBar=crWin+(editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button>${ROLE==='pmo'?'<button class="reqbtn" id="tracksBtn" style="background:var(--ink);border-color:var(--ink);color:#fff">إدارة المراحل</button>':''}<span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'');
   const printBtn=`<div class="lockbar" style="border-inline-start-color:var(--line)"><button class="hbtn print-btn" id="printTableBtn">🖨 طباعة الجدول</button><span style="color:var(--muted);font-weight:400;font-size:.78rem">تُطبع كل مرحلة في صفحة، والأعمدة مصغّرة للقراءة.</span></div>`;
   if(MOBILE)return addBar+projFilterBar()+vCards(editStruct,editProg);
   return addBar+printBtn+projFilterBar()+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -311,7 +320,7 @@ function vCards(editStruct,editProg){
 }
 function bindTable(){
   bindProjFilterBar();
-  const editStruct=can('editStruct')&&PROJECT.status!=='baselined';
+  const editStruct=can('editStruct')&&(PROJECT.status!=='baselined'||structuralUnlocked());
   $$('#tbl [data-id]').forEach(tr=>{
     const id=tr.dataset.id,t=PROJECT.tasks.find(x=>x.id===id);
     tr.querySelectorAll('[data-f]').forEach(inp=>{
@@ -333,6 +342,7 @@ function bindTable(){
     $$('#tbl [data-del]').forEach(b=>b.onclick=()=>handleDeleteTask(b.dataset.del));
     $$('#tbl [data-deps]').forEach(b=>b.onclick=()=>openDeps(b.dataset.deps));
     const ab=$('#addTaskBtn');if(ab)ab.onclick=handleAddTask;
+    {const gc=$('#goCRTab');if(gc)gc.onclick=()=>{VIEW='cr';writeHash();render();};}
     const tb=$('#tracksBtn');if(tb)tb.onclick=openTracksManager;
     const ib=$('#importXlsxBtn');if(ib)ib.onclick=openImporter;
   }
