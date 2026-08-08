@@ -87,6 +87,14 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
   background:var(--soft-2);padding:2px 7px;border-radius:5px;direction:ltr;display:inline-block}
 .chub-tpl-tag{background:var(--blue-bg);color:var(--blue)}
 .chub-copy-tag{background:var(--ok-bg);color:var(--ok)}
+.cr-window-bar{border-inline-start-color:var(--warn)!important;background:var(--warn-bg);
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cr-window-bar>span:first-child{color:var(--warn);font-weight:800}
+.cr-exec-box{background:var(--ok-bg);border:1px solid color-mix(in srgb,var(--ok) 30%,transparent);
+  border-radius:8px;padding:10px 14px;margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cr-diff{background:var(--soft-2);border-radius:8px;padding:10px 14px;margin-top:8px;font-size:.8rem}
+.cr-diff b{display:block;margin-bottom:4px}
+.cr-diff-add{color:var(--ok)} .cr-diff-rm{color:var(--crit)} .cr-diff-ch{color:var(--warn)}
 .chd-funnel{display:flex;flex-direction:column;gap:2px;text-align:start}
 .chd-step{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;font-size:.75rem;
   position:relative;transition:var(--t)}
