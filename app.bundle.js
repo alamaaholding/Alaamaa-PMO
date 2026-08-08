@@ -1,4 +1,4 @@
-const BUILD_V='2c221961';
+const BUILD_V='ca09a6f5';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -23,6 +23,15 @@ const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:tr
 // لا الدور العام وحده. كانت myAccessLevelFor محسوبة منذ إنشاء نظام الصلاحيات لكنها لم تُستخدَم
 // في أي مكان فعليًا — أي منح «عرض فقط» كان شكليًا بالكامل ولا يمنع أي تعديل حقيقي.
 const EDIT_ACTIONS=['editStruct','editProg','editReqs','approveContract'];
+// ===== نافذة تنفيذ التغيير =====
+// طلب تغيير بنيوي معتمَد ولم يُنفَّذ بعد يفتح تعديل بنية الخطة مؤقتًا رغم تثبيت خط الأساس،
+// وإلا بقي الطلب معتمَدًا بلا سبيل لتنفيذه (أداة الإضافة تختفي عند التثبيت).
+const CR_STRUCTURAL=['add','remove','deps','other'];
+function openCRs(){
+  if(typeof CRS==='undefined'||!CRS)return [];
+  return CRS.filter(c=>c.status==='approved'&&!c.executed_at&&CR_STRUCTURAL.includes(c.kind));
+}
+function structuralUnlocked(){return openCRs().length>0;}
 function can(p){
   if(!(PERMS[ROLE]&&PERMS[ROLE][p]))return false;
   if(EDIT_ACTIONS.includes(p)&&!IS_OWNER&&(MY_ACCESS||[]).length&&typeof PID!=='undefined'&&PID){
@@ -1096,6 +1105,16 @@ async function checkEmailReady(){
   }
   return out;
 }
+async function markCRExecuted(crId,baselineId){
+  const {data,error}=await sb.rpc('pmo_mark_cr_executed',{p_cr_id:crId,p_baseline_id:baselineId||null});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error||'تعذّر التعليم');
+  return data;
+}
+async function fetchBaselineDiff(projectId){
+  const {data,error}=await sb.rpc('pmo_baseline_diff',{p_project_id:projectId});
+  if(error)throw error;return data||{};
+}
 async function fetchContractFunnel(contractId){
   const {data,error}=await sb.rpc('pmo_contract_funnel',{p_contract_id:contractId});
   if(error)throw error;return data||{};
@@ -1484,7 +1503,7 @@ function bindProjFilterBar(){
 }
 
 function vTable(){
-  const S=SCHED,T=TRACK;const editStruct=can('editStruct')&&PROJECT.status!=='baselined';const editProg=can('editProg');
+  const S=SCHED,T=TRACK;const editStruct=can('editStruct')&&(PROJECT.status!=='baselined'||structuralUnlocked());const editProg=can('editProg');
   const colspan=editStruct?12:11;
   let rows='',last=null;
   visibleTasks().forEach(t=>{
@@ -1540,7 +1559,16 @@ function vTable(){
   });
   const MOBILE=(typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(max-width:700px)').matches);
   const editHead=editStruct?'<th>تحرير</th>':'';
-  const addBar=editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button>${ROLE==='pmo'?'<button class="reqbtn" id="tracksBtn" style="background:var(--ink);border-color:var(--ink);color:#fff">إدارة المراحل</button>':''}<span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'';
+  // شريط نافذة التنفيذ: يوضّح سبب فتح التعديل رغم تثبيت الأساس، وما الذي يجب فعله بعده
+  const crWin=(PROJECT.status==='baselined'&&structuralUnlocked())?`
+    <div class="lockbar cr-window-bar">
+      <span>🔓 نافذة تنفيذ تغيير معتمَد</span>
+      <span style="font-weight:400;font-size:.78rem;color:var(--muted)">
+        الخطة مثبّتة، لكن ${openCRs().length} طلب تعديل معتمَد بانتظار التنفيذ — أدوات البناء مفتوحة مؤقتًا.
+        بعد تنفيذ التعديل، علّم الطلب «نُفِّذ» من تبويب «طلبات تعديل الخطة» ثم ثبّت أساسًا جديدًا.</span>
+      <button class="reqbtn" id="goCRTab" style="background:var(--warn);border-color:var(--warn);color:#fff">↗ طلبات التعديل</button>
+    </div>`:'';
+  const addBar=crWin+(editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button>${ROLE==='pmo'?'<button class="reqbtn" id="tracksBtn" style="background:var(--ink);border-color:var(--ink);color:#fff">إدارة المراحل</button>':''}<span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'');
   const printBtn=`<div class="lockbar" style="border-inline-start-color:var(--line)"><button class="hbtn print-btn" id="printTableBtn">🖨 طباعة الجدول</button><span style="color:var(--muted);font-weight:400;font-size:.78rem">تُطبع كل مرحلة في صفحة، والأعمدة مصغّرة للقراءة.</span></div>`;
   if(MOBILE)return addBar+projFilterBar()+vCards(editStruct,editProg);
   return addBar+printBtn+projFilterBar()+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -1597,7 +1625,7 @@ function vCards(editStruct,editProg){
 }
 function bindTable(){
   bindProjFilterBar();
-  const editStruct=can('editStruct')&&PROJECT.status!=='baselined';
+  const editStruct=can('editStruct')&&(PROJECT.status!=='baselined'||structuralUnlocked());
   $$('#tbl [data-id]').forEach(tr=>{
     const id=tr.dataset.id,t=PROJECT.tasks.find(x=>x.id===id);
     tr.querySelectorAll('[data-f]').forEach(inp=>{
@@ -1619,6 +1647,7 @@ function bindTable(){
     $$('#tbl [data-del]').forEach(b=>b.onclick=()=>handleDeleteTask(b.dataset.del));
     $$('#tbl [data-deps]').forEach(b=>b.onclick=()=>openDeps(b.dataset.deps));
     const ab=$('#addTaskBtn');if(ab)ab.onclick=handleAddTask;
+    {const gc=$('#goCRTab');if(gc)gc.onclick=()=>{VIEW='cr';writeHash();render();};}
     const tb=$('#tracksBtn');if(tb)tb.onclick=openTracksManager;
     const ib=$('#importXlsxBtn');if(ib)ib.onclick=openImporter;
   }
@@ -2326,7 +2355,9 @@ try{const sv=JSON.parse(localStorage.getItem('pmo_pfilters')||'{}');
 
 /* ===== dialogs.js ===== */
 // ===== app/dialogs.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
-function dialog(opts){ // {title, message, fields:[{key,label,value,type,placeholder,options}], confirmText, danger}
+// opts.html: HTML جاهز يُدرَج بين الرسالة والحقول (للمحتوى المُنسَّق كجدول الفروق).
+// يُبنى داخليًا فقط ولا يقبل مدخلات مستخدم خامًا.
+function dialog(opts){ // {title, message, html, fields:[{key,label,value,type,placeholder,options}], confirmText, danger}
   return new Promise(resolve=>{
     const ov=document.getElementById('dlgOverlay');
     const fieldsHtml=(opts.fields||[]).map(f=>{
@@ -2342,6 +2373,7 @@ function dialog(opts){ // {title, message, fields:[{key,label,value,type,placeho
       <div class="rqhd"><h3 style="font-size:1.02rem" id="dlgTitle">${esc(opts.title||'')}</h3><button id="dlgX" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
       <div style="padding:18px">
         ${opts.message?`<p style="font-size:.86rem;color:var(--muted);margin-bottom:14px;line-height:1.7;white-space:pre-line">${esc(opts.message)}</p>`:''}
+        ${opts.html||''}
         ${fieldsHtml}
         <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-start">
           <button class="hbtn" id="dlgOk" style="background:${opts.danger?'var(--crit)':'var(--gold)'};border-color:${opts.danger?'var(--crit)':'var(--gold)'};padding:9px 20px">${esc(opts.confirmText||'تأكيد')}</button>
@@ -5670,12 +5702,19 @@ function vCR(){
     const apText=kd.auto?'موافقة وتطبيق':'موافقة (تنفيذ يدوي)';
     const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn" data-ap="${c.id}" style="background:var(--ok);border-color:var(--ok)">${apText}</button><button class="hbtn" data-rj="${c.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc">رفض</button></div>`:'';
     // تنبيه تنفيذ معلّق: وافق عليه ولم يُطبَّق آليًا ⇒ الخطة لم تتغيّر بعد
-    const pendingExec=(c.status==='approved'&&!kd.auto)?'<div class="cr-pendexec">⚠ معتمد — لكن الخطة لم تتغيّر تلقائيًا. نفّذ التعديل يدويًا في تبويب «الجدول».</div>':'';
+    const awaitingExec=(c.status==='approved'&&!kd.auto&&!c.executed_at);
+    const pendingExec=awaitingExec?`<div class="cr-pendexec">⚠ معتمد — الخطة لم تتغيّر تلقائيًا. أدوات بناء الخطة مفتوحة الآن في تبويب «الجدول» لتنفيذه.</div>
+      <div class="cr-exec-box">
+        <button class="reqbtn" data-goplan="1" style="background:var(--ok);border-color:var(--ok);color:#fff">↗ افتح الجدول لتنفيذه</button>
+        <button class="reqbtn" data-execcr="${c.id}">✅ نُفِّذ — علّمه منفَّذًا</button>
+      </div>`:'';
+    const doneExec=(c.status==='approved'&&c.executed_at)?
+      `<div class="cr-mode auto">✅ نُفِّذ في ${new Date(c.executed_at).toLocaleDateString('ar')}${c.baseline_after?' · ثُبِّت أساس جديد بعده':''}</div>`:'';
     const goto=(c.task_ref&&t)?`<button class="lnk" data-gotask="${esc(c.task_ref)}">↗ الذهاب إلى البند في الخطة</button>`:'';
     return `<div class="crcard cr-plan">
       <div class="crhd"><span class="crid">${esc(c.id.slice(0,12))}</span><span class="crstate ${stcls}">${sttxt}</span></div>
       <div class="crbody"><b>البند:</b> ${esc(c.task_ref||'—')}${t?' — '+esc(t.name):''} · <b>النوع:</b> ${kd.t}${c.new_value?' · <b>القيمة:</b> '+esc(c.new_value):''}<br><b>المبرر:</b> ${esc(c.reason||'—')}<br><small>${new Date(c.created_at).toLocaleDateString('ar')}</small>${c.decision_note?'<br><small>القرار: '+esc(c.decision_note)+'</small>':''}${goto?'<br>'+goto:''}</div>
-      <div class="cr-modewrap">${kd.auto?crAutoNote:crManualNote}</div>${pendingExec}${actions}</div>`;
+      <div class="cr-modewrap">${kd.auto?crAutoNote:crManualNote}</div>${pendingExec}${doneExec}${actions}</div>`;
   }).join(''):'<p class="empty" style="color:var(--muted);font-style:italic">لا طلبات تغيير.</p>';
   return `<div class="crwrap">${form}<div class="crlist">${list}</div></div>`;
 }
@@ -5714,6 +5753,41 @@ function bindCR(){
     await decideCR(c.id,{status:'approved',decision_note:note,decided_at:new Date().toISOString()});
     await loadProject(CID,PID);render();
     toast(applied?'اعتُمد الطلب وطُبّق على الجدول':'اعتُمد الطلب — نفّذ التعديل يدويًا في تبويب «الجدول»',applied?'ok':'warn');
+  });
+  $$('[data-goplan]').forEach(b=>b.onclick=()=>{VIEW='table';writeHash();render();});
+  $$('[data-execcr]').forEach(b=>b.onclick=async()=>{
+    // يعرض ما تغيّر فعليًا مقابل آخر خط أساس، ثم يعرض تثبيت أساس جديد يوثّق التغيير
+    let d={};
+    try{ d=await fetchBaselineDiff(PROJECT._dbId); }catch(e){}
+    const nA=(d.added||[]).length,nR=(d.removed||[]).length,nC=(d.changed||[]).length;
+    const diffHtml=d.has_baseline?`
+      <div class="cr-diff">
+        <b>ما تغيّر مقابل ${esc(d.baseline_label||'آخر أساس')}:</b>
+        ${nA?`<div class="cr-diff-add">➕ أُضيف ${nA} بند: ${(d.added||[]).slice(0,6).map(x=>esc(x.ref)).join('، ')}${nA>6?'…':''}</div>`:''}
+        ${nR?`<div class="cr-diff-rm">➖ حُذف ${nR} بند: ${(d.removed||[]).slice(0,6).map(x=>esc(x)).join('، ')}${nR>6?'…':''}</div>`:''}
+        ${nC?`<div class="cr-diff-ch">✏️ تغيّرت مدة ${nC} بند: ${(d.changed||[]).slice(0,6).map(x=>esc(x.ref)+' ('+x.old+'→'+x.new+')').join('، ')}${nC>6?'…':''}</div>`:''}
+        ${(!nA&&!nR&&!nC)?'<div class="sa-hint">⚠ لا فرق مرصود عن خط الأساس — تأكد أنك نفّذت التعديل فعلًا في الجدول.</div>':''}
+      </div>`:'<p class="sa-hint">لا خط أساس سابق للمقارنة.</p>';
+
+    const ok=await dialog({title:'تأكيد تنفيذ طلب التعديل',
+      message:'سيُعلَّم هذا الطلب منفَّذًا، وتُغلق نافذة التعديل البنيوي المؤقتة.',
+      html:diffHtml,
+      fields:[{key:'bl',label:'تثبيت أساس جديد يوثّق هذا التغيير؟',type:'select',value:'yes',
+        options:[{v:'yes',t:'نعم — ثبّت أساسًا جديدًا (الأنسب لحوكمة سليمة)'},
+                 {v:'no',t:'لا — أكتفي بتعليمه منفَّذًا الآن'}]}],
+      confirmText:'تأكيد'});
+    if(!ok)return;
+    try{
+      let blId=null;
+      if(ok.bl==='yes'){
+        const nb=await saveNewBaseline(PROJECT._dbId);
+        blId=nb&&nb.id?nb.id:null;
+      }
+      await markCRExecuted(b.dataset.execcr,blId);
+      CRS=await fetchCRs(PROJECT._dbId);
+      await loadProject(CID,PID);render();
+      toast(blId?'عُلِّم منفَّذًا وثُبِّت أساس جديد':'عُلِّم منفَّذًا','ok');
+    }catch(e){toast(e.message,'err');}
   });
   $$('[data-rj]').forEach(b=>b.onclick=async()=>{
     await decideCR(b.dataset.rj,{status:'rejected',decided_at:new Date().toISOString()});
