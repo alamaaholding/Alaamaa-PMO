@@ -634,6 +634,16 @@ async function checkEmailReady(){
   }
   return out;
 }
+async function markCRExecuted(crId,baselineId){
+  const {data,error}=await sb.rpc('pmo_mark_cr_executed',{p_cr_id:crId,p_baseline_id:baselineId||null});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error||'تعذّر التعليم');
+  return data;
+}
+async function fetchBaselineDiff(projectId){
+  const {data,error}=await sb.rpc('pmo_baseline_diff',{p_project_id:projectId});
+  if(error)throw error;return data||{};
+}
 async function fetchContractFunnel(contractId){
   const {data,error}=await sb.rpc('pmo_contract_funnel',{p_contract_id:contractId});
   if(error)throw error;return data||{};
