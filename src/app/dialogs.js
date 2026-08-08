@@ -1,5 +1,7 @@
 // ===== app/dialogs.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
-function dialog(opts){ // {title, message, fields:[{key,label,value,type,placeholder,options}], confirmText, danger}
+// opts.html: HTML جاهز يُدرَج بين الرسالة والحقول (للمحتوى المُنسَّق كجدول الفروق).
+// يُبنى داخليًا فقط ولا يقبل مدخلات مستخدم خامًا.
+function dialog(opts){ // {title, message, html, fields:[{key,label,value,type,placeholder,options}], confirmText, danger}
   return new Promise(resolve=>{
     const ov=document.getElementById('dlgOverlay');
     const fieldsHtml=(opts.fields||[]).map(f=>{
@@ -15,6 +17,7 @@ function dialog(opts){ // {title, message, fields:[{key,label,value,type,placeho
       <div class="rqhd"><h3 style="font-size:1.02rem" id="dlgTitle">${esc(opts.title||'')}</h3><button id="dlgX" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
       <div style="padding:18px">
         ${opts.message?`<p style="font-size:.86rem;color:var(--muted);margin-bottom:14px;line-height:1.7;white-space:pre-line">${esc(opts.message)}</p>`:''}
+        ${opts.html||''}
         ${fieldsHtml}
         <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-start">
           <button class="hbtn" id="dlgOk" style="background:${opts.danger?'var(--crit)':'var(--gold)'};border-color:${opts.danger?'var(--crit)':'var(--gold)'};padding:9px 20px">${esc(opts.confirmText||'تأكيد')}</button>
