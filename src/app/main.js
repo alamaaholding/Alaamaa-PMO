@@ -418,12 +418,19 @@ function vCR(){
     const apText=kd.auto?'موافقة وتطبيق':'موافقة (تنفيذ يدوي)';
     const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn" data-ap="${c.id}" style="background:var(--ok);border-color:var(--ok)">${apText}</button><button class="hbtn" data-rj="${c.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc">رفض</button></div>`:'';
     // تنبيه تنفيذ معلّق: وافق عليه ولم يُطبَّق آليًا ⇒ الخطة لم تتغيّر بعد
-    const pendingExec=(c.status==='approved'&&!kd.auto)?'<div class="cr-pendexec">⚠ معتمد — لكن الخطة لم تتغيّر تلقائيًا. نفّذ التعديل يدويًا في تبويب «الجدول».</div>':'';
+    const awaitingExec=(c.status==='approved'&&!kd.auto&&!c.executed_at);
+    const pendingExec=awaitingExec?`<div class="cr-pendexec">⚠ معتمد — الخطة لم تتغيّر تلقائيًا. أدوات بناء الخطة مفتوحة الآن في تبويب «الجدول» لتنفيذه.</div>
+      <div class="cr-exec-box">
+        <button class="reqbtn" data-goplan="1" style="background:var(--ok);border-color:var(--ok);color:#fff">↗ افتح الجدول لتنفيذه</button>
+        <button class="reqbtn" data-execcr="${c.id}">✅ نُفِّذ — علّمه منفَّذًا</button>
+      </div>`:'';
+    const doneExec=(c.status==='approved'&&c.executed_at)?
+      `<div class="cr-mode auto">✅ نُفِّذ في ${new Date(c.executed_at).toLocaleDateString('ar')}${c.baseline_after?' · ثُبِّت أساس جديد بعده':''}</div>`:'';
     const goto=(c.task_ref&&t)?`<button class="lnk" data-gotask="${esc(c.task_ref)}">↗ الذهاب إلى البند في الخطة</button>`:'';
     return `<div class="crcard cr-plan">
       <div class="crhd"><span class="crid">${esc(c.id.slice(0,12))}</span><span class="crstate ${stcls}">${sttxt}</span></div>
       <div class="crbody"><b>البند:</b> ${esc(c.task_ref||'—')}${t?' — '+esc(t.name):''} · <b>النوع:</b> ${kd.t}${c.new_value?' · <b>القيمة:</b> '+esc(c.new_value):''}<br><b>المبرر:</b> ${esc(c.reason||'—')}<br><small>${new Date(c.created_at).toLocaleDateString('ar')}</small>${c.decision_note?'<br><small>القرار: '+esc(c.decision_note)+'</small>':''}${goto?'<br>'+goto:''}</div>
-      <div class="cr-modewrap">${kd.auto?crAutoNote:crManualNote}</div>${pendingExec}${actions}</div>`;
+      <div class="cr-modewrap">${kd.auto?crAutoNote:crManualNote}</div>${pendingExec}${doneExec}${actions}</div>`;
   }).join(''):'<p class="empty" style="color:var(--muted);font-style:italic">لا طلبات تغيير.</p>';
   return `<div class="crwrap">${form}<div class="crlist">${list}</div></div>`;
 }
@@ -462,6 +469,41 @@ function bindCR(){
     await decideCR(c.id,{status:'approved',decision_note:note,decided_at:new Date().toISOString()});
     await loadProject(CID,PID);render();
     toast(applied?'اعتُمد الطلب وطُبّق على الجدول':'اعتُمد الطلب — نفّذ التعديل يدويًا في تبويب «الجدول»',applied?'ok':'warn');
+  });
+  $$('[data-goplan]').forEach(b=>b.onclick=()=>{VIEW='table';writeHash();render();});
+  $$('[data-execcr]').forEach(b=>b.onclick=async()=>{
+    // يعرض ما تغيّر فعليًا مقابل آخر خط أساس، ثم يعرض تثبيت أساس جديد يوثّق التغيير
+    let d={};
+    try{ d=await fetchBaselineDiff(PROJECT._dbId); }catch(e){}
+    const nA=(d.added||[]).length,nR=(d.removed||[]).length,nC=(d.changed||[]).length;
+    const diffHtml=d.has_baseline?`
+      <div class="cr-diff">
+        <b>ما تغيّر مقابل ${esc(d.baseline_label||'آخر أساس')}:</b>
+        ${nA?`<div class="cr-diff-add">➕ أُضيف ${nA} بند: ${(d.added||[]).slice(0,6).map(x=>esc(x.ref)).join('، ')}${nA>6?'…':''}</div>`:''}
+        ${nR?`<div class="cr-diff-rm">➖ حُذف ${nR} بند: ${(d.removed||[]).slice(0,6).map(x=>esc(x)).join('، ')}${nR>6?'…':''}</div>`:''}
+        ${nC?`<div class="cr-diff-ch">✏️ تغيّرت مدة ${nC} بند: ${(d.changed||[]).slice(0,6).map(x=>esc(x.ref)+' ('+x.old+'→'+x.new+')').join('، ')}${nC>6?'…':''}</div>`:''}
+        ${(!nA&&!nR&&!nC)?'<div class="sa-hint">⚠ لا فرق مرصود عن خط الأساس — تأكد أنك نفّذت التعديل فعلًا في الجدول.</div>':''}
+      </div>`:'<p class="sa-hint">لا خط أساس سابق للمقارنة.</p>';
+
+    const ok=await dialog({title:'تأكيد تنفيذ طلب التعديل',
+      message:'سيُعلَّم هذا الطلب منفَّذًا، وتُغلق نافذة التعديل البنيوي المؤقتة.',
+      html:diffHtml,
+      fields:[{key:'bl',label:'تثبيت أساس جديد يوثّق هذا التغيير؟',type:'select',value:'yes',
+        options:[{v:'yes',t:'نعم — ثبّت أساسًا جديدًا (الأنسب لحوكمة سليمة)'},
+                 {v:'no',t:'لا — أكتفي بتعليمه منفَّذًا الآن'}]}],
+      confirmText:'تأكيد'});
+    if(!ok)return;
+    try{
+      let blId=null;
+      if(ok.bl==='yes'){
+        const nb=await saveNewBaseline(PROJECT._dbId);
+        blId=nb&&nb.id?nb.id:null;
+      }
+      await markCRExecuted(b.dataset.execcr,blId);
+      CRS=await fetchCRs(PROJECT._dbId);
+      await loadProject(CID,PID);render();
+      toast(blId?'عُلِّم منفَّذًا وثُبِّت أساس جديد':'عُلِّم منفَّذًا','ok');
+    }catch(e){toast(e.message,'err');}
   });
   $$('[data-rj]').forEach(b=>b.onclick=async()=>{
     await decideCR(b.dataset.rj,{status:'rejected',decided_at:new Date().toISOString()});
