@@ -42,6 +42,14 @@ function can(p){
 // ===== سجل التدقيق: قاموس موحّد (مصدر وحيد لسجل المشروع وسجل المكتب) =====
 // المفاتيح مطابقة لأسماء الأفعال التي تكتبها دوال القاعدة (pmo_audit_*) فعليًا.
 const AUDIT_ACTIONS={
+  contract_created:'إنشاء عقد', contract_amendment_created:'إنشاء ملحق تعديل',
+  contract_instance_created:'إنشاء نسخة عقد لشريك', contract_internally_approved:'اعتماد داخلي للعقد',
+  contract_sealed:'ختم نص العقد', contract_terms_updated:'تعديل شروط العقد',
+  contract_signed_alamaa:'توقيع علامة', contract_signed_client:'توقيع الشريك',
+  contract_voided:'إلغاء عقد', contract_archived:'أرشفة عقد', contract_unarchived:'استرجاع عقد',
+  contract_linked:'ربط عقد بمشروع', contract_unlinked:'فك ارتباط عقد',
+  contract_sent:'إرسال عقد للشريك', contract_attachment_added:'إضافة مرفق للعقد',
+  contract_attachment_removed:'حذف مرفق من العقد',
   // البنود
   status_change:'تغيير الحالة',progress_change:'تحديث التقدّم',duration_change:'تغيير المدة',
   data_correction:'تصحيح بيانات',task_update:'تعديل بند',
@@ -63,7 +71,7 @@ const AUDIT_ACTIONS={
   archive_client:'أرشفة شريك',restore_client:'استرجاع شريك',
   request_deletion:'طلب حذف شريك',purge_client:'حذف نهائي لشريك'
 };
-const AUDIT_ENTITIES={task:'بند',change_request:'طلب تعديل خطة',requirement:'متطلب',
+const AUDIT_ENTITIES={contract:'عقد',task:'بند',change_request:'طلب تعديل خطة',requirement:'متطلب',
   comment:'تعليق',client_request:'طلب خدمة',project:'مشروع',client:'شريك'};
 
 // ===== نطاق صلاحيات الفريق =====
