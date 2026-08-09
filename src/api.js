@@ -684,6 +684,14 @@ async function refreshClientContracts(clientId){
   const {data,error}=await sb.rpc('pmo_refresh_client_contracts',{p_client_id:clientId});
   if(error)throw error;return data||{};
 }
+// سجل تدقيق عقد بعينه — من فعل ماذا ومتى
+async function fetchContractAudit(contractId){
+  const {data,error}=await sb.from('pmo_audit_log')
+    .select('action,new_value,created_at,user_id')
+    .eq('entity','contract').eq('entity_id',contractId)
+    .order('created_at',{ascending:false}).limit(40);
+  if(error)throw error;return data||[];
+}
 async function fetchContractFunnel(contractId){
   const {data,error}=await sb.rpc('pmo_contract_funnel',{p_contract_id:contractId});
   if(error)throw error;return data||{};
