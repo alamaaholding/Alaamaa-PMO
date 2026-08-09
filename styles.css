@@ -95,6 +95,9 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .cr-diff{background:var(--soft-2);border-radius:8px;padding:10px 14px;margin-top:8px;font-size:.8rem}
 .cr-diff b{display:block;margin-bottom:4px}
 .cr-diff-add{color:var(--ok)} .cr-diff-rm{color:var(--crit)} .cr-diff-ch{color:var(--warn)}
+.pub-otp{background:var(--soft-2);border:1.5px solid var(--gold);border-radius:10px;
+  padding:12px 14px;margin-bottom:12px}
+.pub-otp>b{display:block;font-size:.88rem;color:var(--gold-dark)}
 .chd-funnel{display:flex;flex-direction:column;gap:2px;text-align:start}
 .chd-step{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;font-size:.75rem;
   position:relative;transition:var(--t)}
@@ -114,6 +117,8 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .chub-sign-banner{display:flex;align-items:center;gap:14px;justify-content:space-between;flex-wrap:wrap;
   background:var(--ok-bg);border:1px solid color-mix(in srgb, var(--ok) 30%, transparent);
   border-radius:10px;padding:12px 16px;margin-bottom:16px}
+.chub-live-parties{background:var(--blue-bg);color:var(--blue);font-size:.78rem;font-weight:600;
+  padding:9px 14px;border-radius:8px;margin-bottom:12px}
 .chub-tpl-banner{background:var(--blue-bg);border:1px solid color-mix(in srgb, var(--blue) 25%, transparent);
   border-radius:10px;padding:12px 16px;margin-bottom:16px}
 .chd-clause-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px}
