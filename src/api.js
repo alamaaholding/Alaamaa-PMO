@@ -538,8 +538,39 @@ async function sha256Hex(str){
   }catch(e){return null;}
 }
 // يحسب نفس التجزئة من بيانات عقد معيَّن — يُستخدَم عند الإنشاء وعند التحقّق لاحقًا
+// التجزئة تُحسب من النص المدموج النهائي — الذي يعكس أصلًا النموذج المختار وتعديلات البنود
+// وبيانات الطرفين كلها. فأي تغيير في أيٍّ منها يغيّرها حتمًا (كانت تتجاهل النموذج والبنود
+// لأن mergeContract لم تكن تتلقاهما أصلًا).
 async function computeContractHash(mergeData){
-  return sha256Hex(JSON.stringify(mergeContract(mergeData)));
+  const merged=mergeContract(mergeData);
+  return sha256Hex(JSON.stringify(merged));
+}
+// بناء بيانات الدمج من صفّ عقد كامل — مصدر واحد يضمن تطابق التجزئة أينما حُسبت
+function contractMergeData(c){
+  return {
+    clientName:c.client_name,clientCr:c.client_cr,clientVat:c.client_vat,clientAddress:c.client_address,
+    clientRepName:c.client_rep_name,clientRepTitle:c.client_rep_title,
+    clientEmail:c.client_contact_email,clientPhone:c.client_contact_phone,
+    org:c.org||{},
+    includesAdSpend:c.includes_ad_spend,effectiveDate:c.effective_date,
+    contractValue:c.contract_value,latePaymentCap:c.late_payment_cap,specialTerms:c.special_terms,
+    templateKey:c.template_key,clauseOverrides:c.clause_overrides
+  };
+}
+// (١) ختم النص المدموج في القاعدة — بعده يُعرَض منه لا من القالب، فلا يتغيّر نص عقد موقَّع
+// أبدًا مهما عُدِّل القالب لاحقًا.
+async function sealContract(c){
+  const isCustom=c.contract_type==='custom';
+  const body=isCustom
+    ? {kind:'custom',title:c.custom_title,body:c.custom_body,org:c.org||{},
+       clientName:c.client_name,clientCr:c.client_cr,clientVat:c.client_vat,clientAddress:c.client_address,
+       clientRepName:c.client_rep_name,clientRepTitle:c.client_rep_title,
+       clientEmail:c.client_contact_email,clientPhone:c.client_contact_phone}
+    : Object.assign({kind:'standard'},mergeContract(contractMergeData(c)));
+  const hash=await sha256Hex(JSON.stringify(body));
+  const {data,error}=await sb.rpc('pmo_seal_contract',{p_contract_id:c.id,p_body:body,p_hash:hash});
+  if(error)throw error;
+  return data||{};
 }
 async function createContract(projectId,baselineId,opts){
   opts=opts||{};
