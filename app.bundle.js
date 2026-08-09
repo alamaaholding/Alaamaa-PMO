@@ -1,4 +1,4 @@
-const BUILD_V='7ee468c6';
+const BUILD_V='8a94033b';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1223,7 +1223,7 @@ async function addContractAttachment(contractId,label,url,kind,baselineId,fileIn
   const {data,error}=await sb.rpc('pmo_add_contract_attachment',
     {p_contract_id:contractId,p_label:label,p_url:url||null,p_kind:kind||'link',p_baseline_id:baselineId||null,
      p_storage_path:(fileInfo&&fileInfo.path)||null,p_file_size:(fileInfo&&fileInfo.size)||null,
-     p_mime_type:(fileInfo&&fileInfo.mime)||null});
+     p_mime_type:(fileInfo&&fileInfo.mime)||null,p_content_hash:(fileInfo&&fileInfo.hash)||null});
   if(error)throw error;
   if(!data.ok)throw new Error(data.error==='signed'?'لا يمكن تعديل مرفقات عقد وقّع عليه طرف':'تعذّر الإضافة');
   return data;
@@ -1250,10 +1250,11 @@ async function fetchContractInstances(contractId){
   const {data,error}=await sb.rpc('pmo_contract_instances',{p_contract_id:contractId});
   if(error)throw error;return data||[];
 }
-async function approveContractInternal(contractId){
-  const {data,error}=await sb.rpc('pmo_approve_contract_internal',{p_contract_id:contractId});
+async function approveContractInternal(contractId,overrideReason){
+  const {data,error}=await sb.rpc('pmo_approve_contract_internal',
+    {p_contract_id:contractId,p_override_reason:overrideReason||null});
   if(error)throw error;
-  if(!data.ok)throw new Error(data.error||'تعذّر الاعتماد');
+  if(!data.ok){const e=new Error(data.message||data.error||'تعذّر الاعتماد');e.code=data.error;throw e;}
   return data;
 }
 async function voidContract(contractId){
@@ -1402,7 +1403,17 @@ async function uploadContractFile(contractId,file){
   const path=contractId+'/'+Date.now()+'_'+safe;
   const {error}=await sb.storage.from('contract-files').upload(path,file,{upsert:false});
   if(error)throw new Error('تعذّر الرفع: '+error.message);
-  return {path,size:file.size,mime:file.type||null};
+  // بصمة المحتوى: تجعل استبدال الملف بعد التوقيع قابلًا للكشف — الملحق جزء من العقد
+  let hash=null;
+  try{
+    const buf=await file.arrayBuffer();
+    hash=await sha256Hex(String.fromCharCode(...new Uint8Array(buf).slice(0,0)))||null;
+    if(window.crypto&&window.crypto.subtle){
+      const d=await crypto.subtle.digest('SHA-256',buf);
+      hash=[...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+  }catch(e){}
+  return {path,size:file.size,mime:file.type||null,hash};
 }
 async function contractFileURL(path){
   const {data,error}=await sb.storage.from('contract-files').createSignedUrl(path,300);
@@ -4931,6 +4942,7 @@ async function openContractDetailPanel(contractId){
       : (c.status!=='void'
         ? `<div class="ctr-integrity" style="background:var(--blue-bg);color:var(--blue)">🔄 بيانات الطرفين حيّة — تُحدَّث تلقائيًا من الملف التعاقدي لعلامة وملف الشريك، وتُجمَّد نهائيًا عند أول توقيع.</div>`
         : '')}
+    ${c.approval_override_reason?`<div class="ctr-integrity warn">⚠ اعتماد ذاتي موثَّق (المُعِدّ هو المعتمِد) — المبرّر: ${esc(c.approval_override_reason)}</div>`:''}
     ${c.source_contract_id?`<div class="ctr-integrity ok">📎 هذه نسخة خاصة بـ<b>${esc(c.client_name||'—')}</b> من الأصل «${esc(c.source_name||'')}» — تعديلها لا يمسّ الأصل ولا نسخ الشركاء الآخرين إطلاقًا.</div>`:''}
 
     ${(c.internal_approved&&c.status!=='void'&&!al)?`
@@ -5332,7 +5344,22 @@ async function openContractDetailPanel(contractId){
            ${rows('تاريخ السريان',cert.contract.effective_date)}
          </tbody></table>
 
-         <div class="cx-annex-hd">ثالثًا — التواقيع وأدلتها</div>
+         <div class="cx-annex-hd">ثالثًا — حوكمة الاعتماد</div>
+         <table class="cx-table"><tbody>
+           ${rows('أعدّ العقد',(cert.governance||{}).created_by)}
+           ${rows('اعتمده داخليًا',(cert.governance||{}).approved_by)}
+           ${rows('وقت الاعتماد',f((cert.governance||{}).approved_at))}
+           ${rows('فصل الأدوار',(cert.governance||{}).self_approved?'اعتماد ذاتي — المُعِدّ هو المعتمِد':'✔ مُعِدّ ومعتمِد مختلفان')}
+           ${(cert.governance||{}).override_reason?rows('مبرّر الاعتماد الذاتي',cert.governance.override_reason):''}
+         </tbody></table>
+
+         ${(cert.attachments||[]).length?`<div class="cx-annex-hd">الملاحق وبصماتها</div>
+         <table class="cx-table"><thead><tr><th>الملحق</th><th>النوع</th><th>بصمة المحتوى</th></tr></thead><tbody>
+           ${cert.attachments.map(a=>`<tr><td>${esc(a.label)}</td><td>${a.kind==='file'?'ملف مرفوع':'رابط'}</td>
+             <td style="font-size:.6rem;direction:ltr">${esc(a.hash||'—')}</td></tr>`).join('')}
+         </tbody></table>`:''}
+
+         <div class="cx-annex-hd">رابعًا — التواقيع وأدلتها</div>
          ${(cert.signatures||[]).map(sg=>`
            <table class="cx-table" style="margin-bottom:14px"><tbody>
              ${rows('الطرف',sg.party==='alamaa'?'علامة':'الشريك')}
@@ -5346,7 +5373,7 @@ async function openContractDetailPanel(contractId){
              ${rows('إقرار القبول',sg.consent)}
            </tbody></table>`).join('')}
 
-         <div class="cx-annex-hd">رابعًا — سجل الإجراءات</div>
+         <div class="cx-annex-hd">خامسًا — سجل الإجراءات</div>
          <table class="cx-table"><thead><tr><th>الإجراء</th><th>المنفِّذ</th><th>الوقت</th></tr></thead><tbody>
            ${(cert.audit||[]).map(a=>`<tr><td>${esc(AUDIT_ACTIONS[a.action]||a.action)}</td>
              <td>${esc(a.by||'—')}</td><td>${f(a.at)}</td></tr>`).join('')||'<tr><td colspan="3">—</td></tr>'}
@@ -5490,13 +5517,28 @@ async function openContractDetailPanel(contractId){
   if(canApprove){
     document.getElementById('chdApprove').onclick=async()=>{
       if(!await confirmDialog('اعتماد داخلي','بعد الاعتماد، يصبح هذا العقد قابلًا للإرسال والتوقيع من الطرفين. متابعة؟',false,'اعتماد'))return;
-      try{
-        await approveContractInternal(contractId);
+      const finish=async()=>{
         {const fr=(await fetchAllContracts()).find(x=>x.id===contractId);
          if(fr){try{await sealContract(fr);}catch(e){}}}
         toast('اعتُمد العقد داخليًا وخُتم نصه — أصبح قابلًا للإرسال والتوقيع','ok');
         CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId);
-      }catch(e){toast(e.message,'err');}
+      };
+      try{
+        await approveContractInternal(contractId);
+        await finish();
+      }catch(e){
+        // فصل الأدوار: المُعِدّ لا يعتمد عمله إلا بمبرّر موثَّق يظهر في الشهادة والسجل
+        if(e.code==='self_approval'){
+          const r=await dialog({title:'أنت مُعِدّ هذا العقد',
+            message:'مبدأ «أربع عيون» يقضي بأن يعتمده مخوَّل آخر. إن تعذّر ذلك، اذكر مبرّرًا — سيُوثَّق في شهادة التوقيع وسجل العقد.',
+            fields:[{key:'reason',label:'مبرّر الاعتماد الذاتي',type:'textarea',placeholder:'لماذا يتعذّر اعتماد شخص آخر؟'}],
+            confirmText:'اعتماد مع توثيق المبرّر'});
+          if(!r)return;
+          if(!r.reason||!r.reason.trim()){toast('المبرّر إلزامي','warn');return;}
+          try{ await approveContractInternal(contractId,r.reason); await finish(); }
+          catch(e2){toast(e2.message,'err');}
+        }else toast(e.message,'err');
+      }
     };
   }
   if(editable){
