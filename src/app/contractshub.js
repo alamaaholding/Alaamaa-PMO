@@ -221,12 +221,23 @@ async function openContractDetailPanel(contractId){
   // العقد غير الموقَّع: بيانات الطرفين تُنعَش من الملفات الحيّة قبل العرض، فأي تعديل على
   // ملف علامة أو ملف الشريك ينعكس فورًا. الموقَّع مجمَّد ولا يُمسّ إطلاقًا.
   const _anySig=(c.signatures||[]).length>0;
+  // عقد بلا ختم: يُختَم الآن — يشمل العقود المُنشأة قبل إضافة الختم، فلا يبقى عقد
+  // معتمَد غير قابل للتوقيع (التوقيع صار يشترط وجود نص مختوم).
+  if(!c.sealed_body&&c.status!=='void'){
+    try{
+      await sealContract(c);
+      const fresh=await fetchAllContracts();
+      const found=(fresh||[]).find(x=>x.id===contractId);
+      if(found){CH_CONTRACTS=fresh;c=found;}
+    }catch(e){}
+  }
   if(!_anySig&&c.status!=='void'){
     try{
       const r=await refreshContractParties(contractId);
       if(r&&r.refreshed){
-        CH_CONTRACTS=await fetchAllContracts();
-        c=CH_CONTRACTS.find(x=>x.id===contractId)||c;
+        const fresh=await fetchAllContracts();
+        const found=(fresh||[]).find(x=>x.id===contractId);
+        if(found){CH_CONTRACTS=fresh;c=found;}
       }
     }catch(e){}
   }
@@ -459,6 +470,14 @@ async function openContractDetailPanel(contractId){
   renderAttachments();
 
   const refreshPreview=async()=>{
+    // عقد مختوم وموقَّع: يُعرَض نصه المختوم حرفيًا لا المُعاد توليده
+    if(c.sealed_body&&anySigned){
+      document.getElementById('chdPreview').innerHTML=
+        (c.sealed_body.kind==='custom'?renderCustomContractHTML(c.sealed_body):renderMergedContractHTML(c.sealed_body));
+      document.getElementById('chdIntegrity').innerHTML=
+        '<div class="ctr-integrity ok">🔒 نص مختوم في '+new Date(c.sealed_at).toLocaleDateString('ar')+' — هذا ما وُقِّع عليه حرفيًا</div>';
+      return;
+    }
     if(isCustom){
       document.getElementById('chdPreview').innerHTML=renderCustomContractHTML(chubReadCustomFields('chd',client));
       return;
@@ -468,7 +487,7 @@ async function openContractDetailPanel(contractId){
     if(c.document_hash){
       try{
         const nowHash=await computeContractHash(data);
-        document.getElementById('chdIntegrity').innerHTML=nowHash===c.document_hash
+        document.getElementById('chdIntegrity').innerHTML=(nowHash===c.document_hash||nowHash===c.sealed_hash)
           ?'<div class="ctr-integrity ok">✅ النص مطابق تمامًا لما وُقِّع عليه</div>'
           :'<div class="ctr-integrity warn">⚠ النص يختلف عمّا كان وقت الإنشاء</div>';
       }catch(e){}
@@ -662,7 +681,9 @@ async function openContractDetailPanel(contractId){
       if(!await confirmDialog('اعتماد داخلي','بعد الاعتماد، يصبح هذا العقد قابلًا للإرسال والتوقيع من الطرفين. متابعة؟',false,'اعتماد'))return;
       try{
         await approveContractInternal(contractId);
-        toast('اعتُمد العقد داخليًا — أصبح قابلًا للإرسال والتوقيع','ok');
+        {const fr=(await fetchAllContracts()).find(x=>x.id===contractId);
+         if(fr){try{await sealContract(fr);}catch(e){}}}
+        toast('اعتُمد العقد داخليًا وخُتم نصه — أصبح قابلًا للإرسال والتوقيع','ok');
         CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId);
       }catch(e){toast(e.message,'err');}
     };
@@ -677,6 +698,9 @@ async function openContractDetailPanel(contractId){
         }else{
           await updateContract(contractId,Object.assign(chubReadStandardFields('chd',client),nameNum));
         }
+        CH_CONTRACTS=await fetchAllContracts();
+        const fresh=CH_CONTRACTS.find(x=>x.id===contractId);
+        if(fresh){try{await sealContract(fresh);}catch(e){}}
         toast('حُفظت التعديلات وثُبِّتت','ok');
         CH_CONTRACTS=await fetchAllContracts();
         renderContractsHubBody();
