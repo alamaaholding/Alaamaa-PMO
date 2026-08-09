@@ -644,6 +644,15 @@ async function fetchBaselineDiff(projectId){
   const {data,error}=await sb.rpc('pmo_baseline_diff',{p_project_id:projectId});
   if(error)throw error;return data||{};
 }
+// تُبقي بيانات الطرفين حيّة ما دام العقد بلا توقيع، وتُجمَّد نهائيًا بعد أول توقيع
+async function refreshContractParties(contractId){
+  const {data,error}=await sb.rpc('pmo_refresh_contract_parties',{p_contract_id:contractId});
+  if(error)throw error;return data||{};
+}
+async function refreshClientContracts(clientId){
+  const {data,error}=await sb.rpc('pmo_refresh_client_contracts',{p_client_id:clientId});
+  if(error)throw error;return data||{};
+}
 async function fetchContractFunnel(contractId){
   const {data,error}=await sb.rpc('pmo_contract_funnel',{p_contract_id:contractId});
   if(error)throw error;return data||{};
@@ -754,6 +763,8 @@ async function updateClientProfile(clientId,fields){
     .forEach(k=>{if(k in fields)patch[k]=fields[k]||null;});
   const {error}=await sb.from('pmo_clients').update(patch).eq('id',clientId);
   if(error)throw error;
+  // ينعكس فورًا على كل عقود هذا الشريك غير الموقَّعة — الموقَّعة تبقى كما وُقِّعت
+  try{ await refreshClientContracts(clientId); }catch(e){}
 }
 // تحديث المعرّف النظيف (Slug) — يُنظِّف الصيغة تلقائيًا؛ التفرّد مضمون بقيد فريد في القاعدة
 // تحديث المعرّف النظيف (Slug) — يُنظِّف الصيغة تلقائيًا؛ التحديث ذرّي ويسجّل المعرّف
