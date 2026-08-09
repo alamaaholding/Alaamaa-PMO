@@ -744,7 +744,7 @@ async function addContractAttachment(contractId,label,url,kind,baselineId,fileIn
   const {data,error}=await sb.rpc('pmo_add_contract_attachment',
     {p_contract_id:contractId,p_label:label,p_url:url||null,p_kind:kind||'link',p_baseline_id:baselineId||null,
      p_storage_path:(fileInfo&&fileInfo.path)||null,p_file_size:(fileInfo&&fileInfo.size)||null,
-     p_mime_type:(fileInfo&&fileInfo.mime)||null});
+     p_mime_type:(fileInfo&&fileInfo.mime)||null,p_content_hash:(fileInfo&&fileInfo.hash)||null});
   if(error)throw error;
   if(!data.ok)throw new Error(data.error==='signed'?'لا يمكن تعديل مرفقات عقد وقّع عليه طرف':'تعذّر الإضافة');
   return data;
@@ -771,10 +771,11 @@ async function fetchContractInstances(contractId){
   const {data,error}=await sb.rpc('pmo_contract_instances',{p_contract_id:contractId});
   if(error)throw error;return data||[];
 }
-async function approveContractInternal(contractId){
-  const {data,error}=await sb.rpc('pmo_approve_contract_internal',{p_contract_id:contractId});
+async function approveContractInternal(contractId,overrideReason){
+  const {data,error}=await sb.rpc('pmo_approve_contract_internal',
+    {p_contract_id:contractId,p_override_reason:overrideReason||null});
   if(error)throw error;
-  if(!data.ok)throw new Error(data.error||'تعذّر الاعتماد');
+  if(!data.ok){const e=new Error(data.message||data.error||'تعذّر الاعتماد');e.code=data.error;throw e;}
   return data;
 }
 async function voidContract(contractId){
@@ -923,7 +924,17 @@ async function uploadContractFile(contractId,file){
   const path=contractId+'/'+Date.now()+'_'+safe;
   const {error}=await sb.storage.from('contract-files').upload(path,file,{upsert:false});
   if(error)throw new Error('تعذّر الرفع: '+error.message);
-  return {path,size:file.size,mime:file.type||null};
+  // بصمة المحتوى: تجعل استبدال الملف بعد التوقيع قابلًا للكشف — الملحق جزء من العقد
+  let hash=null;
+  try{
+    const buf=await file.arrayBuffer();
+    hash=await sha256Hex(String.fromCharCode(...new Uint8Array(buf).slice(0,0)))||null;
+    if(window.crypto&&window.crypto.subtle){
+      const d=await crypto.subtle.digest('SHA-256',buf);
+      hash=[...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+  }catch(e){}
+  return {path,size:file.size,mime:file.type||null,hash};
 }
 async function contractFileURL(path){
   const {data,error}=await sb.storage.from('contract-files').createSignedUrl(path,300);
