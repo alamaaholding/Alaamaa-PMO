@@ -385,6 +385,10 @@ async function openContractDetailPanel(contractId){
       <div id="chdClauses"></div>
     </div>`:''}
     <div class="sa-section" style="margin-top:14px">
+      <h4>📜 سجل العقد <span class="sa-hint">كل إجراء موثَّق: من فعله ومتى</span></h4>
+      <div id="chdAudit"><div class="skeleton" style="height:40px"></div></div>
+    </div>
+    <div class="sa-section" style="margin-top:14px">
       <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للشريك في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
       <div id="chdAttachments"><div class="skeleton" style="height:40px"></div></div>
     </div>
@@ -446,6 +450,35 @@ async function openContractDetailPanel(contractId){
   };
   {const ts=document.getElementById('chdTemplate');
    if(ts)ts.onchange=()=>{CHD_TEMPLATE=ts.value;CHD_OVERRIDES.excluded=[];renderClauses();refreshPreview();};}
+
+  // ===== سجل تدقيق العقد =====
+  (async()=>{
+    const box=document.getElementById('chdAudit');
+    if(!box)return;
+    let rows=[];
+    try{ rows=await fetchContractAudit(contractId); }
+    catch(e){ box.innerHTML='<p class="sa-hint">تعذّر تحميل السجل</p>'; return; }
+    if(!rows.length){ box.innerHTML='<p class="sa-hint">لا إجراءات مسجَّلة بعد.</p>'; return; }
+    const who=id=>{const m=(SA_MEMBERS_CACHE||[]).find(x=>x.id===id);return m?(m.full_name||m.email):'—';};
+    const detail=v=>{
+      if(!v)return '';
+      const parts=[];
+      Object.keys(v).forEach(k=>{
+        if(k==='number')return;
+        const x=v[k];
+        if(x&&typeof x==='object'&&('من' in x))parts.push(k+': '+(x['من']==null?'—':x['من'])+' ← '+(x['إلى']==null?'—':x['إلى']));
+        else parts.push(k+': '+x);
+      });
+      return parts.join(' · ');
+    };
+    box.innerHTML=rows.map(r=>`
+      <div class="chd-att-row">
+        <span><b>${esc(AUDIT_ACTIONS[r.action]||r.action)}</b>
+          ${r.new_value?`<span class="sa-hint"> · ${esc(detail(r.new_value))}</span>`:''}</span>
+        <span class="sa-hint" style="white-space:nowrap">${esc(who(r.user_id))} · ${
+          new Date(r.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'})}</span>
+      </div>`).join('');
+  })();
 
   // ===== المرفقات =====
   const renderAttachments=async()=>{
