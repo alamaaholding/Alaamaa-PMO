@@ -1,4 +1,4 @@
-const BUILD_V='15a52217';
+const BUILD_V='163bbec8';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1009,8 +1009,39 @@ async function sha256Hex(str){
   }catch(e){return null;}
 }
 // يحسب نفس التجزئة من بيانات عقد معيَّن — يُستخدَم عند الإنشاء وعند التحقّق لاحقًا
+// التجزئة تُحسب من النص المدموج النهائي — الذي يعكس أصلًا النموذج المختار وتعديلات البنود
+// وبيانات الطرفين كلها. فأي تغيير في أيٍّ منها يغيّرها حتمًا (كانت تتجاهل النموذج والبنود
+// لأن mergeContract لم تكن تتلقاهما أصلًا).
 async function computeContractHash(mergeData){
-  return sha256Hex(JSON.stringify(mergeContract(mergeData)));
+  const merged=mergeContract(mergeData);
+  return sha256Hex(JSON.stringify(merged));
+}
+// بناء بيانات الدمج من صفّ عقد كامل — مصدر واحد يضمن تطابق التجزئة أينما حُسبت
+function contractMergeData(c){
+  return {
+    clientName:c.client_name,clientCr:c.client_cr,clientVat:c.client_vat,clientAddress:c.client_address,
+    clientRepName:c.client_rep_name,clientRepTitle:c.client_rep_title,
+    clientEmail:c.client_contact_email,clientPhone:c.client_contact_phone,
+    org:c.org||{},
+    includesAdSpend:c.includes_ad_spend,effectiveDate:c.effective_date,
+    contractValue:c.contract_value,latePaymentCap:c.late_payment_cap,specialTerms:c.special_terms,
+    templateKey:c.template_key,clauseOverrides:c.clause_overrides
+  };
+}
+// (١) ختم النص المدموج في القاعدة — بعده يُعرَض منه لا من القالب، فلا يتغيّر نص عقد موقَّع
+// أبدًا مهما عُدِّل القالب لاحقًا.
+async function sealContract(c){
+  const isCustom=c.contract_type==='custom';
+  const body=isCustom
+    ? {kind:'custom',title:c.custom_title,body:c.custom_body,org:c.org||{},
+       clientName:c.client_name,clientCr:c.client_cr,clientVat:c.client_vat,clientAddress:c.client_address,
+       clientRepName:c.client_rep_name,clientRepTitle:c.client_rep_title,
+       clientEmail:c.client_contact_email,clientPhone:c.client_contact_phone}
+    : Object.assign({kind:'standard'},mergeContract(contractMergeData(c)));
+  const hash=await sha256Hex(JSON.stringify(body));
+  const {data,error}=await sb.rpc('pmo_seal_contract',{p_contract_id:c.id,p_body:body,p_hash:hash});
+  if(error)throw error;
+  return data||{};
 }
 async function createContract(projectId,baselineId,opts){
   opts=opts||{};
@@ -4238,7 +4269,13 @@ async function renderPublicSign(token){
   };
   const customData={title:d.custom_title,body:d.custom_body,clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,org:d.org||{},
     clientAddress:d.client_address,clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title};
-  const contractHtml=isCustom?renderCustomContractHTML(customData):renderMergedContractHTML(mergeContract(mergeData));
+  // النص المختوم أولًا دائمًا — هو ما التزم به الطرفان فعليًا. لا يُعاد توليده من القالب
+  // مهما عُدِّل لاحقًا، فما يراه الشريك ويوقّع عليه هو ما خُتم بالضبط.
+  const contractHtml=d.sealed_body
+    ? (d.sealed_body.kind==='custom'
+        ? renderCustomContractHTML(d.sealed_body)
+        : renderMergedContractHTML(d.sealed_body))
+    : (isCustom?renderCustomContractHTML(customData):renderMergedContractHTML(mergeContract(mergeData)));
   let integrityBadge='';
   if(d.document_hash&&!isCustom){
     try{
@@ -4704,12 +4741,23 @@ async function openContractDetailPanel(contractId){
   // العقد غير الموقَّع: بيانات الطرفين تُنعَش من الملفات الحيّة قبل العرض، فأي تعديل على
   // ملف علامة أو ملف الشريك ينعكس فورًا. الموقَّع مجمَّد ولا يُمسّ إطلاقًا.
   const _anySig=(c.signatures||[]).length>0;
+  // عقد بلا ختم: يُختَم الآن — يشمل العقود المُنشأة قبل إضافة الختم، فلا يبقى عقد
+  // معتمَد غير قابل للتوقيع (التوقيع صار يشترط وجود نص مختوم).
+  if(!c.sealed_body&&c.status!=='void'){
+    try{
+      await sealContract(c);
+      const fresh=await fetchAllContracts();
+      const found=(fresh||[]).find(x=>x.id===contractId);
+      if(found){CH_CONTRACTS=fresh;c=found;}
+    }catch(e){}
+  }
   if(!_anySig&&c.status!=='void'){
     try{
       const r=await refreshContractParties(contractId);
       if(r&&r.refreshed){
-        CH_CONTRACTS=await fetchAllContracts();
-        c=CH_CONTRACTS.find(x=>x.id===contractId)||c;
+        const fresh=await fetchAllContracts();
+        const found=(fresh||[]).find(x=>x.id===contractId);
+        if(found){CH_CONTRACTS=fresh;c=found;}
       }
     }catch(e){}
   }
@@ -4942,6 +4990,14 @@ async function openContractDetailPanel(contractId){
   renderAttachments();
 
   const refreshPreview=async()=>{
+    // عقد مختوم وموقَّع: يُعرَض نصه المختوم حرفيًا لا المُعاد توليده
+    if(c.sealed_body&&anySigned){
+      document.getElementById('chdPreview').innerHTML=
+        (c.sealed_body.kind==='custom'?renderCustomContractHTML(c.sealed_body):renderMergedContractHTML(c.sealed_body));
+      document.getElementById('chdIntegrity').innerHTML=
+        '<div class="ctr-integrity ok">🔒 نص مختوم في '+new Date(c.sealed_at).toLocaleDateString('ar')+' — هذا ما وُقِّع عليه حرفيًا</div>';
+      return;
+    }
     if(isCustom){
       document.getElementById('chdPreview').innerHTML=renderCustomContractHTML(chubReadCustomFields('chd',client));
       return;
@@ -4951,7 +5007,7 @@ async function openContractDetailPanel(contractId){
     if(c.document_hash){
       try{
         const nowHash=await computeContractHash(data);
-        document.getElementById('chdIntegrity').innerHTML=nowHash===c.document_hash
+        document.getElementById('chdIntegrity').innerHTML=(nowHash===c.document_hash||nowHash===c.sealed_hash)
           ?'<div class="ctr-integrity ok">✅ النص مطابق تمامًا لما وُقِّع عليه</div>'
           :'<div class="ctr-integrity warn">⚠ النص يختلف عمّا كان وقت الإنشاء</div>';
       }catch(e){}
@@ -5145,7 +5201,9 @@ async function openContractDetailPanel(contractId){
       if(!await confirmDialog('اعتماد داخلي','بعد الاعتماد، يصبح هذا العقد قابلًا للإرسال والتوقيع من الطرفين. متابعة؟',false,'اعتماد'))return;
       try{
         await approveContractInternal(contractId);
-        toast('اعتُمد العقد داخليًا — أصبح قابلًا للإرسال والتوقيع','ok');
+        {const fr=(await fetchAllContracts()).find(x=>x.id===contractId);
+         if(fr){try{await sealContract(fr);}catch(e){}}}
+        toast('اعتُمد العقد داخليًا وخُتم نصه — أصبح قابلًا للإرسال والتوقيع','ok');
         CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId);
       }catch(e){toast(e.message,'err');}
     };
@@ -5160,6 +5218,9 @@ async function openContractDetailPanel(contractId){
         }else{
           await updateContract(contractId,Object.assign(chubReadStandardFields('chd',client),nameNum));
         }
+        CH_CONTRACTS=await fetchAllContracts();
+        const fresh=CH_CONTRACTS.find(x=>x.id===contractId);
+        if(fresh){try{await sealContract(fresh);}catch(e){}}
         toast('حُفظت التعديلات وثُبِّتت','ok');
         CH_CONTRACTS=await fetchAllContracts();
         renderContractsHubBody();
