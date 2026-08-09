@@ -30,7 +30,7 @@ async function openOrgProfile(){
   document.getElementById('orgSave').onclick=async()=>{
     const btn=document.getElementById('orgSave');btn.disabled=true;
     try{
-      await updateOrgProfile({
+      const r=await updateOrgProfile({
         legal_name:document.getElementById('orgName').value,
         cr_number:document.getElementById('orgCr').value,
         vat_number:document.getElementById('orgVat').value,
@@ -39,7 +39,8 @@ async function openOrgProfile(){
         rep_title:document.getElementById('orgTitle').value,
         contact_email:document.getElementById('orgEmail').value,
         contact_phone:document.getElementById('orgPhone').value});
-      toast('حُفظ الملف التعاقدي لعلامة','ok');
+      const n=(r&&r.contracts_refreshed)||0;
+      toast(n?`حُفظ الملف — وانعكس على ${n} عقد غير موقَّع`:'حُفظ الملف التعاقدي لعلامة','ok');
       openOrgProfile();
     }catch(e){toast(e.message,'err');btn.disabled=false;}
   };
