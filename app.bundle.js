@@ -1,4 +1,4 @@
-const BUILD_V='4972be0e';
+const BUILD_V='705398d7';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1233,9 +1233,35 @@ async function voidContract(contractId){
   const {data,error}=await sb.rpc('pmo_void_contract',{p_contract_id:contractId});
   if(error)throw error;return data;
 }
-async function fetchAllContracts(){
-  const {data,error}=await sb.rpc('pmo_all_contracts_view');
+async function fetchAllContracts(includeArchived){
+  const {data,error}=await sb.rpc('pmo_all_contracts_view',{p_include_archived:!!includeArchived});
   if(error)throw error;return data||[];
+}
+// (٧) ملحق تعديل على عقد موقَّع — يحفظ العلاقة بالأصل بدل الإلغاء وإنشاء عقد منفصل
+async function createAmendment(contractId,reason){
+  const {data,error}=await sb.rpc('pmo_create_amendment',{p_contract_id:contractId,p_reason:reason||null});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error==='not_signed'
+    ?'الملحق لا يُنشأ إلا على عقد موقَّع — العقد غير الموقَّع يُعدَّل مباشرة':(data.error||'تعذّر الإنشاء'));
+  return data;
+}
+// (١٠) أرشفة/استرجاع — الموقَّع لا يُؤرشف لأنه مرجع قانوني ساري
+async function archiveContract(contractId,restore){
+  const {data,error}=await sb.rpc('pmo_archive_contract',{p_contract_id:contractId,p_restore:!!restore});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error==='signed_cannot_archive'
+    ?'العقد الموقَّع مرجع قانوني ساري — لا يُؤرشف':(data.error||'تعذّر التنفيذ'));
+  return data;
+}
+// (٩) عقود مُرسَلة ولم تُوقَّع منذ مدة — تستحق تذكيرًا
+async function fetchContractsNeedingReminder(days){
+  const {data,error}=await sb.rpc('pmo_contracts_needing_reminder',{p_days:days||3});
+  if(error)throw error;return data||[];
+}
+// (٨) تعارض القيمة المالية بين المشروع وعقده الموقَّع
+async function fetchValueMismatch(projectId){
+  const {data,error}=await sb.rpc('pmo_contract_value_mismatch',{p_project_id:projectId});
+  if(error)throw error;return data||{};
 }
 async function updateContract(contractId,opts){
   opts=opts||{};
@@ -4633,6 +4659,8 @@ function renderContractsHubBody(){
           <span class="chub-type-tag">${c.contract_type==='custom'?'📝 نص مخصَّص':'📋 قياسي'}</span>
           ${!c.client_id&&!c.source_contract_id?`<span class="chub-type-tag chub-tpl-tag">📄 أصل${c.instance_count>0?' · '+c.instance_count+' نسخة':''}</span>`:''}
           ${c.source_contract_id?`<span class="chub-type-tag chub-copy-tag">📎 نسخة من: ${esc(c.source_name||'أصل')}</span>`:''}
+          ${c.amends_contract_id?`<span class="chub-type-tag" style="background:var(--blue-bg);color:var(--blue)">📝 ملحق (${c.amendment_no}) على ${esc(c.amends_number||'')}</span>`:''}
+          ${c.amendment_count>0?`<span class="chub-type-tag" style="background:var(--blue-bg);color:var(--blue)">${c.amendment_count} ملحق تعديل</span>`:''}
           ${!c.internal_approved&&c.status!=='void'&&!(al||cl)?'<span class="chub-type-tag chub-pending-tag">⏳ بانتظار الاعتماد الداخلي</span>':''}
         </div>
         <div class="sa-hint">${c.client_name?'👤 '+esc(c.client_name):'👤 غير مُسنَد لشريك بعد'}${c.project_name?' · 📁 '+esc(c.project_name):' · 📁 غير مرتبط بمشروع'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}
@@ -4661,9 +4689,22 @@ function renderContractsHubBody(){
   (async()=>{
     const box=document.getElementById('chubExpiring');
     if(!box)return;
-    let exp=[];try{exp=await fetchExpiringContracts();}catch(e){return;}
+    let exp=[],rem=[];
+    try{exp=await fetchExpiringContracts();}catch(e){}
+    try{rem=await fetchContractsNeedingReminder(3);}catch(e){}
+    if(rem.length){
+      box.innerHTML=`<div class="chub-expiry-banner" style="background:var(--blue-bg);border-color:var(--blue)">
+        <b style="color:var(--blue)">🔔 عقود مُرسَلة ولم تُوقَّع بعد (${rem.length})</b>
+        ${rem.map(x=>`<div class="chd-att-row">
+          <span><span class="chub-num">${esc(x.contract_number||'—')}</span> <b>${esc(x.contract_name||'')}</b>
+            <span class="sa-hint"> · ${esc(x.client_name||'—')} · مضى ${x.days_since} يومًا على آخر إرسال (${x.sends} مرة)</span></span>
+          <button class="reqbtn" data-chubopen="${x.id}">فتح ←</button></div>`).join('')}
+      </div>`;
+      box.querySelectorAll('[data-chubopen]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.chubopen));
+    }
     if(!exp.length)return;
-    box.innerHTML=`<div class="chub-expiry-banner">
+    const prev=box.innerHTML;
+    box.innerHTML=prev+`<div class="chub-expiry-banner">
       <b>⏳ عقود تحتاج انتباهك (${exp.length})</b>
       ${exp.map(x=>`<div class="chd-att-row">
         <span><span class="chub-num">${esc(x.contract_number||'—')}</span> <b>${esc(x.contract_name||'')}</b>
@@ -4838,6 +4879,9 @@ async function openContractDetailPanel(contractId){
       <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
       ${(!c.client_id&&!c.source_contract_id)?'<button class="hbtn" id="chdAssign" style="background:var(--gold);border-color:var(--gold)">👥 إسناد لشريك (إنشاء نسخة)</button>':''}
       <button class="reqbtn" id="chdDuplicate">📑 تكرار العقد</button>
+      ${anySigned?'<button class="reqbtn" id="chdAmend">📝 ملحق تعديل</button>':''}
+      ${(!anySigned&&!c.archived_at)?'<button class="reqbtn" id="chdArchive">🗄 أرشفة</button>':''}
+      ${c.archived_at?'<button class="reqbtn" id="chdUnarchive">↩ استرجاع من الأرشيف</button>':''}
       ${c.project_id?'<button class="reqbtn" id="chdUnlink">🔓 فك الارتباط بالمشروع</button>':''}
       <button class="reqbtn" id="chdClose" style="margin-inline-start:auto">✕ إغلاق</button>
     </div>
@@ -5188,6 +5232,32 @@ async function openContractDetailPanel(contractId){
         ${!f.tracking_active&&f.sent_at?'<br>ℹ️ تتبّع الوصول والفتح يتطلب ربط Webhook في Resend':''}
       </p>`;
   })();
+  {const am=document.getElementById('chdAmend');
+   if(am)am.onclick=async()=>{
+     const r=await dialog({title:'ملحق تعديل',
+       message:'يُنشأ ملحق مرقَّم مرتبط بهذا العقد، ينسخ بنوده ومرفقاته للتعديل — والعقد الأصلي يبقى ساريًا كما وُقِّع.',
+       fields:[{key:'reason',label:'موضوع التعديل',type:'textarea',placeholder:'ما الذي يعدّله هذا الملحق؟'}],
+       confirmText:'إنشاء الملحق'});
+     if(!r)return;
+     try{
+       const d=await createAmendment(contractId,r.reason);
+       toast('أُنشئ الملحق '+d.number,'ok');
+       CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(d.id);
+     }catch(e){toast(e.message,'err');}
+   };}
+  {const ar=document.getElementById('chdArchive');
+   if(ar)ar.onclick=async()=>{
+     if(!await confirmDialog('أرشفة العقد','يختفي من القائمة الرئيسية ويبقى قابلًا للاسترجاع.',false,'أرشفة'))return;
+     try{ await archiveContract(contractId,false);toast('أُرشف العقد','ok');
+       CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();panel.innerHTML='';
+     }catch(e){toast(e.message,'err');}
+   };}
+  {const ua=document.getElementById('chdUnarchive');
+   if(ua)ua.onclick=async()=>{
+     try{ await archiveContract(contractId,true);toast('استُرجع العقد','ok');
+       CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId);
+     }catch(e){toast(e.message,'err');}
+   };}
   {const sb2=document.getElementById('chdSignNow');
    if(sb2)sb2.onclick=()=>{
      const area=document.getElementById('chdSignArea');
