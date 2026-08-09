@@ -272,6 +272,7 @@ async function openContractDetailPanel(contractId){
       <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
       ${(!c.client_id&&!c.source_contract_id)?'<button class="hbtn" id="chdAssign" style="background:var(--gold);border-color:var(--gold)">👥 إسناد لشريك (إنشاء نسخة)</button>':''}
       <button class="reqbtn" id="chdDuplicate">📑 تكرار العقد</button>
+      ${anySigned?'<button class="reqbtn" id="chdCert">🎖 شهادة التوقيع</button>':''}
       ${anySigned?'<button class="reqbtn" id="chdAmend">📝 ملحق تعديل</button>':''}
       ${(!anySigned&&!c.archived_at)?'<button class="reqbtn" id="chdArchive">🗄 أرشفة</button>':''}
       ${c.archived_at?'<button class="reqbtn" id="chdUnarchive">↩ استرجاع من الأرشيف</button>':''}
@@ -658,6 +659,67 @@ async function openContractDetailPanel(contractId){
         ${!f.tracking_active&&f.sent_at?'<br>ℹ️ تتبّع الوصول والفتح يتطلب ربط Webhook في Resend':''}
       </p>`;
   })();
+  {const ct=document.getElementById('chdCert');
+   if(ct)ct.onclick=async()=>{
+     let cert;
+     try{ cert=await fetchSignatureCertificate(contractId); }catch(e){toast(e.message,'err');return;}
+     const f=d=>d?new Date(d).toLocaleString('ar',{dateStyle:'full',timeStyle:'short'}):'—';
+     const org=cert.parties.org||{},pt=cert.parties.partner||{};
+     const rows=(label,val)=>`<tr><th>${esc(label)}</th><td>${esc(val==null?'—':String(val))}</td></tr>`;
+     document.getElementById('contractPrint').innerHTML=`
+       <section class="cx-cover">
+         <div class="cx-cover-brand">علامة <span>· أثر دائم</span></div>
+         <h1>شهادة توقيع إلكتروني</h1>
+         <div class="cx-cover-meta">
+           <div><b>العقد</b><span>${esc(cert.contract.name||'—')}</span></div>
+           <div><b>رقم العقد</b><span>${esc(cert.contract.number||'—')}</span></div>
+         </div>
+         <p class="cx-cover-note">وثيقة أدلة مُولَّدة في ${f(cert.generated_at)}</p>
+       </section>
+       <section class="cx-page">
+         <div class="cx-annex-hd">أولًا — الأطراف</div>
+         <table class="cx-table"><tbody>
+           ${rows('الطرف الأول',org.legal_name||'علامة')}${rows('السجل التجاري',org.cr_number)}
+           ${rows('الرقم الضريبي',org.vat_number)}${rows('الممثل',org.rep_name)}
+           ${rows('الطرف الثاني',pt.name)}${rows('السجل التجاري',pt.cr)}
+           ${rows('الرقم الضريبي',pt.vat)}${rows('الممثل',pt.rep)}
+         </tbody></table>
+
+         <div class="cx-annex-hd">ثانيًا — المستند الموقَّع</div>
+         <table class="cx-table"><tbody>
+           ${rows('وقت ختم النص',f(cert.document.sealed_at))}
+           ${rows('بصمة النص (SHA-256)',cert.document.sealed_hash||'—')}
+           ${rows('النموذج المستخدَم',cert.document.template)}
+           ${rows('قيمة العقد',cert.contract.value!=null?Number(cert.contract.value).toLocaleString('ar')+' ر.س':'—')}
+           ${rows('تاريخ السريان',cert.contract.effective_date)}
+         </tbody></table>
+
+         <div class="cx-annex-hd">ثالثًا — التواقيع وأدلتها</div>
+         ${(cert.signatures||[]).map(sg=>`
+           <table class="cx-table" style="margin-bottom:14px"><tbody>
+             ${rows('الطرف',sg.party==='alamaa'?'علامة':'الشريك')}
+             ${rows('الموقِّع',sg.name)}${rows('البريد',sg.email)}
+             ${rows('وقت التوقيع',f(sg.signed_at))}
+             ${rows('عنوان الشبكة',sg.ip)}
+             ${rows('تحقق الهوية',sg.identity_verified?('نعم — '+(sg.verified_via||'')):'لا')}
+             ${rows('وقت التحقق',f(sg.verified_at))}
+             ${rows('بصمة النص وقت التوقيع',sg.hash_at_signing||'—')}
+             ${rows('مطابقة النص الحالي',sg.signed_current_text?'✔ مطابق — لم يتغيّر منذ التوقيع':'✘ غير مطابق — راجع فورًا')}
+             ${rows('إقرار القبول',sg.consent)}
+           </tbody></table>`).join('')}
+
+         <div class="cx-annex-hd">رابعًا — سجل الإجراءات</div>
+         <table class="cx-table"><thead><tr><th>الإجراء</th><th>المنفِّذ</th><th>الوقت</th></tr></thead><tbody>
+           ${(cert.audit||[]).map(a=>`<tr><td>${esc(AUDIT_ACTIONS[a.action]||a.action)}</td>
+             <td>${esc(a.by||'—')}</td><td>${f(a.at)}</td></tr>`).join('')||'<tr><td colspan="3">—</td></tr>'}
+         </tbody></table>
+       </section>
+       <div class="cx-footer">علامة · شهادة أدلة توقيع — ${esc(cert.contract.number||'')}</div>`;
+     document.body.classList.add('printing-contract');
+     setTimeout(()=>{window.print();
+       const restore=()=>{document.body.classList.remove('printing-contract');window.removeEventListener('afterprint',restore);};
+       window.addEventListener('afterprint',restore);},120);
+   };}
   {const am=document.getElementById('chdAmend');
    if(am)am.onclick=async()=>{
      const r=await dialog({title:'ملحق تعديل',
