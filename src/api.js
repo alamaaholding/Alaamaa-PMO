@@ -764,7 +764,11 @@ async function voidContract(contractId){
 }
 async function fetchAllContracts(includeArchived){
   const {data,error}=await sb.rpc('pmo_all_contracts_view',{p_include_archived:!!includeArchived});
-  if(error)throw error;return data||[];
+  if(error){
+    if(/غير مصرّح/.test(error.message||''))throw new Error('انتهت جلستك أو لا تملك صلاحية عرض العقود — سجّل الدخول مجددًا');
+    throw error;
+  }
+  return data||[];
 }
 // (٧) ملحق تعديل على عقد موقَّع — يحفظ العلاقة بالأصل بدل الإلغاء وإنشاء عقد منفصل
 async function createAmendment(contractId,reason){
