@@ -216,8 +216,20 @@ function chubRenderClauseEditor(boxId,onChange){
 
 // ===== لوحة تفصيلية موحّدة: تعرض/تعدّل عقدًا قائمًا (قياسيًا أو مخصَّصًا) =====
 async function openContractDetailPanel(contractId){
-  const c=CH_CONTRACTS.find(x=>x.id===contractId);
+  let c=CH_CONTRACTS.find(x=>x.id===contractId);
   if(!c)return;
+  // العقد غير الموقَّع: بيانات الطرفين تُنعَش من الملفات الحيّة قبل العرض، فأي تعديل على
+  // ملف علامة أو ملف الشريك ينعكس فورًا. الموقَّع مجمَّد ولا يُمسّ إطلاقًا.
+  const _anySig=(c.signatures||[]).length>0;
+  if(!_anySig&&c.status!=='void'){
+    try{
+      const r=await refreshContractParties(contractId);
+      if(r&&r.refreshed){
+        CH_CONTRACTS=await fetchAllContracts();
+        c=CH_CONTRACTS.find(x=>x.id===contractId)||c;
+      }
+    }catch(e){}
+  }
   const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
   const anySigned=!!(al||cl);
   const editable=!anySigned&&c.status!=='void';
@@ -243,6 +255,14 @@ async function openContractDetailPanel(contractId){
       <div><b>📄 هذا عقد أصل (قالب)</b><br><span class="sa-hint">إسناده لشريك يُنشئ <b>نسخة مستقلة تمامًا</b> خاصة به — بمعرّف ورقم ورابط توقيع خاص — والأصل يبقى هنا كما هو بلا أي تعديل. يمكن إسناده لعدد غير محدود من الشركاء بلا أي تداخل بينهم.</span></div>
     </div>
     <div id="chdInstances"></div>`:''}
+    ${c.parties_frozen
+      ?`<div class="ctr-integrity ok">🔒 بيانات الطرفين مجمَّدة كما وُقِّع عليها — تعديل ملف علامة أو الشريك لاحقًا لا يمسّ هذا العقد.</div>`
+      :`<div class="chub-live-parties">🔄 بيانات الطرفين <b>حيّة</b> — تعكس أحدث ما في ملف علامة وملف الشريك، وتُجمَّد تلقائيًا لحظة أول توقيع.</div>`}
+    ${anySigned
+      ? `<div class="ctr-integrity ok">🔒 بيانات الطرفين مُجمَّدة كما وُقِّع عليها — أي تعديل لاحق على ملف علامة أو ملف الشريك لا يمسّ هذا العقد.</div>`
+      : (c.status!=='void'
+        ? `<div class="ctr-integrity" style="background:var(--blue-bg);color:var(--blue)">🔄 بيانات الطرفين حيّة — تُحدَّث تلقائيًا من الملف التعاقدي لعلامة وملف الشريك، وتُجمَّد نهائيًا عند أول توقيع.</div>`
+        : '')}
     ${c.source_contract_id?`<div class="ctr-integrity ok">📎 هذه نسخة خاصة بـ<b>${esc(c.client_name||'—')}</b> من الأصل «${esc(c.source_name||'')}» — تعديلها لا يمسّ الأصل ولا نسخ الشركاء الآخرين إطلاقًا.</div>`:''}
 
     ${(c.internal_approved&&c.status!=='void'&&!al)?`
