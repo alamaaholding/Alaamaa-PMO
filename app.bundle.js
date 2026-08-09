@@ -1,4 +1,4 @@
-const BUILD_V='ca09a6f5';
+const BUILD_V='15a52217';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1115,6 +1115,15 @@ async function fetchBaselineDiff(projectId){
   const {data,error}=await sb.rpc('pmo_baseline_diff',{p_project_id:projectId});
   if(error)throw error;return data||{};
 }
+// تُبقي بيانات الطرفين حيّة ما دام العقد بلا توقيع، وتُجمَّد نهائيًا بعد أول توقيع
+async function refreshContractParties(contractId){
+  const {data,error}=await sb.rpc('pmo_refresh_contract_parties',{p_contract_id:contractId});
+  if(error)throw error;return data||{};
+}
+async function refreshClientContracts(clientId){
+  const {data,error}=await sb.rpc('pmo_refresh_client_contracts',{p_client_id:clientId});
+  if(error)throw error;return data||{};
+}
 async function fetchContractFunnel(contractId){
   const {data,error}=await sb.rpc('pmo_contract_funnel',{p_contract_id:contractId});
   if(error)throw error;return data||{};
@@ -1225,6 +1234,8 @@ async function updateClientProfile(clientId,fields){
     .forEach(k=>{if(k in fields)patch[k]=fields[k]||null;});
   const {error}=await sb.from('pmo_clients').update(patch).eq('id',clientId);
   if(error)throw error;
+  // ينعكس فورًا على كل عقود هذا الشريك غير الموقَّعة — الموقَّعة تبقى كما وُقِّعت
+  try{ await refreshClientContracts(clientId); }catch(e){}
 }
 // تحديث المعرّف النظيف (Slug) — يُنظِّف الصيغة تلقائيًا؛ التفرّد مضمون بقيد فريد في القاعدة
 // تحديث المعرّف النظيف (Slug) — يُنظِّف الصيغة تلقائيًا؛ التحديث ذرّي ويسجّل المعرّف
@@ -2975,7 +2986,7 @@ async function openOrgProfile(){
   document.getElementById('orgSave').onclick=async()=>{
     const btn=document.getElementById('orgSave');btn.disabled=true;
     try{
-      await updateOrgProfile({
+      const r=await updateOrgProfile({
         legal_name:document.getElementById('orgName').value,
         cr_number:document.getElementById('orgCr').value,
         vat_number:document.getElementById('orgVat').value,
@@ -2984,7 +2995,8 @@ async function openOrgProfile(){
         rep_title:document.getElementById('orgTitle').value,
         contact_email:document.getElementById('orgEmail').value,
         contact_phone:document.getElementById('orgPhone').value});
-      toast('حُفظ الملف التعاقدي لعلامة','ok');
+      const n=(r&&r.contracts_refreshed)||0;
+      toast(n?`حُفظ الملف — وانعكس على ${n} عقد غير موقَّع`:'حُفظ الملف التعاقدي لعلامة','ok');
       openOrgProfile();
     }catch(e){toast(e.message,'err');btn.disabled=false;}
   };
@@ -4041,7 +4053,9 @@ function mergeContract(data){
   const excluded=new Set(ov.excluded||[]);
   const added=(ov.added||[]).filter(a=>a&&a.title);
 
-  const partyRows=TPL.parties.rows.map(([label,a,b])=>[label,a,sub(b)]);
+  // كلا العمودين يمرّان بالاستبدال — كان عمود علامة (a) يُمرَّر خامًا فتظهر
+  // متغيّراته الحرفية {{اسم_علامة}} بدل قيمها، فلا ينعكس أي تعديل على ملف علامة إطلاقًا.
+  const partyRows=TPL.parties.rows.map(([label,a,b])=>[label,sub(a),sub(b)]);
   const sections=TPL.sections.map(s=>{
     // الاستبعاد لا يُزيح أي ترقيم — البند يبقى برقمه ويُستبدل متنه، حفاظًا على سلامة
     // الإحالات الداخلية المتبادلة بين البنود (٦→٧، ١٤→١٠.٤، ١٢.٢→١١ ...).
@@ -4685,8 +4699,20 @@ function chubRenderClauseEditor(boxId,onChange){
 
 // ===== لوحة تفصيلية موحّدة: تعرض/تعدّل عقدًا قائمًا (قياسيًا أو مخصَّصًا) =====
 async function openContractDetailPanel(contractId){
-  const c=CH_CONTRACTS.find(x=>x.id===contractId);
+  let c=CH_CONTRACTS.find(x=>x.id===contractId);
   if(!c)return;
+  // العقد غير الموقَّع: بيانات الطرفين تُنعَش من الملفات الحيّة قبل العرض، فأي تعديل على
+  // ملف علامة أو ملف الشريك ينعكس فورًا. الموقَّع مجمَّد ولا يُمسّ إطلاقًا.
+  const _anySig=(c.signatures||[]).length>0;
+  if(!_anySig&&c.status!=='void'){
+    try{
+      const r=await refreshContractParties(contractId);
+      if(r&&r.refreshed){
+        CH_CONTRACTS=await fetchAllContracts();
+        c=CH_CONTRACTS.find(x=>x.id===contractId)||c;
+      }
+    }catch(e){}
+  }
   const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
   const anySigned=!!(al||cl);
   const editable=!anySigned&&c.status!=='void';
@@ -4712,6 +4738,14 @@ async function openContractDetailPanel(contractId){
       <div><b>📄 هذا عقد أصل (قالب)</b><br><span class="sa-hint">إسناده لشريك يُنشئ <b>نسخة مستقلة تمامًا</b> خاصة به — بمعرّف ورقم ورابط توقيع خاص — والأصل يبقى هنا كما هو بلا أي تعديل. يمكن إسناده لعدد غير محدود من الشركاء بلا أي تداخل بينهم.</span></div>
     </div>
     <div id="chdInstances"></div>`:''}
+    ${c.parties_frozen
+      ?`<div class="ctr-integrity ok">🔒 بيانات الطرفين مجمَّدة كما وُقِّع عليها — تعديل ملف علامة أو الشريك لاحقًا لا يمسّ هذا العقد.</div>`
+      :`<div class="chub-live-parties">🔄 بيانات الطرفين <b>حيّة</b> — تعكس أحدث ما في ملف علامة وملف الشريك، وتُجمَّد تلقائيًا لحظة أول توقيع.</div>`}
+    ${anySigned
+      ? `<div class="ctr-integrity ok">🔒 بيانات الطرفين مُجمَّدة كما وُقِّع عليها — أي تعديل لاحق على ملف علامة أو ملف الشريك لا يمسّ هذا العقد.</div>`
+      : (c.status!=='void'
+        ? `<div class="ctr-integrity" style="background:var(--blue-bg);color:var(--blue)">🔄 بيانات الطرفين حيّة — تُحدَّث تلقائيًا من الملف التعاقدي لعلامة وملف الشريك، وتُجمَّد نهائيًا عند أول توقيع.</div>`
+        : '')}
     ${c.source_contract_id?`<div class="ctr-integrity ok">📎 هذه نسخة خاصة بـ<b>${esc(c.client_name||'—')}</b> من الأصل «${esc(c.source_name||'')}» — تعديلها لا يمسّ الأصل ولا نسخ الشركاء الآخرين إطلاقًا.</div>`:''}
 
     ${(c.internal_approved&&c.status!=='void'&&!al)?`
