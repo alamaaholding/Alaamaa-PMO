@@ -685,6 +685,17 @@ async function refreshClientContracts(clientId){
   if(error)throw error;return data||{};
 }
 // سجل تدقيق عقد بعينه — من فعل ماذا ومتى
+// شهادة التوقيع: حزمة الأدلة كاملة — الأطراف، النص المختوم، التواقيع بأدلتها، والسجل
+async function fetchSignatureCertificate(contractId){
+  const {data,error}=await sb.rpc('pmo_signature_certificate',{p_contract_id:contractId});
+  if(error)throw error;
+  if(!data||!data.ok)throw new Error((data&&data.error)||'تعذّر توليد الشهادة');
+  return data;
+}
+async function fetchEvidenceIssues(){
+  const {data,error}=await sb.rpc('pmo_contracts_evidence_issues');
+  if(error)throw error;return data||[];
+}
 async function fetchContractAudit(contractId){
   const {data,error}=await sb.from('pmo_audit_log')
     .select('action,new_value,created_at,user_id')
