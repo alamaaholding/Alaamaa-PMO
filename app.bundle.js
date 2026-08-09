@@ -1,4 +1,4 @@
-const BUILD_V='5a304c15';
+const BUILD_V='244bcea9';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -44,6 +44,14 @@ function can(p){
 // ===== سجل التدقيق: قاموس موحّد (مصدر وحيد لسجل المشروع وسجل المكتب) =====
 // المفاتيح مطابقة لأسماء الأفعال التي تكتبها دوال القاعدة (pmo_audit_*) فعليًا.
 const AUDIT_ACTIONS={
+  contract_created:'إنشاء عقد', contract_amendment_created:'إنشاء ملحق تعديل',
+  contract_instance_created:'إنشاء نسخة عقد لشريك', contract_internally_approved:'اعتماد داخلي للعقد',
+  contract_sealed:'ختم نص العقد', contract_terms_updated:'تعديل شروط العقد',
+  contract_signed_alamaa:'توقيع علامة', contract_signed_client:'توقيع الشريك',
+  contract_voided:'إلغاء عقد', contract_archived:'أرشفة عقد', contract_unarchived:'استرجاع عقد',
+  contract_linked:'ربط عقد بمشروع', contract_unlinked:'فك ارتباط عقد',
+  contract_sent:'إرسال عقد للشريك', contract_attachment_added:'إضافة مرفق للعقد',
+  contract_attachment_removed:'حذف مرفق من العقد',
   // البنود
   status_change:'تغيير الحالة',progress_change:'تحديث التقدّم',duration_change:'تغيير المدة',
   data_correction:'تصحيح بيانات',task_update:'تعديل بند',
@@ -65,7 +73,7 @@ const AUDIT_ACTIONS={
   archive_client:'أرشفة شريك',restore_client:'استرجاع شريك',
   request_deletion:'طلب حذف شريك',purge_client:'حذف نهائي لشريك'
 };
-const AUDIT_ENTITIES={task:'بند',change_request:'طلب تعديل خطة',requirement:'متطلب',
+const AUDIT_ENTITIES={contract:'عقد',task:'بند',change_request:'طلب تعديل خطة',requirement:'متطلب',
   comment:'تعليق',client_request:'طلب خدمة',project:'مشروع',client:'شريك'};
 
 // ===== نطاق صلاحيات الفريق =====
@@ -1154,6 +1162,14 @@ async function refreshContractParties(contractId){
 async function refreshClientContracts(clientId){
   const {data,error}=await sb.rpc('pmo_refresh_client_contracts',{p_client_id:clientId});
   if(error)throw error;return data||{};
+}
+// سجل تدقيق عقد بعينه — من فعل ماذا ومتى
+async function fetchContractAudit(contractId){
+  const {data,error}=await sb.from('pmo_audit_log')
+    .select('action,new_value,created_at,user_id')
+    .eq('entity','contract').eq('entity_id',contractId)
+    .order('created_at',{ascending:false}).limit(40);
+  if(error)throw error;return data||[];
 }
 async function fetchContractFunnel(contractId){
   const {data,error}=await sb.rpc('pmo_contract_funnel',{p_contract_id:contractId});
@@ -4996,6 +5012,10 @@ async function openContractDetailPanel(contractId){
       <div id="chdClauses"></div>
     </div>`:''}
     <div class="sa-section" style="margin-top:14px">
+      <h4>📜 سجل العقد <span class="sa-hint">كل إجراء موثَّق: من فعله ومتى</span></h4>
+      <div id="chdAudit"><div class="skeleton" style="height:40px"></div></div>
+    </div>
+    <div class="sa-section" style="margin-top:14px">
       <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للشريك في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
       <div id="chdAttachments"><div class="skeleton" style="height:40px"></div></div>
     </div>
@@ -5057,6 +5077,35 @@ async function openContractDetailPanel(contractId){
   };
   {const ts=document.getElementById('chdTemplate');
    if(ts)ts.onchange=()=>{CHD_TEMPLATE=ts.value;CHD_OVERRIDES.excluded=[];renderClauses();refreshPreview();};}
+
+  // ===== سجل تدقيق العقد =====
+  (async()=>{
+    const box=document.getElementById('chdAudit');
+    if(!box)return;
+    let rows=[];
+    try{ rows=await fetchContractAudit(contractId); }
+    catch(e){ box.innerHTML='<p class="sa-hint">تعذّر تحميل السجل</p>'; return; }
+    if(!rows.length){ box.innerHTML='<p class="sa-hint">لا إجراءات مسجَّلة بعد.</p>'; return; }
+    const who=id=>{const m=(SA_MEMBERS_CACHE||[]).find(x=>x.id===id);return m?(m.full_name||m.email):'—';};
+    const detail=v=>{
+      if(!v)return '';
+      const parts=[];
+      Object.keys(v).forEach(k=>{
+        if(k==='number')return;
+        const x=v[k];
+        if(x&&typeof x==='object'&&('من' in x))parts.push(k+': '+(x['من']==null?'—':x['من'])+' ← '+(x['إلى']==null?'—':x['إلى']));
+        else parts.push(k+': '+x);
+      });
+      return parts.join(' · ');
+    };
+    box.innerHTML=rows.map(r=>`
+      <div class="chd-att-row">
+        <span><b>${esc(AUDIT_ACTIONS[r.action]||r.action)}</b>
+          ${r.new_value?`<span class="sa-hint"> · ${esc(detail(r.new_value))}</span>`:''}</span>
+        <span class="sa-hint" style="white-space:nowrap">${esc(who(r.user_id))} · ${
+          new Date(r.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'})}</span>
+      </div>`).join('');
+  })();
 
   // ===== المرفقات =====
   const renderAttachments=async()=>{
