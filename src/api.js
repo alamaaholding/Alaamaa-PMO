@@ -762,9 +762,35 @@ async function voidContract(contractId){
   const {data,error}=await sb.rpc('pmo_void_contract',{p_contract_id:contractId});
   if(error)throw error;return data;
 }
-async function fetchAllContracts(){
-  const {data,error}=await sb.rpc('pmo_all_contracts_view');
+async function fetchAllContracts(includeArchived){
+  const {data,error}=await sb.rpc('pmo_all_contracts_view',{p_include_archived:!!includeArchived});
   if(error)throw error;return data||[];
+}
+// (٧) ملحق تعديل على عقد موقَّع — يحفظ العلاقة بالأصل بدل الإلغاء وإنشاء عقد منفصل
+async function createAmendment(contractId,reason){
+  const {data,error}=await sb.rpc('pmo_create_amendment',{p_contract_id:contractId,p_reason:reason||null});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error==='not_signed'
+    ?'الملحق لا يُنشأ إلا على عقد موقَّع — العقد غير الموقَّع يُعدَّل مباشرة':(data.error||'تعذّر الإنشاء'));
+  return data;
+}
+// (١٠) أرشفة/استرجاع — الموقَّع لا يُؤرشف لأنه مرجع قانوني ساري
+async function archiveContract(contractId,restore){
+  const {data,error}=await sb.rpc('pmo_archive_contract',{p_contract_id:contractId,p_restore:!!restore});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error==='signed_cannot_archive'
+    ?'العقد الموقَّع مرجع قانوني ساري — لا يُؤرشف':(data.error||'تعذّر التنفيذ'));
+  return data;
+}
+// (٩) عقود مُرسَلة ولم تُوقَّع منذ مدة — تستحق تذكيرًا
+async function fetchContractsNeedingReminder(days){
+  const {data,error}=await sb.rpc('pmo_contracts_needing_reminder',{p_days:days||3});
+  if(error)throw error;return data||[];
+}
+// (٨) تعارض القيمة المالية بين المشروع وعقده الموقَّع
+async function fetchValueMismatch(projectId){
+  const {data,error}=await sb.rpc('pmo_contract_value_mismatch',{p_project_id:projectId});
+  if(error)throw error;return data||{};
 }
 async function updateContract(contractId,opts){
   opts=opts||{};
