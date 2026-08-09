@@ -721,9 +721,11 @@ async function fetchContractAttachments(contractId){
   const {data,error}=await sb.rpc('pmo_contract_attachments_list',{p_contract_id:contractId});
   if(error)throw error;return data||[];
 }
-async function addContractAttachment(contractId,label,url,kind,baselineId){
+async function addContractAttachment(contractId,label,url,kind,baselineId,fileInfo){
   const {data,error}=await sb.rpc('pmo_add_contract_attachment',
-    {p_contract_id:contractId,p_label:label,p_url:url||null,p_kind:kind||'link',p_baseline_id:baselineId||null});
+    {p_contract_id:contractId,p_label:label,p_url:url||null,p_kind:kind||'link',p_baseline_id:baselineId||null,
+     p_storage_path:(fileInfo&&fileInfo.path)||null,p_file_size:(fileInfo&&fileInfo.size)||null,
+     p_mime_type:(fileInfo&&fileInfo.mime)||null});
   if(error)throw error;
   if(!data.ok)throw new Error(data.error==='signed'?'لا يمكن تعديل مرفقات عقد وقّع عليه طرف':'تعذّر الإضافة');
   return data;
@@ -853,9 +855,34 @@ async function fetchPublicContract(token){
   const {data,error}=await sb.rpc('pmo_contract_public_view',{p_token:token});
   if(error)throw error;return data;
 }
-async function signContractPublic(token,name,email,signatureData){
-  const {data,error}=await sb.rpc('pmo_sign_contract_public',{p_token:token,p_name:name,p_email:email,p_signature_data:signatureData});
+async function signContractPublic(token,name,email,signatureData,otp){
+  const {data,error}=await sb.rpc('pmo_sign_contract_public',
+    {p_token:token,p_name:name,p_email:email,p_signature_data:signatureData,p_otp:otp||null});
   if(error)throw error;return data;
+}
+// (٤) طلب رمز تحقق — يُرسَل حصرًا للبريد المسجَّل في ملف الشريك، لا لبريد يكتبه الزائر
+async function requestSigningOTP(token){
+  const res=await fetch(SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/send-signing-otp',{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
+  const out=await res.json();
+  if(!out||!out.ok)throw new Error(out&&out.message?out.message:'تعذّر إرسال رمز التحقق');
+  return out;
+}
+// (٦) رفع مرفق فعلي إلى مساحة تخزين خاصة — لا رابط خارجي قد ينكسر بعد التوقيع
+async function uploadContractFile(contractId,file){
+  const safe=file.name.replace(/[^\w.\-]+/g,'_').slice(-80);
+  const path=contractId+'/'+Date.now()+'_'+safe;
+  const {error}=await sb.storage.from('contract-files').upload(path,file,{upsert:false});
+  if(error)throw new Error('تعذّر الرفع: '+error.message);
+  return {path,size:file.size,mime:file.type||null};
+}
+async function contractFileURL(path){
+  const {data,error}=await sb.storage.from('contract-files').createSignedUrl(path,300);
+  if(error)throw new Error('تعذّر فتح الملف: '+error.message);
+  return data.signedUrl;
+}
+async function deleteContractFile(path){
+  try{ await sb.storage.from('contract-files').remove([path]); }catch(e){}
 }
 async function fetchProjectStaff(projectId){const {data}=await sb.from('pmo_project_staff').select('member_id').eq('project_id',projectId);return (data||[]).map(r=>r.member_id);}
 async function saveProjectStaff(projectId,memberIds){
