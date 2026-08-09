@@ -83,7 +83,13 @@ async function renderPublicSign(token){
   };
   const customData={title:d.custom_title,body:d.custom_body,clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,org:d.org||{},
     clientAddress:d.client_address,clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title};
-  const contractHtml=isCustom?renderCustomContractHTML(customData):renderMergedContractHTML(mergeContract(mergeData));
+  // النص المختوم أولًا دائمًا — هو ما التزم به الطرفان فعليًا. لا يُعاد توليده من القالب
+  // مهما عُدِّل لاحقًا، فما يراه الشريك ويوقّع عليه هو ما خُتم بالضبط.
+  const contractHtml=d.sealed_body
+    ? (d.sealed_body.kind==='custom'
+        ? renderCustomContractHTML(d.sealed_body)
+        : renderMergedContractHTML(d.sealed_body))
+    : (isCustom?renderCustomContractHTML(customData):renderMergedContractHTML(mergeContract(mergeData)));
   let integrityBadge='';
   if(d.document_hash&&!isCustom){
     try{
