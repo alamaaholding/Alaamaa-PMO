@@ -1,4 +1,4 @@
-const BUILD_V='163bbec8';
+const BUILD_V='4972be0e';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1192,9 +1192,11 @@ async function fetchContractAttachments(contractId){
   const {data,error}=await sb.rpc('pmo_contract_attachments_list',{p_contract_id:contractId});
   if(error)throw error;return data||[];
 }
-async function addContractAttachment(contractId,label,url,kind,baselineId){
+async function addContractAttachment(contractId,label,url,kind,baselineId,fileInfo){
   const {data,error}=await sb.rpc('pmo_add_contract_attachment',
-    {p_contract_id:contractId,p_label:label,p_url:url||null,p_kind:kind||'link',p_baseline_id:baselineId||null});
+    {p_contract_id:contractId,p_label:label,p_url:url||null,p_kind:kind||'link',p_baseline_id:baselineId||null,
+     p_storage_path:(fileInfo&&fileInfo.path)||null,p_file_size:(fileInfo&&fileInfo.size)||null,
+     p_mime_type:(fileInfo&&fileInfo.mime)||null});
   if(error)throw error;
   if(!data.ok)throw new Error(data.error==='signed'?'لا يمكن تعديل مرفقات عقد وقّع عليه طرف':'تعذّر الإضافة');
   return data;
@@ -1324,9 +1326,34 @@ async function fetchPublicContract(token){
   const {data,error}=await sb.rpc('pmo_contract_public_view',{p_token:token});
   if(error)throw error;return data;
 }
-async function signContractPublic(token,name,email,signatureData){
-  const {data,error}=await sb.rpc('pmo_sign_contract_public',{p_token:token,p_name:name,p_email:email,p_signature_data:signatureData});
+async function signContractPublic(token,name,email,signatureData,otp){
+  const {data,error}=await sb.rpc('pmo_sign_contract_public',
+    {p_token:token,p_name:name,p_email:email,p_signature_data:signatureData,p_otp:otp||null});
   if(error)throw error;return data;
+}
+// (٤) طلب رمز تحقق — يُرسَل حصرًا للبريد المسجَّل في ملف الشريك، لا لبريد يكتبه الزائر
+async function requestSigningOTP(token){
+  const res=await fetch(SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/send-signing-otp',{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
+  const out=await res.json();
+  if(!out||!out.ok)throw new Error(out&&out.message?out.message:'تعذّر إرسال رمز التحقق');
+  return out;
+}
+// (٦) رفع مرفق فعلي إلى مساحة تخزين خاصة — لا رابط خارجي قد ينكسر بعد التوقيع
+async function uploadContractFile(contractId,file){
+  const safe=file.name.replace(/[^\w.\-]+/g,'_').slice(-80);
+  const path=contractId+'/'+Date.now()+'_'+safe;
+  const {error}=await sb.storage.from('contract-files').upload(path,file,{upsert:false});
+  if(error)throw new Error('تعذّر الرفع: '+error.message);
+  return {path,size:file.size,mime:file.type||null};
+}
+async function contractFileURL(path){
+  const {data,error}=await sb.storage.from('contract-files').createSignedUrl(path,300);
+  if(error)throw new Error('تعذّر فتح الملف: '+error.message);
+  return data.signedUrl;
+}
+async function deleteContractFile(path){
+  try{ await sb.storage.from('contract-files').remove([path]); }catch(e){}
 }
 async function fetchProjectStaff(projectId){const {data}=await sb.from('pmo_project_staff').select('member_id').eq('project_id',projectId);return (data||[]).map(r=>r.member_id);}
 async function saveProjectStaff(projectId,memberIds){
@@ -4319,6 +4346,18 @@ async function renderPublicSign(token){
           <h4 style="margin-bottom:10px">التوقيع</h4>
           <input id="pubName" placeholder="الاسم الكامل *" style="width:100%;margin-bottom:8px;border:1.5px solid var(--line);border-radius:8px;padding:10px">
           <input id="pubEmail" type="email" placeholder="البريد الإلكتروني (اختياري)" style="width:100%;margin-bottom:12px;border:1.5px solid var(--line);border-radius:8px;padding:10px">
+          ${d.client_contact_email?`
+          <div class="pub-otp">
+            <b>🔐 تحقق من هويتك</b>
+            <p class="sa-hint" style="margin:4px 0 8px">سيصلك رمز من ست خانات على بريد جهة الاتصال المسجَّلة لدينا. لا يُرسَل لأي بريد آخر.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="reqbtn" id="pubOtpSend">إرسال رمز التحقق</button>
+              <input id="pubOtp" inputmode="numeric" maxlength="6" placeholder="------" dir="ltr"
+                style="flex:1;min-width:120px;border:1.5px solid var(--line);border-radius:8px;padding:10px;
+                       font-family:monospace;font-size:1.1rem;letter-spacing:6px;text-align:center">
+            </div>
+            <div id="pubOtpMsg"></div>
+          </div>`:''}
           <div id="pubSigPad"></div>
           <button class="hbtn" id="pubSignBtn" style="background:var(--gold);border-color:var(--gold);width:100%;margin-top:14px">أوافق وأوقّع</button>
           <p class="pubsign-legal">بالضغط على «أوافق وأوقّع»، أنت تقرّ بموافقتك على محتوى هذا العقد كما هو معروض أعلاه.
@@ -4327,6 +4366,21 @@ async function renderPublicSign(token){
     </div></div>`;
 
   const golf=document.getElementById('pubGoLogin');if(golf)golf.onclick=()=>{location.hash='';location.reload();};
+  {const ob=document.getElementById('pubOtpSend');
+   if(ob)ob.onclick=async()=>{
+     const msg=document.getElementById('pubOtpMsg');
+     ob.disabled=true;const t0=ob.textContent;ob.textContent='جارٍ الإرسال...';
+     try{
+       const r=await requestSigningOTP(token);
+       msg.innerHTML='<div class="ctr-integrity ok" style="margin-top:8px;font-size:.78rem">✅ أُرسل الرمز إلى '+esc(r.masked||'بريدك المسجَّل')+' — صالح لعشر دقائق</div>';
+       let left=45;ob.textContent='إعادة الإرسال ('+left+')';
+       const tick=setInterval(()=>{left--;if(left<=0){clearInterval(tick);ob.disabled=false;ob.textContent=t0;}
+         else ob.textContent='إعادة الإرسال ('+left+')';},1000);
+     }catch(e){
+       msg.innerHTML='<div class="ctr-integrity warn" style="margin-top:8px;font-size:.78rem">⚠ '+esc(e.message)+'</div>';
+       ob.disabled=false;ob.textContent=t0;
+     }
+   };}
   const pad=document.getElementById('pubSigPad');
   if(pad){
     const sig=mountSignaturePad(pad);
@@ -4338,10 +4392,17 @@ async function renderPublicSign(token){
       if(!s.ok){toast('يرجى التوقيع (رسمًا أو كتابة الاسم) قبل المتابعة','warn');return;}
       const btn=document.getElementById('pubSignBtn');btn.disabled=true;btn.textContent='جارٍ الحفظ...';
       try{
-        const r=await signContractPublic(token,name,email,s.data||('نصي: '+s.typed));
+        const otpEl=document.getElementById('pubOtp');
+        const r=await signContractPublic(token,name,email,s.data||('نصي: '+s.typed),otpEl?otpEl.value.trim():null);
         if(r&&r.ok){toast('تم توثيق توقيعك بنجاح','ok');renderPublicSign(token);}
         else{
-          const msgs={already_signed:'تم توقيع هذا العقد من قبل الشريك بالفعل.',archived:'انتهت صلاحية هذا الرابط.',void:'أُلغي هذا العقد.',name_required:'الاسم مطلوب.'};
+          const msgs={already_signed:'تم توقيع هذا العقد من قبل الشريك بالفعل.',
+            archived:'انتهت صلاحية هذا الرابط.',void:'أُلغي هذا العقد.',name_required:'الاسم مطلوب.',
+            not_sealed:'العقد غير جاهز للتوقيع بعد — تواصل مع علامة.',
+            otp_required:'أرسل رمز التحقق لبريدك ثم أدخله قبل التوقيع.',
+            otp_expired:'انتهت صلاحية الرمز — اطلب رمزًا جديدًا.',
+            otp_locked:'تجاوزت عدد المحاولات — اطلب رمزًا جديدًا.',
+            otp_wrong:'الرمز غير صحيح'+(r&&r.left!=null?` — بقيت ${r.left} محاولات`:'')+'.'};
           toast(msgs[r&&r.error]||'تعذّر التوقيع','err');btn.disabled=false;btn.textContent='أوافق وأوقّع';
         }
       }catch(e){toast('تعذّر التوقيع: '+e.message,'err');btn.disabled=false;btn.textContent='أوافق وأوقّع';}
@@ -4961,16 +5022,26 @@ async function openContractDetailPanel(contractId){
         <span class="chub-type-tag">تلقائي</span></div>`:'';
     box.innerHTML=planAtt+(atts.length?atts.map(a=>`
       <div class="chd-att-row">
-        <span>📄 <b>${esc(a.label)}</b>${a.url?` <a href="${esc(a.url)}" target="_blank" rel="noopener" class="sa-hint" style="text-decoration:underline">فتح الرابط</a>`:''}</span>
-        ${editable?`<button class="reqbtn" data-delatt="${a.id}" style="color:var(--crit)">حذف</button>`:''}
+        <span>${a.kind==='file'?'📎':'🔗'} <b>${esc(a.label)}</b>
+          ${a.file_size?`<span class="sa-hint"> · ${(a.file_size/1024).toFixed(0)} ك.ب</span>`:''}
+          ${a.storage_path?` <button class="reqbtn" data-openfile="${esc(a.storage_path)}" style="padding:2px 8px;font-size:.7rem">فتح الملف</button>`
+            :(a.url?` <a href="${esc(a.url)}" target="_blank" rel="noopener" class="sa-hint" style="text-decoration:underline">فتح الرابط</a>`:'')}</span>
+        ${editable?`<button class="reqbtn" data-delatt="${a.id}" data-delpath="${esc(a.storage_path||'')}" style="color:var(--crit)">حذف</button>`:''}
       </div>`).join(''):(planAtt?'':'<p class="sa-hint">لا مرفقات إضافية بعد.</p>'))
       +(editable?`
       <div class="sa-form" style="margin-top:12px;flex-wrap:wrap">
         <input id="chdAttLabel" placeholder="اسم المستند (مثال: كشف الأسعار)" style="flex:1;min-width:160px">
-        <input id="chdAttUrl" placeholder="https://..." style="flex:1;min-width:200px" dir="ltr">
-        <button class="reqbtn" id="chdAttAdd">إضافة مرفق</button>
+        <input id="chdAttFile" type="file" style="flex:1;min-width:180px;font-size:.78rem">
+        <button class="reqbtn" id="chdAttUpload" style="background:var(--ok);border-color:var(--ok);color:#fff">⬆ رفع الملف</button>
       </div>
-      <p class="sa-hint" style="margin-top:6px">ارفع الملف على Drive أو أي مساحة تخزين، ثم الصق رابطه هنا ليظهر للشريك مع العقد.</p>`
+      <p class="sa-hint" style="margin-top:6px">الملف يُحفَظ في مساحة علامة الخاصة ويُقفَل مع العقد عند التوقيع — لا ينكسر ولا يتغيّر بعده. الحد 25 م.ب.</p>
+      <details style="margin-top:8px"><summary class="sa-hint" style="cursor:pointer">أو أضف رابطًا خارجيًا بدل الرفع</summary>
+        <div class="sa-form" style="margin-top:8px;flex-wrap:wrap">
+          <input id="chdAttUrl" placeholder="https://..." style="flex:1;min-width:200px" dir="ltr">
+          <button class="reqbtn" id="chdAttAdd">إضافة رابط</button>
+        </div>
+        <p class="sa-hint" style="margin-top:4px">⚠ الرابط الخارجي قد ينكسر أو يتغيّر بعد التوقيع — الرفع أأمن.</p>
+      </details>`
       :'<p class="sa-hint" style="margin-top:8px">🔒 لا يمكن تعديل مرفقات عقد وقّع عليه طرف.</p>');
 
     if(editable){
@@ -4981,8 +5052,32 @@ async function openContractDetailPanel(contractId){
         try{ await addContractAttachment(contractId,label,url,'link',null); toast('أُضيف المرفق','ok'); await renderAttachments(); }
         catch(e){toast(e.message,'err');}
       };
+      document.getElementById('chdAttUpload').onclick=async()=>{
+        const label=document.getElementById('chdAttLabel').value.trim();
+        const fEl=document.getElementById('chdAttFile');
+        const file=fEl.files&&fEl.files[0];
+        if(!file){toast('اختر ملفًا أولًا','warn');return;}
+        if(file.size>25*1024*1024){toast('الملف أكبر من 25 م.ب','warn');return;}
+        const btn=document.getElementById('chdAttUpload');btn.disabled=true;const t0=btn.textContent;
+        btn.textContent='جارٍ الرفع...';
+        try{
+          const info=await uploadContractFile(contractId,file);
+          await addContractAttachment(contractId,label||file.name,null,'file',null,info);
+          toast('رُفع المرفق','ok');fEl.value='';document.getElementById('chdAttLabel').value='';
+          await renderAttachments();
+        }catch(e){toast(e.message,'err');}
+        btn.disabled=false;btn.textContent=t0;
+      };
       document.querySelectorAll('[data-delatt]').forEach(b=>b.onclick=async()=>{
-        try{ await deleteContractAttachment(b.dataset.delatt); toast('حُذف المرفق','ok'); await renderAttachments(); }
+        try{
+          await deleteContractAttachment(b.dataset.delatt);
+          // الملف المرفوع يُحذف من التخزين أيضًا فلا تتراكم ملفات يتيمة
+          if(b.dataset.delpath)await deleteContractFile(b.dataset.delpath);
+          toast('حُذف المرفق','ok'); await renderAttachments();
+        }catch(e){toast(e.message,'err');}
+      });
+      document.querySelectorAll('[data-openfile]').forEach(b=>b.onclick=async()=>{
+        try{ window.open(await contractFileURL(b.dataset.openfile),'_blank','noopener'); }
         catch(e){toast(e.message,'err');}
       });
     }
