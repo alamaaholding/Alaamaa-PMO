@@ -441,16 +441,26 @@ async function openContractDetailPanel(contractId){
         <span class="chub-type-tag">تلقائي</span></div>`:'';
     box.innerHTML=planAtt+(atts.length?atts.map(a=>`
       <div class="chd-att-row">
-        <span>📄 <b>${esc(a.label)}</b>${a.url?` <a href="${esc(a.url)}" target="_blank" rel="noopener" class="sa-hint" style="text-decoration:underline">فتح الرابط</a>`:''}</span>
-        ${editable?`<button class="reqbtn" data-delatt="${a.id}" style="color:var(--crit)">حذف</button>`:''}
+        <span>${a.kind==='file'?'📎':'🔗'} <b>${esc(a.label)}</b>
+          ${a.file_size?`<span class="sa-hint"> · ${(a.file_size/1024).toFixed(0)} ك.ب</span>`:''}
+          ${a.storage_path?` <button class="reqbtn" data-openfile="${esc(a.storage_path)}" style="padding:2px 8px;font-size:.7rem">فتح الملف</button>`
+            :(a.url?` <a href="${esc(a.url)}" target="_blank" rel="noopener" class="sa-hint" style="text-decoration:underline">فتح الرابط</a>`:'')}</span>
+        ${editable?`<button class="reqbtn" data-delatt="${a.id}" data-delpath="${esc(a.storage_path||'')}" style="color:var(--crit)">حذف</button>`:''}
       </div>`).join(''):(planAtt?'':'<p class="sa-hint">لا مرفقات إضافية بعد.</p>'))
       +(editable?`
       <div class="sa-form" style="margin-top:12px;flex-wrap:wrap">
         <input id="chdAttLabel" placeholder="اسم المستند (مثال: كشف الأسعار)" style="flex:1;min-width:160px">
-        <input id="chdAttUrl" placeholder="https://..." style="flex:1;min-width:200px" dir="ltr">
-        <button class="reqbtn" id="chdAttAdd">إضافة مرفق</button>
+        <input id="chdAttFile" type="file" style="flex:1;min-width:180px;font-size:.78rem">
+        <button class="reqbtn" id="chdAttUpload" style="background:var(--ok);border-color:var(--ok);color:#fff">⬆ رفع الملف</button>
       </div>
-      <p class="sa-hint" style="margin-top:6px">ارفع الملف على Drive أو أي مساحة تخزين، ثم الصق رابطه هنا ليظهر للشريك مع العقد.</p>`
+      <p class="sa-hint" style="margin-top:6px">الملف يُحفَظ في مساحة علامة الخاصة ويُقفَل مع العقد عند التوقيع — لا ينكسر ولا يتغيّر بعده. الحد 25 م.ب.</p>
+      <details style="margin-top:8px"><summary class="sa-hint" style="cursor:pointer">أو أضف رابطًا خارجيًا بدل الرفع</summary>
+        <div class="sa-form" style="margin-top:8px;flex-wrap:wrap">
+          <input id="chdAttUrl" placeholder="https://..." style="flex:1;min-width:200px" dir="ltr">
+          <button class="reqbtn" id="chdAttAdd">إضافة رابط</button>
+        </div>
+        <p class="sa-hint" style="margin-top:4px">⚠ الرابط الخارجي قد ينكسر أو يتغيّر بعد التوقيع — الرفع أأمن.</p>
+      </details>`
       :'<p class="sa-hint" style="margin-top:8px">🔒 لا يمكن تعديل مرفقات عقد وقّع عليه طرف.</p>');
 
     if(editable){
@@ -461,8 +471,32 @@ async function openContractDetailPanel(contractId){
         try{ await addContractAttachment(contractId,label,url,'link',null); toast('أُضيف المرفق','ok'); await renderAttachments(); }
         catch(e){toast(e.message,'err');}
       };
+      document.getElementById('chdAttUpload').onclick=async()=>{
+        const label=document.getElementById('chdAttLabel').value.trim();
+        const fEl=document.getElementById('chdAttFile');
+        const file=fEl.files&&fEl.files[0];
+        if(!file){toast('اختر ملفًا أولًا','warn');return;}
+        if(file.size>25*1024*1024){toast('الملف أكبر من 25 م.ب','warn');return;}
+        const btn=document.getElementById('chdAttUpload');btn.disabled=true;const t0=btn.textContent;
+        btn.textContent='جارٍ الرفع...';
+        try{
+          const info=await uploadContractFile(contractId,file);
+          await addContractAttachment(contractId,label||file.name,null,'file',null,info);
+          toast('رُفع المرفق','ok');fEl.value='';document.getElementById('chdAttLabel').value='';
+          await renderAttachments();
+        }catch(e){toast(e.message,'err');}
+        btn.disabled=false;btn.textContent=t0;
+      };
       document.querySelectorAll('[data-delatt]').forEach(b=>b.onclick=async()=>{
-        try{ await deleteContractAttachment(b.dataset.delatt); toast('حُذف المرفق','ok'); await renderAttachments(); }
+        try{
+          await deleteContractAttachment(b.dataset.delatt);
+          // الملف المرفوع يُحذف من التخزين أيضًا فلا تتراكم ملفات يتيمة
+          if(b.dataset.delpath)await deleteContractFile(b.dataset.delpath);
+          toast('حُذف المرفق','ok'); await renderAttachments();
+        }catch(e){toast(e.message,'err');}
+      });
+      document.querySelectorAll('[data-openfile]').forEach(b=>b.onclick=async()=>{
+        try{ window.open(await contractFileURL(b.dataset.openfile),'_blank','noopener'); }
         catch(e){toast(e.message,'err');}
       });
     }
