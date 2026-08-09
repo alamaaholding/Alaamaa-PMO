@@ -133,6 +133,18 @@ async function renderPublicSign(token){
           <h4 style="margin-bottom:10px">التوقيع</h4>
           <input id="pubName" placeholder="الاسم الكامل *" style="width:100%;margin-bottom:8px;border:1.5px solid var(--line);border-radius:8px;padding:10px">
           <input id="pubEmail" type="email" placeholder="البريد الإلكتروني (اختياري)" style="width:100%;margin-bottom:12px;border:1.5px solid var(--line);border-radius:8px;padding:10px">
+          ${d.client_contact_email?`
+          <div class="pub-otp">
+            <b>🔐 تحقق من هويتك</b>
+            <p class="sa-hint" style="margin:4px 0 8px">سيصلك رمز من ست خانات على بريد جهة الاتصال المسجَّلة لدينا. لا يُرسَل لأي بريد آخر.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="reqbtn" id="pubOtpSend">إرسال رمز التحقق</button>
+              <input id="pubOtp" inputmode="numeric" maxlength="6" placeholder="------" dir="ltr"
+                style="flex:1;min-width:120px;border:1.5px solid var(--line);border-radius:8px;padding:10px;
+                       font-family:monospace;font-size:1.1rem;letter-spacing:6px;text-align:center">
+            </div>
+            <div id="pubOtpMsg"></div>
+          </div>`:''}
           <div id="pubSigPad"></div>
           <button class="hbtn" id="pubSignBtn" style="background:var(--gold);border-color:var(--gold);width:100%;margin-top:14px">أوافق وأوقّع</button>
           <p class="pubsign-legal">بالضغط على «أوافق وأوقّع»، أنت تقرّ بموافقتك على محتوى هذا العقد كما هو معروض أعلاه.
@@ -141,6 +153,21 @@ async function renderPublicSign(token){
     </div></div>`;
 
   const golf=document.getElementById('pubGoLogin');if(golf)golf.onclick=()=>{location.hash='';location.reload();};
+  {const ob=document.getElementById('pubOtpSend');
+   if(ob)ob.onclick=async()=>{
+     const msg=document.getElementById('pubOtpMsg');
+     ob.disabled=true;const t0=ob.textContent;ob.textContent='جارٍ الإرسال...';
+     try{
+       const r=await requestSigningOTP(token);
+       msg.innerHTML='<div class="ctr-integrity ok" style="margin-top:8px;font-size:.78rem">✅ أُرسل الرمز إلى '+esc(r.masked||'بريدك المسجَّل')+' — صالح لعشر دقائق</div>';
+       let left=45;ob.textContent='إعادة الإرسال ('+left+')';
+       const tick=setInterval(()=>{left--;if(left<=0){clearInterval(tick);ob.disabled=false;ob.textContent=t0;}
+         else ob.textContent='إعادة الإرسال ('+left+')';},1000);
+     }catch(e){
+       msg.innerHTML='<div class="ctr-integrity warn" style="margin-top:8px;font-size:.78rem">⚠ '+esc(e.message)+'</div>';
+       ob.disabled=false;ob.textContent=t0;
+     }
+   };}
   const pad=document.getElementById('pubSigPad');
   if(pad){
     const sig=mountSignaturePad(pad);
@@ -152,10 +179,17 @@ async function renderPublicSign(token){
       if(!s.ok){toast('يرجى التوقيع (رسمًا أو كتابة الاسم) قبل المتابعة','warn');return;}
       const btn=document.getElementById('pubSignBtn');btn.disabled=true;btn.textContent='جارٍ الحفظ...';
       try{
-        const r=await signContractPublic(token,name,email,s.data||('نصي: '+s.typed));
+        const otpEl=document.getElementById('pubOtp');
+        const r=await signContractPublic(token,name,email,s.data||('نصي: '+s.typed),otpEl?otpEl.value.trim():null);
         if(r&&r.ok){toast('تم توثيق توقيعك بنجاح','ok');renderPublicSign(token);}
         else{
-          const msgs={already_signed:'تم توقيع هذا العقد من قبل الشريك بالفعل.',archived:'انتهت صلاحية هذا الرابط.',void:'أُلغي هذا العقد.',name_required:'الاسم مطلوب.'};
+          const msgs={already_signed:'تم توقيع هذا العقد من قبل الشريك بالفعل.',
+            archived:'انتهت صلاحية هذا الرابط.',void:'أُلغي هذا العقد.',name_required:'الاسم مطلوب.',
+            not_sealed:'العقد غير جاهز للتوقيع بعد — تواصل مع علامة.',
+            otp_required:'أرسل رمز التحقق لبريدك ثم أدخله قبل التوقيع.',
+            otp_expired:'انتهت صلاحية الرمز — اطلب رمزًا جديدًا.',
+            otp_locked:'تجاوزت عدد المحاولات — اطلب رمزًا جديدًا.',
+            otp_wrong:'الرمز غير صحيح'+(r&&r.left!=null?` — بقيت ${r.left} محاولات`:'')+'.'};
           toast(msgs[r&&r.error]||'تعذّر التوقيع','err');btn.disabled=false;btn.textContent='أوافق وأوقّع';
         }
       }catch(e){toast('تعذّر التوقيع: '+e.message,'err');btn.disabled=false;btn.textContent='أوافق وأوقّع';}
