@@ -59,6 +59,8 @@ async function renderPublicSign(token){
   let d;
   try{ d=await fetchPublicContract(token); }
   catch(e){ return pubSignError('تعذّر تحميل العقد. تحقّق من الرابط أو حاول لاحقًا.'); }
+  if(d&&d.error==='link_expired') return pubSignError(
+    'انتهت صلاحية هذا الرابط. تواصل مع علامة لإرسال رابط جديد — سيصلك خلال دقائق.');
   if(!d||!d.ok) return pubSignError(
     d&&d.error==='not_found'?'هذا الرابط غير صالح.':
     'تعذّر عرض هذا العقد حاليًا.');
