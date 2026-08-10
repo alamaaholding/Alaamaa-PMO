@@ -58,6 +58,19 @@ t('بصمة محتوى الملف تُحسب عند الرفع',api.includes("cr
 t('البصمة تُمرَّر عند تسجيل المرفق',api.includes('p_content_hash:(fileInfo&&fileInfo.hash)'));
 t('الشهادة تعرض بصمات الملاحق',hub.includes('الملاحق وبصماتها'));
 
+// ===== الأولوية ٥: الأتمتة وسجل النماذج =====
+const pf=fs.readFileSync('src/app/portfolio.js','utf8');
+t('إعدادات الأتمتة معرَّفة في api',/async function fetchAutomationSettings/.test(api));
+t('لوحة الأتمتة متاحة من أدوات المكتب',pf.includes("id:'showAutomation'")&&/async function openAutomationPanel/.test(pf));
+t('اللوحة تبيّن بوضوح أن الأتمتة معطَّلة افتراضيًا',pf.includes('التذكير التلقائي معطَّل'));
+t('التفعيل يتطلب تأكيدًا صريحًا (لا إرسال صامت)',
+  pf.includes('تفعيل الإرسال التلقائي')&&pf.includes('دون تدخل منك في كل مرة'));
+t('سقف عدد التذكيرات يمنع إزعاج الشريك',pf.includes('id="autoMax"')&&pf.includes('الحدّ الأقصى يمنع إزعاج'));
+t('معاينة العقود المشمولة قبل التفعيل',pf.includes('سيشمل التذكير حاليًا'));
+t('تسجيل إصدار النموذج ببصمة نصه',/async function registerTemplateVersion/.test(api)&&api.includes('sha256Hex(JSON.stringify({intro:tpl.intro'));
+t('مزامنة سجل النماذج تلقائية عند فتح المحفظة',hub.includes('syncTemplateRegistry()'));
+t('الشهادة تعرض إصدار النموذج المستخدَم',hub.includes('cert.document.template_version'));
+
 console.log('\n(الحماية على مستوى الجدول مُطبَّقة بمُشغِّلات في القاعدة وتحقَّقت حيًّا:');
 console.log(' منع تعديل قيمة/نص عقد موقَّع، ومنع حذف التوقيع، مع بقاء الربط والحالة قابلين للتعديل)');
 console.log('\nنجح '+ok+' · فشل '+fail);
