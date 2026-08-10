@@ -89,8 +89,8 @@ const wait=setInterval(()=>{
     ['لوحة عقود المشروع تعرض زر ربط عقد قائم صراحة',sign.includes('ctLinkExisting')&&sign.includes('ربط عقد قائم')],
     ['لوحة عقود المشروع تعرض رابطًا لإدارة العقود الكاملة لإنشاء عقد جديد',sign.includes('ctGoHub')],
     ['كل عقد مرتبط بمشروع يحمل زر فك ارتباط في لوحة المشروع',sign.includes('data-unlink=')],
-    ['اللوحة الشاملة تعرض زر فك الارتباط لأي عقد مرتبط بمشروع، بصرف النظر عن حالة التوقيع',
-      hub.includes('c.project_id?') && hub.includes('chdUnlink')],
+    ['فك الارتباط متاح لأي عقد مرتبط بمشروع، بصرف النظر عن حالة التوقيع',
+      hub.includes("add('chdUnlink','🔓 فك الارتباط بالمشروع',!!c.project_id)")],
   ];
   const all=[...w.__R,...extra.map(([n,c])=>[n,c,''])];
   let ok=0,fail=0;
