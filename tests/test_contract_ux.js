@@ -63,5 +63,21 @@ t('التبويبات بسمات وصول',hub.includes('role="tablist"')&&hub.i
 t('نسخ الأصل تبقى ظاهرة خارج التبويبات (سياق دائم)',
   hub.indexOf('id="chdInstances"')<hub.indexOf('class="chub-tabs"'));
 
+// ===== القائمة والحالات الفارغة والوصول =====
+t('مرحلة الصف تُشتق من دالة مشتركة فلا تتناقض القائمة واللوحة',/function rowStage\(c\)/.test(hub));
+t('كل صف يعرض الخطوة التالية لا الحالة فقط',hub.includes('chub-row-next'));
+t('نقطة لونية للمسح السريع',hub.includes('chub-row-dot'));
+t('الشارات تقتصر على ما يغيّر القرار (كانت تصل لسبع)',hub.includes('const tags=[];'));
+t('تنبيه اقتراب الانتهاء يظهر في الصف',hub.includes('chub-row-warn')&&hub.includes('ينتهي خلال'));
+t('حالة فارغة تفرّق بين «لا نتائج» و«لا عقود بعد»',
+  hub.includes('لا عقود تطابق هذا الفلتر')&&hub.includes('لا عقود في المحفظة بعد'));
+t('الحالة الفارغة تدعو لفعل لا تكتفي بالإخبار',
+  hub.includes('id="chubEmptyNew"')&&hub.includes('id="chubEmptyReset"'));
+t('كل صف يحمل وصفًا لقارئات الشاشة',hub.includes('aria-label="${esc((c.contract_name'));
+t('الأزرار الأيقونية موصوفة نصيًا',
+  hub.includes('aria-label="إجراءات أخرى"')&&hub.includes('aria-label="إغلاق لوحة العقد"'));
+t('الرموز الزخرفية مخفية عن قارئات الشاشة',hub.includes('aria-hidden="true"'));
+t('القائمة تستجيب للجوال',css.includes('.chub-row{flex-wrap:wrap}'));
+
 console.log('\nنجح '+ok+' · فشل '+fail);
 process.exit(fail?1:0);
