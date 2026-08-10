@@ -193,7 +193,8 @@ async function renderPortfolio(){
     toolItems.push({id:'showTimeline',t:'خط التسليمات الشامل',i:'📦'});
     toolItems.push({id:'showDOL',t:'طبقة القرار (DOL)',i:'⚖'});
     toolItems.push({id:'showAudit',t:'سجل المكتب',i:'📋'});
-    toolItems.push({id:'showContractsHub',t:'إدارة العقود',i:'✍️'});
+    toolItems.push({id:'showWorkload',t:'حِمل العمل',i:'📊'});
+  toolItems.push({id:'showContractsHub',t:'إدارة العقود',i:'✍️'});
   }
   if(ROLE==='pmo'){
     toolItems.push({id:'showHolidays',t:'العطلات الرسمية',i:'🗓'});
@@ -223,6 +224,7 @@ async function renderPortfolio(){
   {const cb=$('#showContractsHub');if(cb)cb.onclick=renderContractsHub;}
   {const lb=$('#statusLegendBtn');if(lb)lb.onclick=openStatusLegend;}
   {const op=$('#showOrgProfile');if(op)op.onclick=openOrgProfile;}
+  {const wl=$('#showWorkload');if(wl)wl.onclick=renderWorkload;}
   {const au=$('#showAutomation');if(au)au.onclick=openAutomationPanel;}
   {const sa2=$('#showSecAudit');if(sa2)sa2.onclick=openSecurityAudit;}
   {const tb=$('#showTimeline');if(tb)tb.onclick=renderPortfolioTimeline;}
