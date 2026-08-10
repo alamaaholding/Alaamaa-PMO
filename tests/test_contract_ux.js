@@ -45,5 +45,23 @@ t('زر التصدير لم يعد مكرَّرًا في المتن',(hub.match(
 t('الرأس يستجيب للجوال',css.includes('.chub-hd-actions{width:100%'));
 t('الإجراء الأساسي بارز بصريًا',css.includes('.chub-primary{font-weight:800'));
 
+// ===== المرحلة ٣+٤: التبويبات وترتيب الاستخدام =====
+['overview','terms','attach','send','log'].forEach(k=>
+  t('تبويب معرَّف: '+k, hub.includes("data-pane=\""+k+"\"")));
+t('التبويب الافتراضي يتبع المرحلة لا ترتيبًا ثابتًا',
+  hub.includes("CHD_TAB = (!c.internal_approved&&!anySigned&&editable) ? 'terms'"));
+t('عقد بانتظار التوقيع يفتح على تبويب الإرسال مباشرة',hub.includes("? 'send'"));
+t('التبديل بلا إعادة بناء — يحفظ حالة الحقول والمعاينة',
+  hub.includes("panel.querySelectorAll('.chub-pane').forEach")&&!hub.includes('CHD_TAB=b.dataset.chdtab;renderContract'));
+t('الحفظ يُعيد الفتح على نفس التبويب لا يقفز للبداية',hub.includes('openContractDetailPanel(contractId,true)'));
+t('المعاينة صعدت للواجهة (نظرة عامة) بدل قاع الصفحة',
+  hub.indexOf('data-pane="overview"')<hub.indexOf('data-pane="log"'));
+t('السجل انتقل لآخر تبويب (مرجع نادر الاستخدام)',
+  hub.indexOf('data-pane="log"')>hub.indexOf('data-pane="attach"'));
+t('نص العقد معنون بما يراه الشريك لا بوصف تقني',hub.includes('نص العقد كما سيراه الشريك'));
+t('التبويبات بسمات وصول',hub.includes('role="tablist"')&&hub.includes('role="tab"'));
+t('نسخ الأصل تبقى ظاهرة خارج التبويبات (سياق دائم)',
+  hub.indexOf('id="chdInstances"')<hub.indexOf('class="chub-tabs"'));
+
 console.log('\nنجح '+ok+' · فشل '+fail);
 process.exit(fail?1:0);
