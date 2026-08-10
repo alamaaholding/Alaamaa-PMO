@@ -3,7 +3,7 @@
 // مع بوابة اعتماد داخلي صريحة قبل أن يصبح أي عقد قابلًا للإرسال والتوقيع فعليًا.
 // مصدر البيانات: pmo_all_contracts_view — يحترم رؤية كل عقد بحسب نطاقه (مشروع أو شريك).
 
-let CH_CONTRACTS=[],CH_FILTER={status:'all',q:''};
+let CH_CONTRACTS=[],CH_FILTER={status:'all',q:'',client:'',link:'',type:'',sort:'newest'};
 const CH_STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع الشريك',signed:'موقَّع بالكامل ✅',void:'ملغى'};
 
 async function renderContractsHub(){
@@ -36,12 +36,29 @@ function renderContractsHubBody(){
   const q=CH_FILTER.q.trim().toLowerCase();
   const filtered=CH_CONTRACTS.filter(c=>{
     if(CH_FILTER.status!=='all'&&c.status!==CH_FILTER.status)return false;
+    if(CH_FILTER.client&&c.client_id!==CH_FILTER.client)return false;
+    if(CH_FILTER.type&&c.contract_type!==CH_FILTER.type)return false;
+    if(CH_FILTER.link==='linked'&&!c.project_id)return false;
+    if(CH_FILTER.link==='unlinked'&&c.project_id)return false;
+    if(CH_FILTER.link==='template'&&(c.client_id||c.source_contract_id))return false;
+    if(CH_FILTER.link==='amendment'&&!c.amends_contract_id)return false;
     if(q){
       const hay=[c.contract_name,c.contract_number,c.client_name,c.project_name].filter(Boolean).join(' ').toLowerCase();
       if(!hay.includes(q))return false;
     }
     return true;
+  }).sort((a,b)=>{
+    if(CH_FILTER.sort==='value')return (Number(b.contract_value)||0)-(Number(a.contract_value)||0);
+    if(CH_FILTER.sort==='name')return String(a.contract_name||'').localeCompare(String(b.contract_name||''),'ar');
+    if(CH_FILTER.sort==='ending'){
+      if(!a.end_date)return 1; if(!b.end_date)return -1;
+      return new Date(a.end_date)-new Date(b.end_date);
+    }
+    return new Date(b.created_at)-new Date(a.created_at);
   });
+  // مؤشرات سريعة تُبنى من المعروض فعليًا لا من الكل
+  const totalValue=filtered.reduce((s2,c)=>s2+(Number(c.contract_value)||0),0);
+  const clients=[...new Map(CH_CONTRACTS.filter(c=>c.client_id).map(c=>[c.client_id,c.client_name])).entries()];
 
   const rows=filtered.map(c=>{
     const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
@@ -67,13 +84,35 @@ function renderContractsHubBody(){
 
   $('#chubBody').innerHTML=`
     <div class="sa-section">
+      <div class="chub-stats">
+        <div class="chub-stat"><b>${filtered.length}</b><span>معروض من ${CH_CONTRACTS.length}</span></div>
+        <div class="chub-stat"><b>${counts.signed||0}</b><span>موقَّع بالكامل</span></div>
+        <div class="chub-stat"><b>${(counts.pending_alamaa||0)+(counts.pending_client||0)}</b><span>بانتظار توقيع</span></div>
+        <div class="chub-stat"><b>${totalValue?totalValue.toLocaleString('ar'):'—'}</b><span>إجمالي القيمة (ر.س)</span></div>
+      </div>
       <div class="chub-filters">
-        <input id="chubSearch" placeholder="🔍 ابحث باسم الشريك أو المشروع..." value="${esc(CH_FILTER.q)}" style="flex:1;min-width:200px">
+        <input id="chubSearch" placeholder="🔍 ابحث باسم العقد أو رقمه أو الشريك أو المشروع..." value="${esc(CH_FILTER.q)}" style="flex:1;min-width:220px">
         <div class="chub-status-pills">
           ${['all','pending_alamaa','pending_client','signed','void'].map(s=>
             `<button class="chub-pill ${CH_FILTER.status===s?'active':''}" data-chubstatus="${s}">${s==='all'?'الكل':CH_STL[s]} <span>${counts[s]||0}</span></button>`).join('')}
         </div>
         <button class="hbtn" id="chubNew" style="background:var(--gold);border-color:var(--gold)">+ عقد جديد</button>
+      </div>
+      <div class="chub-filters" style="margin-top:10px">
+        <select id="chubClient" style="min-width:150px"><option value="">كل الشركاء</option>
+          ${clients.map(([id,n])=>`<option value="${id}" ${CH_FILTER.client===id?'selected':''}>${esc(n)}</option>`).join('')}</select>
+        <select id="chubLink" style="min-width:150px">
+          ${[['','كل الارتباطات'],['linked','مرتبط بمشروع'],['unlinked','غير مرتبط'],
+             ['template','أصل (قالب) بلا شريك'],['amendment','ملاحق تعديل']].map(([v,t])=>
+            `<option value="${v}" ${CH_FILTER.link===v?'selected':''}>${t}</option>`).join('')}</select>
+        <select id="chubType" style="min-width:130px">
+          ${[['','كل الأنواع'],['standard','قياسي'],['custom','نص مخصَّص']].map(([v,t])=>
+            `<option value="${v}" ${CH_FILTER.type===v?'selected':''}>${t}</option>`).join('')}</select>
+        <select id="chubSort" style="min-width:140px">
+          ${[['newest','الأحدث أولًا'],['value','الأعلى قيمة'],['ending','الأقرب انتهاءً'],['name','أبجديًا']].map(([v,t])=>
+            `<option value="${v}" ${CH_FILTER.sort===v?'selected':''}>${t}</option>`).join('')}</select>
+        ${(CH_FILTER.client||CH_FILTER.link||CH_FILTER.type||CH_FILTER.q||CH_FILTER.status!=='all')
+          ?'<button class="reqbtn" id="chubReset">✕ مسح الفلاتر</button>':''}
       </div>
     </div>
     <div id="chubExpiring"></div>
@@ -114,6 +153,12 @@ function renderContractsHubBody(){
   })();
 
   $('#chubSearch').oninput=e=>{CH_FILTER.q=e.target.value;renderContractsHubBody();};
+  [['chubClient','client'],['chubLink','link'],['chubType','type'],['chubSort','sort']].forEach(([id,key])=>{
+    const el=document.getElementById(id);
+    if(el)el.onchange=()=>{CH_FILTER[key]=el.value;renderContractsHubBody();};
+  });
+  {const rs=document.getElementById('chubReset');
+   if(rs)rs.onclick=()=>{CH_FILTER={status:'all',q:'',client:'',link:'',type:'',sort:'newest'};renderContractsHubBody();};}
   $$('#chubBody [data-chubstatus]').forEach(b=>b.onclick=()=>{CH_FILTER.status=b.dataset.chubstatus;renderContractsHubBody();});
   $('#chubNew').onclick=openNewContractPanel;
   $$('#chubBody [data-chubopen]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.chubopen));
