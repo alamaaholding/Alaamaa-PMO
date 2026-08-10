@@ -80,7 +80,8 @@ const wait=setInterval(()=>{
       hub.includes('const isTemplate=!c.client_id&&!c.source_contract_id')
       &&hub.includes("id:'chdAssign',label:'👥 إسناد لشريك'")],
     ['شارة «أصل» مع عدد نسخه في القائمة',hub.includes('chub-tpl-tag')&&hub.includes('instance_count')],
-    ['شارة «نسخة من» تُظهر اسم الأصل بوضوح',hub.includes('chub-copy-tag')&&hub.includes('نسخة من:')],
+    ['شارة «نسخة من» تُظهر اسم الأصل بوضوح',
+      hub.includes('chub-copy-tag')&&hub.includes('نسخة من ${esc(c.source_name')],
     ['شرح صريح أن تعديل النسخة لا يمسّ الأصل',hub.includes('تعديلها لا يمسّ الأصل')],
   ];
   const all=[...w.__R,...extra.map(([n,c])=>[n,c,''])];
