@@ -312,50 +312,94 @@ async function openContractDetailPanel(contractId){
     rep_name:c.client_rep_name,rep_title:c.client_rep_title,contact_email:c.client_contact_email,contact_phone:c.client_contact_phone};
   const isCustom=c.contract_type==='custom';
 
+  // ===== المرحلة الحالية: مصدر واحد يحدّد ما يجب فعله الآن =====
+  // بدل تسعة أزرار متساوية وخمسة شرائط متنافسة: إجراء أساسي واحد يتغيّر بحسب الحالة،
+  // وشريط حالة واحد يجيب على «أين نحن؟ وما التالي؟»، والباقي في قائمة ⋯.
+  const isTemplate=!c.client_id&&!c.source_contract_id;
+  const STAGE={primary:null,secondary:[],notes:[],tone:'',title:'',hint:''};
+
+  if(c.status==='void'){
+    STAGE.tone='void';STAGE.title='عقد ملغى';
+    STAGE.hint='لا يمكن إرساله أو توقيعه. أنشئ عقدًا جديدًا إن لزم.';
+  }else if(c.archived_at){
+    STAGE.tone='muted';STAGE.title='عقد مؤرشف';
+    STAGE.hint='مخفيّ عن القائمة الرئيسية — استرجعه للعمل عليه.';
+    STAGE.primary={id:'chdUnarchive',label:'↩ استرجاع',color:'var(--gold)'};
+  }else if(!c.internal_approved&&!anySigned){
+    STAGE.tone='wait';STAGE.title='بانتظار الاعتماد الداخلي';
+    STAGE.hint='لا يُرسَل ولا يُوقَّع قبل اعتماده. راجع البنود والقيمة ثم اعتمده.';
+    if(canApprove)STAGE.primary={id:'chdApprove',label:'✅ اعتماد داخلي',color:'var(--ok)'};
+    else STAGE.notes.push({text:'الاعتماد بصلاحية مالك/مدير المنصة'});
+  }else if(isTemplate){
+    STAGE.tone='info';STAGE.title='عقد أصل (قالب) معتمَد';
+    STAGE.hint='أسنِده لشريك فتُنشأ نسخة مستقلة له — والأصل يبقى كما هو لعدد غير محدود من الشركاء.';
+    STAGE.primary={id:'chdAssign',label:'👥 إسناد لشريك',color:'var(--gold)'};
+  }else if(!al){
+    STAGE.tone='go';STAGE.title='بانتظار توقيع علامة';
+    STAGE.hint='وقّع بصفتك ممثل علامة، ثم أرسل الرابط للشريك.';
+    STAGE.primary={id:'chdSignNow',label:'✍️ توقيع علامة',color:'var(--ok)'};
+  }else if(!cl){
+    STAGE.tone='go';STAGE.title='بانتظار توقيع الشريك';
+    STAGE.hint=c.send_count>0
+      ?`أُرسل ${c.send_count} مرة — تابع المسار أدناه أو ذكّره.`
+      :'وقّعت علامة. أرسل الرابط للشريك ليوقّع.';
+    STAGE.notes.push({text:`✍️ وقّعت علامة (${esc(al.name)})`,tone:'ok'});
+  }else{
+    STAGE.tone='done';STAGE.title='موقَّع بالكامل';
+    STAGE.hint='عقد ساري ومكتمل التوقيع من الطرفين.';
+    STAGE.primary={id:'chdCert',label:'🎖 شهادة التوقيع',color:'var(--ok)'};
+  }
+
+  // ملاحظات الحالة — تُدمج في الشريط بدل شرائط منفصلة متتالية
+  if(c.source_contract_id)STAGE.notes.push({text:`📎 نسخة من «${esc(c.source_name||'')}» — تعديلها لا يمسّ الأصل`,tone:'ok'});
+  if(c.amends_contract_id)STAGE.notes.push({text:`📝 ملحق (${c.amendment_no}) على ${esc(c.amends_number||'')}`,tone:'ok'});
+  if(c.amendment_count>0)STAGE.notes.push({text:`${c.amendment_count} ملحق تعديل`,tone:'ok'});
+  STAGE.notes.push(anySigned
+    ?{text:'🔒 بيانات الطرفين مجمَّدة كما وُقِّع عليها',tone:'ok'}
+    :{text:'🔄 بيانات الطرفين حيّة — تُجمَّد عند أول توقيع',tone:''});
+  if(c.approval_override_reason)
+    STAGE.notes.push({text:`⚠ اعتماد ذاتي موثَّق — ${esc(c.approval_override_reason)}`,tone:'warn'});
+
+  // الإجراءات الثانوية: تظهر عند الحاجة فقط، ولا تُزاحم الإجراء الأساسي
+  const add=(id,label,when)=>{if(when&&(!STAGE.primary||STAGE.primary.id!==id))STAGE.secondary.push({id,label});};
+  add('chdAssign','👥 إسناد لشريك (نسخة جديدة)',isTemplate&&c.internal_approved);
+  add('chdCert','🎖 شهادة التوقيع',anySigned);
+  add('chdAmend','📝 إنشاء ملحق تعديل',anySigned);
+  add('chdExport','📄 تصدير PDF',true);
+  add('chdDuplicate','📑 تكرار العقد',true);
+  add('chdUnlink','🔓 فك الارتباط بالمشروع',!!c.project_id);
+  add('chdArchive','🗄 أرشفة',!anySigned&&!c.archived_at&&c.status!=='void');
+  add('chdUnarchive','↩ استرجاع من الأرشيف',!!c.archived_at);
+  add('chdVoid','🗑 إلغاء العقد',editable);
+
   const panel=document.getElementById('chubPanel');
   panel.innerHTML=`<div class="chub-detail">
     <div class="chub-detail-hd">
       <h3>${esc(c.contract_name||'عقد بلا اسم')} <span class="chub-num">${esc(c.contract_number||'—')}</span></h3>
       <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
-      ${(!c.client_id&&!c.source_contract_id)?'<button class="hbtn" id="chdAssign" style="background:var(--gold);border-color:var(--gold)">👥 إسناد لشريك (إنشاء نسخة)</button>':''}
-      <button class="reqbtn" id="chdDuplicate">📑 تكرار العقد</button>
-      ${anySigned?'<button class="reqbtn" id="chdCert">🎖 شهادة التوقيع</button>':''}
-      ${anySigned?'<button class="reqbtn" id="chdAmend">📝 ملحق تعديل</button>':''}
-      ${(!anySigned&&!c.archived_at)?'<button class="reqbtn" id="chdArchive">🗄 أرشفة</button>':''}
-      ${c.archived_at?'<button class="reqbtn" id="chdUnarchive">↩ استرجاع من الأرشيف</button>':''}
-      ${c.project_id?'<button class="reqbtn" id="chdUnlink">🔓 فك الارتباط بالمشروع</button>':''}
-      <button class="reqbtn" id="chdClose" style="margin-inline-start:auto">✕ إغلاق</button>
+      <div class="chub-hd-actions">
+        ${STAGE.primary?`<button class="hbtn chub-primary" id="${STAGE.primary.id}"
+           style="background:${STAGE.primary.color};border-color:${STAGE.primary.color};color:#fff">${STAGE.primary.label}</button>`:''}
+        <div class="chub-more">
+          <button class="reqbtn" id="chdMore" aria-haspopup="true" aria-expanded="false" title="إجراءات أخرى">⋯</button>
+          <div class="chub-more-menu" id="chdMoreMenu" hidden>
+            ${STAGE.secondary.map(a=>`<button class="chub-more-item" id="${a.id}">${a.label}</button>`).join('')}
+          </div>
+        </div>
+        <button class="reqbtn" id="chdClose" title="إغلاق">✕</button>
+      </div>
     </div>
 
-    ${(!c.client_id&&!c.source_contract_id)?`
-    <div class="chub-tpl-banner">
-      <div><b>📄 هذا عقد أصل (قالب)</b><br><span class="sa-hint">إسناده لشريك يُنشئ <b>نسخة مستقلة تمامًا</b> خاصة به — بمعرّف ورقم ورابط توقيع خاص — والأصل يبقى هنا كما هو بلا أي تعديل. يمكن إسناده لعدد غير محدود من الشركاء بلا أي تداخل بينهم.</span></div>
+    <div class="chub-stage ${STAGE.tone}">
+      <div class="chub-stage-main">
+        <b>${STAGE.title}</b>
+        <span class="sa-hint">${STAGE.hint}</span>
+      </div>
+      ${STAGE.notes.length?`<div class="chub-stage-notes">${STAGE.notes.map(n=>
+        `<span class="chub-note ${n.tone||''}">${n.text}</span>`).join('')}</div>`:''}
     </div>
-    <div id="chdInstances"></div>`:''}
-    ${c.parties_frozen
-      ?`<div class="ctr-integrity ok">🔒 بيانات الطرفين مجمَّدة كما وُقِّع عليها — تعديل ملف علامة أو الشريك لاحقًا لا يمسّ هذا العقد.</div>`
-      :`<div class="chub-live-parties">🔄 بيانات الطرفين <b>حيّة</b> — تعكس أحدث ما في ملف علامة وملف الشريك، وتُجمَّد تلقائيًا لحظة أول توقيع.</div>`}
-    ${anySigned
-      ? `<div class="ctr-integrity ok">🔒 بيانات الطرفين مُجمَّدة كما وُقِّع عليها — أي تعديل لاحق على ملف علامة أو ملف الشريك لا يمسّ هذا العقد.</div>`
-      : (c.status!=='void'
-        ? `<div class="ctr-integrity" style="background:var(--blue-bg);color:var(--blue)">🔄 بيانات الطرفين حيّة — تُحدَّث تلقائيًا من الملف التعاقدي لعلامة وملف الشريك، وتُجمَّد نهائيًا عند أول توقيع.</div>`
-        : '')}
-    ${c.approval_override_reason?`<div class="ctr-integrity warn">⚠ اعتماد ذاتي موثَّق (المُعِدّ هو المعتمِد) — المبرّر: ${esc(c.approval_override_reason)}</div>`:''}
-    ${c.source_contract_id?`<div class="ctr-integrity ok">📎 هذه نسخة خاصة بـ<b>${esc(c.client_name||'—')}</b> من الأصل «${esc(c.source_name||'')}» — تعديلها لا يمسّ الأصل ولا نسخ الشركاء الآخرين إطلاقًا.</div>`:''}
-
-    ${(c.internal_approved&&c.status!=='void'&&!al)?`
-    <div class="chub-sign-banner">
-      <div><b>✍️ بانتظار توقيع علامة</b><br><span class="sa-hint">وقّع بصفتك ممثل علامة، ثم أرسل الرابط للشريك لتوقيعه.</span></div>
-      <button class="hbtn" id="chdSignNow" style="background:var(--ok);border-color:var(--ok);color:#fff">✍️ توقيع علامة الآن</button>
-    </div>
-    <div id="chdSignArea"></div>`:''}
-    ${(al&&!cl&&c.status!=='void')?`<div class="ctr-integrity ok">✍️ وقّعت علامة (${esc(al.name)}) — بانتظار توقيع الشريك عبر الرابط أدناه.</div>`:''}
-
-    ${(!c.internal_approved&&c.status!=='void'&&!anySigned)?`
-    <div class="chub-approval-banner ${canApprove?'':'chub-approval-locked'}">
-      <div><b>⏳ بانتظار الاعتماد الداخلي</b><br><span class="sa-hint">لا يمكن إرسال هذا العقد أو توقيعه من أي طرف قبل اعتماده داخليًا أولًا.</span></div>
-      ${canApprove?'<button class="hbtn" id="chdApprove" style="background:var(--ok);border-color:var(--ok);color:#fff">✅ اعتماد داخلي الآن</button>':'<span class="sa-hint">بصلاحية مالك/مدير المنصة</span>'}
-    </div>`:(c.internal_approved||anySigned)?`<div class="ctr-integrity ok">✅ معتمد داخليًا — قابل للإرسال والتوقيع</div>`:''}
+    <div id="chdSignArea"></div>
+    ${(!c.client_id&&!c.source_contract_id)?'<div id="chdInstances"></div>':''}
 
     <div class="chub-detail-grid">
       <div class="chub-qr-box">
@@ -364,7 +408,6 @@ async function openContractDetailPanel(contractId){
         <input readonly value="${link}" style="width:100%;font-size:.72rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2);margin-top:6px">
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
           <button class="reqbtn" data-chdcopy="${link}">نسخ الرابط</button>
-          <button class="reqbtn" id="chdExport">📄 تصدير PDF (بالملاحق)</button>
         </div>
         ${(c.internal_approved&&c.status!=='void')?`
         <div class="chd-send-box">
@@ -394,7 +437,6 @@ async function openContractDetailPanel(contractId){
           <textarea id="chdBody" placeholder="نص العقد الكامل..." style="width:100%;min-height:220px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px;line-height:1.7">${esc(c.custom_body||'')}</textarea>
           <div style="display:flex;gap:8px;margin-top:10px">
             <button class="hbtn" id="chdSave" style="background:var(--gold);border-color:var(--gold)">📌 حفظ وتثبيت التعديلات</button>
-            <button class="reqbtn" id="chdVoid" style="color:var(--crit)">🗑 إلغاء العقد</button>
           </div>`:`
           <input id="chdTitle" type="hidden" value="${esc(c.custom_title||'')}">
           <textarea id="chdBody" style="display:none">${esc(c.custom_body||'')}</textarea>
@@ -412,7 +454,6 @@ async function openContractDetailPanel(contractId){
         <textarea id="chdSpecial" placeholder="شروط إضافية خاصة بهذا العقد (اختياري)" style="width:100%;min-height:70px;margin-top:10px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px">${esc(c.special_terms||'')}</textarea>
         <div style="display:flex;gap:8px;margin-top:10px">
           <button class="hbtn" id="chdSave" style="background:var(--gold);border-color:var(--gold)">📌 حفظ وتثبيت التعديلات</button>
-          <button class="reqbtn" id="chdVoid" style="color:var(--crit)">🗑 إلغاء العقد</button>
         </div>`:`
         <input id="chdValue" type="hidden" value="${c.contract_value||''}"><input id="chdDate" type="hidden" value="${c.effective_date||''}">
         <input id="chdDuration" type="hidden" value="${c.duration_months||''}"><input id="chdEnd" type="hidden" value="${c.end_date||''}">
@@ -640,6 +681,15 @@ async function openContractDetailPanel(contractId){
 
   if(panel.scrollIntoView)panel.scrollIntoView({behavior:'smooth',block:'start'});
   document.getElementById('chdClose').onclick=()=>{panel.innerHTML='';};
+  // قائمة الإجراءات الثانوية
+  {const mb=document.getElementById('chdMore'),mm=document.getElementById('chdMoreMenu');
+   if(mb&&mm){
+     if(!STAGE.secondary.length)mb.style.display='none';
+     const close=()=>{mm.hidden=true;mb.setAttribute('aria-expanded','false');};
+     mb.onclick=e=>{e.stopPropagation();const open=mm.hidden;mm.hidden=!open;mb.setAttribute('aria-expanded',String(open));};
+     document.addEventListener('click',close);
+     mm.querySelectorAll('.chub-more-item').forEach(b=>b.addEventListener('click',close));
+   }}
   {const mc=document.getElementById('chdMailCheck');
    if(mc)mc.onclick=async()=>{
      const box=document.getElementById('chdMailStatus');
