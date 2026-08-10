@@ -26,7 +26,8 @@ t('تغيّر القيم يُعرَض بصيغة «من ← إلى»',hub.includ
 // ===== دليل التوقيع (الأولوية ٢) =====
 t('دالة شهادة التوقيع معرَّفة',/async function fetchSignatureCertificate/.test(api));
 t('كشف مشاكل الأدلة معرَّف',/async function fetchEvidenceIssues/.test(api));
-t('زر الشهادة يظهر للعقود الموقَّعة فقط',hub.includes("anySigned?'<button class=\"reqbtn\" id=\"chdCert\""));
+t('الشهادة متاحة للموقَّع فقط — إجراءً أساسيًا أو في القائمة',
+  hub.includes("add('chdCert','🎖 شهادة التوقيع',anySigned)")&&hub.includes("id:'chdCert',label:'🎖 شهادة التوقيع'"));
 ['الأطراف','المستند الموقَّع','التواقيع وأدلتها','سجل الإجراءات'].forEach(sec=>
   t('الشهادة تضم قسم: '+sec, hub.includes(sec)));
 t('الشهادة تعرض بصمة النص وقت التوقيع',hub.includes('بصمة النص وقت التوقيع'));
