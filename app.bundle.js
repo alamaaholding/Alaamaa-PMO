@@ -1,4 +1,4 @@
-const BUILD_V='23bc6dd0';
+const BUILD_V='7e639f99';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -4910,6 +4910,18 @@ async function renderContractsHub(){
   renderContractsHubBody();
 }
 
+// مرحلة العقد للعرض في القائمة — نفس منطق اللوحة، فلا تتناقض الشاشتان
+function rowStage(c){
+  const al=(c.signatures||[]).find(s=>s.party==='alamaa'),cl=(c.signatures||[]).find(s=>s.party==='client');
+  if(c.status==='void')   return {label:'ملغى',tone:'void'};
+  if(c.archived_at)       return {label:'مؤرشف',tone:'muted'};
+  if(!c.internal_approved&&!(al||cl)) return {label:'يحتاج اعتمادك',tone:'wait'};
+  if(!c.client_id&&!c.source_contract_id) return {label:'جاهز للإسناد',tone:'info'};
+  if(!al)                 return {label:'يحتاج توقيعك',tone:'go'};
+  if(!cl)                 return {label:'بانتظار الشريك',tone:'info'};
+  return {label:'مكتمل',tone:'done'};
+}
+
 function renderContractsHubBody(){
   const counts={all:CH_CONTRACTS.length};
   ['pending_alamaa','pending_client','signed','void'].forEach(s=>{counts[s]=CH_CONTRACTS.filter(c=>c.status===s).length;});
@@ -4943,25 +4955,52 @@ function renderContractsHubBody(){
 
   const rows=filtered.map(c=>{
     const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
-    return `<div class="chub-row" data-chubopen="${c.id}" role="button" tabindex="0">
+    const st=rowStage(c);
+    // الصف يجيب على ثلاثة أسئلة بالترتيب: أي عقد؟ مع من؟ وما الخطوة التالية؟
+    // الشارات تقتصر على ما يغيّر القرار — لا كل ما يمكن عرضه (كانت تصل لسبع شارات).
+    const tags=[];
+    if(c.contract_type==='custom')tags.push('<span class="chub-type-tag">نص مخصَّص</span>');
+    if(!c.client_id&&!c.source_contract_id)
+      tags.push(`<span class="chub-type-tag chub-tpl-tag">أصل${c.instance_count>0?' · '+c.instance_count+' نسخة':''}</span>`);
+    if(c.source_contract_id)tags.push(`<span class="chub-type-tag chub-copy-tag">نسخة من ${esc(c.source_name||'أصل')}</span>`);
+    if(c.amends_contract_id)tags.push(`<span class="chub-type-tag chub-amd-tag">ملحق ${c.amendment_no}</span>`);
+    if(c.amendment_count>0)tags.push(`<span class="chub-type-tag chub-amd-tag">${c.amendment_count} ملحق</span>`);
+    return `<div class="chub-row" data-chubopen="${c.id}" role="button" tabindex="0"
+        aria-label="${esc((c.contract_name||'عقد')+' — '+st.label)}">
+      <span class="chub-row-dot ${st.tone}" aria-hidden="true"></span>
       <div class="chub-row-main">
         <div class="chub-row-hd">
           <span class="chub-num">${esc(c.contract_number||'—')}</span>
           <b>${esc(c.contract_name||'عقد بلا اسم')}</b>
-          <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
-          <span class="chub-type-tag">${c.contract_type==='custom'?'📝 نص مخصَّص':'📋 قياسي'}</span>
-          ${!c.client_id&&!c.source_contract_id?`<span class="chub-type-tag chub-tpl-tag">📄 أصل${c.instance_count>0?' · '+c.instance_count+' نسخة':''}</span>`:''}
-          ${c.source_contract_id?`<span class="chub-type-tag chub-copy-tag">📎 نسخة من: ${esc(c.source_name||'أصل')}</span>`:''}
-          ${c.amends_contract_id?`<span class="chub-type-tag" style="background:var(--blue-bg);color:var(--blue)">📝 ملحق (${c.amendment_no}) على ${esc(c.amends_number||'')}</span>`:''}
-          ${c.amendment_count>0?`<span class="chub-type-tag" style="background:var(--blue-bg);color:var(--blue)">${c.amendment_count} ملحق تعديل</span>`:''}
-          ${!c.internal_approved&&c.status!=='void'&&!(al||cl)?'<span class="chub-type-tag chub-pending-tag">⏳ بانتظار الاعتماد الداخلي</span>':''}
+          ${tags.join('')}
         </div>
-        <div class="sa-hint">${c.client_name?'👤 '+esc(c.client_name):'👤 غير مُسنَد لشريك بعد'}${c.project_name?' · 📁 '+esc(c.project_name):' · 📁 غير مرتبط بمشروع'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}
-          · علامة: ${al?esc(al.name):'—'} · الشريك: ${cl?esc(cl.name):'—'}</div>
+        <div class="chub-row-meta">
+          <span>${c.client_name?esc(c.client_name):'غير مُسنَد لشريك'}</span>
+          <span>${c.project_name?esc(c.project_name):'غير مرتبط بمشروع'}</span>
+          ${c.contract_value?`<span class="chub-row-val">${Number(c.contract_value).toLocaleString('ar')} ر.س</span>`:''}
+          ${c.end_date&&c.days_left!=null&&c.days_left<=30&&c.status==='signed'
+            ?`<span class="chub-row-warn">${c.days_left<0?'انتهى':'ينتهي خلال '+c.days_left+' يومًا'}</span>`:''}
+        </div>
       </div>
-      <span class="chub-row-arrow">فتح ←</span>
+      <span class="chub-row-next ${st.tone}">${st.label}</span>
     </div>`;
-  }).join('')||'<p class="empty">لا عقود تطابق هذا الفلتر.</p>';
+  }).join('')||(()=>{
+    const hasFilter=CH_FILTER.q||CH_FILTER.client||CH_FILTER.link||CH_FILTER.type||CH_FILTER.status!=='all';
+    // حالة فارغة موجّهة: تفرّق بين «لا نتائج لهذا الفلتر» و«لا عقود بعد إطلاقًا»
+    return hasFilter
+      ? `<div class="chub-empty">
+           <div class="chub-empty-icon" aria-hidden="true">🔍</div>
+           <b>لا عقود تطابق هذا الفلتر</b>
+           <p>جرّب توسيع البحث أو امسح الفلاتر لعرض كل العقود.</p>
+           <button class="reqbtn" id="chubEmptyReset">✕ مسح الفلاتر</button>
+         </div>`
+      : `<div class="chub-empty">
+           <div class="chub-empty-icon" aria-hidden="true">📄</div>
+           <b>لا عقود في المحفظة بعد</b>
+           <p>ابدأ بإنشاء عقد — يُنشأ مستقلًا باسمه ورقمه، وتربطه بمشروع أو تُسنده لشريك لاحقًا.</p>
+           <button class="hbtn" id="chubEmptyNew" style="background:var(--gold);border-color:var(--gold)">+ إنشاء أول عقد</button>
+         </div>`;
+  })();
 
   $('#chubBody').innerHTML=`
     <div class="sa-section">
@@ -5042,6 +5081,9 @@ function renderContractsHubBody(){
    if(rs)rs.onclick=()=>{CH_FILTER={status:'all',q:'',client:'',link:'',type:'',sort:'newest'};renderContractsHubBody();};}
   $$('#chubBody [data-chubstatus]').forEach(b=>b.onclick=()=>{CH_FILTER.status=b.dataset.chubstatus;renderContractsHubBody();});
   $('#chubNew').onclick=openNewContractPanel;
+  {const en=document.getElementById('chubEmptyNew');if(en)en.onclick=openNewContractPanel;}
+  {const er=document.getElementById('chubEmptyReset');
+   if(er)er.onclick=()=>{CH_FILTER={status:'all',q:'',client:'',link:'',type:'',sort:'newest'};renderContractsHubBody();};}
   $$('#chubBody [data-chubopen]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.chubopen));
 }
 
@@ -5269,12 +5311,12 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
         ${STAGE.primary?`<button class="hbtn chub-primary" id="${STAGE.primary.id}"
            style="background:${STAGE.primary.color};border-color:${STAGE.primary.color};color:#fff">${STAGE.primary.label}</button>`:''}
         <div class="chub-more">
-          <button class="reqbtn" id="chdMore" aria-haspopup="true" aria-expanded="false" title="إجراءات أخرى">⋯</button>
+          <button class="reqbtn" id="chdMore" aria-haspopup="true" aria-expanded="false" aria-label="إجراءات أخرى" title="إجراءات أخرى">⋯</button>
           <div class="chub-more-menu" id="chdMoreMenu" hidden>
             ${STAGE.secondary.map(a=>`<button class="chub-more-item" id="${a.id}">${a.label}</button>`).join('')}
           </div>
         </div>
-        <button class="reqbtn" id="chdClose" title="إغلاق">✕</button>
+        <button class="reqbtn" id="chdClose" aria-label="إغلاق لوحة العقد" title="إغلاق">✕</button>
       </div>
     </div>
 
@@ -5289,7 +5331,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
     <div id="chdSignArea"></div>
     ${(!c.client_id&&!c.source_contract_id)?'<div id="chdInstances"></div>':''}
 
-    <div class="chub-tabs" role="tablist">
+    <div class="chub-tabs" role="tablist" aria-label="أقسام العقد">
       ${[['overview','نظرة عامة'],['terms','الشروط والبنود'],['attach','الملاحق'],
          ['send','الإرسال والتوقيع'],['log','السجل']].map(([k,t2])=>
         `<button class="chub-tab ${CHD_TAB===k?'active':''}" role="tab" data-chdtab="${k}">${t2}</button>`).join('')}
