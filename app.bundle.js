@@ -1,4 +1,4 @@
-const BUILD_V='ee23cc47';
+const BUILD_V='5582d095';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1181,6 +1181,23 @@ async function runSecurityAudit(fix){
   const {data,error}=await sb.rpc('pmo_security_audit',{p_fix:!!fix});
   if(error)throw error;return data||{};
 }
+// نقل بند بين الحزم/المراحل — بالسحب والإفلات أو من القائمة
+async function moveTask(taskId,newParentId,newTrack,newSort){
+  const {data,error}=await sb.rpc('pmo_move_task',
+    {p_task_id:taskId,p_new_parent:newParentId||null,p_new_track:newTrack||null,p_new_sort:newSort==null?null:newSort});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error==='baselined_locked'
+    ?'الخطة مثبَّتة — التعديل البنيوي يحتاج طلب تغيير معتمَدًا أولًا':(data.error||'تعذّر النقل'));
+  return data;
+}
+// حلّ حزمة مع بقاء بنودها
+async function dissolvePackage(pkgId,moveToId){
+  const {data,error}=await sb.rpc('pmo_dissolve_package',{p_package_id:pkgId,p_move_to:moveToId||null});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error==='baselined_locked'
+    ?'الخطة مثبَّتة — التعديل البنيوي يحتاج طلب تغيير معتمَدًا أولًا':(data.error||'تعذّر الحلّ'));
+  return data;
+}
 async function fetchAutomationSettings(){
   const {data,error}=await sb.rpc('pmo_get_automation_settings');
   if(error)throw error;return data||{};
@@ -1674,6 +1691,54 @@ function bindProjFilterBar(){
     const id=b.dataset.pkgtoggle;PKG_COLLAPSED.has(id)?PKG_COLLAPSED.delete(id):PKG_COLLAPSED.add(id);render();});
 }
 
+
+// ===== سحب وإفلات البنود بين الحزم والمراحل =====
+// الإفلات على حزمة = ضمّ البند إليها ووراثة مرحلتها. الإفلات على رأس مرحلة = إخراجه من
+// حزمته وإبقاؤه مستقلًا في تلك المرحلة. الحوكمة محفوظة: الخادم يرفض أي نقل على خطة
+// مثبَّتة ما لم تكن هناك نافذة تنفيذ تغيير معتمَد.
+let DRAG_TASK=null;
+function bindTaskDragDrop(){
+  const clear=()=>document.querySelectorAll('.drop-on,.drag-src').forEach(x=>x.classList.remove('drop-on','drag-src'));
+
+  document.querySelectorAll('[data-dragtask]').forEach(tr=>{
+    tr.addEventListener('dragstart',e=>{
+      DRAG_TASK=tr.dataset.dragtask;
+      tr.classList.add('drag-src');
+      try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',DRAG_TASK);}catch(_){}
+    });
+    tr.addEventListener('dragend',()=>{DRAG_TASK=null;clear();});
+  });
+
+  const dropTargets=[
+    ...document.querySelectorAll('[data-droppkg]'),
+    ...document.querySelectorAll('tr.grp')
+  ];
+  dropTargets.forEach(el=>{
+    el.addEventListener('dragover',e=>{
+      if(!DRAG_TASK)return;
+      e.preventDefault();
+      try{e.dataTransfer.dropEffect='move';}catch(_){}
+      el.classList.add('drop-on');
+    });
+    el.addEventListener('dragleave',()=>el.classList.remove('drop-on'));
+    el.addEventListener('drop',async e=>{
+      e.preventDefault();
+      const id=DRAG_TASK;clear();DRAG_TASK=null;
+      if(!id)return;
+      const pkgId=el.dataset.droppkg||null;
+      // رأس المرحلة: نستخرج مفتاح المرحلة من زر التعديل داخله
+      let trackKey=null;
+      if(!pkgId){const b=el.querySelector('[data-grpedit]');trackKey=b?b.dataset.grpedit:null;}
+      if(pkgId&&pkgId===id)return;
+      try{
+        await moveTask(id,pkgId,trackKey,null);
+        toast(pkgId?'نُقل البند إلى الحزمة':'أصبح البند مستقلًا في المرحلة','ok');
+        await loadProject(CID,PID);render();
+      }catch(err){toast(err.message,'err');}
+    });
+  });
+}
+
 function vTable(){
   const S=SCHED,T=TRACK;const editStruct=can('editStruct')&&(PROJECT.status!=='baselined'||structuralUnlocked());const editProg=can('editProg');
   const colspan=editStruct?12:11;
@@ -1686,9 +1751,9 @@ function vTable(){
       const collapsed=PKG_COLLAPSED.has(t.id);
       const kidsN=PROJECT.tasks.filter(x=>x.parent===t.id).length;
       const pdelay=k&&k.delay==='client'?'<span class="delay client">الشريك</span>':(k&&k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>');
-      rows+=`<tr data-id="${esc(t.id)}" class="row-pkg ${r&&r.critical?'crit':''}">
+      rows+=`<tr data-id="${esc(t.id)}" class="row-pkg ${r&&r.critical?'crit':''}" ${editStruct?`data-droppkg="${esc(t.id)}"`:''}>
         <td><button class="pkg-tg" data-pkgtoggle="${esc(t.id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'فتح':'طي'} الحزمة">${collapsed?'◂':'▾'}</button><span class="idcell" style="--tc:${tc}">${esc(t.id)}</span></td>
-        <td class="pkg-name">${esc(t.name)} <span class="pkg-n">${kidsN} بند</span></td>
+        <td class="pkg-name">${esc(t.name)} <span class="pkg-n">${kidsN} بند</span>${editStruct?`<button class="pkg-dissolve" data-dissolve="${esc(t.id)}" title="حلّ الحزمة مع بقاء بنودها">⊘ حلّ</button>`:''}</td>
         <td>حزمة عمل</td>
         <td><span class="dt">${r?r.dur:0}</span></td>
         <td><span class="dt s">${r?fmt(r.ES):'—'}</span></td>
@@ -1714,7 +1779,7 @@ function vTable(){
       : TYPES[t.type];
     const depCount=(t.deps||[]).length;
     const editCol=editStruct?`<td style="white-space:nowrap"><button class="reqbtn" data-deps="${esc(t.id)}" title="التبعيات" aria-label="تحرير التبعيات">${I.link} ${depCount||''}</button> <button class="ib" data-del="${esc(t.id)}" title="حذف" aria-label="حذف البند" style="color:var(--crit)">${I.trash}</button></td>`:'';
-    rows+=`<tr data-id="${esc(t.id)}" class="${r.critical?'crit':''}">
+    rows+=`<tr data-id="${esc(t.id)}" class="${r.critical?'crit':''}" ${editStruct&&t.type!=='cont'?`draggable="true" data-dragtask="${esc(t.id)}"`:''}>
       <td><button class="idcell idbtn" data-tkopen="${esc(t.id)}" title="فتح لوحة البند" style="--tc:${tc}">${esc(t.id)}${r.critical?'<span class="critdot"></span>':''}</button></td>
       <td class="${t.parent?'child-cell':''}">${t.parent?'<span class="tree-ind" aria-hidden="true">└</span>':''}${nameCell}</td>
       <td>${typeCell}</td>
@@ -1820,6 +1885,23 @@ function bindTable(){
     $$('#tbl [data-deps]').forEach(b=>b.onclick=()=>openDeps(b.dataset.deps));
     const ab=$('#addTaskBtn');if(ab)ab.onclick=handleAddTask;
     {const gc=$('#goCRTab');if(gc)gc.onclick=()=>{VIEW='cr';writeHash();render();};}
+    bindTaskDragDrop();
+    $$('[data-dissolve]').forEach(b=>b.onclick=async()=>{
+      const pkg=PROJECT.tasks.find(x=>x.id===b.dataset.dissolve);
+      const kids=PROJECT.tasks.filter(x=>x.parent===b.dataset.dissolve);
+      const others=PROJECT.tasks.filter(x=>x.type==='package'&&x.id!==b.dataset.dissolve);
+      const r=await dialog({title:'حلّ حزمة العمل',
+        message:`ستُحذف الحزمة «${pkg?pkg.name:''}» وتبقى بنودها الـ${kids.length} كما هي — لن يُحذف أي بند.`,
+        fields:[{key:'to',label:'وجهة البنود',type:'select',value:'',
+          options:[{v:'',t:'تبقى مستقلة في نفس المرحلة'}].concat(others.map(o=>({v:o.id,t:'ضمّها إلى: '+o.name})))}],
+        confirmText:'حلّ الحزمة'});
+      if(!r)return;
+      try{
+        const res=await dissolvePackage(b.dataset.dissolve,r.to||null);
+        toast('حُلَّت الحزمة — بقي '+(res.kept||0)+' بندًا','ok');
+        await loadProject(CID,PID);render();
+      }catch(e){toast(e.message,'err');}
+    });
     const tb=$('#tracksBtn');if(tb)tb.onclick=openTracksManager;
     const ib=$('#importXlsxBtn');if(ib)ib.onclick=openImporter;
   }
@@ -4802,7 +4884,7 @@ window.openContractPanel=openContractPanel;
 // مع بوابة اعتماد داخلي صريحة قبل أن يصبح أي عقد قابلًا للإرسال والتوقيع فعليًا.
 // مصدر البيانات: pmo_all_contracts_view — يحترم رؤية كل عقد بحسب نطاقه (مشروع أو شريك).
 
-let CH_CONTRACTS=[],CH_FILTER={status:'all',q:''};
+let CH_CONTRACTS=[],CH_FILTER={status:'all',q:'',client:'',link:'',type:'',sort:'newest'};
 const CH_STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع الشريك',signed:'موقَّع بالكامل ✅',void:'ملغى'};
 
 async function renderContractsHub(){
@@ -4835,12 +4917,29 @@ function renderContractsHubBody(){
   const q=CH_FILTER.q.trim().toLowerCase();
   const filtered=CH_CONTRACTS.filter(c=>{
     if(CH_FILTER.status!=='all'&&c.status!==CH_FILTER.status)return false;
+    if(CH_FILTER.client&&c.client_id!==CH_FILTER.client)return false;
+    if(CH_FILTER.type&&c.contract_type!==CH_FILTER.type)return false;
+    if(CH_FILTER.link==='linked'&&!c.project_id)return false;
+    if(CH_FILTER.link==='unlinked'&&c.project_id)return false;
+    if(CH_FILTER.link==='template'&&(c.client_id||c.source_contract_id))return false;
+    if(CH_FILTER.link==='amendment'&&!c.amends_contract_id)return false;
     if(q){
       const hay=[c.contract_name,c.contract_number,c.client_name,c.project_name].filter(Boolean).join(' ').toLowerCase();
       if(!hay.includes(q))return false;
     }
     return true;
+  }).sort((a,b)=>{
+    if(CH_FILTER.sort==='value')return (Number(b.contract_value)||0)-(Number(a.contract_value)||0);
+    if(CH_FILTER.sort==='name')return String(a.contract_name||'').localeCompare(String(b.contract_name||''),'ar');
+    if(CH_FILTER.sort==='ending'){
+      if(!a.end_date)return 1; if(!b.end_date)return -1;
+      return new Date(a.end_date)-new Date(b.end_date);
+    }
+    return new Date(b.created_at)-new Date(a.created_at);
   });
+  // مؤشرات سريعة تُبنى من المعروض فعليًا لا من الكل
+  const totalValue=filtered.reduce((s2,c)=>s2+(Number(c.contract_value)||0),0);
+  const clients=[...new Map(CH_CONTRACTS.filter(c=>c.client_id).map(c=>[c.client_id,c.client_name])).entries()];
 
   const rows=filtered.map(c=>{
     const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
@@ -4866,13 +4965,35 @@ function renderContractsHubBody(){
 
   $('#chubBody').innerHTML=`
     <div class="sa-section">
+      <div class="chub-stats">
+        <div class="chub-stat"><b>${filtered.length}</b><span>معروض من ${CH_CONTRACTS.length}</span></div>
+        <div class="chub-stat"><b>${counts.signed||0}</b><span>موقَّع بالكامل</span></div>
+        <div class="chub-stat"><b>${(counts.pending_alamaa||0)+(counts.pending_client||0)}</b><span>بانتظار توقيع</span></div>
+        <div class="chub-stat"><b>${totalValue?totalValue.toLocaleString('ar'):'—'}</b><span>إجمالي القيمة (ر.س)</span></div>
+      </div>
       <div class="chub-filters">
-        <input id="chubSearch" placeholder="🔍 ابحث باسم الشريك أو المشروع..." value="${esc(CH_FILTER.q)}" style="flex:1;min-width:200px">
+        <input id="chubSearch" placeholder="🔍 ابحث باسم العقد أو رقمه أو الشريك أو المشروع..." value="${esc(CH_FILTER.q)}" style="flex:1;min-width:220px">
         <div class="chub-status-pills">
           ${['all','pending_alamaa','pending_client','signed','void'].map(s=>
             `<button class="chub-pill ${CH_FILTER.status===s?'active':''}" data-chubstatus="${s}">${s==='all'?'الكل':CH_STL[s]} <span>${counts[s]||0}</span></button>`).join('')}
         </div>
         <button class="hbtn" id="chubNew" style="background:var(--gold);border-color:var(--gold)">+ عقد جديد</button>
+      </div>
+      <div class="chub-filters" style="margin-top:10px">
+        <select id="chubClient" style="min-width:150px"><option value="">كل الشركاء</option>
+          ${clients.map(([id,n])=>`<option value="${id}" ${CH_FILTER.client===id?'selected':''}>${esc(n)}</option>`).join('')}</select>
+        <select id="chubLink" style="min-width:150px">
+          ${[['','كل الارتباطات'],['linked','مرتبط بمشروع'],['unlinked','غير مرتبط'],
+             ['template','أصل (قالب) بلا شريك'],['amendment','ملاحق تعديل']].map(([v,t])=>
+            `<option value="${v}" ${CH_FILTER.link===v?'selected':''}>${t}</option>`).join('')}</select>
+        <select id="chubType" style="min-width:130px">
+          ${[['','كل الأنواع'],['standard','قياسي'],['custom','نص مخصَّص']].map(([v,t])=>
+            `<option value="${v}" ${CH_FILTER.type===v?'selected':''}>${t}</option>`).join('')}</select>
+        <select id="chubSort" style="min-width:140px">
+          ${[['newest','الأحدث أولًا'],['value','الأعلى قيمة'],['ending','الأقرب انتهاءً'],['name','أبجديًا']].map(([v,t])=>
+            `<option value="${v}" ${CH_FILTER.sort===v?'selected':''}>${t}</option>`).join('')}</select>
+        ${(CH_FILTER.client||CH_FILTER.link||CH_FILTER.type||CH_FILTER.q||CH_FILTER.status!=='all')
+          ?'<button class="reqbtn" id="chubReset">✕ مسح الفلاتر</button>':''}
       </div>
     </div>
     <div id="chubExpiring"></div>
@@ -4913,6 +5034,12 @@ function renderContractsHubBody(){
   })();
 
   $('#chubSearch').oninput=e=>{CH_FILTER.q=e.target.value;renderContractsHubBody();};
+  [['chubClient','client'],['chubLink','link'],['chubType','type'],['chubSort','sort']].forEach(([id,key])=>{
+    const el=document.getElementById(id);
+    if(el)el.onchange=()=>{CH_FILTER[key]=el.value;renderContractsHubBody();};
+  });
+  {const rs=document.getElementById('chubReset');
+   if(rs)rs.onclick=()=>{CH_FILTER={status:'all',q:'',client:'',link:'',type:'',sort:'newest'};renderContractsHubBody();};}
   $$('#chubBody [data-chubstatus]').forEach(b=>b.onclick=()=>{CH_FILTER.status=b.dataset.chubstatus;renderContractsHubBody();});
   $('#chubNew').onclick=openNewContractPanel;
   $$('#chubBody [data-chubopen]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.chubopen));
