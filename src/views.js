@@ -197,6 +197,54 @@ function bindProjFilterBar(){
     const id=b.dataset.pkgtoggle;PKG_COLLAPSED.has(id)?PKG_COLLAPSED.delete(id):PKG_COLLAPSED.add(id);render();});
 }
 
+
+// ===== سحب وإفلات البنود بين الحزم والمراحل =====
+// الإفلات على حزمة = ضمّ البند إليها ووراثة مرحلتها. الإفلات على رأس مرحلة = إخراجه من
+// حزمته وإبقاؤه مستقلًا في تلك المرحلة. الحوكمة محفوظة: الخادم يرفض أي نقل على خطة
+// مثبَّتة ما لم تكن هناك نافذة تنفيذ تغيير معتمَد.
+let DRAG_TASK=null;
+function bindTaskDragDrop(){
+  const clear=()=>document.querySelectorAll('.drop-on,.drag-src').forEach(x=>x.classList.remove('drop-on','drag-src'));
+
+  document.querySelectorAll('[data-dragtask]').forEach(tr=>{
+    tr.addEventListener('dragstart',e=>{
+      DRAG_TASK=tr.dataset.dragtask;
+      tr.classList.add('drag-src');
+      try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',DRAG_TASK);}catch(_){}
+    });
+    tr.addEventListener('dragend',()=>{DRAG_TASK=null;clear();});
+  });
+
+  const dropTargets=[
+    ...document.querySelectorAll('[data-droppkg]'),
+    ...document.querySelectorAll('tr.grp')
+  ];
+  dropTargets.forEach(el=>{
+    el.addEventListener('dragover',e=>{
+      if(!DRAG_TASK)return;
+      e.preventDefault();
+      try{e.dataTransfer.dropEffect='move';}catch(_){}
+      el.classList.add('drop-on');
+    });
+    el.addEventListener('dragleave',()=>el.classList.remove('drop-on'));
+    el.addEventListener('drop',async e=>{
+      e.preventDefault();
+      const id=DRAG_TASK;clear();DRAG_TASK=null;
+      if(!id)return;
+      const pkgId=el.dataset.droppkg||null;
+      // رأس المرحلة: نستخرج مفتاح المرحلة من زر التعديل داخله
+      let trackKey=null;
+      if(!pkgId){const b=el.querySelector('[data-grpedit]');trackKey=b?b.dataset.grpedit:null;}
+      if(pkgId&&pkgId===id)return;
+      try{
+        await moveTask(id,pkgId,trackKey,null);
+        toast(pkgId?'نُقل البند إلى الحزمة':'أصبح البند مستقلًا في المرحلة','ok');
+        await loadProject(CID,PID);render();
+      }catch(err){toast(err.message,'err');}
+    });
+  });
+}
+
 function vTable(){
   const S=SCHED,T=TRACK;const editStruct=can('editStruct')&&(PROJECT.status!=='baselined'||structuralUnlocked());const editProg=can('editProg');
   const colspan=editStruct?12:11;
@@ -209,9 +257,9 @@ function vTable(){
       const collapsed=PKG_COLLAPSED.has(t.id);
       const kidsN=PROJECT.tasks.filter(x=>x.parent===t.id).length;
       const pdelay=k&&k.delay==='client'?'<span class="delay client">الشريك</span>':(k&&k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>');
-      rows+=`<tr data-id="${esc(t.id)}" class="row-pkg ${r&&r.critical?'crit':''}">
+      rows+=`<tr data-id="${esc(t.id)}" class="row-pkg ${r&&r.critical?'crit':''}" ${editStruct?`data-droppkg="${esc(t.id)}"`:''}>
         <td><button class="pkg-tg" data-pkgtoggle="${esc(t.id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'فتح':'طي'} الحزمة">${collapsed?'◂':'▾'}</button><span class="idcell" style="--tc:${tc}">${esc(t.id)}</span></td>
-        <td class="pkg-name">${esc(t.name)} <span class="pkg-n">${kidsN} بند</span></td>
+        <td class="pkg-name">${esc(t.name)} <span class="pkg-n">${kidsN} بند</span>${editStruct?`<button class="pkg-dissolve" data-dissolve="${esc(t.id)}" title="حلّ الحزمة مع بقاء بنودها">⊘ حلّ</button>`:''}</td>
         <td>حزمة عمل</td>
         <td><span class="dt">${r?r.dur:0}</span></td>
         <td><span class="dt s">${r?fmt(r.ES):'—'}</span></td>
@@ -237,7 +285,7 @@ function vTable(){
       : TYPES[t.type];
     const depCount=(t.deps||[]).length;
     const editCol=editStruct?`<td style="white-space:nowrap"><button class="reqbtn" data-deps="${esc(t.id)}" title="التبعيات" aria-label="تحرير التبعيات">${I.link} ${depCount||''}</button> <button class="ib" data-del="${esc(t.id)}" title="حذف" aria-label="حذف البند" style="color:var(--crit)">${I.trash}</button></td>`:'';
-    rows+=`<tr data-id="${esc(t.id)}" class="${r.critical?'crit':''}">
+    rows+=`<tr data-id="${esc(t.id)}" class="${r.critical?'crit':''}" ${editStruct&&t.type!=='cont'?`draggable="true" data-dragtask="${esc(t.id)}"`:''}>
       <td><button class="idcell idbtn" data-tkopen="${esc(t.id)}" title="فتح لوحة البند" style="--tc:${tc}">${esc(t.id)}${r.critical?'<span class="critdot"></span>':''}</button></td>
       <td class="${t.parent?'child-cell':''}">${t.parent?'<span class="tree-ind" aria-hidden="true">└</span>':''}${nameCell}</td>
       <td>${typeCell}</td>
@@ -343,6 +391,23 @@ function bindTable(){
     $$('#tbl [data-deps]').forEach(b=>b.onclick=()=>openDeps(b.dataset.deps));
     const ab=$('#addTaskBtn');if(ab)ab.onclick=handleAddTask;
     {const gc=$('#goCRTab');if(gc)gc.onclick=()=>{VIEW='cr';writeHash();render();};}
+    bindTaskDragDrop();
+    $$('[data-dissolve]').forEach(b=>b.onclick=async()=>{
+      const pkg=PROJECT.tasks.find(x=>x.id===b.dataset.dissolve);
+      const kids=PROJECT.tasks.filter(x=>x.parent===b.dataset.dissolve);
+      const others=PROJECT.tasks.filter(x=>x.type==='package'&&x.id!==b.dataset.dissolve);
+      const r=await dialog({title:'حلّ حزمة العمل',
+        message:`ستُحذف الحزمة «${pkg?pkg.name:''}» وتبقى بنودها الـ${kids.length} كما هي — لن يُحذف أي بند.`,
+        fields:[{key:'to',label:'وجهة البنود',type:'select',value:'',
+          options:[{v:'',t:'تبقى مستقلة في نفس المرحلة'}].concat(others.map(o=>({v:o.id,t:'ضمّها إلى: '+o.name})))}],
+        confirmText:'حلّ الحزمة'});
+      if(!r)return;
+      try{
+        const res=await dissolvePackage(b.dataset.dissolve,r.to||null);
+        toast('حُلَّت الحزمة — بقي '+(res.kept||0)+' بندًا','ok');
+        await loadProject(CID,PID);render();
+      }catch(e){toast(e.message,'err');}
+    });
     const tb=$('#tracksBtn');if(tb)tb.onclick=openTracksManager;
     const ib=$('#importXlsxBtn');if(ib)ib.onclick=openImporter;
   }
