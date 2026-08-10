@@ -322,6 +322,7 @@ async function openContractDetailPanel(contractId){
         ${(c.internal_approved&&c.status!=='void')?`
         <div class="chd-send-box">
           <div id="chdFunnel"><p class="sa-hint">جارٍ تحميل حالة الإرسال...</p></div>
+        <div id="chdLinkState"></div>
           ${!cl?`
           <input id="chdSendTo" type="email" placeholder="بريد الشريك" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin:8px 0 6px">
           ${!c.client_contact_email&&c.client_id?'<label class="sa-hint" style="display:flex;gap:5px;align-items:center;margin-bottom:6px"><input type="checkbox" id="chdSaveEmail" checked> احفظه في ملف الشريك (فلا يُعاد إدخاله)</label>':''}
@@ -643,6 +644,16 @@ async function openContractDetailPanel(contractId){
       {k:'وُقِّع',       at:f.signed_at,    icon:'✍️'}
     ];
     const lastDone=steps.reduce((acc,s,i)=>s.at?i:acc,-1);
+    // حالة صلاحية الرابط — تظهر للمستخدم بدل أن يكتشفها من شكوى الشريك
+    const ls=document.getElementById('chdLinkState');
+    if(ls&&f.sent_at&&!f.signed_at){
+      const days=Number(c.link_valid_days||30);
+      const exp=new Date(new Date(f.sent_at).getTime()+days*86400000);
+      const left=Math.ceil((exp-Date.now())/86400000);
+      ls.innerHTML=left>0
+        ?`<p class="sa-hint" style="margin-top:6px">🔗 الرابط صالح ${left} يومًا (حتى ${exp.toLocaleDateString('ar')}) — أي تذكير يجدّد المدة</p>`
+        :`<div class="ctr-integrity warn" style="margin-top:6px;font-size:.75rem">⚠ انتهت صلاحية الرابط — أرسل تذكيرًا ليعمل مجددًا</div>`;
+    }
     box.innerHTML=`
       <div class="chd-funnel">
         ${f.bounced_at?`<div class="ctr-integrity warn" style="font-size:.74rem;margin-bottom:8px">
@@ -879,6 +890,25 @@ async function openContractDetailPanel(contractId){
         await finish();
       }catch(e){
         // فصل الأدوار: المُعِدّ لا يعتمد عمله إلا بمبرّر موثَّق يظهر في الشهادة والسجل
+        if(e.code==='value_mismatch'){
+          const pv=Number(e.info.project_value||0).toLocaleString('ar');
+          const cv=Number(e.info.contract_value||0).toLocaleString('ar');
+          if(!await confirmDialog('تعارض في القيمة المالية',
+            `قيمة العقد ${cv} ر.س تخالف القيمة المعتمَدة للمشروع ${pv} ر.س.\n\nراجعها قبل الاعتماد، أو أقرّ بالفرق للمتابعة.`,
+            true,'أقرّ بالفرق وأعتمد'))return;
+          try{ await approveContractInternal(contractId,null,true); await finish(); }
+          catch(e3){
+            if(e3.code==='self_approval'){
+              const r2=await dialog({title:'أنت مُعِدّ هذا العقد',
+                message:'مبدأ «أربع عيون» يقضي بأن يعتمده مخوَّل آخر. إن تعذّر، اذكر مبرّرًا موثَّقًا.',
+                fields:[{key:'reason',label:'مبرّر الاعتماد الذاتي',type:'textarea'}],confirmText:'اعتماد'});
+              if(!r2||!r2.reason||!r2.reason.trim()){toast('المبرّر إلزامي','warn');return;}
+              try{ await approveContractInternal(contractId,r2.reason,true); await finish(); }
+              catch(e4){toast(e4.message,'err');}
+            }else toast(e3.message,'err');
+          }
+          return;
+        }
         if(e.code==='self_approval'){
           const r=await dialog({title:'أنت مُعِدّ هذا العقد',
             message:'مبدأ «أربع عيون» يقضي بأن يعتمده مخوَّل آخر. إن تعذّر ذلك، اذكر مبرّرًا — سيُوثَّق في شهادة التوقيع وسجل العقد.',
