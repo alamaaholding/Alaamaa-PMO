@@ -302,13 +302,17 @@ function vTable(){
       <td class="${t.parent?'child-cell':''}">${t.parent?'<span class="tree-ind" aria-hidden="true">└</span>':''}${nameCell}</td>
       <td>${typeCell}</td>
       <td><input class="cell inum" type="number" min="0" data-f="duration" value="${t.duration||0}" ${durDis}></td>
-      <td><span class="dt s">${fmt(r.ES)}</span></td>
+      <td class="dt-cell">${editStruct&&t.type!=='cont'&&t.type!=='package'
+        ? `<input class="cell idate ${t.type==='fixed'?'pinned':''}" type="date" data-f="fixedDate" value="${t.fixedDate||''}"
+             title="${t.type==='fixed'?'تاريخ مثبَّت — يتجاوز الحساب التلقائي':'محسوب من التبعيات — حدّد تاريخًا لتثبيت البداية'}">
+           <span class="dt-calc">${t.type==='fixed'?'مثبَّت':fmt(r.ES)}</span>`
+        : `<span class="dt s">${fmt(r.ES)}</span>`}</td>
       <td><span class="dt">${fmt(r.EF)}</span></td>
       <td><select class="st st-${k.effStatus}" data-f="status" ${editProg?'':'disabled'}>${sopt}</select></td>
       <td><input class="cell iprog" type="number" min="0" max="100" data-f="progress" value="${(k&&k.dispPct)||t.progress||0}" ${editProg&&t.type!=='milestone'?'':'disabled'}></td>
       <td>${delay}</td>
       <td><button class="reqbtn" data-reqs="${esc(t.id)}">${reqs.length?(bad?bad+'⚠':reqs.length):'—'}</button></td>
-      <td style="font-size:.74rem;color:var(--tC);text-align:right">${esc(t.deliverable||'—')}</td>
+      <td><input class="cell idel" data-f="deliverable" value="${esc(t.deliverable||'')}" placeholder="—" ${editStruct?'':'disabled'}></td>
       ${editCol}
     </tr>`;
   });
@@ -386,12 +390,25 @@ function bindTable(){
     tr.querySelectorAll('[data-f]').forEach(inp=>{
       inp.addEventListener('change',async()=>{
         const f=inp.dataset.f;
-        let val=inp.value;if(f==='duration'||f==='progress')val=parseInt(val||'0',10);
+        let val=inp.value;
+        if(f==='duration'||f==='progress')val=parseInt(val||'0',10);
+        if(f==='fixedDate'||f==='deliverable')val=(val||'').trim()||null;
         t[f]=val;
-        const map={duration:'duration',progress:'progress',status:'status',name:'name',type:'type'};
-        if(map[f]&&t._dbId){const patch={};patch[map[f]]=val;
+        // كل حقل في الجدول يُكتب عبر نفس المسار — الجدول مصدر الحقيقة الوحيد للخطة
+        const map={duration:'duration',progress:'progress',status:'status',name:'name',type:'type',
+                   deliverable:'deliverable',fixedDate:'fixed_date',track:'track',owner:'owner'};
+        if(map[f]&&t._dbId){
+          const patch={};patch[map[f]]=val;
+          // التثبيت لا يسري إلا للنوع «ثابت» — فتحديد تاريخ يحوّل النوع تلقائيًا، ومسحه يعيده.
+          // بدون ذلك يُحفَظ التاريخ ويبقى بلا أثر على الجدولة، وهو أسوأ من رفضه.
+          if(f==='fixedDate'){
+            if(val&&t.type!=='fixed'){patch.type='fixed';t.type='fixed';}
+            else if(!val&&t.type==='fixed'){patch.type='task';t.type='task';}
+          }
           const {error}=await updateTaskFields(t._dbId,patch);
-          if(error){toast('تعذّر الحفظ: '+error.message,'err');return;}}
+          if(error){toast('تعذّر الحفظ: '+error.message,'err');return;}
+          if(f==='fixedDate')toast(val?'ثُبِّتت البداية — لن تتغيّر بإعادة الجدولة':'أُزيل التثبيت — عادت للحساب من التبعيات','ok');
+        }
         preserveFocus(render);
       });
     });
