@@ -696,6 +696,34 @@ async function fetchEvidenceIssues(){
   const {data,error}=await sb.rpc('pmo_contracts_evidence_issues');
   if(error)throw error;return data||[];
 }
+// إعدادات الأتمتة — مغلقة افتراضيًا ولا تُفتح إلا بقرار صريح
+async function fetchAutomationSettings(){
+  const {data,error}=await sb.rpc('pmo_get_automation_settings');
+  if(error)throw error;return data||{};
+}
+async function updateAutomationSettings(fields){
+  const {data,error}=await sb.rpc('pmo_update_automation_settings',{p:fields});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error||'تعذّر الحفظ');
+  return data;
+}
+// تسجيل إصدار النموذج ببصمة نصه الفعلي — يُرصد أي تعديل على القالب تلقائيًا
+async function registerTemplateVersion(key,label,notes){
+  const tpl=(CONTRACT_TEMPLATES[key]||{}).tpl;
+  if(!tpl)return null;
+  const hash=await sha256Hex(JSON.stringify({intro:tpl.intro,sections:tpl.sections,signatures:tpl.signatures}));
+  const {data,error}=await sb.rpc('pmo_register_template_version',
+    {p_key:key,p_label:label,p_body_hash:hash,p_notes:notes||null});
+  if(error)throw error;return data;
+}
+async function syncTemplateRegistry(){
+  const out=[];
+  for(const k of Object.keys(CONTRACT_TEMPLATES||{})){
+    try{ const r=await registerTemplateVersion(k,CONTRACT_TEMPLATES[k].label); if(r)out.push({key:k,...r}); }
+    catch(e){}
+  }
+  return out;
+}
 async function fetchContractAudit(contractId){
   const {data,error}=await sb.from('pmo_audit_log')
     .select('action,new_value,created_at,user_id')
