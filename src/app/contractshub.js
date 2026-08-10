@@ -19,6 +19,8 @@ async function renderContractsHub(){
     <div id="chubPanel"></div>`;
   $('#chubBack').onclick=renderPortfolio;
 
+  // تسجيل إصدار كل نموذج ببصمة نصه — يُرصد أي تعديل على القالب تلقائيًا بلا خطوة يدوية
+  syncTemplateRegistry().catch(()=>{});
   try{
     CH_CONTRACTS=await fetchAllContracts();
   }catch(e){
@@ -701,7 +703,7 @@ async function openContractDetailPanel(contractId){
          <table class="cx-table"><tbody>
            ${rows('وقت ختم النص',f(cert.document.sealed_at))}
            ${rows('بصمة النص (SHA-256)',cert.document.sealed_hash||'—')}
-           ${rows('النموذج المستخدَم',cert.document.template)}
+           ${rows('النموذج المستخدَم',(cert.document.template||'')+(cert.document.template_version?' · إصدار '+cert.document.template_version:''))}
            ${rows('قيمة العقد',cert.contract.value!=null?Number(cert.contract.value).toLocaleString('ar')+' ر.س':'—')}
            ${rows('تاريخ السريان',cert.contract.effective_date)}
          </tbody></table>
