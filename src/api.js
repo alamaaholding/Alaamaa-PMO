@@ -697,6 +697,11 @@ async function fetchEvidenceIssues(){
   if(error)throw error;return data||[];
 }
 // إعدادات الأتمتة — مغلقة افتراضيًا ولا تُفتح إلا بقرار صريح
+// فحص أمني: يكشف الدوال المتسرّبة للمجهولين والتوقيعات المكرَّرة، ويصلحها عند الطلب
+async function runSecurityAudit(fix){
+  const {data,error}=await sb.rpc('pmo_security_audit',{p_fix:!!fix});
+  if(error)throw error;return data||{};
+}
 async function fetchAutomationSettings(){
   const {data,error}=await sb.rpc('pmo_get_automation_settings');
   if(error)throw error;return data||{};
