@@ -8,6 +8,7 @@ const t=(n,c,x)=>{if(c){ok++;console.log('  ✓ '+n);}else{fail++;console.log(' 
 const cfg=fs.readFileSync('src/config.js','utf8');
 const api=fs.readFileSync('src/api.js','utf8');
 const hub=fs.readFileSync('src/app/contractshub.js','utf8');
+const sign=fs.readFileSync('src/app/contractsign.js','utf8');
 
 // قاموس التدقيق يغطي دورة حياة العقد كاملة
 const needed=['contract_created','contract_internally_approved','contract_sealed',
@@ -35,7 +36,18 @@ t('الشهادة تعرض إقرار القبول المسجَّل',hub.include
 t('الشهادة تعرض وسيلة تحقق الهوية ووقتها',hub.includes('تحقق الهوية')&&hub.includes('وقت التحقق'));
 
 // ===== فصل الأدوار وتجزئة المرفقات (الأولوية ٣) =====
-t('الاعتماد يمرّر مبرّر التجاوز',api.includes('async function approveContractInternal(contractId,overrideReason)'));
+t('الاعتماد يمرّر مبرّر التجاوز وإقرار فرق القيمة',
+  api.includes('async function approveContractInternal(contractId,overrideReason,ackValueMismatch)'));
+
+// ===== الأولوية ٤: انتهاء الرابط ورقابة القيمة =====
+t('تعارض القيمة يُمرَّر للواجهة بتفاصيله',api.includes('e.info=data'));
+t('الواجهة تعرض الفرق بين قيمة العقد والمشروع وتطلب إقرارًا',
+  hub.includes("e.code==='value_mismatch'")&&hub.includes('أقرّ بالفرق وأعتمد'));
+t('التعارض والاعتماد الذاتي يتسلسلان بلا تعارض',hub.includes("e3.code==='self_approval'"));
+t('صلاحية الرابط تظهر للمستخدم بأيام متبقية',hub.includes('الرابط صالح')&&hub.includes('أي تذكير يجدّد المدة'));
+t('انتهاء الرابط ينبّه بوضوح مع الحل',hub.includes('انتهت صلاحية الرابط — أرسل تذكيرًا'));
+t('صفحة التوقيع ترد برسالة مفهومة للشريك عند انتهاء الرابط',
+  sign.includes("d.error==='link_expired'")&&sign.includes('تواصل مع علامة لإرسال رابط جديد'));
 t('رمز خطأ الاعتماد الذاتي يُمرَّر للواجهة لا يُبتلع',api.includes("e.code=data.error"));
 t('الواجهة تطلب مبرّرًا إلزاميًا عند الاعتماد الذاتي',
   hub.includes("e.code==='self_approval'")&&hub.includes('المبرّر إلزامي'));
