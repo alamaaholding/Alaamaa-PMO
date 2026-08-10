@@ -33,6 +33,28 @@ async function openContractExport(){
 // contract: كائن العقد الكامل. يعمل الآن مستقلًا تمامًا — لا يتطلب فتح المشروع أولًا،
 // ولا وجود لقطة أصلًا. كان يفشل فورًا من محفظة العقود لأنه كان يبحث عن اللقطة داخل
 // PROJECT المحمَّل حاليًا فقط (وهو غير محمَّل هناك) فيخرج برسالة "لقطة غير موجودة".
+// ===== تشغيل الطباعة بأمان =====
+// كان window.print() يُستدعى مباشرة: حوار المتصفح يظهر فجأة بلا سياق، والمستخدم قد لا
+// يعرف أن عليه اختيار «حفظ بصيغة PDF». والأخطر: الاستعادة كانت معلَّقة على afterprint
+// وحده — فإن لم يُطلقه المتصفح (يحدث في بعض الحالات) يبقى التطبيق عالقًا في وضع الطباعة
+// ويبدو معطّلًا. الآن: استعادة مضمونة بثلاثة مسارات مستقلة.
+function runPrintSafely(){
+  document.body.classList.add('printing-contract');
+  let done=false;
+  const restore=()=>{
+    if(done)return;done=true;
+    document.body.classList.remove('printing-contract');
+    window.removeEventListener('afterprint',restore);
+    window.removeEventListener('focus',restore);
+    clearTimeout(guard);
+  };
+  window.addEventListener('afterprint',restore);
+  window.addEventListener('focus',restore);          // إن أُغلق الحوار بلا afterprint
+  const guard=setTimeout(restore,60000);             // شبكة أمان أخيرة
+  setTimeout(()=>{try{window.print();}catch(e){restore();}},120);
+}
+window.runPrintSafely=runPrintSafely;
+
 async function buildContractDoc(baselineId,contract,attachments){
   const clientName=(contract&&contract.client_name)||((CLIENTS.find(c=>c.id===CID)||{}).name)||'';
 
@@ -142,15 +164,10 @@ async function buildContractDoc(baselineId,contract,attachments){
     ${attachHtml}
     <div class="cx-footer">علامة · أثر دائم — مستند مُولَّد آليًا من منصة حوكمة المشاريع${contract&&contract.contract_number?' · '+esc(contract.contract_number):''}</div>
   `;
-  document.body.classList.add('printing-contract');
   const qrEl=doc.querySelector('.cx-qr img');
   const imgReady=qrEl?new Promise(res=>{qrEl.complete?res():(qrEl.onload=qrEl.onerror=res);}):Promise.resolve();
   await Promise.race([imgReady,new Promise(res=>setTimeout(res,500))]);
-  setTimeout(()=>{
-    window.print();
-    const restore=()=>{document.body.classList.remove('printing-contract');window.removeEventListener('afterprint',restore);};
-    window.addEventListener('afterprint',restore);
-  },120);
+  runPrintSafely();
 }
 
 window.openContractExport=openContractExport;
