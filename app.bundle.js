@@ -1,4 +1,4 @@
-const BUILD_V='63c45cf8';
+const BUILD_V='c9f280f0';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1557,6 +1557,18 @@ function render(){
   else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();bindProjFilterBar();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(2,PX-4);render();};
     const pgb=$('#printGanttBtn');if(pgb)pgb.onclick=()=>printProject('gantt');
     const gt=$('#glToggle');if(gt){gt.classList.toggle('on',GLINKS_ON);gt.onclick=()=>{GLINKS_ON=!GLINKS_ON;try{localStorage.setItem('pmo_glinks',GLINKS_ON?'1':'0');}catch(_e){}render();};}
+    {const gc=$('#gcritToggle');
+     if(gc){
+       const LBL={normal:'◆ حرج',focus:'◆ حرج (مُبرَز)',hidden:'◇ حرج (مخفي)'};
+       gc.textContent=LBL[GCRIT]||LBL.normal;
+       gc.classList.toggle('on',GCRIT==='focus');
+       gc.classList.toggle('off',GCRIT==='hidden');
+       gc.onclick=()=>{
+         GCRIT = GCRIT==='normal'?'focus':(GCRIT==='focus'?'hidden':'normal');
+         try{localStorage.setItem('pmo_gcrit',GCRIT);}catch(_e){}
+         render();
+       };
+     }}
     const zf=$('#zfit');if(zf)zf.onclick=fitGantt;
     const bs=$('#blSel');if(bs)bs.onchange=()=>{GBASE=bs.value;
       const b=(PROJECT.baselines||[]).find(x=>x.id===GBASE);
@@ -1932,7 +1944,7 @@ function inlineTrackEdit(key,td){
   n.onkeydown=(e)=>{if(e.key==='Enter')td.querySelector('.gie-s').click();if(e.key==='Escape')render();};
 }
 
-function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div>${(PROJECT.baselines&&PROJECT.baselines.length)?`<select id="blSel" class="pfsort" aria-label="اختيار الأساس" style="font-size:.72rem">${PROJECT.baselines.map((b,i)=>`<option value="${b.id}" ${(!GBASE&&i===PROJECT.baselines.length-1)||GBASE===b.id?'selected':''}>${esc(b.label||("الأساس "+(i+1)))}</option>`).join('')}</select>`:''}<div class="gscale" role="group" aria-label="مقياس الزمن" style="margin-inline-start:auto"><button class="gsc" data-scale="day">يوم</button><button class="gsc" data-scale="week">أسبوع</button><button class="gsc" data-scale="month">شهر</button><button class="gsc" data-scale="quarter">ربع</button></div><button class="hbtn print-btn" id="printGanttBtn">🖨 طباعة الجانت</button><div class="zoom"><button class="zb" id="glToggle" title="إظهار/إخفاء روابط التبعية" aria-label="روابط التبعية">⇄</button><button class="zb" id="zfit" title="ملاءمة العرض للشاشة" aria-label="ملاءمة العرض">⤢</button><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
+function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div>${(PROJECT.baselines&&PROJECT.baselines.length)?`<select id="blSel" class="pfsort" aria-label="اختيار الأساس" style="font-size:.72rem">${PROJECT.baselines.map((b,i)=>`<option value="${b.id}" ${(!GBASE&&i===PROJECT.baselines.length-1)||GBASE===b.id?'selected':''}>${esc(b.label||("الأساس "+(i+1)))}</option>`).join('')}</select>`:''}<div class="gscale" role="group" aria-label="مقياس الزمن" style="margin-inline-start:auto"><button class="gsc" data-scale="day">يوم</button><button class="gsc" data-scale="week">أسبوع</button><button class="gsc" data-scale="month">شهر</button><button class="gsc" data-scale="quarter">ربع</button></div><button class="hbtn print-btn" id="printGanttBtn">🖨 طباعة الجانت</button><button class="zb gcrit-btn" id="gcritToggle" title="المسار الحرج: عادي ← إبراز ← إخفاء" aria-label="عرض المسار الحرج">◆ حرج</button><div class="zoom"><button class="zb" id="glToggle" title="إظهار/إخفاء روابط التبعية" aria-label="روابط التبعية">⇄</button><button class="zb" id="zfit" title="ملاءمة العرض للشاشة" aria-label="ملاءمة العرض">⤢</button><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
 // ===== مقياس الزمن متعدد المستويات (يوم/أسبوع/شهر/ربع) =====
 let GSCALE='week';try{const _gs=localStorage.getItem('pmo_gscale');if(_gs)GSCALE=_gs;}catch(_e){}
 const GSCALE_PX={day:30,week:16,month:6,quarter:3};
@@ -2006,7 +2018,18 @@ function vGantt(){
       }
       lane+=`<div class="gbar ${cls} ${r.critical?'crit':''} ${overdue?'late late-'+who:''}" data-gid="${esc(t.id)}" style="right:${o*PX}px;width:${wpx}px;background:${tc}" title="${tip}">${fill}</div>${tail}${durEl}`;}
     rows+=`<div class="grow" data-grow="${esc(t.id)}"><div class="glbl ${t.parent?'gchild':''}" role="button" tabindex="0" data-tkopen="${esc(t.id)}" aria-label="لوحة البند ${esc(t.id)} — ${esc(t.name)}"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
-  return projFilterBar()+baselineDeviation(BL)+`<div class="gantt"><div class="gscroll"><div style="min-width:${280+W}px">
+  const lateN=visibleTasks().filter(t=>{const k=TRACK[t.id];return k&&k.delay&&t.status!=='done';}).length;
+  const critN=visibleTasks().filter(t=>SCHED.R[t.id]&&SCHED.R[t.id].critical).length;
+  const legend=`<div class="g-legend">
+    <span><i></i>في المسار</span>
+    <span><i class="lt"></i>متأخر — على الشريك</span>
+    <span><i class="lta"></i>متأخر — على علامة</span>
+    <span><i class="cr"></i>حرج</span>
+    <span><i class="dn"></i>مكتمل</span>
+    <span style="margin-inline-start:auto;font-weight:700;color:${lateN?'var(--crit)':'var(--muted)'}">
+      ${lateN?lateN+' بند متأخر':'لا تأخير'} · ${critN} على المسار الحرج</span>
+  </div>`;
+  return projFilterBar()+baselineDeviation(BL)+legend+`<div class="gantt ${GCRIT==='focus'?'crit-focus':(GCRIT==='hidden'?'crit-hidden':'')}"><div class="gscroll"><div style="min-width:${280+W}px">
     <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${HD.top}${HD.bot}</div></div>
     <div id="gcanvas" style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${HD.wkends}${HD.grid}${today}</div>${rows}</div></div></div>
     <div class="glegend"><span><span class="di"></span>معلم</span><span><span class="ci"></span>حرج</span>${BL?'<span><i class="blleg"></i>الأساس المعتمد</span>':''}<span><span class="dot" style="background:#cbbfa6"></span>لم تبدأ</span><span><span class="dot" style="background:var(--blue)"></span>جارية</span><span><span class="dot" style="background:var(--crit)"></span>متوقفة</span><span><span class="dot" style="background:var(--ok)"></span>مكتملة ✓</span><span><i class="tleg cl"></i>تأخير بانتظار الشريك</span><span><i class="tleg al"></i>تأخير علامة</span><span><i class="wkleg"></i>عطلة الأسبوع</span><span><i class="lkleg">⟵</i>رابط تبعية</span></div></div>`;
@@ -2049,6 +2072,8 @@ function sCurveSVG(){
   </div>`;
 }
 let GBASE=null; // الأساس المختار للعرض
+// حالة عرض المسار الحرج: عادي (إطار) ← إبراز (يخفت ما عداه) ← إخفاء. تُحفَظ بين الجلسات.
+let GCRIT=(()=>{try{return localStorage.getItem('pmo_gcrit')||'normal';}catch(e){return 'normal';}})();
 function baselineDeviation(BL){
   if(!BL)return '';
   let slipped=0,net=0;
