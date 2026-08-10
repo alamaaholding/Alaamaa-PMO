@@ -1,4 +1,4 @@
-const BUILD_V='63952201';
+const BUILD_V='2a13d117';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1174,6 +1174,34 @@ async function fetchSignatureCertificate(contractId){
 async function fetchEvidenceIssues(){
   const {data,error}=await sb.rpc('pmo_contracts_evidence_issues');
   if(error)throw error;return data||[];
+}
+// إعدادات الأتمتة — مغلقة افتراضيًا ولا تُفتح إلا بقرار صريح
+async function fetchAutomationSettings(){
+  const {data,error}=await sb.rpc('pmo_get_automation_settings');
+  if(error)throw error;return data||{};
+}
+async function updateAutomationSettings(fields){
+  const {data,error}=await sb.rpc('pmo_update_automation_settings',{p:fields});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error||'تعذّر الحفظ');
+  return data;
+}
+// تسجيل إصدار النموذج ببصمة نصه الفعلي — يُرصد أي تعديل على القالب تلقائيًا
+async function registerTemplateVersion(key,label,notes){
+  const tpl=(CONTRACT_TEMPLATES[key]||{}).tpl;
+  if(!tpl)return null;
+  const hash=await sha256Hex(JSON.stringify({intro:tpl.intro,sections:tpl.sections,signatures:tpl.signatures}));
+  const {data,error}=await sb.rpc('pmo_register_template_version',
+    {p_key:key,p_label:label,p_body_hash:hash,p_notes:notes||null});
+  if(error)throw error;return data;
+}
+async function syncTemplateRegistry(){
+  const out=[];
+  for(const k of Object.keys(CONTRACT_TEMPLATES||{})){
+    try{ const r=await registerTemplateVersion(k,CONTRACT_TEMPLATES[k].label); if(r)out.push({key:k,...r}); }
+    catch(e){}
+  }
+  return out;
 }
 async function fetchContractAudit(contractId){
   const {data,error}=await sb.from('pmo_audit_log')
@@ -3087,6 +3115,68 @@ async function openHolidaysManager(){
 // ===== الملف التعاقدي لعلامة (الطرف الأول في كل عقد) =====
 // يُضبط مرة واحدة من أدوات المكتب، ويُستورَد تلقائيًا في كل عقد جديد ويُجمَّد كلقطة داخله،
 // فتغييره لاحقًا لا يمسّ العقود الموقَّعة سابقًا.
+
+// ===== أتمتة العقود — مغلقة افتراضيًا =====
+// قرار متعمَّد: تفعيلها يعني رسائل تُرسَل لشركائك بلا تدخلك، فلا تُفتح إلا بقرارك الصريح.
+async function openAutomationPanel(){
+  document.getElementById('taskOverlay').style.display='flex';
+  document.getElementById('tkTitle').textContent='أتمتة العقود';
+  document.getElementById('tkTabs').innerHTML='';
+  document.getElementById('tkBody').innerHTML='<div class="skeleton" style="height:160px"></div>';
+  let st={};
+  try{ st=await fetchAutomationSettings(); }catch(e){
+    document.getElementById('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>';return; }
+
+  document.getElementById('tkBody').innerHTML=`
+    <div class="${st.auto_reminders_enabled?'ctr-integrity ok':'chub-tpl-banner'}" style="margin-bottom:14px">
+      ${st.auto_reminders_enabled
+        ?'⚡ <b>التذكير التلقائي مُفعَّل</b> — تُرسَل رسائل لشركائك تلقائيًا وفق الإعدادات أدناه.'
+        :'🔕 <b>التذكير التلقائي معطَّل</b> — لا تُرسَل أي رسالة تلقائيًا. التذكير يدوي من لوحة كل عقد.'}
+    </div>
+    <div class="sa-form" style="flex-wrap:wrap">
+      <label class="chub-choice"><input type="checkbox" id="autoRem" ${st.auto_reminders_enabled?'checked':''}>
+        تفعيل التذكير التلقائي للعقود غير الموقَّعة</label>
+    </div>
+    <div class="sa-form" style="flex-wrap:wrap;margin-top:10px">
+      <label style="font-size:.85rem;align-self:center">يُذكَّر بعد</label>
+      <input id="autoDays" type="number" min="1" max="30" value="${st.reminder_after_days||3}" style="width:90px">
+      <label style="font-size:.85rem;align-self:center">أيام · بحد أقصى</label>
+      <input id="autoMax" type="number" min="1" max="5" value="${st.max_reminders||2}" style="width:90px">
+      <label style="font-size:.85rem;align-self:center">تذكيرات لكل عقد</label>
+    </div>
+    <p class="sa-hint" style="margin-top:10px">الحدّ الأقصى يمنع إزعاج الشريك — بعد استنفاده يتوقف التذكير التلقائي ويبقى اليدوي متاحًا.</p>
+    <div id="autoPreview" style="margin-top:14px"></div>
+    <button class="hbtn" id="autoSave" style="background:var(--gold);border-color:var(--gold);margin-top:12px">حفظ الإعدادات</button>`;
+
+  const preview=async()=>{
+    const box=document.getElementById('autoPreview');
+    try{
+      const q=await fetchContractsNeedingReminder(Number(document.getElementById('autoDays').value)||3);
+      box.innerHTML=q.length
+        ?`<div class="chub-expiry-banner"><b>سيشمل التذكير حاليًا ${q.length} عقدًا:</b>
+           ${q.slice(0,5).map(x=>`<div class="sa-hint">· ${esc(x.contract_name||'')} — ${esc(x.client_name||'—')} (مضى ${x.days_since} يومًا)</div>`).join('')}</div>`
+        :'<p class="sa-hint">لا عقود مؤهَّلة للتذكير بهذه الإعدادات حاليًا.</p>';
+    }catch(e){box.innerHTML='';}
+  };
+  preview();
+  document.getElementById('autoDays').onchange=preview;
+
+  document.getElementById('autoSave').onclick=async()=>{
+    const on=document.getElementById('autoRem').checked;
+    if(on&&!st.auto_reminders_enabled){
+      if(!await confirmDialog('تفعيل الإرسال التلقائي',
+        'ستُرسَل رسائل تذكير لشركائك تلقائيًا دون تدخل منك في كل مرة. متأكد؟',false,'تفعيل'))return;
+    }
+    const btn=document.getElementById('autoSave');btn.disabled=true;
+    try{
+      await updateAutomationSettings({auto_reminders_enabled:on,
+        reminder_after_days:Number(document.getElementById('autoDays').value)||3,
+        max_reminders:Number(document.getElementById('autoMax').value)||2});
+      toast('حُفظت إعدادات الأتمتة','ok');openAutomationPanel();
+    }catch(e){toast(e.message,'err');btn.disabled=false;}
+  };
+}
+
 async function openOrgProfile(){
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='الملف التعاقدي لعلامة';
@@ -3178,7 +3268,8 @@ async function renderPortfolio(){
   // الملف التعاقدي لعلامة: متاح لمالك المنصة ومديرها معًا — مطابقًا لسياسة القاعدة
   // (pmo_update_org_profile تسمح لكليهما). كان محصورًا بالمالك في الواجهة فقط، فاختفى
   // عن مدير المنصة بعد نقل الملكية رغم امتلاكه الصلاحية فعليًا.
-  if(IS_OWNER||ROLE==='pmo'){toolItems.push({id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});}
+  if(IS_OWNER||ROLE==='pmo'){toolItems.push({id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});
+    toolItems.push({id:'showAutomation',t:'أتمتة العقود',i:'⚡'});}
   if(IS_OWNER){toolItems.push({id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
     toolItems.push({id:'showStaffAccess',t:'صلاحيات الفريق',i:'🔐'});}
   const toolsMenu=toolItems.length?`<div class="tools-wrap">
@@ -3196,6 +3287,7 @@ async function renderPortfolio(){
   {const cb=$('#showContractsHub');if(cb)cb.onclick=renderContractsHub;}
   {const lb=$('#statusLegendBtn');if(lb)lb.onclick=openStatusLegend;}
   {const op=$('#showOrgProfile');if(op)op.onclick=openOrgProfile;}
+  {const au=$('#showAutomation');if(au)au.onclick=openAutomationPanel;}
   {const tb=$('#showTimeline');if(tb)tb.onclick=renderPortfolioTimeline;}
   {const hb=$('#showHolidays');if(hb)hb.onclick=openHolidaysManager;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
@@ -4672,6 +4764,8 @@ async function renderContractsHub(){
     <div id="chubPanel"></div>`;
   $('#chubBack').onclick=renderPortfolio;
 
+  // تسجيل إصدار كل نموذج ببصمة نصه — يُرصد أي تعديل على القالب تلقائيًا بلا خطوة يدوية
+  syncTemplateRegistry().catch(()=>{});
   try{
     CH_CONTRACTS=await fetchAllContracts();
   }catch(e){
@@ -5354,7 +5448,7 @@ async function openContractDetailPanel(contractId){
          <table class="cx-table"><tbody>
            ${rows('وقت ختم النص',f(cert.document.sealed_at))}
            ${rows('بصمة النص (SHA-256)',cert.document.sealed_hash||'—')}
-           ${rows('النموذج المستخدَم',cert.document.template)}
+           ${rows('النموذج المستخدَم',(cert.document.template||'')+(cert.document.template_version?' · إصدار '+cert.document.template_version:''))}
            ${rows('قيمة العقد',cert.contract.value!=null?Number(cert.contract.value).toLocaleString('ar')+' ر.س':'—')}
            ${rows('تاريخ السريان',cert.contract.effective_date)}
          </tbody></table>
