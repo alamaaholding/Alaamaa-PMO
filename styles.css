@@ -1040,10 +1040,42 @@ tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
 .glate{position:absolute;top:9px;z-index:3;font-size:.64rem;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap;color:#fff;box-shadow:var(--e1)}
 .glate.client{background:var(--crit)}
 .glate.alamah{background:var(--blue)}
-.gbar.late{box-shadow:0 0 0 2px currentColor,var(--e1)}
+/* التأخير والحرج كانا يتنافسان على box-shadow نفسه — فالبند المتأخر والحرج معًا يُظهر
+   إشارة واحدة فقط. الآن: التأخير نمط مخطَّط داخل الشريط (طبقة مستقلة)، والحرج إطار.
+   فيظهران معًا بوضوح، والتخطيط يُقرأ من مسافة أبعد من مجرد حدّ رفيع. */
+.gbar.late::after{content:'';position:absolute;inset:0;pointer-events:none;border-radius:7px;
+  background:repeating-linear-gradient(135deg,rgba(255,255,255,.42) 0 5px,transparent 5px 10px)}
+.gbar.late{box-shadow:inset 0 0 0 2px currentColor,var(--e1)}
 .gbar.late-client{color:var(--crit)}
 .gbar.late-alamah{color:var(--blue)}
 .gbar.crit{box-shadow:0 0 0 2px var(--crit),var(--e2)}
+.gbar.late.crit{box-shadow:inset 0 0 0 2px currentColor,0 0 0 2px var(--crit),var(--e2)}
+
+/* إبراز المسار الحرج عند تفعيله: ما ليس حرجًا يخفت فيبرز المسار وحده */
+.gantt.crit-focus .gbar:not(.crit),
+.gantt.crit-focus .gmile:not(.crit),
+.gantt.crit-focus .gpkg:not(.crit){opacity:.22;filter:grayscale(.6)}
+.gantt.crit-focus .gbar.crit{box-shadow:0 0 0 3px var(--crit),0 0 12px rgba(200,60,60,.35),var(--e2)}
+.gantt.crit-hidden .gbar.crit,
+.gantt.crit-hidden .gmile.crit,
+.gantt.crit-hidden .gpkg.crit{box-shadow:var(--e1)}
+
+/* مفتاح ألوان الجانت */
+.gcrit-btn{font-size:.7rem!important;font-weight:700;white-space:nowrap;padding:0 10px!important;width:auto!important}
+.gcrit-btn.on{background:var(--crit)!important;border-color:var(--crit)!important;color:#fff!important}
+.gcrit-btn.off{opacity:.5}
+.g-legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:8px 14px;
+  background:var(--soft-2);border-radius:9px;margin-bottom:10px;font-size:.72rem;color:var(--muted)}
+.g-legend i{display:inline-block;width:22px;height:11px;border-radius:4px;vertical-align:-1px;
+  margin-inline-end:5px;background:var(--gold)}
+.g-legend i.lt{background:var(--gold);
+  background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.5) 0 4px,transparent 4px 8px);
+  box-shadow:inset 0 0 0 2px var(--crit)}
+.g-legend i.lta{background:var(--gold);
+  background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.5) 0 4px,transparent 4px 8px);
+  box-shadow:inset 0 0 0 2px var(--blue)}
+.g-legend i.cr{box-shadow:0 0 0 2px var(--crit)}
+.g-legend i.dn{opacity:.5}
 .gbar.done{opacity:.55}
 .gbar.done::before{content:'✓';position:absolute;inset-inline-start:5px;top:1px;color:#fff;font-weight:800;font-size:.78rem;text-shadow:0 1px 2px rgba(0,0,0,.35)}
 .gbar.blocked::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(168,68,47,.45) 5px,rgba(168,68,47,.45) 9px)}
