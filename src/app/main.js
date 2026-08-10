@@ -774,14 +774,23 @@ boot();
 
 function printProject(mode){
   if(mode==='gantt'){
+    // الجانت يُصغَّر للطباعة ثم يُستعاد. الاستعادة كانت معلَّقة على afterprint وحده — فإن
+    // لم يُطلقه المتصفح يبقى المخطط مصغَّرًا بعد إغلاق الحوار ويبدو أن العرض تعطّل.
     const prevPX=PX; PX=6; render();
-    setTimeout(()=>{
-      window.print();
-      const restore=()=>{PX=prevPX;render();window.removeEventListener('afterprint',restore);};
-      window.addEventListener('afterprint',restore);
-    },80);
+    let done=false;
+    const restore=()=>{
+      if(done)return;done=true;
+      PX=prevPX;render();
+      window.removeEventListener('afterprint',restore);
+      window.removeEventListener('focus',restore);
+      clearTimeout(guard);
+    };
+    window.addEventListener('afterprint',restore);
+    window.addEventListener('focus',restore);
+    const guard=setTimeout(restore,60000);
+    setTimeout(()=>{try{window.print();}catch(e){restore();}},80);
   }else{
-    window.print();
+    try{window.print();}catch(e){}
   }
 }
 
