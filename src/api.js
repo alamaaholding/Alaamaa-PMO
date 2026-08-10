@@ -702,6 +702,23 @@ async function runSecurityAudit(fix){
   const {data,error}=await sb.rpc('pmo_security_audit',{p_fix:!!fix});
   if(error)throw error;return data||{};
 }
+// نقل بند بين الحزم/المراحل — بالسحب والإفلات أو من القائمة
+async function moveTask(taskId,newParentId,newTrack,newSort){
+  const {data,error}=await sb.rpc('pmo_move_task',
+    {p_task_id:taskId,p_new_parent:newParentId||null,p_new_track:newTrack||null,p_new_sort:newSort==null?null:newSort});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error==='baselined_locked'
+    ?'الخطة مثبَّتة — التعديل البنيوي يحتاج طلب تغيير معتمَدًا أولًا':(data.error||'تعذّر النقل'));
+  return data;
+}
+// حلّ حزمة مع بقاء بنودها
+async function dissolvePackage(pkgId,moveToId){
+  const {data,error}=await sb.rpc('pmo_dissolve_package',{p_package_id:pkgId,p_move_to:moveToId||null});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error==='baselined_locked'
+    ?'الخطة مثبَّتة — التعديل البنيوي يحتاج طلب تغيير معتمَدًا أولًا':(data.error||'تعذّر الحلّ'));
+  return data;
+}
 async function fetchAutomationSettings(){
   const {data,error}=await sb.rpc('pmo_get_automation_settings');
   if(error)throw error;return data||{};
