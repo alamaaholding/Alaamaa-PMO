@@ -109,6 +109,14 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
   .chub-hd-actions{width:100%;margin-inline-start:0;margin-top:8px}
   .chub-primary{flex:1}
 }
+.chub-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid var(--line);
+  margin-bottom:16px;padding-bottom:0}
+.chub-tab{background:transparent;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;
+  font-family:inherit;font-size:.85rem;font-weight:700;color:var(--muted);padding:10px 16px;
+  cursor:pointer;transition:var(--t);white-space:nowrap}
+.chub-tab:hover{color:var(--ink);background:var(--soft-2);border-radius:8px 8px 0 0}
+.chub-tab.active{color:var(--gold-dark);border-bottom-color:var(--gold)}
+.chub-pane[hidden]{display:none}
 .chub-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
 .chub-stat{background:var(--soft-2);border-radius:10px;padding:12px 14px;text-align:center}
 .chub-stat b{display:block;font-size:1.35rem;font-weight:800;color:var(--gold-dark);line-height:1.2}
