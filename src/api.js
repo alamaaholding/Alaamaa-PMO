@@ -771,11 +771,13 @@ async function fetchContractInstances(contractId){
   const {data,error}=await sb.rpc('pmo_contract_instances',{p_contract_id:contractId});
   if(error)throw error;return data||[];
 }
-async function approveContractInternal(contractId,overrideReason){
+async function approveContractInternal(contractId,overrideReason,ackValueMismatch){
   const {data,error}=await sb.rpc('pmo_approve_contract_internal',
-    {p_contract_id:contractId,p_override_reason:overrideReason||null});
+    {p_contract_id:contractId,p_override_reason:overrideReason||null,
+     p_ack_value_mismatch:!!ackValueMismatch});
   if(error)throw error;
-  if(!data.ok){const e=new Error(data.message||data.error||'تعذّر الاعتماد');e.code=data.error;throw e;}
+  if(!data.ok){const e=new Error(data.message||data.error||'تعذّر الاعتماد');
+    e.code=data.error;e.info=data;throw e;}
   return data;
 }
 async function voidContract(contractId){
