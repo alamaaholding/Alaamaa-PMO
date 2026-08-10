@@ -141,6 +141,11 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .chub-tab:hover{color:var(--ink);background:var(--soft-2);border-radius:8px 8px 0 0}
 .chub-tab.active{color:var(--gold-dark);border-bottom-color:var(--gold)}
 .chub-pane[hidden]{display:none}
+.dt-cell{min-width:118px}
+.idate{font-size:.68rem!important;padding:3px 5px!important;width:100%;color:var(--muted)}
+.idate.pinned{color:var(--ink);font-weight:700;background:var(--warn-bg);border-color:var(--warn)}
+.dt-calc{display:block;font-size:.62rem;color:var(--muted);opacity:.7;margin-top:1px;text-align:center}
+.idel{font-size:.72rem!important;text-align:right}
 .wl-grid{display:grid;grid-template-columns:auto repeat(7,1fr);gap:4px}
 .wl-head{font-size:.68rem;font-weight:700;color:var(--muted);text-align:center;padding:4px 0}
 .wl-wk{font-size:.64rem;color:var(--muted);align-self:center;padding-inline-end:6px;white-space:nowrap}
