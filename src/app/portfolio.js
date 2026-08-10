@@ -6,6 +6,53 @@
 
 // ===== أتمتة العقود — مغلقة افتراضيًا =====
 // قرار متعمَّد: تفعيلها يعني رسائل تُرسَل لشركائك بلا تدخلك، فلا تُفتح إلا بقرارك الصريح.
+
+// ===== فحص أمني دوري =====
+// سببه: Postgres يمنح EXECUTE لـPUBLIC افتراضيًا لكل دالة جديدة، ومحاولة تغيير الصلاحية
+// الافتراضية لم تنفذ من اتصالنا. فبدل الاعتماد على منع لا يمكن التحقق من نفاذه، نكشف
+// التسرّب متى حدث ونصلحه بضغطة. يفحص أيضًا تعدّد توقيعات الدوال — النمط الذي سبّب سابقًا
+// ثغرة تجاوز تحقق الهوية (نسخة قديمة بلا فحص رمز بقيت حيّة).
+async function openSecurityAudit(){
+  document.getElementById('taskOverlay').style.display='flex';
+  document.getElementById('tkTitle').textContent='فحص أمني';
+  document.getElementById('tkTabs').innerHTML='';
+  const body=document.getElementById('tkBody');
+  body.innerHTML='<div class="skeleton" style="height:120px"></div>';
+  const render=(r)=>{
+    body.innerHTML=`
+      <div class="${r.clean?'ctr-integrity ok':'chub-expiry-banner'}" style="margin-bottom:14px">
+        ${r.clean?'✅ <b>لا مشاكل مرصودة</b> — لا دوال مكشوفة للمجهولين ولا توقيعات مكرَّرة.'
+                 :'⚠ <b>رُصدت مشاكل تحتاج إصلاحًا</b>'}
+      </div>
+      <div class="sa-section">
+        <h4>دوال مكشوفة لغير المسجَّلين <span class="sa-hint">(${r.leaked_count})</span></h4>
+        ${r.leaked_count?r.leaked_to_anon.map(x=>`<div class="chd-att-row"><span>⚠ ${esc(x.function)}</span></div>`).join('')
+          :'<p class="sa-hint">لا شيء — المسار العام لصفحة التوقيع فقط.</p>'}
+      </div>
+      <div class="sa-section" style="margin-top:12px">
+        <h4>دوال بتوقيعات متعددة <span class="sa-hint">(${r.duplicate_count})</span></h4>
+        ${r.duplicate_count?r.duplicate_dupes||r.duplicate_signatures.map(x=>
+            `<div class="chd-att-row"><span>⚠ ${esc(x.function)} — ${x.versions} نسخ</span></div>`).join('')
+          :'<p class="sa-hint">لا شيء — نسخة واحدة لكل دالة.</p>'}
+        ${r.duplicate_count?'<p class="sa-hint" style="margin-top:6px">نسخة قديمة قد تتجاوز حواجز النسخة الجديدة — تحتاج حذفًا يدويًا مدروسًا.</p>':''}
+      </div>
+      <p class="sa-hint" style="margin-top:10px">آخر فحص: ${new Date(r.checked_at).toLocaleString('ar')}</p>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="reqbtn" id="secRecheck">إعادة الفحص</button>
+        ${r.leaked_count?'<button class="hbtn" id="secFix" style="background:var(--ok);border-color:var(--ok);color:#fff">🔧 سحب الإتاحة المتسرّبة</button>':''}
+      </div>`;
+    document.getElementById('secRecheck').onclick=openSecurityAudit;
+    const fx=document.getElementById('secFix');
+    if(fx)fx.onclick=async()=>{
+      fx.disabled=true;
+      try{ const r2=await runSecurityAudit(true); toast('سُحبت الإتاحة عن '+r2.fixed+' دالة','ok'); render(r2); }
+      catch(e){toast(e.message,'err');fx.disabled=false;}
+    };
+  };
+  try{ render(await runSecurityAudit(false)); }
+  catch(e){ body.innerHTML='<p class="empty">تعذّر الفحص: '+esc(e.message)+'</p>'; }
+}
+
 async function openAutomationPanel(){
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='أتمتة العقود';
@@ -157,7 +204,8 @@ async function renderPortfolio(){
   // (pmo_update_org_profile تسمح لكليهما). كان محصورًا بالمالك في الواجهة فقط، فاختفى
   // عن مدير المنصة بعد نقل الملكية رغم امتلاكه الصلاحية فعليًا.
   if(IS_OWNER||ROLE==='pmo'){toolItems.push({id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});
-    toolItems.push({id:'showAutomation',t:'أتمتة العقود',i:'⚡'});}
+    toolItems.push({id:'showAutomation',t:'أتمتة العقود',i:'⚡'});
+    toolItems.push({id:'showSecAudit',t:'فحص أمني',i:'🛡'});}
   if(IS_OWNER){toolItems.push({id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
     toolItems.push({id:'showStaffAccess',t:'صلاحيات الفريق',i:'🔐'});}
   const toolsMenu=toolItems.length?`<div class="tools-wrap">
@@ -176,6 +224,7 @@ async function renderPortfolio(){
   {const lb=$('#statusLegendBtn');if(lb)lb.onclick=openStatusLegend;}
   {const op=$('#showOrgProfile');if(op)op.onclick=openOrgProfile;}
   {const au=$('#showAutomation');if(au)au.onclick=openAutomationPanel;}
+  {const sa2=$('#showSecAudit');if(sa2)sa2.onclick=openSecurityAudit;}
   {const tb=$('#showTimeline');if(tb)tb.onclick=renderPortfolioTimeline;}
   {const hb=$('#showHolidays');if(hb)hb.onclick=openHolidaysManager;}
   {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
