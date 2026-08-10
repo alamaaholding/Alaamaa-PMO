@@ -166,6 +166,7 @@ function renderContractsHubBody(){
 
 let CHD_OVERRIDES={excluded:[],added:[]};
 let CHD_ORG=null;
+let CHD_TAB='overview';
 let CHD_TEMPLATE='alamaa_v1';
 function chubReadStandardFields(prefix,client){
   return {
@@ -277,7 +278,7 @@ function chubRenderClauseEditor(boxId,onChange){
 }
 
 // ===== لوحة تفصيلية موحّدة: تعرض/تعدّل عقدًا قائمًا (قياسيًا أو مخصَّصًا) =====
-async function openContractDetailPanel(contractId){
+async function openContractDetailPanel(contractId,KEEP_TAB){
   let c=CH_CONTRACTS.find(x=>x.id===contractId);
   if(!c)return;
   // العقد غير الموقَّع: بيانات الطرفين تُنعَش من الملفات الحيّة قبل العرض، فأي تعديل على
@@ -372,6 +373,12 @@ async function openContractDetailPanel(contractId){
   add('chdUnarchive','↩ استرجاع من الأرشيف',!!c.archived_at);
   add('chdVoid','🗑 إلغاء العقد',editable);
 
+  // التبويب الافتراضي يتبع المرحلة: من يفتح عقدًا بانتظار التوقيع يريد الإرسال لا الشروط
+  if(!KEEP_TAB){
+    CHD_TAB = (!c.internal_approved&&!anySigned&&editable) ? 'terms'
+            : (c.internal_approved&&c.status!=='void'&&!cl) ? 'send'
+            : 'overview';
+  }
   const panel=document.getElementById('chubPanel');
   panel.innerHTML=`<div class="chub-detail">
     <div class="chub-detail-hd">
@@ -401,28 +408,21 @@ async function openContractDetailPanel(contractId){
     <div id="chdSignArea"></div>
     ${(!c.client_id&&!c.source_contract_id)?'<div id="chdInstances"></div>':''}
 
-    <div class="chub-detail-grid">
-      <div class="chub-qr-box">
-        <div id="chdQrImg" class="chub-qr-loading">⏳ يُولَّد رمز QR...</div>
-        <p class="sa-hint">رمز خاص بعقد ${esc(c.client_name)} — يحيل حصرًا لصفحة توقيع هذا العقد</p>
-        <input readonly value="${link}" style="width:100%;font-size:.72rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2);margin-top:6px">
-        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-          <button class="reqbtn" data-chdcopy="${link}">نسخ الرابط</button>
-        </div>
-        ${(c.internal_approved&&c.status!=='void')?`
-        <div class="chd-send-box">
-          <div id="chdFunnel"><p class="sa-hint">جارٍ تحميل حالة الإرسال...</p></div>
-        <div id="chdLinkState"></div>
-          ${!cl?`
-          <input id="chdSendTo" type="email" placeholder="بريد الشريك" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin:8px 0 6px">
-          ${!c.client_contact_email&&c.client_id?'<label class="sa-hint" style="display:flex;gap:5px;align-items:center;margin-bottom:6px"><input type="checkbox" id="chdSaveEmail" checked> احفظه في ملف الشريك (فلا يُعاد إدخاله)</label>':''}
-          <button class="hbtn" id="chdSendBtn" style="background:var(--gold);border-color:var(--gold);width:100%">
-            ${c.send_count>0?'🔔 إرسال تذكير':'📧 إرسال للشريك'}</button>`:''}
-          <button class="reqbtn" id="chdMailCheck" style="width:100%;margin-top:6px;font-size:.72rem">🔍 فحص جاهزية الإرسال</button>
-          <div id="chdMailStatus"></div>
-        </div>`:''}
-      </div>
+    <div class="chub-tabs" role="tablist">
+      ${[['overview','نظرة عامة'],['terms','الشروط والبنود'],['attach','الملاحق'],
+         ['send','الإرسال والتوقيع'],['log','السجل']].map(([k,t2])=>
+        `<button class="chub-tab ${CHD_TAB===k?'active':''}" role="tab" data-chdtab="${k}">${t2}</button>`).join('')}
+    </div>
 
+    <div class="chub-pane" data-pane="overview" ${CHD_TAB==='overview'?'':'hidden'}>
+      <details class="pubsign-fulltext" open>
+        <summary>📄 نص العقد كما سيراه الشريك ${editable?'(يتحدّث فورًا مع أي تعديل)':''}</summary>
+        <div id="chdPreview"></div>
+      </details>
+      <div id="chdIntegrity"></div>
+    </div>
+
+    <div class="chub-pane" data-pane="terms" ${CHD_TAB==='terms'?'':'hidden'}>
       <div class="chub-fields-box">
         ${editable?`
         <div class="sa-form" style="flex-wrap:wrap;margin-bottom:12px">
@@ -462,7 +462,6 @@ async function openContractDetailPanel(contractId){
         <textarea id="chdSpecial" style="display:none">${esc(c.special_terms||'')}</textarea>
         <p class="sa-hint">🔒 عقد ${anySigned?'وقّع عليه طرف على الأقل':'ملغى'} — لم يعد قابلًا للتعديل. لتغييره، ألغِ هذا العقد وأنشئ عقدًا جديدًا.</p>`}
         `}
-        <div id="chdIntegrity"></div>
       </div>
     </div>
 
@@ -475,19 +474,45 @@ async function openContractDetailPanel(contractId){
       </div>
       <div id="chdClauses"></div>
     </div>`:''}
-    <div class="sa-section" style="margin-top:14px">
-      <h4>📜 سجل العقد <span class="sa-hint">كل إجراء موثَّق: من فعله ومتى</span></h4>
-      <div id="chdAudit"><div class="skeleton" style="height:40px"></div></div>
-    </div>
-    <div class="sa-section" style="margin-top:14px">
-      <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للشريك في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
-      <div id="chdAttachments"><div class="skeleton" style="height:40px"></div></div>
     </div>
 
-    <details class="pubsign-fulltext" open>
-      <summary>📄 معاينة نص العقد الكامل (حيّة — تتحدّث فورًا مع أي تعديل)</summary>
-      <div id="chdPreview"></div>
-    </details>
+    <div class="chub-pane" data-pane="attach" ${CHD_TAB==='attach'?'':'hidden'}>
+      <div class="sa-section">
+        <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للشريك في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
+        <div id="chdAttachments"><div class="skeleton" style="height:40px"></div></div>
+      </div>
+    </div>
+
+    <div class="chub-pane" data-pane="send" ${CHD_TAB==='send'?'':'hidden'}>
+    <div class="chub-detail-grid">
+      <div class="chub-qr-box">
+        <div id="chdQrImg" class="chub-qr-loading">⏳ يُولَّد رمز QR...</div>
+        <p class="sa-hint">رمز خاص بعقد ${esc(c.client_name)} — يحيل حصرًا لصفحة توقيع هذا العقد</p>
+        <input readonly value="${link}" style="width:100%;font-size:.72rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2);margin-top:6px">
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button class="reqbtn" data-chdcopy="${link}">نسخ الرابط</button>
+        </div>
+        ${(c.internal_approved&&c.status!=='void')?`
+        <div class="chd-send-box">
+          <div id="chdFunnel"><p class="sa-hint">جارٍ تحميل حالة الإرسال...</p></div>
+        <div id="chdLinkState"></div>
+          ${!cl?`
+          <input id="chdSendTo" type="email" placeholder="بريد الشريك" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin:8px 0 6px">
+          ${!c.client_contact_email&&c.client_id?'<label class="sa-hint" style="display:flex;gap:5px;align-items:center;margin-bottom:6px"><input type="checkbox" id="chdSaveEmail" checked> احفظه في ملف الشريك (فلا يُعاد إدخاله)</label>':''}
+          <button class="hbtn" id="chdSendBtn" style="background:var(--gold);border-color:var(--gold);width:100%">
+            ${c.send_count>0?'🔔 إرسال تذكير':'📧 إرسال للشريك'}</button>`:''}
+          <button class="reqbtn" id="chdMailCheck" style="width:100%;margin-top:6px;font-size:.72rem">🔍 فحص جاهزية الإرسال</button>
+          <div id="chdMailStatus"></div>
+        </div>`:''}
+      </div>
+    </div>
+
+    <div class="chub-pane" data-pane="log" ${CHD_TAB==='log'?'':'hidden'}>
+      <div class="sa-section">
+        <h4>📜 سجل العقد <span class="sa-hint">كل إجراء موثَّق: من فعله ومتى</span></h4>
+        <div id="chdAudit"><div class="skeleton" style="height:40px"></div></div>
+      </div>
+    </div>
   </div>`;
 
   // ===== نموذج العقد ومحرر البنود =====
@@ -681,6 +706,12 @@ async function openContractDetailPanel(contractId){
 
   if(panel.scrollIntoView)panel.scrollIntoView({behavior:'smooth',block:'start'});
   document.getElementById('chdClose').onclick=()=>{panel.innerHTML='';};
+  // تبديل التبويبات بلا إعادة بناء اللوحة — يحفظ حالة الحقول والمعاينة
+  panel.querySelectorAll('[data-chdtab]').forEach(b=>b.onclick=()=>{
+    CHD_TAB=b.dataset.chdtab;
+    panel.querySelectorAll('.chub-tab').forEach(x=>x.classList.toggle('active',x.dataset.chdtab===CHD_TAB));
+    panel.querySelectorAll('.chub-pane').forEach(x=>{x.hidden=(x.dataset.pane!==CHD_TAB);});
+  });
   // قائمة الإجراءات الثانوية
   {const mb=document.getElementById('chdMore'),mm=document.getElementById('chdMoreMenu');
    if(mb&&mm){
@@ -715,7 +746,7 @@ async function openContractDetailPanel(contractId){
          try{ await saveClientEmail(c.client_id,to); }catch(e){}
        }
        toast('أُرسل العقد إلى '+to,'ok');
-       CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId);
+       CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
      }catch(e){toast(e.message,'err');sendBtn.disabled=false;sendBtn.textContent=old;}
    };}
 
@@ -867,7 +898,7 @@ async function openContractDetailPanel(contractId){
   {const ua=document.getElementById('chdUnarchive');
    if(ua)ua.onclick=async()=>{
      try{ await archiveContract(contractId,true);toast('استُرجع العقد','ok');
-       CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId);
+       CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
      }catch(e){toast(e.message,'err');}
    };}
   {const sb2=document.getElementById('chdSignNow');
@@ -894,7 +925,7 @@ async function openContractDetailPanel(contractId){
          const r=await signContractAsStaff(contractId,name,sig.data||('نصي: '+sig.typed));
          if(r&&r.ok){
            toast('وُقِّع العقد من علامة — أرسل الرابط للشريك الآن','ok');
-           CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId);
+           CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
          }else toast((r&&r.error==='not_approved')?'العقد غير معتمَد داخليًا بعد':'تعذّر التوقيع','err');
        }catch(e){toast('تعذّر التوقيع: '+e.message,'err');btn.disabled=false;}
      };
@@ -980,7 +1011,7 @@ async function openContractDetailPanel(contractId){
         {const fr=(await fetchAllContracts()).find(x=>x.id===contractId);
          if(fr){try{await sealContract(fr);}catch(e){}}}
         toast('اعتُمد العقد داخليًا وخُتم نصه — أصبح قابلًا للإرسال والتوقيع','ok');
-        CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId);
+        CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
       };
       try{
         await approveContractInternal(contractId);
@@ -1035,7 +1066,7 @@ async function openContractDetailPanel(contractId){
         toast('حُفظت التعديلات وثُبِّتت','ok');
         CH_CONTRACTS=await fetchAllContracts();
         renderContractsHubBody();
-        openContractDetailPanel(contractId);
+        openContractDetailPanel(contractId,true);
       }catch(e){toast(e.message,'err');btn.disabled=false;}
     };
     document.getElementById('chdVoid').onclick=async()=>{
