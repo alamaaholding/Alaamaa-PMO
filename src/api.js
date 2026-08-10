@@ -719,6 +719,12 @@ async function dissolvePackage(pkgId,moveToId){
     ?'الخطة مثبَّتة — التعديل البنيوي يحتاج طلب تغيير معتمَدًا أولًا':(data.error||'تعذّر الحلّ'));
   return data;
 }
+// حِمل العمل عبر المحفظة — يُرجع المدخلات الخام، والجدولة تُحسب في المتصفح بنفس
+// خوارزمية الجانت فلا تتناقض الأرقام مع ما يراه المستخدم
+async function fetchPortfolioWorkload(){
+  const {data,error}=await sb.rpc('pmo_portfolio_workload');
+  if(error)throw error;return data||[];
+}
 async function fetchAutomationSettings(){
   const {data,error}=await sb.rpc('pmo_get_automation_settings');
   if(error)throw error;return data||{};
