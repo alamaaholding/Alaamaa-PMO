@@ -848,6 +848,13 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
      const f=d=>d?new Date(d).toLocaleString('ar',{dateStyle:'full',timeStyle:'short'}):'—';
      const org=cert.parties.org||{},pt=cert.parties.partner||{};
      const rows=(label,val)=>`<tr><th>${esc(label)}</th><td>${esc(val==null?'—':String(val))}</td></tr>`;
+     const okc=await dialog({title:'شهادة التوقيع',
+       message:'سيُفتح حوار الطباعة — اختر «حفظ بصيغة PDF» للاحتفاظ بنسخة خارج النظام.',
+       html:'<div class="cr-diff"><b>تتضمّن الشهادة:</b><div>· الأطراف وبياناتهم</div>'
+           +'<div>· بصمة النص المختوم ووقت ختمه</div><div>· حوكمة الاعتماد (المُعِدّ والمعتمِد)</div>'
+           +'<div>· التواقيع وأدلتها كاملة</div><div>· سجل الإجراءات</div></div>',
+       confirmText:'متابعة'});
+     if(!okc)return;
      document.getElementById('contractPrint').innerHTML=`
        <section class="cx-cover">
          <div class="cx-cover-brand">علامة <span>· أثر دائم</span></div>
@@ -912,10 +919,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
          </tbody></table>
        </section>
        <div class="cx-footer">علامة · شهادة أدلة توقيع — ${esc(cert.contract.number||'')}</div>`;
-     document.body.classList.add('printing-contract');
-     setTimeout(()=>{window.print();
-       const restore=()=>{document.body.classList.remove('printing-contract');window.removeEventListener('afterprint',restore);};
-       window.addEventListener('afterprint',restore);},120);
+     runPrintSafely();
    };}
   {const am=document.getElementById('chdAmend');
    if(am)am.onclick=async()=>{
@@ -1028,11 +1032,21 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
   });
   {const exportBtn=document.getElementById('chdExport');
    if(exportBtn)exportBtn.onclick=async()=>{
+     // حوار تمهيدي: يوضّح ما سيُنتَج ويشرح الخطوة التالية قبل ظهور حوار المتصفح فجأة
+     let atts=[];try{atts=await fetchContractAttachments(contractId);}catch(e){}
+     const links=atts.filter(a=>a.url||a.storage_path);
+     const parts=['متن العقد الكامل'];
+     if(c.baseline_id)parts.push('ملحق الخطة المعتمدة');
+     if(links.length)parts.push(`قائمة الملاحق (${links.length})`);
+     if(c.token)parts.push('رمز QR لصفحة التوقيع');
+     const ok=await dialog({title:'تصدير العقد',
+       message:'سيُفتح حوار الطباعة — اختر منه «حفظ بصيغة PDF» (Save as PDF) للحصول على ملف.',
+       html:`<div class="cr-diff"><b>سيتضمّن المستند:</b>${parts.map(x=>`<div>· ${esc(x)}</div>`).join('')}</div>`,
+       confirmText:'متابعة التصدير'});
+     if(!ok)return;
      exportBtn.disabled=true;const old=exportBtn.textContent;exportBtn.textContent='جارٍ التحضير...';
-     try{
-       let atts=[];try{atts=await fetchContractAttachments(contractId);}catch(e){}
-       await buildContractDoc(c.baseline_id,c,atts);
-     }catch(e){toast('تعذّر التصدير: '+e.message,'err');}
+     try{ await buildContractDoc(c.baseline_id,c,atts); }
+     catch(e){toast('تعذّر التصدير: '+e.message,'err');}
      exportBtn.disabled=false;exportBtn.textContent=old;
    };}
   document.getElementById('chdDuplicate').onclick=async()=>{
