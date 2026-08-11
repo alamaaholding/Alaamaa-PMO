@@ -53,6 +53,88 @@ async function openSecurityAudit(){
   catch(e){ body.innerHTML='<p class="empty">تعذّر الفحص: '+esc(e.message)+'</p>'; }
 }
 
+
+// ===== الأقسام والمسمّيات الوظيفية =====
+// الطاقة تُشتق من: عدد شاغلي المسمّى × البنود المتزامنة التي يحتملها الفرد. فيصبح ممكنًا
+// القول «مصمم الجرافيك فوق طاقته، يلزم مورد ثانٍ» بدل «فلان مشغول».
+async function openCapacityPanel(){
+  document.getElementById('taskOverlay').style.display='flex';
+  document.getElementById('tkTitle').textContent='الأقسام والمسمّيات الوظيفية';
+  document.getElementById('tkTabs').innerHTML='';
+  const body=document.getElementById('tkBody');
+  body.innerHTML='<div class="skeleton" style="height:200px"></div>';
+  let tree=[];
+  try{ tree=await fetchCapacityTree(); }
+  catch(e){ body.innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
+
+  const totalCap=tree.reduce((s2,d)=>s2+(d.roles||[]).reduce((a,r)=>a+(r.capacity||0),0),0);
+  const totalHeads=tree.reduce((s2,d)=>s2+(d.roles||[]).reduce((a,r)=>a+(r.headcount||0),0),0);
+
+  body.innerHTML=`
+    <p class="sa-hint" style="margin-bottom:12px">الإسناد يقع على <b>المسمّى</b> لا الشخص — فالمكتب يعنيه أن المسمّى محمَّل فوق طاقته لا من ينفّذ. الطاقة = عدد الشاغلين × البنود المتزامنة للفرد.</p>
+    <div class="chub-stats" style="margin-bottom:14px">
+      <div class="chub-stat"><b>${tree.length}</b><span>قسم</span></div>
+      <div class="chub-stat"><b>${tree.reduce((a,d)=>a+(d.roles||[]).length,0)}</b><span>مسمّى</span></div>
+      <div class="chub-stat"><b>${totalHeads}</b><span>إجمالي الشاغلين</span></div>
+      <div class="chub-stat"><b>${totalCap}</b><span>طاقة متزامنة</span></div>
+    </div>
+    ${tree.map(d=>`
+      <div class="sa-section cap-dept" style="--dc:${esc(d.color||'#C8A06B')}">
+        <h4>${esc(d.name)} <span class="sa-hint">${(d.roles||[]).length} مسمّى</span></h4>
+        ${(d.roles||[]).map(r=>`
+          <div class="cap-role" data-role="${r.id}">
+            <input class="cap-name" value="${esc(r.name)}" data-rf="name">
+            <label class="sa-hint">شاغلون</label>
+            <input class="cap-num" type="number" min="0" max="99" value="${r.headcount}" data-rf="headcount">
+            <label class="sa-hint">حمل الفرد</label>
+            <input class="cap-num" type="number" min="1" max="10" value="${r.load_per_person}" data-rf="load">
+            <span class="cap-total">= ${r.capacity} بند متزامن</span>
+            <span class="sa-hint">${r.assigned_tasks} بند مُسنَد</span>
+            <button class="reqbtn" data-delrole="${r.id}" style="color:var(--crit)" aria-label="حذف مسمّى ${esc(r.name)}">حذف</button>
+          </div>`).join('')||'<p class="sa-hint">لا مسمّيات في هذا القسم بعد.</p>'}
+        <div class="sa-form" style="margin-top:10px">
+          <input class="cap-newname" placeholder="مسمّى جديد" data-dept="${d.id}">
+          <button class="reqbtn" data-addrole="${d.id}">+ إضافة مسمّى</button>
+        </div>
+      </div>`).join('')}
+    <div class="sa-form" style="margin-top:12px">
+      <input id="capNewDept" placeholder="قسم جديد">
+      <button class="reqbtn" id="capAddDept">+ إضافة قسم</button>
+    </div>`;
+
+  const reload=()=>openCapacityPanel();
+  body.querySelectorAll('.cap-role').forEach(row=>{
+    row.querySelectorAll('[data-rf]').forEach(inp=>inp.onchange=async()=>{
+      try{
+        await saveJobRole(row.dataset.role,null,
+          row.querySelector('[data-rf="name"]').value,
+          Number(row.querySelector('[data-rf="headcount"]').value),
+          Number(row.querySelector('[data-rf="load"]').value));
+        toast('حُفظ','ok');reload();
+      }catch(e){toast(e.message,'err');}
+    });
+  });
+  body.querySelectorAll('[data-delrole]').forEach(b=>b.onclick=async()=>{
+    if(!await confirmDialog('حذف المسمّى','البنود المُسنَدة إليه لن تُحذف — سيعود إسنادها فارغًا فقط.',true,'حذف'))return;
+    try{const r=await deleteJobRole(b.dataset.delrole);
+      toast(r.freed_tasks?`حُذف — تحرّر ${r.freed_tasks} بند`:'حُذف','ok');reload();}
+    catch(e){toast(e.message,'err');}
+  });
+  body.querySelectorAll('[data-addrole]').forEach(b=>b.onclick=async()=>{
+    const inp=body.querySelector(`.cap-newname[data-dept="${b.dataset.addrole}"]`);
+    const nm=(inp.value||'').trim();
+    if(!nm){toast('أدخل اسم المسمّى','warn');return;}
+    try{ await saveJobRole(null,b.dataset.addrole,nm,1,2);toast('أُضيف','ok');reload(); }
+    catch(e){toast(e.message,'err');}
+  });
+  document.getElementById('capAddDept').onclick=async()=>{
+    const nm=(document.getElementById('capNewDept').value||'').trim();
+    if(!nm){toast('أدخل اسم القسم','warn');return;}
+    try{ await saveDepartment(null,nm);toast('أُضيف القسم','ok');reload(); }
+    catch(e){toast(e.message,'err');}
+  };
+}
+
 async function openAutomationPanel(){
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='أتمتة العقود';
@@ -204,7 +286,8 @@ async function renderPortfolio(){
   // الملف التعاقدي لعلامة: متاح لمالك المنصة ومديرها معًا — مطابقًا لسياسة القاعدة
   // (pmo_update_org_profile تسمح لكليهما). كان محصورًا بالمالك في الواجهة فقط، فاختفى
   // عن مدير المنصة بعد نقل الملكية رغم امتلاكه الصلاحية فعليًا.
-  if(IS_OWNER||ROLE==='pmo'){toolItems.push({g:'إعدادات',id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});
+  if(IS_OWNER||ROLE==='pmo'){toolItems.push({g:'إعدادات',id:'showCapacity',t:'الأقسام والمسمّيات',i:'👥'});
+    toolItems.push({g:'إعدادات',id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});
     toolItems.push({g:'إعدادات',id:'showAutomation',t:'أتمتة العقود',i:'⚡'});
     toolItems.push({g:'إعدادات',id:'showSecAudit',t:'فحص أمني',i:'🛡'});}
   if(IS_OWNER){toolItems.push({g:'إعدادات',id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
@@ -233,6 +316,7 @@ async function renderPortfolio(){
   {const lb=$('#statusLegendBtn');if(lb)lb.onclick=openStatusLegend;}
   {const op=$('#showOrgProfile');if(op)op.onclick=openOrgProfile;}
   {const wl=$('#showWorkload');if(wl)wl.onclick=renderWorkload;}
+  {const cp=$('#showCapacity');if(cp)cp.onclick=openCapacityPanel;}
   {const au=$('#showAutomation');if(au)au.onclick=openAutomationPanel;}
   {const sa2=$('#showSecAudit');if(sa2)sa2.onclick=openSecurityAudit;}
   {const tb=$('#showTimeline');if(tb)tb.onclick=renderPortfolioTimeline;}
