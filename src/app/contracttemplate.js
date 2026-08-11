@@ -267,7 +267,9 @@ function mergeContract(data){
   const excluded=new Set(ov.excluded||[]);
   const added=(ov.added||[]).filter(a=>a&&a.title);
 
-  const partyRows=TPL.parties.rows.map(([label,a,b])=>[label,a,sub(b)]);
+  // كلا العمودين يمرّان بالاستبدال — كان عمود علامة (a) يُمرَّر خامًا فتظهر
+  // متغيّراته الحرفية {{اسم_علامة}} بدل قيمها، فلا ينعكس أي تعديل على ملف علامة إطلاقًا.
+  const partyRows=TPL.parties.rows.map(([label,a,b])=>[label,sub(a),sub(b)]);
   const sections=TPL.sections.map(s=>{
     // الاستبعاد لا يُزيح أي ترقيم — البند يبقى برقمه ويُستبدل متنه، حفاظًا على سلامة
     // الإحالات الداخلية المتبادلة بين البنود (٦→٧، ١٤→١٠.٤، ١٢.٢→١١ ...).
