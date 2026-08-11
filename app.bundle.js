@@ -1,4 +1,4 @@
-const BUILD_V='7d8cd43e';
+const BUILD_V='d65f6ca2';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -539,7 +539,7 @@ async function loadProject(clientId, projectId){
   const p=projects[0];
   // tasks/deps/baseline/CRs تعتمد على project_id فقط → نطلبها بالتوازي
   const [tasksR,depsR,blR,crR,holR]=await Promise.all([
-    sb.from('pmo_tasks').select('id,ref,wbs,name,track,type,duration,lag,fixed_date,owner,deliverable,status,progress,sort_order,parent_id').eq('project_id',p.id).order('sort_order'),
+    sb.from('pmo_tasks').select('id,ref,wbs,name,track,type,duration,lag,fixed_date,owner,deliverable,status,progress,sort_order,parent_id,job_role_id').eq('project_id',p.id).order('sort_order'),
     sb.from('pmo_dependencies').select('id,task_id,depends_on_id,dep_type,lag').eq('project_id',p.id),
     sb.from('pmo_baselines').select('id,label,snapshot,approved_at').eq('project_id',p.id).order('approved_at',{ascending:true}),
     sb.from('pmo_change_requests').select('*').eq('project_id',p.id).order('created_at',{ascending:false}),
@@ -563,7 +563,7 @@ async function loadProject(clientId, projectId){
     baseline:(bl&&bl.length)?{snapshot:bl[bl.length-1].snapshot}:null,
     baselines:bl||[],
     tasks:(()=>{const _refOf={};tasks.forEach(x=>{_refOf[x.id]=x.ref;});
-      return tasks.map(t=>({id:t.ref,_dbId:t.id,parent:t.parent_id?(_refOf[t.parent_id]||null):null,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],depsX:depMapX[t.id]||[],requirements:reqMap[t.id]||[]}));})()};
+      return tasks.map(t=>({id:t.ref,_dbId:t.id,parent:t.parent_id?(_refOf[t.parent_id]||null):null,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,roleId:t.job_role_id||null,status:t.status,progress:t.progress,deps:depMap[t.id]||[],depsX:depMapX[t.id]||[],requirements:reqMap[t.id]||[]}));})()};
   PROJECT.tracks=(await sb.from('pmo_project_tracks').select('*').eq('project_id',p.id).order('sort')).data||[];
   // إصلاح ذاتي: مرحلة كل بند = مرجع أعلى سلف له في WBS الفعلي (عبر parent_id الحقيقي)،
   // لا القيمة المخزّنة في عمود track التي قد تكون انحرفت عن الهرمية الحقيقية (استيراد سابق قبل هذا الإصلاح،
@@ -573,6 +573,8 @@ async function loadProject(clientId, projectId){
   // شارات التبويبات: عدّ خفيف لا يجلب صفوفًا
   PROJECT.counts={cr:CRS.filter(x=>x.status==='pending').length,discuss:0,requests:0};
   try{Object.assign(PROJECT.counts,await fetchProjectCounts(p.id));}catch(e){}
+  // المسمّيات لازمة لعمود الإسناد في الجدول — تُجلب مرة وتُخزَّن
+  try{await fetchRolesFlat();}catch(e){}
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
 
@@ -1203,6 +1205,36 @@ async function dissolvePackage(pkgId,moveToId){
 }
 // حِمل العمل عبر المحفظة — يُرجع المدخلات الخام، والجدولة تُحسب في المتصفح بنفس
 // خوارزمية الجانت فلا تتناقض الأرقام مع ما يراه المستخدم
+// ===== الطاقة بالمسمّى الوظيفي =====
+let ROLES_CACHE=null;
+async function fetchCapacityTree(){
+  const {data,error}=await sb.rpc('pmo_capacity_tree');
+  if(error)throw error;return data||[];
+}
+async function fetchRolesFlat(force){
+  if(ROLES_CACHE&&!force)return ROLES_CACHE;
+  const {data,error}=await sb.rpc('pmo_roles_flat');
+  if(error)throw error;ROLES_CACHE=data||[];return ROLES_CACHE;
+}
+async function saveDepartment(id,name,color){
+  const {data,error}=await sb.rpc('pmo_upsert_department',{p_id:id||null,p_name:name,p_color:color||null});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error||'تعذّر الحفظ');
+  ROLES_CACHE=null;return data;
+}
+async function saveJobRole(id,deptId,name,headcount,load){
+  const {data,error}=await sb.rpc('pmo_upsert_job_role',
+    {p_id:id||null,p_department:deptId||null,p_name:name,p_headcount:headcount,p_load:load});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error||'تعذّر الحفظ');
+  ROLES_CACHE=null;return data;
+}
+async function deleteJobRole(id){
+  const {data,error}=await sb.rpc('pmo_delete_job_role',{p_id:id});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error||'تعذّر الحذف');
+  ROLES_CACHE=null;return data;
+}
 async function fetchPortfolioWorkload(){
   const {data,error}=await sb.rpc('pmo_portfolio_workload');
   if(error)throw error;return data||[];
@@ -1829,6 +1861,10 @@ function vTable(){
       <td><input class="cell iprog" type="number" min="0" max="100" data-f="progress" value="${(k&&k.dispPct)||t.progress||0}" ${editProg&&t.type!=='milestone'?'':'disabled'}></td>
       <td>${delay}</td>
       <td><button class="reqbtn" data-reqs="${esc(t.id)}">${reqs.length?(bad?bad+'⚠':reqs.length):'—'}</button></td>
+      <td><select class="cell irole" data-f="roleId" ${editStruct?'':'disabled'} title="المسمّى الوظيفي المسؤول — لا الشخص">
+        <option value="">— بلا إسناد —</option>
+        ${(ROLES_CACHE||[]).map(r=>`<option value="${r.id}" ${t.roleId===r.id?'selected':''}>${esc(r.department)} · ${esc(r.name)}</option>`).join('')}
+      </select></td>
       <td><input class="cell idel" data-f="deliverable" value="${esc(t.deliverable||'')}" placeholder="—" ${editStruct?'':'disabled'}></td>
       ${editCol}
     </tr>`;
@@ -1847,7 +1883,7 @@ function vTable(){
   const addBar=crWin+(editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button>${ROLE==='pmo'?'<button class="reqbtn" id="tracksBtn" style="background:var(--ink);border-color:var(--ink);color:#fff">إدارة المراحل</button>':''}<span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'');
   const printBtn=`<div class="lockbar" style="border-inline-start-color:var(--line)"><button class="hbtn print-btn" id="printTableBtn">🖨 طباعة الجدول</button><span style="color:var(--muted);font-weight:400;font-size:.78rem">تُطبع كل مرحلة في صفحة، والأعمدة مصغّرة للقراءة.</span></div>`;
   if(MOBILE)return addBar+projFilterBar()+vCards(editStruct,editProg);
-  return addBar+printBtn+projFilterBar()+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  return addBar+printBtn+projFilterBar()+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المسمّى</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 // عرض البطاقات للجوّال: نفس البيانات والفلاتر والربط، بلا تمرير أفقي
 function vCards(editStruct,editProg){
@@ -1910,10 +1946,11 @@ function bindTable(){
         let val=inp.value;
         if(f==='duration'||f==='progress')val=parseInt(val||'0',10);
         if(f==='fixedDate'||f==='deliverable')val=(val||'').trim()||null;
+        if(f==='roleId')val=val||null;
         t[f]=val;
         // كل حقل في الجدول يُكتب عبر نفس المسار — الجدول مصدر الحقيقة الوحيد للخطة
         const map={duration:'duration',progress:'progress',status:'status',name:'name',type:'type',
-                   deliverable:'deliverable',fixedDate:'fixed_date',track:'track',owner:'owner'};
+                   deliverable:'deliverable',fixedDate:'fixed_date',track:'track',owner:'owner',roleId:'job_role_id'};
         if(map[f]&&t._dbId){
           const patch={};patch[map[f]]=val;
           // التثبيت لا يسري إلا للنوع «ثابت» — فتحديد تاريخ يحوّل النوع تلقائيًا، ومسحه يعيده.
@@ -3317,6 +3354,88 @@ async function openSecurityAudit(){
   catch(e){ body.innerHTML='<p class="empty">تعذّر الفحص: '+esc(e.message)+'</p>'; }
 }
 
+
+// ===== الأقسام والمسمّيات الوظيفية =====
+// الطاقة تُشتق من: عدد شاغلي المسمّى × البنود المتزامنة التي يحتملها الفرد. فيصبح ممكنًا
+// القول «مصمم الجرافيك فوق طاقته، يلزم مورد ثانٍ» بدل «فلان مشغول».
+async function openCapacityPanel(){
+  document.getElementById('taskOverlay').style.display='flex';
+  document.getElementById('tkTitle').textContent='الأقسام والمسمّيات الوظيفية';
+  document.getElementById('tkTabs').innerHTML='';
+  const body=document.getElementById('tkBody');
+  body.innerHTML='<div class="skeleton" style="height:200px"></div>';
+  let tree=[];
+  try{ tree=await fetchCapacityTree(); }
+  catch(e){ body.innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
+
+  const totalCap=tree.reduce((s2,d)=>s2+(d.roles||[]).reduce((a,r)=>a+(r.capacity||0),0),0);
+  const totalHeads=tree.reduce((s2,d)=>s2+(d.roles||[]).reduce((a,r)=>a+(r.headcount||0),0),0);
+
+  body.innerHTML=`
+    <p class="sa-hint" style="margin-bottom:12px">الإسناد يقع على <b>المسمّى</b> لا الشخص — فالمكتب يعنيه أن المسمّى محمَّل فوق طاقته لا من ينفّذ. الطاقة = عدد الشاغلين × البنود المتزامنة للفرد.</p>
+    <div class="chub-stats" style="margin-bottom:14px">
+      <div class="chub-stat"><b>${tree.length}</b><span>قسم</span></div>
+      <div class="chub-stat"><b>${tree.reduce((a,d)=>a+(d.roles||[]).length,0)}</b><span>مسمّى</span></div>
+      <div class="chub-stat"><b>${totalHeads}</b><span>إجمالي الشاغلين</span></div>
+      <div class="chub-stat"><b>${totalCap}</b><span>طاقة متزامنة</span></div>
+    </div>
+    ${tree.map(d=>`
+      <div class="sa-section cap-dept" style="--dc:${esc(d.color||'#C8A06B')}">
+        <h4>${esc(d.name)} <span class="sa-hint">${(d.roles||[]).length} مسمّى</span></h4>
+        ${(d.roles||[]).map(r=>`
+          <div class="cap-role" data-role="${r.id}">
+            <input class="cap-name" value="${esc(r.name)}" data-rf="name">
+            <label class="sa-hint">شاغلون</label>
+            <input class="cap-num" type="number" min="0" max="99" value="${r.headcount}" data-rf="headcount">
+            <label class="sa-hint">حمل الفرد</label>
+            <input class="cap-num" type="number" min="1" max="10" value="${r.load_per_person}" data-rf="load">
+            <span class="cap-total">= ${r.capacity} بند متزامن</span>
+            <span class="sa-hint">${r.assigned_tasks} بند مُسنَد</span>
+            <button class="reqbtn" data-delrole="${r.id}" style="color:var(--crit)" aria-label="حذف مسمّى ${esc(r.name)}">حذف</button>
+          </div>`).join('')||'<p class="sa-hint">لا مسمّيات في هذا القسم بعد.</p>'}
+        <div class="sa-form" style="margin-top:10px">
+          <input class="cap-newname" placeholder="مسمّى جديد" data-dept="${d.id}">
+          <button class="reqbtn" data-addrole="${d.id}">+ إضافة مسمّى</button>
+        </div>
+      </div>`).join('')}
+    <div class="sa-form" style="margin-top:12px">
+      <input id="capNewDept" placeholder="قسم جديد">
+      <button class="reqbtn" id="capAddDept">+ إضافة قسم</button>
+    </div>`;
+
+  const reload=()=>openCapacityPanel();
+  body.querySelectorAll('.cap-role').forEach(row=>{
+    row.querySelectorAll('[data-rf]').forEach(inp=>inp.onchange=async()=>{
+      try{
+        await saveJobRole(row.dataset.role,null,
+          row.querySelector('[data-rf="name"]').value,
+          Number(row.querySelector('[data-rf="headcount"]').value),
+          Number(row.querySelector('[data-rf="load"]').value));
+        toast('حُفظ','ok');reload();
+      }catch(e){toast(e.message,'err');}
+    });
+  });
+  body.querySelectorAll('[data-delrole]').forEach(b=>b.onclick=async()=>{
+    if(!await confirmDialog('حذف المسمّى','البنود المُسنَدة إليه لن تُحذف — سيعود إسنادها فارغًا فقط.',true,'حذف'))return;
+    try{const r=await deleteJobRole(b.dataset.delrole);
+      toast(r.freed_tasks?`حُذف — تحرّر ${r.freed_tasks} بند`:'حُذف','ok');reload();}
+    catch(e){toast(e.message,'err');}
+  });
+  body.querySelectorAll('[data-addrole]').forEach(b=>b.onclick=async()=>{
+    const inp=body.querySelector(`.cap-newname[data-dept="${b.dataset.addrole}"]`);
+    const nm=(inp.value||'').trim();
+    if(!nm){toast('أدخل اسم المسمّى','warn');return;}
+    try{ await saveJobRole(null,b.dataset.addrole,nm,1,2);toast('أُضيف','ok');reload(); }
+    catch(e){toast(e.message,'err');}
+  });
+  document.getElementById('capAddDept').onclick=async()=>{
+    const nm=(document.getElementById('capNewDept').value||'').trim();
+    if(!nm){toast('أدخل اسم القسم','warn');return;}
+    try{ await saveDepartment(null,nm);toast('أُضيف القسم','ok');reload(); }
+    catch(e){toast(e.message,'err');}
+  };
+}
+
 async function openAutomationPanel(){
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='أتمتة العقود';
@@ -3468,7 +3587,8 @@ async function renderPortfolio(){
   // الملف التعاقدي لعلامة: متاح لمالك المنصة ومديرها معًا — مطابقًا لسياسة القاعدة
   // (pmo_update_org_profile تسمح لكليهما). كان محصورًا بالمالك في الواجهة فقط، فاختفى
   // عن مدير المنصة بعد نقل الملكية رغم امتلاكه الصلاحية فعليًا.
-  if(IS_OWNER||ROLE==='pmo'){toolItems.push({g:'إعدادات',id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});
+  if(IS_OWNER||ROLE==='pmo'){toolItems.push({g:'إعدادات',id:'showCapacity',t:'الأقسام والمسمّيات',i:'👥'});
+    toolItems.push({g:'إعدادات',id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});
     toolItems.push({g:'إعدادات',id:'showAutomation',t:'أتمتة العقود',i:'⚡'});
     toolItems.push({g:'إعدادات',id:'showSecAudit',t:'فحص أمني',i:'🛡'});}
   if(IS_OWNER){toolItems.push({g:'إعدادات',id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
@@ -3497,6 +3617,7 @@ async function renderPortfolio(){
   {const lb=$('#statusLegendBtn');if(lb)lb.onclick=openStatusLegend;}
   {const op=$('#showOrgProfile');if(op)op.onclick=openOrgProfile;}
   {const wl=$('#showWorkload');if(wl)wl.onclick=renderWorkload;}
+  {const cp=$('#showCapacity');if(cp)cp.onclick=openCapacityPanel;}
   {const au=$('#showAutomation');if(au)au.onclick=openAutomationPanel;}
   {const sa2=$('#showSecAudit');if(sa2)sa2.onclick=openSecurityAudit;}
   {const tb=$('#showTimeline');if(tb)tb.onclick=renderPortfolioTimeline;}
@@ -6261,11 +6382,12 @@ function wlDayKey(d){return d.toISOString().slice(0,10);}
 
 // يبني تقويمًا: لكل يوم، البنود النشطة فيه من كل المشاريع
 function wlBuildCalendar(projects){
-  const cal={};           // 'YYYY-MM-DD' -> [{project,color,task,type}]
-  projects.forEach(p=>{
+  const cal={};           // 'YYYY-MM-DD' -> [{project,color,task,roleId,...}]
+  (projects||[]).forEach(p=>{
     const tasks=(p.tasks||[]).map(t=>({
       id:t.id,name:t.name,type:t.type,duration:t.duration,lag:t.lag,
       fixed:t.fixed,track:t.track,status:t.status,progress:t.progress,
+      role_id:t.role_id||null,
       deps:Array.isArray(t.deps)?t.deps:[]
     }));
     if(!tasks.length||!p.start_date)return;
@@ -6282,12 +6404,45 @@ function wlBuildCalendar(projects){
         const k=wlDayKey(d);
         (cal[k]=cal[k]||[]).push({
           project:p.project_name,client:p.client_name,color:p.color||'#C8A06B',
-          task:t.id,name:t.name,critical:!!(r.critical),status:t.status
+          task:t.id,name:t.name,critical:!!(r.critical),status:t.status,
+          roleId:t.role_id||null
         });
       }
     });
   });
   return cal;
+}
+
+
+// ===== ضغط المسمّيات =====
+// يحسب لكل مسمّى في كل يوم: كم بندًا نشطًا عليه مقابل طاقته (عدد الشاغلين × حمل الفرد).
+// هذا ما يحوّل السؤال من «من مشغول؟» إلى «أي مسمّى يحتاج توظيفًا؟».
+function wlRolePressure(cal,roles){
+  const byRole={};   // roleId -> {days:{k:count}, peak, overDays, capacity, ...}
+  (roles||[]).forEach(r=>{byRole[r.id]={role:r,days:{},peak:0,overDays:0,worstDay:null,worstN:0};});
+  const unassigned={days:{},count:0};
+  Object.entries(cal).forEach(([k,items])=>{
+    const per={};
+    items.forEach(x=>{
+      if(!x.roleId){unassigned.days[k]=(unassigned.days[k]||0)+1;unassigned.count++;return;}
+      per[x.roleId]=(per[x.roleId]||0)+1;
+    });
+    Object.entries(per).forEach(([rid,n])=>{
+      const b=byRole[rid]; if(!b)return;
+      b.days[k]=n;
+      if(n>b.peak){b.peak=n;}
+      if(n>b.worstN){b.worstN=n;b.worstDay=k;}
+      if(n>(b.role.capacity||0))b.overDays++;
+    });
+  });
+  // الموارد المقترحة: نحتاج ceil(الذروة / حمل الفرد) شاغلًا لتغطية أسوأ يوم
+  Object.values(byRole).forEach(b=>{
+    const lpp=b.role.load_per_person||2;
+    b.neededHeadcount=Math.ceil(b.peak/lpp);
+    b.gap=Math.max(0,b.neededHeadcount-(b.role.headcount||0));
+    b.util=b.role.capacity?Math.round(100*b.peak/b.role.capacity):0;
+  });
+  return {byRole,unassigned};
 }
 
 function wlTone(n){
@@ -6314,7 +6469,12 @@ async function renderWorkload(){
 }
 
 function renderWorkloadBody(){
-  const cal=wlBuildCalendar(WL_DATA||[]);
+  const projects=(WL_DATA&&WL_DATA.projects)||[];
+  const roles=(WL_DATA&&WL_DATA.roles)||[];
+  const cal=wlBuildCalendar(projects);
+  const RP=wlRolePressure(cal,roles);
+  const strained=Object.values(RP.byRole).filter(b=>b.gap>0)
+    .sort((a,b)=>b.gap-a.gap||b.util-a.util);
   const today=new Date(DATA_DATE||todayISO());
   const start=new Date(today); start.setDate(start.getDate()-start.getDay()); // بداية الأسبوع
   const days=[];
@@ -6331,8 +6491,8 @@ function renderWorkloadBody(){
       <div class="chub-stats">
         <div class="chub-stat"><b>${peak}</b><span>أعلى حمل في يوم</span></div>
         <div class="chub-stat"><b style="color:${over.length?'var(--crit)':'var(--ok)'}">${over.length}</b><span>يوم فوق الطاقة</span></div>
-        <div class="chub-stat"><b>${(WL_DATA||[]).length}</b><span>مشروع نشط</span></div>
-        <div class="chub-stat"><b>${WL_CAP}</b><span>الطاقة اليومية</span></div>
+        <div class="chub-stat"><b>${projects.length}</b><span>مشروع نشط</span></div>
+        <div class="chub-stat"><b style="color:${strained.length?'var(--crit)':'var(--ok)'}">${strained.length}</b><span>مسمّى يحتاج موردًا</span></div>
       </div>
       <div class="chub-filters">
         <label style="font-size:.8rem;align-self:center">الطاقة اليومية (بند/يوم)</label>
@@ -6345,6 +6505,42 @@ function renderWorkloadBody(){
           <span class="sa-hint">من فارغ إلى فوق الطاقة</span>
         </span>
       </div>
+    </div>
+
+    ${strained.length?`<div class="chub-expiry-banner">
+      <b>👥 ${strained.length} مسمّى وظيفي فوق طاقته</b>
+      <p class="sa-hint" style="margin:2px 0 8px">الطاقة = عدد الشاغلين × الحمل المحتمل للفرد. الفجوة تُحسب من أسوأ يوم في المدى المعروض.</p>
+      ${strained.slice(0,6).map(b=>`<div class="chd-att-row">
+        <span><b>${esc(b.role.department)} · ${esc(b.role.name)}</b>
+          <span class="sa-hint"> · ذروة ${b.peak} بند مقابل طاقة ${b.role.capacity}
+            (${b.role.headcount} شاغل × ${b.role.load_per_person})
+            ${b.worstDay?' · أسوأ يوم '+new Date(b.worstDay).toLocaleDateString('ar',{day:'numeric',month:'short'}):''}</span></span>
+        <span class="wl-gap">يلزم +${b.gap} مورد</span>
+      </div>`).join('')}
+    </div>`:''}
+
+    ${RP.unassigned.count?`<div class="chub-expiry-banner" style="background:var(--soft-2);border-color:var(--line)">
+      <b>◻ ${RP.unassigned.count} بند بلا مسمّى مُسنَد</b>
+      <p class="sa-hint">هذه البنود لا تُحتسب في ضغط أي مسمّى — أسنِدها من عمود «المسمّى» في جدول المشروع ليكتمل حساب الطاقة.</p>
+    </div>`:''}
+
+    <div class="sa-section">
+      <h4>ضغط المسمّيات الوظيفية <span class="sa-hint">الذروة مقابل الطاقة في المدى المعروض</span></h4>
+      ${roles.length?`<div class="wl-roles">${Object.values(RP.byRole)
+        .sort((a,b)=>b.util-a.util)
+        .map(b=>`<div class="wl-role">
+          <div class="wl-role-hd">
+            <b>${esc(b.role.name)}</b>
+            <span class="sa-hint">${esc(b.role.department)}</span>
+            <span class="wl-role-util ${b.util>100?'over':(b.util>=75?'high':'ok')}">${b.util}%</span>
+          </div>
+          <div class="wl-bar"><i style="width:${Math.min(100,b.util)}%"></i>
+            ${b.util>100?`<u style="width:${Math.min(60,b.util-100)}%"></u>`:''}</div>
+          <div class="sa-hint">ذروة ${b.peak} · طاقة ${b.role.capacity} · ${b.role.headcount} شاغل
+            ${b.gap>0?` · <b style="color:var(--crit)">يلزم +${b.gap}</b>`:''}</div>
+        </div>`).join('')}</div>`
+        :emptyState({icon:'👥',title:'لا مسمّيات وظيفية بعد',
+           hint:'عرّف الأقسام ومسمّياتها وعدد شاغليها من أدوات المكتب ← الأقسام والمسمّيات، ثم أسنِد البنود إليها.'})}
     </div>
 
     ${over.length?`<div class="chub-expiry-banner">
