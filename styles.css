@@ -146,6 +146,10 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .idate.pinned{color:var(--ink);font-weight:700;background:var(--warn-bg);border-color:var(--warn)}
 .dt-calc{display:block;font-size:.62rem;color:var(--muted);opacity:.7;margin-top:1px;text-align:center}
 .idel{font-size:.72rem!important;text-align:right}
+.tools-grp{display:flex;flex-direction:column}
+.tools-grp+.tools-grp{margin-top:4px;padding-top:6px;border-top:1px solid var(--line-soft)}
+.tools-grp-h{font-size:.64rem;font-weight:800;color:var(--gold-dark);padding:5px 12px 3px;
+  letter-spacing:.02em;text-transform:none}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;
   text-align:center;padding:26px 18px;gap:5px;list-style:none;color:var(--muted)}
 .empty-state-icon{font-size:1.9rem;opacity:.4;line-height:1}
