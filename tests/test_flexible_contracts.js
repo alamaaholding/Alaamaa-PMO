@@ -8,6 +8,8 @@ const w=dom.window;
 const run=c=>{const s=w.document.createElement('script');s.textContent=c;w.document.body.appendChild(s);};
 
 const nodeCrypto=require('crypto');
+// jsdom 26 لا يوفّر TextEncoder (jsdom 30 يوفّره) — نقص في بيئة الاختبار لا في الكود
+if(typeof w.TextEncoder==='undefined')w.TextEncoder=require('util').TextEncoder;
 w.__nodeSha256=(bytesArray)=>Array.from(nodeCrypto.createHash('sha256').update(Buffer.from(bytesArray)).digest());
 
 run(`
@@ -18,10 +20,7 @@ window.supabase={createClient:()=>({
   auth:{getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},
   channel:()=>({on(){return this;},subscribe(){return this;}}),removeChannel:()=>{}
 })};
-window.crypto.subtle={digest:async(algo,data)=>{
-  const bytes=Array.from(new Uint8Array(data));
-  return new Uint8Array(window.__nodeSha256(bytes)).buffer;
-}};
+Object.defineProperty(window,'crypto',{configurable:true,writable:true,value:{getRandomValues:a=>{for(let i=0;i<a.length;i++)a[i]=Math.floor(Math.random()*256);return a;},subtle:{digest:async(algo,data)=>new Uint8Array(window.__nodeSha256?window.__nodeSha256(Array.from(new Uint8Array(data))):window.__sha(Array.from(new Uint8Array(data)))).buffer}}});
 `);
 run(fs.readFileSync('app.bundle.js','utf8'));
 
