@@ -7,6 +7,8 @@ const dom=new JSDOM(html,{runScripts:'dangerously',url:'https://pmo.alaamaa.com/
 const w=dom.window;
 const run=c=>{const s=w.document.createElement('script');s.textContent=c;w.document.body.appendChild(s);};
 const nodeCrypto=require('crypto');
+// jsdom 26 لا يوفّر TextEncoder (jsdom 30 يوفّره) — نقص في بيئة الاختبار لا في الكود
+if(typeof w.TextEncoder==='undefined')w.TextEncoder=require('util').TextEncoder;
 w.__sha=b=>Array.from(nodeCrypto.createHash('sha256').update(Buffer.from(b)).digest());
 run(`window.__RPC=[];
 window.supabase={createClient:()=>({
@@ -16,7 +18,7 @@ window.supabase={createClient:()=>({
   auth:{getSession:async()=>({data:{session:null}}),getUser:async()=>({data:{user:null}}),
     onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},
   channel:()=>({on(){return this;},subscribe(){return this;}}),removeChannel:()=>{}})};
-window.crypto.subtle={digest:async(a,d)=>new Uint8Array(window.__sha(Array.from(new Uint8Array(d)))).buffer};`);
+Object.defineProperty(window,'crypto',{configurable:true,writable:true,value:{getRandomValues:a=>{for(let i=0;i<a.length;i++)a[i]=Math.floor(Math.random()*256);return a;},subtle:{digest:async(algo,data)=>new Uint8Array(window.__nodeSha256?window.__nodeSha256(Array.from(new Uint8Array(data))):window.__sha(Array.from(new Uint8Array(data)))).buffer}}});`);
 run(fs.readFileSync('app.bundle.js','utf8'));
 run(`
 window.__R=[];const t=(n,c,x)=>window.__R.push([n,!!c,x||'']);
