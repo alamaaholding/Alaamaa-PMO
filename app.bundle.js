@@ -1,4 +1,4 @@
-const BUILD_V='a6edf243';
+const BUILD_V='50204520';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -3450,29 +3450,37 @@ async function renderPortfolio(){
   const skel=CLIENTS.map(()=>'<div class="pcard"><div class="skeleton" style="height:22px;width:55%;margin-bottom:14px"></div><div class="skeleton" style="height:8px;margin-bottom:12px"></div><div class="skeleton" style="height:36px"></div></div>').join('');
   const toolItems=[];
   if(isStaff){
-    toolItems.push({id:'showPGantt',t:'الخط الزمني الشامل',i:'📅'});
-    toolItems.push({id:'showTimeline',t:'خط التسليمات الشامل',i:'📦'});
-    toolItems.push({id:'showDOL',t:'طبقة القرار (DOL)',i:'⚖'});
-    toolItems.push({id:'showAudit',t:'سجل المكتب',i:'📋'});
-    toolItems.push({id:'showWorkload',t:'حِمل العمل',i:'📊'});
-  toolItems.push({id:'showContractsHub',t:'إدارة العقود',i:'✍️'});
+    toolItems.push({g:'عروض شاملة',id:'showPGantt',t:'الخط الزمني الشامل',i:'📅'});
+    toolItems.push({g:'عروض شاملة',id:'showTimeline',t:'خط التسليمات الشامل',i:'📦'});
+    toolItems.push({g:'عروض شاملة',id:'showDOL',t:'طبقة القرار (DOL)',i:'⚖'});
+    toolItems.push({g:'إدارة',id:'showAudit',t:'سجل المكتب',i:'📋'});
+    toolItems.push({g:'عروض شاملة',id:'showWorkload',t:'حِمل العمل',i:'📊'});
+  toolItems.push({g:'إدارة',id:'showContractsHub',t:'إدارة العقود',i:'✍️'});
   }
   if(ROLE==='pmo'){
-    toolItems.push({id:'showHolidays',t:'العطلات الرسمية',i:'🗓'});
-    toolItems.push({id:'showArchived',t:'المؤرشفة',i:'🗄'});
-    toolItems.push({id:'showLeads',t:'الشركاء المحتملون',i:'👥'});
+    toolItems.push({g:'إعدادات',id:'showHolidays',t:'العطلات الرسمية',i:'🗓'});
+    toolItems.push({g:'إدارة',id:'showArchived',t:'المؤرشفة',i:'🗄'});
+    toolItems.push({g:'إدارة',id:'showLeads',t:'الشركاء المحتملون',i:'👥'});
   }
   // الملف التعاقدي لعلامة: متاح لمالك المنصة ومديرها معًا — مطابقًا لسياسة القاعدة
   // (pmo_update_org_profile تسمح لكليهما). كان محصورًا بالمالك في الواجهة فقط، فاختفى
   // عن مدير المنصة بعد نقل الملكية رغم امتلاكه الصلاحية فعليًا.
-  if(IS_OWNER||ROLE==='pmo'){toolItems.push({id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});
-    toolItems.push({id:'showAutomation',t:'أتمتة العقود',i:'⚡'});
-    toolItems.push({id:'showSecAudit',t:'فحص أمني',i:'🛡'});}
-  if(IS_OWNER){toolItems.push({id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
-    toolItems.push({id:'showStaffAccess',t:'صلاحيات الفريق',i:'🔐'});}
+  if(IS_OWNER||ROLE==='pmo'){toolItems.push({g:'إعدادات',id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});
+    toolItems.push({g:'إعدادات',id:'showAutomation',t:'أتمتة العقود',i:'⚡'});
+    toolItems.push({g:'إعدادات',id:'showSecAudit',t:'فحص أمني',i:'🛡'});}
+  if(IS_OWNER){toolItems.push({g:'إعدادات',id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
+    toolItems.push({g:'إعدادات',id:'showStaffAccess',t:'صلاحيات الفريق',i:'🔐'});}
   const toolsMenu=toolItems.length?`<div class="tools-wrap">
     <button class="hbtn tools-btn" id="toolsBtn" aria-expanded="false" aria-haspopup="true">⚙ أدوات المكتب <span class="tools-caret">▾</span></button>
-    <div class="tools-pop" id="toolsPop" role="menu">${toolItems.map(t=>`<button role="menuitem" id="${t.id}"><span class="ti">${t.i}</span>${t.t}</button>`).join('')}</div>
+    <div class="tools-pop" id="toolsPop" role="menu">${
+      // تجميع بعناوين: القائمة المسطّحة من 14 بندًا كانت تخلط العروض بالإدارة بالإعدادات
+      ['عروض شاملة','إدارة','إعدادات'].map(g=>{
+        const items=toolItems.filter(t=>(t.g||'إدارة')===g);
+        if(!items.length)return '';
+        return `<div class="tools-grp" role="group" aria-label="${g}"><span class="tools-grp-h">${g}</span>`
+          +items.map(t=>`<button role="menuitem" id="${t.id}"><span class="ti" aria-hidden="true">${t.i}</span>${t.t}</button>`).join('')
+          +`</div>`;
+      }).join('')}</div>
   </div>`:'';
   const primaryBtn=(ROLE==='pmo')?'<button class="hbtn primary-cta" id="addClientBtn">+ شريك جديد</button>':'';
   const legendBtn=isStaff?'<button class="hbtn" id="statusLegendBtn" title="دليل حالات المشاريع">ⓘ دليل الحالات</button>':'';
