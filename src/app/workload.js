@@ -11,11 +11,12 @@ function wlDayKey(d){return d.toISOString().slice(0,10);}
 
 // يبني تقويمًا: لكل يوم، البنود النشطة فيه من كل المشاريع
 function wlBuildCalendar(projects){
-  const cal={};           // 'YYYY-MM-DD' -> [{project,color,task,type}]
-  projects.forEach(p=>{
+  const cal={};           // 'YYYY-MM-DD' -> [{project,color,task,roleId,...}]
+  (projects||[]).forEach(p=>{
     const tasks=(p.tasks||[]).map(t=>({
       id:t.id,name:t.name,type:t.type,duration:t.duration,lag:t.lag,
       fixed:t.fixed,track:t.track,status:t.status,progress:t.progress,
+      role_id:t.role_id||null,
       deps:Array.isArray(t.deps)?t.deps:[]
     }));
     if(!tasks.length||!p.start_date)return;
@@ -32,12 +33,45 @@ function wlBuildCalendar(projects){
         const k=wlDayKey(d);
         (cal[k]=cal[k]||[]).push({
           project:p.project_name,client:p.client_name,color:p.color||'#C8A06B',
-          task:t.id,name:t.name,critical:!!(r.critical),status:t.status
+          task:t.id,name:t.name,critical:!!(r.critical),status:t.status,
+          roleId:t.role_id||null
         });
       }
     });
   });
   return cal;
+}
+
+
+// ===== ضغط المسمّيات =====
+// يحسب لكل مسمّى في كل يوم: كم بندًا نشطًا عليه مقابل طاقته (عدد الشاغلين × حمل الفرد).
+// هذا ما يحوّل السؤال من «من مشغول؟» إلى «أي مسمّى يحتاج توظيفًا؟».
+function wlRolePressure(cal,roles){
+  const byRole={};   // roleId -> {days:{k:count}, peak, overDays, capacity, ...}
+  (roles||[]).forEach(r=>{byRole[r.id]={role:r,days:{},peak:0,overDays:0,worstDay:null,worstN:0};});
+  const unassigned={days:{},count:0};
+  Object.entries(cal).forEach(([k,items])=>{
+    const per={};
+    items.forEach(x=>{
+      if(!x.roleId){unassigned.days[k]=(unassigned.days[k]||0)+1;unassigned.count++;return;}
+      per[x.roleId]=(per[x.roleId]||0)+1;
+    });
+    Object.entries(per).forEach(([rid,n])=>{
+      const b=byRole[rid]; if(!b)return;
+      b.days[k]=n;
+      if(n>b.peak){b.peak=n;}
+      if(n>b.worstN){b.worstN=n;b.worstDay=k;}
+      if(n>(b.role.capacity||0))b.overDays++;
+    });
+  });
+  // الموارد المقترحة: نحتاج ceil(الذروة / حمل الفرد) شاغلًا لتغطية أسوأ يوم
+  Object.values(byRole).forEach(b=>{
+    const lpp=b.role.load_per_person||2;
+    b.neededHeadcount=Math.ceil(b.peak/lpp);
+    b.gap=Math.max(0,b.neededHeadcount-(b.role.headcount||0));
+    b.util=b.role.capacity?Math.round(100*b.peak/b.role.capacity):0;
+  });
+  return {byRole,unassigned};
 }
 
 function wlTone(n){
@@ -64,7 +98,12 @@ async function renderWorkload(){
 }
 
 function renderWorkloadBody(){
-  const cal=wlBuildCalendar(WL_DATA||[]);
+  const projects=(WL_DATA&&WL_DATA.projects)||[];
+  const roles=(WL_DATA&&WL_DATA.roles)||[];
+  const cal=wlBuildCalendar(projects);
+  const RP=wlRolePressure(cal,roles);
+  const strained=Object.values(RP.byRole).filter(b=>b.gap>0)
+    .sort((a,b)=>b.gap-a.gap||b.util-a.util);
   const today=new Date(DATA_DATE||todayISO());
   const start=new Date(today); start.setDate(start.getDate()-start.getDay()); // بداية الأسبوع
   const days=[];
@@ -81,8 +120,8 @@ function renderWorkloadBody(){
       <div class="chub-stats">
         <div class="chub-stat"><b>${peak}</b><span>أعلى حمل في يوم</span></div>
         <div class="chub-stat"><b style="color:${over.length?'var(--crit)':'var(--ok)'}">${over.length}</b><span>يوم فوق الطاقة</span></div>
-        <div class="chub-stat"><b>${(WL_DATA||[]).length}</b><span>مشروع نشط</span></div>
-        <div class="chub-stat"><b>${WL_CAP}</b><span>الطاقة اليومية</span></div>
+        <div class="chub-stat"><b>${projects.length}</b><span>مشروع نشط</span></div>
+        <div class="chub-stat"><b style="color:${strained.length?'var(--crit)':'var(--ok)'}">${strained.length}</b><span>مسمّى يحتاج موردًا</span></div>
       </div>
       <div class="chub-filters">
         <label style="font-size:.8rem;align-self:center">الطاقة اليومية (بند/يوم)</label>
@@ -95,6 +134,42 @@ function renderWorkloadBody(){
           <span class="sa-hint">من فارغ إلى فوق الطاقة</span>
         </span>
       </div>
+    </div>
+
+    ${strained.length?`<div class="chub-expiry-banner">
+      <b>👥 ${strained.length} مسمّى وظيفي فوق طاقته</b>
+      <p class="sa-hint" style="margin:2px 0 8px">الطاقة = عدد الشاغلين × الحمل المحتمل للفرد. الفجوة تُحسب من أسوأ يوم في المدى المعروض.</p>
+      ${strained.slice(0,6).map(b=>`<div class="chd-att-row">
+        <span><b>${esc(b.role.department)} · ${esc(b.role.name)}</b>
+          <span class="sa-hint"> · ذروة ${b.peak} بند مقابل طاقة ${b.role.capacity}
+            (${b.role.headcount} شاغل × ${b.role.load_per_person})
+            ${b.worstDay?' · أسوأ يوم '+new Date(b.worstDay).toLocaleDateString('ar',{day:'numeric',month:'short'}):''}</span></span>
+        <span class="wl-gap">يلزم +${b.gap} مورد</span>
+      </div>`).join('')}
+    </div>`:''}
+
+    ${RP.unassigned.count?`<div class="chub-expiry-banner" style="background:var(--soft-2);border-color:var(--line)">
+      <b>◻ ${RP.unassigned.count} بند بلا مسمّى مُسنَد</b>
+      <p class="sa-hint">هذه البنود لا تُحتسب في ضغط أي مسمّى — أسنِدها من عمود «المسمّى» في جدول المشروع ليكتمل حساب الطاقة.</p>
+    </div>`:''}
+
+    <div class="sa-section">
+      <h4>ضغط المسمّيات الوظيفية <span class="sa-hint">الذروة مقابل الطاقة في المدى المعروض</span></h4>
+      ${roles.length?`<div class="wl-roles">${Object.values(RP.byRole)
+        .sort((a,b)=>b.util-a.util)
+        .map(b=>`<div class="wl-role">
+          <div class="wl-role-hd">
+            <b>${esc(b.role.name)}</b>
+            <span class="sa-hint">${esc(b.role.department)}</span>
+            <span class="wl-role-util ${b.util>100?'over':(b.util>=75?'high':'ok')}">${b.util}%</span>
+          </div>
+          <div class="wl-bar"><i style="width:${Math.min(100,b.util)}%"></i>
+            ${b.util>100?`<u style="width:${Math.min(60,b.util-100)}%"></u>`:''}</div>
+          <div class="sa-hint">ذروة ${b.peak} · طاقة ${b.role.capacity} · ${b.role.headcount} شاغل
+            ${b.gap>0?` · <b style="color:var(--crit)">يلزم +${b.gap}</b>`:''}</div>
+        </div>`).join('')}</div>`
+        :emptyState({icon:'👥',title:'لا مسمّيات وظيفية بعد',
+           hint:'عرّف الأقسام ومسمّياتها وعدد شاغليها من أدوات المكتب ← الأقسام والمسمّيات، ثم أسنِد البنود إليها.'})}
     </div>
 
     ${over.length?`<div class="chub-expiry-banner">
