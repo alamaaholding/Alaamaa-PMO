@@ -533,7 +533,10 @@ async function addTeamMember(email,fullName,role){
 async function sha256Hex(str){
   if(!window.crypto||!window.crypto.subtle)return null; // بيئة لا تدعم Web Crypto — تحسيني لا حرج
   try{
-    const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
+    // window.crypto صراحةً لا crypto العام: الحارس أعلاه يفحص window.crypto، وفي بعض
+    // البيئات لا يشير المعرّف العام لنفس الكائن — فيمرّ الفحص ثم يفشل الاستدعاء صامتًا
+    // وتعود التجزئة null، أي تعطيل صامت لكل آلية إثبات عدم التلاعب.
+    const buf=await window.crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
     return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
   }catch(e){return null;}
 }
