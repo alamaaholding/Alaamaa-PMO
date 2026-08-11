@@ -14,9 +14,9 @@ async function renderClientHome(clientId){
   $('#barClient').style.display='none';hideChrome();
   writeClientHash(clientId);
   $('#host').innerHTML=`
-    <div class="hintbar"><button class="reqbtn" id="chBack">↩ المحفظة</button>
-      <button class="reqbtn" id="chMenu" style="margin-inline-start:8px">⋮ إجراءات الشريك</button>
-      <button class="reqbtn" id="chSettings" style="margin-inline-start:8px">⚙ إعدادات الشريك</button>
+    <div class="hintbar"><button class="reqbtn" id="chBack" aria-label="العودة للمحفظة">↩ المحفظة</button>
+      <button class="reqbtn" id="chMenu" style="margin-inline-start:8px" aria-haspopup="true" aria-label="إجراءات الشريك">⋮ إجراءات الشريك</button>
+      <button class="reqbtn" id="chSettings" style="margin-inline-start:8px" aria-label="إعدادات الشريك">⚙ إعدادات الشريك</button>
       <span style="margin-inline-start:auto">ملف الشريك الكامل: لوحة قيادة مجمَّعة، كل مشاريعه، خططه، وفريقه — في مكان واحد.</span></div>
     <div id="chBody"><div class="skeleton" style="height:90px;margin-bottom:10px"></div>
       <div class="skeleton" style="height:160px;margin-bottom:10px"></div>
@@ -74,7 +74,7 @@ function renderCHBody(stats,access){
     :stats.list.map(r=>{
       const pct=r.total_tasks>0?Math.round(r.done_tasks/r.total_tasks*100):0;
       const st=computeProjectStatus(r);
-      return `<button class="ch-pcard" data-openp="${r.project_id}">
+      return `<button class="ch-pcard" data-openp="${r.project_id}" aria-label="فتح مشروع ${esc(r.project_name||'')}">
         <div class="ch-pname">${esc(r.project_name)}</div>
         <div class="ch-pmeta">${renderStatusBadge(st)}</div>
         <div class="trk-bar" style="margin-top:8px"><div class="trk-bar-fill" style="width:${pct}%;background:var(--ok)"></div></div>
@@ -106,7 +106,7 @@ function renderCHBody(stats,access){
     <div class="sa-section">
       <h4>خططه — الخط الزمني المجمَّع
         <span class="sa-hint">لعرض كل شركاء المحفظة معًا بدل شريك واحد، استخدم «الخط الزمني الشامل» من أدوات المكتب</span></h4>
-      <div id="chGanttWrap">${stats.noProjects?'<p class="empty">لا خطط بعد.</p>':''}</div>
+      <div id="chGanttWrap">${stats.noProjects?emptyState({icon:'📋',title:'لا خطط لهذا الشريك بعد',hint:'أنشئ أول مشروع لتبدأ الخطة والجدول الزمني والتسليمات.'}):''}</div>
     </div>
     <div class="sa-section">
       <h4>فريق هذا الشريك <span class="sa-hint">دعوة عضو موجود بالفعل — على مستوى الشريك كاملًا أو مشروع واحد بعينه</span></h4>
