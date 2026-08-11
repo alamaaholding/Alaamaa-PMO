@@ -1,4 +1,4 @@
-const BUILD_V='50204520';
+const BUILD_V='7d8cd43e';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1012,7 +1012,10 @@ async function addTeamMember(email,fullName,role){
 async function sha256Hex(str){
   if(!window.crypto||!window.crypto.subtle)return null; // بيئة لا تدعم Web Crypto — تحسيني لا حرج
   try{
-    const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
+    // window.crypto صراحةً لا crypto العام: الحارس أعلاه يفحص window.crypto، وفي بعض
+    // البيئات لا يشير المعرّف العام لنفس الكائن — فيمرّ الفحص ثم يفشل الاستدعاء صامتًا
+    // وتعود التجزئة null، أي تعطيل صامت لكل آلية إثبات عدم التلاعب.
+    const buf=await window.crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
     return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
   }catch(e){return null;}
 }
@@ -6964,7 +6967,7 @@ function renderReqs(){
       <td><input class="rq" type="date" data-rf="received" value="${r.received||''}" ${dis} style="width:120px"></td>
       <td style="text-align:center"><input class="rq" type="checkbox" data-rf="blocking" ${r.blocking?'checked':''} ${dis}></td>
       <td><span class="rstate ${r._state||'notrequested'}">${ST[r._state]||'—'}${extra}</span></td>
-      ${canEdit?`<td><button class="ib" data-rdel="${i}" style="color:var(--crit)" aria-label="إغلاق">✕</button></td>`:''}</tr>`;
+      ${canEdit?`<td><button class="ib" data-rdel="${i}" style="color:var(--crit)" aria-label="حذف هذا المتطلب">✕</button></td>`:''}</tr>`;
   }).join('');
   $('#reqTbl').innerHTML=`<thead><tr><th>المتطلب</th><th>الجهة</th><th>SLA</th><th>الطلب</th><th>الاستلام</th><th>حاجز</th><th>الحالة</th>${canEdit?'<th></th>':''}</tr></thead><tbody>${rows||'<tr><td colspan="8" style="color:var(--muted);padding:12px">لا متطلبات.</td></tr>'}</tbody>`;
   $('#reqAdd').style.display=canEdit?'':'none';
