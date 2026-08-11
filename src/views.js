@@ -326,6 +326,10 @@ function vTable(){
       <td><input class="cell iprog" type="number" min="0" max="100" data-f="progress" value="${(k&&k.dispPct)||t.progress||0}" ${editProg&&t.type!=='milestone'?'':'disabled'}></td>
       <td>${delay}</td>
       <td><button class="reqbtn" data-reqs="${esc(t.id)}">${reqs.length?(bad?bad+'⚠':reqs.length):'—'}</button></td>
+      <td><select class="cell irole" data-f="roleId" ${editStruct?'':'disabled'} title="المسمّى الوظيفي المسؤول — لا الشخص">
+        <option value="">— بلا إسناد —</option>
+        ${(ROLES_CACHE||[]).map(r=>`<option value="${r.id}" ${t.roleId===r.id?'selected':''}>${esc(r.department)} · ${esc(r.name)}</option>`).join('')}
+      </select></td>
       <td><input class="cell idel" data-f="deliverable" value="${esc(t.deliverable||'')}" placeholder="—" ${editStruct?'':'disabled'}></td>
       ${editCol}
     </tr>`;
@@ -344,7 +348,7 @@ function vTable(){
   const addBar=crWin+(editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button>${ROLE==='pmo'?'<button class="reqbtn" id="tracksBtn" style="background:var(--ink);border-color:var(--ink);color:#fff">إدارة المراحل</button>':''}<span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'');
   const printBtn=`<div class="lockbar" style="border-inline-start-color:var(--line)"><button class="hbtn print-btn" id="printTableBtn">🖨 طباعة الجدول</button><span style="color:var(--muted);font-weight:400;font-size:.78rem">تُطبع كل مرحلة في صفحة، والأعمدة مصغّرة للقراءة.</span></div>`;
   if(MOBILE)return addBar+projFilterBar()+vCards(editStruct,editProg);
-  return addBar+printBtn+projFilterBar()+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  return addBar+printBtn+projFilterBar()+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المسمّى</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 // عرض البطاقات للجوّال: نفس البيانات والفلاتر والربط، بلا تمرير أفقي
 function vCards(editStruct,editProg){
@@ -407,10 +411,11 @@ function bindTable(){
         let val=inp.value;
         if(f==='duration'||f==='progress')val=parseInt(val||'0',10);
         if(f==='fixedDate'||f==='deliverable')val=(val||'').trim()||null;
+        if(f==='roleId')val=val||null;
         t[f]=val;
         // كل حقل في الجدول يُكتب عبر نفس المسار — الجدول مصدر الحقيقة الوحيد للخطة
         const map={duration:'duration',progress:'progress',status:'status',name:'name',type:'type',
-                   deliverable:'deliverable',fixedDate:'fixed_date',track:'track',owner:'owner'};
+                   deliverable:'deliverable',fixedDate:'fixed_date',track:'track',owner:'owner',roleId:'job_role_id'};
         if(map[f]&&t._dbId){
           const patch={};patch[map[f]]=val;
           // التثبيت لا يسري إلا للنوع «ثابت» — فتحديد تاريخ يحوّل النوع تلقائيًا، ومسحه يعيده.
