@@ -146,6 +146,13 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .idate.pinned{color:var(--ink);font-weight:700;background:var(--warn-bg);border-color:var(--warn)}
 .dt-calc{display:block;font-size:.62rem;color:var(--muted);opacity:.7;margin-top:1px;text-align:center}
 .idel{font-size:.72rem!important;text-align:right}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:26px 18px;gap:5px;list-style:none;color:var(--muted)}
+.empty-state-icon{font-size:1.9rem;opacity:.4;line-height:1}
+.empty-state b{font-size:.9rem;color:var(--ink);font-weight:700}
+.empty-state-hint{font-size:.78rem;line-height:1.75;max-width:340px}
+.empty-state-act{margin-top:8px}
+li.empty-state{border:none!important;background:transparent!important}
 .wl-grid{display:grid;grid-template-columns:auto repeat(7,1fr);gap:4px}
 .wl-head{font-size:.68rem;font-weight:700;color:var(--muted);text-align:center;padding:4px 0}
 .wl-wk{font-size:.64rem;color:var(--muted);align-self:center;padding-inline-end:6px;white-space:nowrap}
