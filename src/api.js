@@ -60,7 +60,7 @@ async function loadProject(clientId, projectId){
   const p=projects[0];
   // tasks/deps/baseline/CRs تعتمد على project_id فقط → نطلبها بالتوازي
   const [tasksR,depsR,blR,crR,holR]=await Promise.all([
-    sb.from('pmo_tasks').select('id,ref,wbs,name,track,type,duration,lag,fixed_date,owner,deliverable,status,progress,sort_order,parent_id').eq('project_id',p.id).order('sort_order'),
+    sb.from('pmo_tasks').select('id,ref,wbs,name,track,type,duration,lag,fixed_date,owner,deliverable,status,progress,sort_order,parent_id,job_role_id').eq('project_id',p.id).order('sort_order'),
     sb.from('pmo_dependencies').select('id,task_id,depends_on_id,dep_type,lag').eq('project_id',p.id),
     sb.from('pmo_baselines').select('id,label,snapshot,approved_at').eq('project_id',p.id).order('approved_at',{ascending:true}),
     sb.from('pmo_change_requests').select('*').eq('project_id',p.id).order('created_at',{ascending:false}),
@@ -84,7 +84,7 @@ async function loadProject(clientId, projectId){
     baseline:(bl&&bl.length)?{snapshot:bl[bl.length-1].snapshot}:null,
     baselines:bl||[],
     tasks:(()=>{const _refOf={};tasks.forEach(x=>{_refOf[x.id]=x.ref;});
-      return tasks.map(t=>({id:t.ref,_dbId:t.id,parent:t.parent_id?(_refOf[t.parent_id]||null):null,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,status:t.status,progress:t.progress,deps:depMap[t.id]||[],depsX:depMapX[t.id]||[],requirements:reqMap[t.id]||[]}));})()};
+      return tasks.map(t=>({id:t.ref,_dbId:t.id,parent:t.parent_id?(_refOf[t.parent_id]||null):null,_sortOrder:t.sort_order,wbs:t.wbs,name:t.name,track:t.track,type:t.type,duration:t.duration,lag:t.lag,fixedDate:t.fixed_date||undefined,owner:t.owner,deliverable:t.deliverable,roleId:t.job_role_id||null,status:t.status,progress:t.progress,deps:depMap[t.id]||[],depsX:depMapX[t.id]||[],requirements:reqMap[t.id]||[]}));})()};
   PROJECT.tracks=(await sb.from('pmo_project_tracks').select('*').eq('project_id',p.id).order('sort')).data||[];
   // إصلاح ذاتي: مرحلة كل بند = مرجع أعلى سلف له في WBS الفعلي (عبر parent_id الحقيقي)،
   // لا القيمة المخزّنة في عمود track التي قد تكون انحرفت عن الهرمية الحقيقية (استيراد سابق قبل هذا الإصلاح،
@@ -94,6 +94,8 @@ async function loadProject(clientId, projectId){
   // شارات التبويبات: عدّ خفيف لا يجلب صفوفًا
   PROJECT.counts={cr:CRS.filter(x=>x.status==='pending').length,discuss:0,requests:0};
   try{Object.assign(PROJECT.counts,await fetchProjectCounts(p.id));}catch(e){}
+  // المسمّيات لازمة لعمود الإسناد في الجدول — تُجلب مرة وتُخزَّن
+  try{await fetchRolesFlat();}catch(e){}
 }
 function compute(){SCHED=scheduleTasks(PROJECT.tasks,PROJECT.start);TRACK=computeTracking(PROJECT.tasks,SCHED,DATA_DATE);}
 
@@ -724,6 +726,36 @@ async function dissolvePackage(pkgId,moveToId){
 }
 // حِمل العمل عبر المحفظة — يُرجع المدخلات الخام، والجدولة تُحسب في المتصفح بنفس
 // خوارزمية الجانت فلا تتناقض الأرقام مع ما يراه المستخدم
+// ===== الطاقة بالمسمّى الوظيفي =====
+let ROLES_CACHE=null;
+async function fetchCapacityTree(){
+  const {data,error}=await sb.rpc('pmo_capacity_tree');
+  if(error)throw error;return data||[];
+}
+async function fetchRolesFlat(force){
+  if(ROLES_CACHE&&!force)return ROLES_CACHE;
+  const {data,error}=await sb.rpc('pmo_roles_flat');
+  if(error)throw error;ROLES_CACHE=data||[];return ROLES_CACHE;
+}
+async function saveDepartment(id,name,color){
+  const {data,error}=await sb.rpc('pmo_upsert_department',{p_id:id||null,p_name:name,p_color:color||null});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error||'تعذّر الحفظ');
+  ROLES_CACHE=null;return data;
+}
+async function saveJobRole(id,deptId,name,headcount,load){
+  const {data,error}=await sb.rpc('pmo_upsert_job_role',
+    {p_id:id||null,p_department:deptId||null,p_name:name,p_headcount:headcount,p_load:load});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error||'تعذّر الحفظ');
+  ROLES_CACHE=null;return data;
+}
+async function deleteJobRole(id){
+  const {data,error}=await sb.rpc('pmo_delete_job_role',{p_id:id});
+  if(error)throw error;
+  if(!data.ok)throw new Error(data.error||'تعذّر الحذف');
+  ROLES_CACHE=null;return data;
+}
 async function fetchPortfolioWorkload(){
   const {data,error}=await sb.rpc('pmo_portfolio_workload');
   if(error)throw error;return data||[];
