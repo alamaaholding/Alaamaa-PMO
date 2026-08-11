@@ -1,4 +1,4 @@
-const BUILD_V='95634723';
+const BUILD_V='a6edf243';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1605,6 +1605,20 @@ function render(){
   }
 }
 
+
+// ===== حالة فارغة موجّهة =====
+// كل حالة فارغة يجب أن تجيب: لماذا هي فارغة؟ وما الخطوة التالية؟ النص الجاف
+// («لا تنبيهات.») يُخبر ولا يوجّه، فيترك المستخدم واقفًا بلا سياق.
+// wrap: 'li' داخل القوائم و'div' خارجها — لأن إدراج div داخل ul يكسر البنية.
+function emptyState(o){
+  o=o||{};
+  const inner=`${o.icon?`<span class="empty-state-icon" aria-hidden="true">${o.icon}</span>`:''}
+    <b>${esc(o.title||'لا شيء هنا بعد')}</b>
+    ${o.hint?`<span class="empty-state-hint">${esc(o.hint)}</span>`:''}`;
+  const tag=o.wrap||'div';
+  return `<${tag} class="empty-state">${inner}</${tag}>`;
+}
+
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 function vDashboard(){
@@ -1626,14 +1640,14 @@ function vDashboard(){
   let h=`<div class="dgrid">${card('نسبة الإنجاز',pct+'%','ok')}${card('مكتملة',done)}${card('جارية',inprog,'blue')}${card('متبقية',total-done)}${card('متوقفة',blocked,'crit')}${card('متطلبات مطلوبة',creqs.length,'warn')}</div>
   <div class="dprog"><div class="dprog-fill" style="width:${pct}%"></div></div>
   <div class="dcols">
-    <div class="dbox"><h4>مهام اليوم (${today.length})</h4><ul class="tlist">${today.length?today.map(tl).join(''):'<li class="empty">لا مهام مجدولة لليوم.</li>'}</ul></div>
-    <div class="dbox"><h4>مهام هذا الأسبوع (${week.length})</h4><ul class="tlist">${week.length?week.map(tl).join(''):'<li class="empty">لا مهام هذا الأسبوع.</li>'}</ul></div>
+    <div class="dbox"><h4>مهام اليوم (${today.length})</h4><ul class="tlist">${today.length?today.map(tl).join(''):emptyState({wrap:'li',icon:'☀️',title:'لا مهام مجدولة اليوم',hint:'لا بند تبدأ أو تنتهي نافذته اليوم — راجع الجدول لمعرفة القادم.'})}</ul></div>
+    <div class="dbox"><h4>مهام هذا الأسبوع (${week.length})</h4><ul class="tlist">${week.length?week.map(tl).join(''):emptyState({wrap:'li',icon:'📅',title:'لا مهام هذا الأسبوع',hint:'الأسبوع خالٍ من البنود النشطة — قد تكون الخطة تبدأ لاحقًا أو اكتملت مرحلتها.'})}</ul></div>
   </div>
   <div class="dcols">
-    <div class="dbox"><h4>المتطلبات المطلوبة من الشريك (${creqs.length})</h4><ul class="tlist">${creqs.length?creqs.map(x=>`<li><button class="tlink" data-tkopen="${esc(x.t.id)}"><span class="ministat s-${x.r._state==='overdue'?'blocked':'notstarted'}">${x.r._state==='overdue'?'متأخر':'بانتظار'}</span> ${esc(x.r.desc)} <em>SLA ${x.r.sla}ي · ${esc(x.t.id)}</em></button></li>`).join(''):'<li class="empty">لا متطلبات معلّقة.</li>'}</ul></div>
+    <div class="dbox"><h4>المتطلبات المطلوبة من الشريك (${creqs.length})</h4><ul class="tlist">${creqs.length?creqs.map(x=>`<li><button class="tlink" data-tkopen="${esc(x.t.id)}"><span class="ministat s-${x.r._state==='overdue'?'blocked':'notstarted'}">${x.r._state==='overdue'?'متأخر':'بانتظار'}</span> ${esc(x.r.desc)} <em>SLA ${x.r.sla}ي · ${esc(x.t.id)}</em></button></li>`).join(''):emptyState({wrap:'li',icon:'✅',title:'لا متطلبات معلّقة',hint:'كل ما يحتاجه الفريق من الشريك مُستلَم — لا شيء يعطّل التنفيذ.'})}</ul></div>
     <div class="dbox"><h4>المعالم القادمة</h4><ul class="tlist">${miles.length?miles.map(m=>`<li><button class="tlink" data-tkopen="${esc(m.t.id)}"><span class="md">◆</span> ${esc(m.t.name.replace('معلم: ',''))} <em>${fmt(m.ef)}</em></button></li>`).join(''):'<li class="empty">—</li>'}</ul></div>
   </div>
-  <div class="dbox alerts"><h4>التنبيهات (${alerts.length})</h4><ul class="tlist">${alerts.length?alerts.map(a=>`<li class="alert a-${a[0]}">${a[2]?`<button class="tlink" data-tkopen="${esc(a[2])}">⚠ ${esc(a[1])}</button>`:('⚠ '+esc(a[1]))}</li>`).join(''):'<li class="empty">لا تنبيهات.</li>'}</ul></div>`;
+  <div class="dbox alerts"><h4>التنبيهات (${alerts.length})</h4><ul class="tlist">${alerts.length?alerts.map(a=>`<li class="alert a-${a[0]}">${a[2]?`<button class="tlink" data-tkopen="${esc(a[2])}">⚠ ${esc(a[1])}</button>`:('⚠ '+esc(a[1]))}</li>`).join(''):emptyState({wrap:'li',icon:'👍',title:'لا تنبيهات',hint:'لا تأخير ولا بند متوقف ولا متطلب متأخر — المشروع على المسار.'})}</ul></div>`;
   h+=sCurveSVG();
   return h;
 }
@@ -1967,7 +1981,7 @@ function inlineTrackEdit(key,td){
   n.onkeydown=(e)=>{if(e.key==='Enter')td.querySelector('.gie-s').click();if(e.key==='Escape')render();};
 }
 
-function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div>${(PROJECT.baselines&&PROJECT.baselines.length)?`<select id="blSel" class="pfsort" aria-label="اختيار الأساس" style="font-size:.72rem">${PROJECT.baselines.map((b,i)=>`<option value="${b.id}" ${(!GBASE&&i===PROJECT.baselines.length-1)||GBASE===b.id?'selected':''}>${esc(b.label||("الأساس "+(i+1)))}</option>`).join('')}</select>`:''}<div class="gscale" role="group" aria-label="مقياس الزمن" style="margin-inline-start:auto"><button class="gsc" data-scale="day">يوم</button><button class="gsc" data-scale="week">أسبوع</button><button class="gsc" data-scale="month">شهر</button><button class="gsc" data-scale="quarter">ربع</button></div><button class="hbtn print-btn" id="printGanttBtn">🖨 طباعة الجانت</button><button class="zb gcrit-btn" id="gcritToggle" title="المسار الحرج: عادي ← إبراز ← إخفاء" aria-label="عرض المسار الحرج">◆ حرج</button><div class="zoom"><button class="zb" id="glToggle" title="إظهار/إخفاء روابط التبعية" aria-label="روابط التبعية">⇄</button><button class="zb" id="zfit" title="ملاءمة العرض للشاشة" aria-label="ملاءمة العرض">⤢</button><button class="zb" id="zout">−</button><button class="zb" id="zin">+</button></div></div>`;}
+function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div>${(PROJECT.baselines&&PROJECT.baselines.length)?`<select id="blSel" class="pfsort" aria-label="اختيار الأساس" style="font-size:.72rem">${PROJECT.baselines.map((b,i)=>`<option value="${b.id}" ${(!GBASE&&i===PROJECT.baselines.length-1)||GBASE===b.id?'selected':''}>${esc(b.label||("الأساس "+(i+1)))}</option>`).join('')}</select>`:''}<div class="gscale" role="group" aria-label="مقياس الزمن" style="margin-inline-start:auto"><button class="gsc" data-scale="day">يوم</button><button class="gsc" data-scale="week">أسبوع</button><button class="gsc" data-scale="month">شهر</button><button class="gsc" data-scale="quarter">ربع</button></div><button class="hbtn print-btn" id="printGanttBtn">🖨 طباعة الجانت</button><button class="zb gcrit-btn" id="gcritToggle" title="المسار الحرج: عادي ← إبراز ← إخفاء" aria-label="عرض المسار الحرج">◆ حرج</button><div class="zoom"><button class="zb" id="glToggle" title="إظهار/إخفاء روابط التبعية" aria-label="روابط التبعية">⇄</button><button class="zb" id="zfit" title="ملاءمة العرض للشاشة" aria-label="ملاءمة العرض">⤢</button><button class="zb" id="zout" title="تصغير المخطط" aria-label="تصغير المخطط">−</button><button class="zb" id="zin" title="تكبير المخطط" aria-label="تكبير المخطط">+</button></div></div>`;}
 // ===== مقياس الزمن متعدد المستويات (يوم/أسبوع/شهر/ربع) =====
 let GSCALE='week';try{const _gs=localStorage.getItem('pmo_gscale');if(_gs)GSCALE=_gs;}catch(_e){}
 const GSCALE_PX={day:30,week:16,month:6,quarter:3};
@@ -2258,7 +2272,7 @@ function vDiscuss(rows){
         <span style="display:flex;gap:8px;align-items:center">${resBadge}<small style="color:var(--muted)">${when}</small></span>
       </div>
       <div class="crbody">${esc(c.body)}${tkChip?'<br>'+tkChip:''}</div>
-      <div class="cract">${resBtn}<button class="reqbtn" data-reply="${c.id}" style="font-size:.72rem">رد</button>${(ROLE==='pmo'||c.author_id===USER.id)?`<button class="reqbtn" data-delc="${c.id}" aria-label="حذف التعليق" style="font-size:.72rem;color:var(--crit)">حذف</button>`:''}</div>
+      <div class="cract">${resBtn}<button class="reqbtn" data-reply="${c.id}" style="font-size:.72rem" aria-label="الرد على تعليق ${esc((c.body||'').slice(0,30))}">رد</button>${(ROLE==='pmo'||c.author_id===USER.id)?`<button class="reqbtn" data-delc="${c.id}" aria-label="حذف التعليق" style="font-size:.72rem;color:var(--crit)">حذف</button>`:''}</div>
       <div id="replyBox-${c.id}"></div>
     </div>`;
   };
@@ -2419,7 +2433,7 @@ function vClientDash(){
   const msHtml=upMs.length?upMs.map(x=>{
     const days=Math.ceil((x.ef-dd)/86400000);
     return `<div class="cd-ms"><span class="cd-ms-d">◆</span><div><b>${esc(x.t.name)}</b><span class="cd-ms-date">${fmt(x.ef)} · بعد ${days} يومًا</span></div></div>`;
-  }).join(''):'<p class="empty">لا معالم قادمة.</p>';
+  }).join(''):emptyState({icon:'🚩',title:'لا معالم قادمة',hint:'إما أن كل المعالم مرّت، أو لم تُحدَّد معالم في الخطة بعد.'});
 
   return `<div class="cdash">
     <div class="cd-hero">
@@ -3829,9 +3843,9 @@ async function renderClientHome(clientId){
   $('#barClient').style.display='none';hideChrome();
   writeClientHash(clientId);
   $('#host').innerHTML=`
-    <div class="hintbar"><button class="reqbtn" id="chBack">↩ المحفظة</button>
-      <button class="reqbtn" id="chMenu" style="margin-inline-start:8px">⋮ إجراءات الشريك</button>
-      <button class="reqbtn" id="chSettings" style="margin-inline-start:8px">⚙ إعدادات الشريك</button>
+    <div class="hintbar"><button class="reqbtn" id="chBack" aria-label="العودة للمحفظة">↩ المحفظة</button>
+      <button class="reqbtn" id="chMenu" style="margin-inline-start:8px" aria-haspopup="true" aria-label="إجراءات الشريك">⋮ إجراءات الشريك</button>
+      <button class="reqbtn" id="chSettings" style="margin-inline-start:8px" aria-label="إعدادات الشريك">⚙ إعدادات الشريك</button>
       <span style="margin-inline-start:auto">ملف الشريك الكامل: لوحة قيادة مجمَّعة، كل مشاريعه، خططه، وفريقه — في مكان واحد.</span></div>
     <div id="chBody"><div class="skeleton" style="height:90px;margin-bottom:10px"></div>
       <div class="skeleton" style="height:160px;margin-bottom:10px"></div>
@@ -3889,7 +3903,7 @@ function renderCHBody(stats,access){
     :stats.list.map(r=>{
       const pct=r.total_tasks>0?Math.round(r.done_tasks/r.total_tasks*100):0;
       const st=computeProjectStatus(r);
-      return `<button class="ch-pcard" data-openp="${r.project_id}">
+      return `<button class="ch-pcard" data-openp="${r.project_id}" aria-label="فتح مشروع ${esc(r.project_name||'')}">
         <div class="ch-pname">${esc(r.project_name)}</div>
         <div class="ch-pmeta">${renderStatusBadge(st)}</div>
         <div class="trk-bar" style="margin-top:8px"><div class="trk-bar-fill" style="width:${pct}%;background:var(--ok)"></div></div>
@@ -3921,7 +3935,7 @@ function renderCHBody(stats,access){
     <div class="sa-section">
       <h4>خططه — الخط الزمني المجمَّع
         <span class="sa-hint">لعرض كل شركاء المحفظة معًا بدل شريك واحد، استخدم «الخط الزمني الشامل» من أدوات المكتب</span></h4>
-      <div id="chGanttWrap">${stats.noProjects?'<p class="empty">لا خطط بعد.</p>':''}</div>
+      <div id="chGanttWrap">${stats.noProjects?emptyState({icon:'📋',title:'لا خطط لهذا الشريك بعد',hint:'أنشئ أول مشروع لتبدأ الخطة والجدول الزمني والتسليمات.'}):''}</div>
     </div>
     <div class="sa-section">
       <h4>فريق هذا الشريك <span class="sa-hint">دعوة عضو موجود بالفعل — على مستوى الشريك كاملًا أو مشروع واحد بعينه</span></h4>
@@ -6942,7 +6956,7 @@ function renderReqs(){
       <td><input class="rq" type="date" data-rf="received" value="${r.received||''}" ${dis} style="width:120px"></td>
       <td style="text-align:center"><input class="rq" type="checkbox" data-rf="blocking" ${r.blocking?'checked':''} ${dis}></td>
       <td><span class="rstate ${r._state||'notrequested'}">${ST[r._state]||'—'}${extra}</span></td>
-      ${canEdit?`<td><button class="ib" data-rdel="${i}" style="color:var(--crit)">✕</button></td>`:''}</tr>`;
+      ${canEdit?`<td><button class="ib" data-rdel="${i}" style="color:var(--crit)" aria-label="إغلاق">✕</button></td>`:''}</tr>`;
   }).join('');
   $('#reqTbl').innerHTML=`<thead><tr><th>المتطلب</th><th>الجهة</th><th>SLA</th><th>الطلب</th><th>الاستلام</th><th>حاجز</th><th>الحالة</th>${canEdit?'<th></th>':''}</tr></thead><tbody>${rows||'<tr><td colspan="8" style="color:var(--muted);padding:12px">لا متطلبات.</td></tr>'}</tbody>`;
   $('#reqAdd').style.display=canEdit?'':'none';
