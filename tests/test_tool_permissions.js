@@ -62,7 +62,7 @@ const wait=setInterval(()=>{
   const pf=fs.readFileSync('src/app/portfolio.js','utf8');
   const extra=[
     ['بوابة الواجهة تطابق سياسة القاعدة (مالك أو مدير)',
-      pf.includes("if(IS_OWNER||ROLE==='pmo'){toolItems.push({id:'showOrgProfile'")],
+      pf.includes("if(IS_OWNER||ROLE==='pmo'){toolItems.push({g:'إعدادات',id:'showOrgProfile'")],
     ['openOrgProfile معرَّفة',/async function openOrgProfile/.test(pf)],
   ];
   let ok=0,fail=0;
