@@ -1,0 +1,24 @@
+{
+  "// لماذا نطاق الفحص ضيّق": [
+    "checkJs مفعَّل على src/engine.js وحده — قرار مقيس لا تدرّج اعتباطي.",
+    "engine.js: 4 أخطاء فقط، كلها اسم مساعد واحد (D) — الفحص هنا يعطي أمانًا حقيقيًا",
+    "على أخطر كود في المنصّة (كل تاريخ ومعلم وحكم بالتأخير يخرج منه).",
+    "api.js: 319 خطأً، 184 منها اسم واحد غير مصرَّح (sb). إسكاتها بـ`declare const sb: any`",
+    "يُنتج فحصًا صفري القيمة — لأن ما نريد فحصه فعلًا هو استدعاءات Supabase نفسها،",
+    "وذلك لا يصير ممكنًا إلا بـ`import` حقيقي بعد الموجة W2. راجع ROADMAP.md §W0 و§W2.",
+    "القاعدة: يتّسع النطاق حين يصير الفحص ذا معنى، لا حين يصير ممكنًا شكليًا."
+  ],
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "noUnusedLocals": false
+  },
+  "include": ["src/engine.js", "types/**/*.d.ts"]
+}
