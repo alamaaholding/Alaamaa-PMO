@@ -1013,7 +1013,7 @@ async function requestSigningOTP(token){
 }
 // (٦) رفع مرفق فعلي إلى مساحة تخزين خاصة — لا رابط خارجي قد ينكسر بعد التوقيع
 async function uploadContractFile(contractId,file){
-  const safe=file.name.replace(/[^\w.\-]+/g,'_').slice(-80);
+  const safe=file.name.replace(/[^\w.-]+/g,'_').slice(-80);
   const path=contractId+'/'+Date.now()+'_'+safe;
   const {error}=await sb.storage.from('contract-files').upload(path,file,{upsert:false});
   if(error)throw new Error('تعذّر الرفع: '+error.message);

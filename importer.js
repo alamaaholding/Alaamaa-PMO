@@ -24,7 +24,7 @@ function normTxt(s){
   return String(s).trim().toLowerCase()
     .replace(/[\u064B-\u0652]/g,'')        // تشكيل عربي
     .replace(/[إأآا]/g,'ا').replace(/ة/g,'ه').replace(/[ىي]/g,'ي') // توحيد عربي
-    .replace(/[_\-\.\/\\:()]/g,' ').replace(/\s+/g,' ').trim();
+    .replace(/[_\-./\\:()]/g,' ').replace(/\s+/g,' ').trim();
 }
 // مطابقة مرنة: تطابق كامل، أو احتواء، أو تشابه (مسافة ليفنشتاين قصيرة)
 function lev(a,b){

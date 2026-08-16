@@ -28,7 +28,7 @@ async function loadDOL(){
   DOL_DECISIONS=await fetchDecisions();
   DOL_LINKS=await fetchDecisionProjects();
 }
-function projName(pid){const dp=DOL_LINKS.filter(l=>l.decision_id===pid);if(!dp.length)return'';const names=dp.map(l=>{const c=CLIENTS.find(x=>{return false;});return l.project_id;});return dp.length+' مشروع';}
+function projName(pid){const dp=DOL_LINKS.filter(l=>l.decision_id===pid);if(!dp.length)return'';return dp.length+' مشروع';}
 
 function renderDOL(){
   const gates=DOL_DECISIONS.filter(d=>d.decision_type!=='operational');
@@ -187,6 +187,7 @@ async function openTrace(decId){
   const chain=links.length?links.map(l=>`<div class="trace-node"><b>${KIND[l.link_kind]}</b>: ${esc(l.ref_label||'')}${l.ref_detail?'<br><small>'+esc(l.ref_detail)+'</small>':''}</div>`).join('<div class="trace-arrow">↓</div>'):'<p class="empty">لا روابط تتبّع بعد.</p>';
   await dialog({title:'التتبّع العكسي: '+d.title,
     message:'سلسلة المعنى: القرار ← الرؤية ← التشخيص'+(d.is_critical?' ← المصدر الخام (بوابة حرجة)':''),
+    html:chain,
     fields:[
       {key:'kind',label:'إضافة رابط — النوع',type:'select',value:'insight',options:[{v:'insight',t:'رؤية'},{v:'diagnosis',t:'تشخيص'},{v:'raw_source',t:'مصدر خام'}]},
       {key:'label',label:'الوصف',placeholder:'مثل: رؤية فجوة التسعير من B2'}

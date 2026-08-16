@@ -337,7 +337,6 @@ async function renderPortfolio(){
   const {data:rows,error}=await fetchPortfolio();
   const grid=$('#pgrid');grid.innerHTML='';
   if(error){grid.innerHTML='<p class="pempty">تعذّر تحميل المحفظة.</p>';return;}
-  const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'};
   let projects=(rows||[]).filter(r=>r.project_id);
   const noProjRows=(rows||[]).filter(r=>!r.project_id);
 
@@ -427,26 +426,6 @@ async function renderPortfolio(){
     const pec=$('#pEmptyClear');if(pec)pec.onclick=()=>{PFILTER='all';PSEARCH='';PALERTS.clear();savePFilters();renderPortfolio();};
     return;}
   grid.className='pcompany-grid';
-
-  // صف مشروع مدمج (داخل التوسيع)
-  const projRow=(r)=>{
-    const hasplan=r.total_tasks>0;
-    const pct=hasplan?Math.round(r.done_tasks/r.total_tasks*100):0;
-    const alerts=[];
-    if(r.blocked_tasks>0)alerts.push(`<span class="palert red">${r.blocked_tasks}</span>`);
-    if(r.pending_client_reqs>0)alerts.push(`<span class="palert amber">${r.pending_client_reqs}</span>`);
-    if(r.open_comments>0)alerts.push(`<span class="palert blue">${r.open_comments}</span>`);
-    return `<div class="proj-row" data-openproj="${r.project_id}" data-cid="${r.client_id}" role="button" tabindex="0">
-      <div class="proj-row-main">
-        <span class="proj-row-name">${esc(r.project_name||'مشروع')}</span>
-        <span class="plife">${LIFE[r.lifecycle]||'—'}</span>
-        ${alerts.length?`<span class="proj-row-alerts">${alerts.join('')}</span>`:''}
-      </div>
-      ${hasplan?`<div class="proj-row-prog"><div class="pbar mini"><div class="pbar-fill" style="width:${pct}%"></div></div><span class="proj-row-pct">${pct}%</span></div>`:'<span class="proj-row-empty">بلا خطة</span>'}
-      ${ROLE==='pmo'?`<button class="pcard-menu" data-pmenu="${r.project_id}" data-pname="${esc(r.project_name||'')}" aria-label="إجراءات المشروع">${I.dots}</button>`:''}
-      <span class="proj-row-go">←</span>
-    </div>`;
-  };
 
   const withProj=shown.filter(x=>!x.noProjects), empty=shown.filter(x=>x.noProjects);
   const renderCard=x=>{

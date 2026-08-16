@@ -73,7 +73,6 @@ function renderContractsHubBody(){
   const clients=[...new Map(CH_CONTRACTS.filter(c=>c.client_id).map(c=>[c.client_id,c.client_name])).entries()];
 
   const rows=filtered.map(c=>{
-    const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
     const st=rowStage(c);
     // الصف يجيب على ثلاثة أسئلة بالترتيب: أي عقد؟ مع من؟ وما الخطوة التالية؟
     // الشارات تقتصر على ما يغيّر القرار — لا كل ما يمكن عرضه (كانت تصل لسبع شارات).

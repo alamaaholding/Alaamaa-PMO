@@ -58,7 +58,6 @@ function resolveClientIdentifier(idOrSlug){
 }
 
 function renderCHBody(stats,access){
-  const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'};
   const kpi=(n,v,cls)=>`<div class="ch-kpi ${cls||''}"><b>${v}</b><span>${n}</span></div>`;
   const kpis=`<div class="ch-kpis">
     ${kpi('مشاريع',stats.list.length)}

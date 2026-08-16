@@ -761,7 +761,6 @@ function vDiscuss(rows){
   // الجذور (بلا أب) ثم ردودها
   const roots=rows.filter(r=>!r.parent_id);
   const childrenOf=id=>rows.filter(r=>r.parent_id===id);
-  const canResolve=can('editStruct')||ROLE==='pmo';
   const bubble=(c,isReply)=>{
     const when=new Date(c.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
     const resBtn=(!isReply&&c.kind!=='comment'&&ROLE==='pmo')?`<button class="reqbtn" data-resolve="${c.id}" data-cur="${c.resolved?1:0}" style="font-size:.7rem">${c.resolved?'إعادة فتح':'تعليم محلول'}</button>`:'';
