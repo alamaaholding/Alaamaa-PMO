@@ -37,6 +37,20 @@ src/
 2. شغّل `python build.py` → يولّد `index.html`.
 3. ادفع لـ`main` → Cloudflare ينشر تلقائيًا.
 
+## أوامر التطوير
+
+```bash
+npm ci             # تثبيت الاعتماديات من ملف القفل (لا npm install)
+npm run build      # توليد index.html و app.bundle.js و styles.css من src/
+npm run lint       # ESLint — متغيّر غير معرَّف · كود ميت · تعريف مزدوج (سقف تحذيرات ثابت)
+npm run typecheck  # فحص أنواع محرك CPM (نطاقه مقيَّد بقصد — التبرير في jsconfig.json)
+npm test           # 468 اختبارًا + حارس التطابق + حارس اتّساع الاختبار
+npm run check      # الأربعة معًا — نفس ما يشغّله CI بالضبط
+```
+
+**مرة واحدة على جهازك:** `git config commit.template .gitmessage`
+(CI يرفض رسالة دفعة مكرَّرة حرفيًا عن سابقتها — راجع `AUDIT.md` §أ-٦.)
+
 ## التحقق قبل الدفع
 - توازن الأقواس + `node --check` على JS المُولّد.
 - محاكاة تحميل الوحدات (vm) للتأكد من الترابط.
