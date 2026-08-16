@@ -26,11 +26,27 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: تثبيت اعتماديات الاختبار
-        run: npm install jsdom@26.1.0 --no-save
+      # npm ci لا npm install — يثبّت من package-lock.json حرفيًا فيعيد إنتاج البيئة
+      # نفسها في كل تشغيل. سبب النشأة: كان `npm install jsdom --no-save` بلا ملف قفل،
+      # فأخفقت 16 مجموعة اختبار من 23 على بيئة نظيفة بـ`Cannot find module 'jsdom'`
+      # — بينما كانت خضراء تمامًا على جهاز فيه الاعتمادية مثبَّتة مسبقًا.
+      - name: تثبيت الاعتماديات (من ملف القفل)
+        run: npm ci
 
-      # يبني المشروع، يفحص الصياغة، يتحقق من تطابق الملفات المُولَّدة، ثم يشغّل كل الاختبارات.
-      # أي إخفاق يوقف التدفّق ويمنع اعتماد الدفعة.
+      # الفحص الآلي: ما لا يمسكه `node --check` — متغيّر غير معرَّف، كود ميت،
+      # تعريف مزدوج عبر الملفات، سباق على حالة عامة. سقف التحذيرات ينقص ولا يزيد.
+      - name: الفحص الآلي (ESLint)
+        run: |
+          python3 build.py > /dev/null   # app.bundle.js هو النطاق الحقيقي الذي يُفحص
+          npm run lint
+
+      # فحص أنواع مقيَّد بـsrc/engine.js — محرك CPM، أخطر كود في المنصّة وأنقاه.
+      # نطاقه ضيّق عن قصد مقيس؛ التبرير الكامل في jsconfig.json نفسه.
+      - name: فحص الأنواع (محرك CPM)
+        run: npm run typecheck
+
+      # يبني المشروع، يفحص الصياغة، يتحقق من تطابق الملفات المُولَّدة وحارس اتّساع
+      # الاختبار، ثم يشغّل كل الاختبارات. أي إخفاق يوقف التدفّق ويمنع اعتماد الدفعة.
       - name: تشغيل الاختبارات
         run: node tests/run.js
 
@@ -46,3 +62,39 @@ jobs:
             exit 1
           fi
           echo "✓ الملفات المُولَّدة محدَّثة ومطابقة"
+
+  # ===== حارس نظافة السجل =====
+  # سبب النشأة: عشر دفعات متتالية في main برسالة **متطابقة حرفيًا** — السجل، وهو أرخص
+  # توثيق ممكن، صار لا يحكي ما تغيّر ولا لماذا. راجع AUDIT.md §أ-٦.
+  commit-hygiene:
+    name: نظافة سجل الدفعات
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: جلب الكود بكامل السجل
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: رفض الرسائل المكرَّرة والمبهمة
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mapfile -t SUBJECTS < <(git log --format=%s --reverse "$BASE_SHA"..HEAD)
+          PREV="$(git log -1 --format=%s "$BASE_SHA")"
+          FAIL=0
+          for S in "${SUBJECTS[@]}"; do
+            if [ "$S" = "$PREV" ]; then
+              echo "::error::رسالة مكرّرة حرفيًا عن الدفعة السابقة: «$S» — اكتب ما تغيّر في هذه الدفعة تحديدًا"
+              FAIL=1
+            fi
+            if [ "${#S}" -lt 15 ]; then
+              echo "::error::رسالة أقصر من أن تشرح شيئًا: «$S»"
+              FAIL=1
+            fi
+            PREV="$S"
+          done
+          [ "$FAIL" -eq 0 ] && echo "✓ ${#SUBJECTS[@]} رسالة — بلا تكرار وبلا إبهام"
+          exit $FAIL

@@ -58,7 +58,41 @@ for (const [src, out] of artifactPairs) {
 if (mismatched) process.exit(1);
 console.log(`  ${GREEN}✓${OFF} الملفات المُولَّدة مطابقة لمصادرها`);
 
-// ===== ٤) تشغيل ملفات الاختبار =====
+// ===== ٤) حارس الاتّساع: عدد الملفات المصدرية التي لا يستهدفها أي اختبار لا يزيد =====
+//
+// لماذا هذا الحارس بدل قياس تغطية حقيقي (c8):
+//   جُرِّب c8 فعليًا على هذه المجموعة فأعاد `0/0` — لا شيء. السبب بنيوي لا إعدادي:
+//   الاختبارات التصييرية تحقن app.bundle.js كنص داخل نافذة jsdom
+//   (`script.textContent = …`)، فلا يرى V8 ملفًا على القرص لينسب إليه التغطية.
+//   والاختبارات النصية تقرأ المصدر كنص ولا تنفّذه أصلًا. القياس الحقيقي يتطلّب تحميل
+//   الكود كوحدات — أي أنه **محجوب بالموجة W2** (وحدات ESM). راجع ROADMAP.md §W7.
+//
+// ما يقيسه هذا الحارس بدلًا عنه — بصدق وبلا مبالغة:
+//   «كم ملفًا مصدريًا لا يستهدفه أي اختبار بالاسم».
+//   هذا مؤشّر **استهداف مقصود** لا تنفيذ فعلي — أضعف من التغطية، لكنه حقيقي وقابل
+//   للقياس اليوم، ويخدم مباشرةً ما رصده AUDIT.md §هـ-١. السقف ينقص ولا يزيد أبدًا.
+console.log(`${BOLD}▸ حارس اتّساع الاختبار...${OFF}`);
+const UNTESTED_CAP = 10;  // خط الأساس عند تفعيل الحارس (W0). كل موجة تُنقصه — ولا ترفعه.
+const testSources = fs.readdirSync(__dirname)
+  .filter(f => f.startsWith('test_') && f.endsWith('.js'))
+  .map(f => fs.readFileSync(path.join(__dirname, f), 'utf8')).join('\n');
+const srcFiles = [
+  ...fs.readdirSync('src').filter(f => f.endsWith('.js')).map(f => `src/${f}`),
+  ...fs.readdirSync('src/app').filter(f => f.endsWith('.js')).map(f => `src/app/${f}`)
+].filter(f => !f.endsWith('qrgen.js'));   // مكتبة خارجية مضمَّنة — ليست كودنا
+const untested = srcFiles.filter(f => !testSources.includes(path.basename(f)));
+if (untested.length > UNTESTED_CAP) {
+  console.error(`  ${RED}✗ ${untested.length} ملفًا بلا اختبار — السقف ${UNTESTED_CAP}. السقف ينقص ولا يزيد.${OFF}`);
+  untested.forEach(f => console.error(`     ${f}`));
+  process.exit(1);
+}
+if (untested.length < UNTESTED_CAP) {
+  console.log(`  ${GREEN}✓${OFF} ${untested.length} ملفًا بلا اختبار — أقل من السقف (${UNTESTED_CAP}). ${BOLD}أنزِل UNTESTED_CAP إلى ${untested.length}.${OFF}`);
+} else {
+  console.log(`  ${GREEN}✓${OFF} ${untested.length} ملفًا بلا اختبار — عند السقف تمامًا (${UNTESTED_CAP})`);
+}
+
+// ===== ٥) تشغيل ملفات الاختبار =====
 const testFiles = fs.readdirSync(__dirname)
   .filter(f => f.startsWith('test_') && f.endsWith('.js')).sort();
 
