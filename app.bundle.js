@@ -1,4 +1,4 @@
-const BUILD_V='d65f6ca2';
+const BUILD_V='aa357546';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1492,7 +1492,7 @@ async function requestSigningOTP(token){
 }
 // (٦) رفع مرفق فعلي إلى مساحة تخزين خاصة — لا رابط خارجي قد ينكسر بعد التوقيع
 async function uploadContractFile(contractId,file){
-  const safe=file.name.replace(/[^\w.\-]+/g,'_').slice(-80);
+  const safe=file.name.replace(/[^\w.-]+/g,'_').slice(-80);
   const path=contractId+'/'+Date.now()+'_'+safe;
   const {error}=await sb.storage.from('contract-files').upload(path,file,{upsert:false});
   if(error)throw new Error('تعذّر الرفع: '+error.message);
@@ -2296,7 +2296,6 @@ function vDiscuss(rows){
   // الجذور (بلا أب) ثم ردودها
   const roots=rows.filter(r=>!r.parent_id);
   const childrenOf=id=>rows.filter(r=>r.parent_id===id);
-  const canResolve=can('editStruct')||ROLE==='pmo';
   const bubble=(c,isReply)=>{
     const when=new Date(c.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
     const resBtn=(!isReply&&c.kind!=='comment'&&ROLE==='pmo')?`<button class="reqbtn" data-resolve="${c.id}" data-cur="${c.resolved?1:0}" style="font-size:.7rem">${c.resolved?'إعادة فتح':'تعليم محلول'}</button>`:'';
@@ -3106,7 +3105,7 @@ async function addNewClient(){
     ],confirmText:'إنشاء الشريك'});
   if(!r||!r.name)return;
   try{
-    const c=await insertClient(r.name,r.color);
+    await insertClient(r.name,r.color);
     await loadClients();
     toast('أُنشئ الشريك «'+r.name+'» — أضف مشروعه الأول من ⋮','ok');
     renderPortfolio();
@@ -3638,7 +3637,6 @@ async function renderPortfolio(){
   const {data:rows,error}=await fetchPortfolio();
   const grid=$('#pgrid');grid.innerHTML='';
   if(error){grid.innerHTML='<p class="pempty">تعذّر تحميل المحفظة.</p>';return;}
-  const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'};
   let projects=(rows||[]).filter(r=>r.project_id);
   const noProjRows=(rows||[]).filter(r=>!r.project_id);
 
@@ -3728,26 +3726,6 @@ async function renderPortfolio(){
     const pec=$('#pEmptyClear');if(pec)pec.onclick=()=>{PFILTER='all';PSEARCH='';PALERTS.clear();savePFilters();renderPortfolio();};
     return;}
   grid.className='pcompany-grid';
-
-  // صف مشروع مدمج (داخل التوسيع)
-  const projRow=(r)=>{
-    const hasplan=r.total_tasks>0;
-    const pct=hasplan?Math.round(r.done_tasks/r.total_tasks*100):0;
-    const alerts=[];
-    if(r.blocked_tasks>0)alerts.push(`<span class="palert red">${r.blocked_tasks}</span>`);
-    if(r.pending_client_reqs>0)alerts.push(`<span class="palert amber">${r.pending_client_reqs}</span>`);
-    if(r.open_comments>0)alerts.push(`<span class="palert blue">${r.open_comments}</span>`);
-    return `<div class="proj-row" data-openproj="${r.project_id}" data-cid="${r.client_id}" role="button" tabindex="0">
-      <div class="proj-row-main">
-        <span class="proj-row-name">${esc(r.project_name||'مشروع')}</span>
-        <span class="plife">${LIFE[r.lifecycle]||'—'}</span>
-        ${alerts.length?`<span class="proj-row-alerts">${alerts.join('')}</span>`:''}
-      </div>
-      ${hasplan?`<div class="proj-row-prog"><div class="pbar mini"><div class="pbar-fill" style="width:${pct}%"></div></div><span class="proj-row-pct">${pct}%</span></div>`:'<span class="proj-row-empty">بلا خطة</span>'}
-      ${ROLE==='pmo'?`<button class="pcard-menu" data-pmenu="${r.project_id}" data-pname="${esc(r.project_name||'')}" aria-label="إجراءات المشروع">${I.dots}</button>`:''}
-      <span class="proj-row-go">←</span>
-    </div>`;
-  };
 
   const withProj=shown.filter(x=>!x.noProjects), empty=shown.filter(x=>x.noProjects);
   const renderCard=x=>{
@@ -4019,7 +3997,6 @@ function resolveClientIdentifier(idOrSlug){
 }
 
 function renderCHBody(stats,access){
-  const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'};
   const kpi=(n,v,cls)=>`<div class="ch-kpi ${cls||''}"><b>${v}</b><span>${n}</span></div>`;
   const kpis=`<div class="ch-kpis">
     ${kpi('مشاريع',stats.list.length)}
@@ -5167,7 +5144,6 @@ function renderContractsHubBody(){
   const clients=[...new Map(CH_CONTRACTS.filter(c=>c.client_id).map(c=>[c.client_id,c.client_name])).entries()];
 
   const rows=filtered.map(c=>{
-    const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
     const st=rowStage(c);
     // الصف يجيب على ثلاثة أسئلة بالترتيب: أي عقد؟ مع من؟ وما الخطوة التالية؟
     // الشارات تقتصر على ما يغيّر القرار — لا كل ما يمكن عرضه (كانت تصل لسبع شارات).
@@ -7322,14 +7298,11 @@ function buildReport(){
   const pct=real.length?Math.round(done/real.length*100):0;
   const crit=tasks.filter(t=>SCHED.R[t.id].critical).length;
   const blocked=tasks.filter(t=>TRACK[t.id].blocked).length;
-  const clientDelay=tasks.filter(t=>TRACK[t.id].delay==='client').length;
-  const alamahDelay=tasks.filter(t=>TRACK[t.id].delay==='alamah').length;
   const dd=D(DATA_DATE);
   const miles=PROJECT.tasks.filter(t=>t.type==='milestone').map(t=>({t,ef:SCHED.R[t.id].EF})).sort((a,b)=>a.ef-b.ef);
   const delayed=tasks.filter(t=>TRACK[t.id].delay).map(t=>({t,d:TRACK[t.id].delay}));
   const pendingReqs=[];PROJECT.tasks.forEach(t=>(t.requirements||[]).forEach(r=>{if(r.owner==='client'&&r._state!=='received'&&r._state!=='latejust')pendingReqs.push({t,r});}));
   const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'};
-  const row=(a,b)=>`<tr><td>${a}</td><td style="font-weight:700">${b}</td></tr>`;
   const reportHtml=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير حالة — ${esc(c?c.name:'')}</title>
   <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');

@@ -705,14 +705,11 @@ function buildReport(){
   const pct=real.length?Math.round(done/real.length*100):0;
   const crit=tasks.filter(t=>SCHED.R[t.id].critical).length;
   const blocked=tasks.filter(t=>TRACK[t.id].blocked).length;
-  const clientDelay=tasks.filter(t=>TRACK[t.id].delay==='client').length;
-  const alamahDelay=tasks.filter(t=>TRACK[t.id].delay==='alamah').length;
   const dd=D(DATA_DATE);
   const miles=PROJECT.tasks.filter(t=>t.type==='milestone').map(t=>({t,ef:SCHED.R[t.id].EF})).sort((a,b)=>a.ef-b.ef);
   const delayed=tasks.filter(t=>TRACK[t.id].delay).map(t=>({t,d:TRACK[t.id].delay}));
   const pendingReqs=[];PROJECT.tasks.forEach(t=>(t.requirements||[]).forEach(r=>{if(r.owner==='client'&&r._state!=='received'&&r._state!=='latejust')pendingReqs.push({t,r});}));
   const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'};
-  const row=(a,b)=>`<tr><td>${a}</td><td style="font-weight:700">${b}</td></tr>`;
   const reportHtml=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير حالة — ${esc(c?c.name:'')}</title>
   <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');

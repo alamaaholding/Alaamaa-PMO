@@ -331,7 +331,7 @@ async function addNewClient(){
     ],confirmText:'إنشاء الشريك'});
   if(!r||!r.name)return;
   try{
-    const c=await insertClient(r.name,r.color);
+    await insertClient(r.name,r.color);
     await loadClients();
     toast('أُنشئ الشريك «'+r.name+'» — أضف مشروعه الأول من ⋮','ok');
     renderPortfolio();

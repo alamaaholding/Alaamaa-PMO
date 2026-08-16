@@ -95,7 +95,6 @@ function PG_RENDER(rows,minD,maxD,mountId){
 
   const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق'};
   // رأس المحور (أشهر)
-  const monthNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
   let axisHtml='';
   weeks.forEach(wk=>{ axisHtml+=`<div class="pg-week" style="inset-inline-start:${pct(wk)}%">${wk.getDate()}/${wk.getMonth()+1}</div>`; });
   // خط اليوم
