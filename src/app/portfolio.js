@@ -39,7 +39,7 @@ async function openSecurityAudit(){
       <p class="sa-hint" style="margin-top:10px">آخر فحص: ${new Date(r.checked_at).toLocaleString('ar')}</p>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="reqbtn" id="secRecheck">إعادة الفحص</button>
-        ${r.leaked_count?'<button class="hbtn" id="secFix" style="background:var(--ok);border-color:var(--ok);color:#fff">🔧 سحب الإتاحة المتسرّبة</button>':''}
+        ${r.leaked_count?'<button class="hbtn ok" id="secFix">🔧 سحب الإتاحة المتسرّبة</button>':''}
       </div>`;
     document.getElementById('secRecheck').onclick=openSecurityAudit;
     const fx=document.getElementById('secFix');
@@ -216,7 +216,7 @@ async function openOrgProfile(){
       <input id="orgTitle" placeholder="صفته" value="${esc(o.rep_title||'')}" style="flex:1;min-width:130px">
       <input id="orgEmail" placeholder="البريد الرسمي" value="${esc(o.contact_email||'')}" style="flex:1;min-width:170px" dir="ltr">
       <input id="orgPhone" placeholder="رقم الجوال" value="${esc(o.contact_phone||'')}" style="flex:1;min-width:140px" dir="ltr">
-      <button class="hbtn" id="orgSave" style="background:var(--gold);border-color:var(--gold)">حفظ الملف</button>
+      <button class="hbtn gold" id="orgSave">حفظ الملف</button>
     </div>`;
   document.getElementById('orgSave').onclick=async()=>{
     const btn=document.getElementById('orgSave');btn.disabled=true;
@@ -422,7 +422,7 @@ async function renderPortfolio(){
     // إبقاء التركيز بعد إعادة العرض
     if(PSEARCH){ setTimeout(()=>{const el=$('#pSearch');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}},0); } }
 
-  if(!shown.length){grid.innerHTML='<div class="empty-cta"><div class="ico">🔍</div><h3>لا نتائج مطابقة</h3><p>جرّب تعديل الفلاتر أو مسحها.</p><button class="hbtn" id="pEmptyClear" style="background:var(--gold);border-color:var(--gold)">مسح الفلاتر</button></div>';
+  if(!shown.length){grid.innerHTML='<div class="empty-cta"><div class="ico">🔍</div><h3>لا نتائج مطابقة</h3><p>جرّب تعديل الفلاتر أو مسحها.</p><button class="hbtn gold" id="pEmptyClear">مسح الفلاتر</button></div>';
     const pec=$('#pEmptyClear');if(pec)pec.onclick=()=>{PFILTER='all';PSEARCH='';PALERTS.clear();savePFilters();renderPortfolio();};
     return;}
   grid.className='pcompany-grid';

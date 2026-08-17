@@ -1,4 +1,4 @@
-const BUILD_V='4603cb7d';
+const BUILD_V='5d35bd80';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1599,7 +1599,7 @@ function render(){
     const canBuild=can('editStruct');
     host.innerHTML=`<div class="empty-cta"><div class="ico">${I.clipboard}</div><h3>لا توجد خطة بعد لهذا المشروع</h3>
       <p>${canBuild?'ابدأ ببناء خطة المشروع بإضافة أول بند، ثم عرّف المسارات والتبعيات.':'لم تُبنَ خطة هذا المشروع بعد. سيظهر المحتوى فور إعدادها من فريق إدارة المشاريع.'}</p>
-      ${canBuild?`<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px"><button id="emptyImport" class="hbtn" style="background:var(--blue);border-color:var(--blue)">${I.upload} استيراد خطة من Excel</button><button id="emptyAdd" class="hbtn" style="background:var(--ok);border-color:var(--ok)">+ إضافة أول بند</button></div>`:''}</div>`;
+      ${canBuild?`<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px"><button id="emptyImport" class="hbtn blue">${I.upload} استيراد خطة من Excel</button><button id="emptyAdd" class="hbtn ok">+ إضافة أول بند</button></div>`:''}</div>`;
     const ea=$('#emptyAdd');if(ea)ea.onclick=()=>{VIEW='table';handleAddTask();};
     const ei=$('#emptyImport');if(ei)ei.onclick=openImporter;
     return;
@@ -2333,7 +2333,7 @@ function vDiscuss(rows){
     <h4>إضافة للنقاش</h4>
     <select id="dcKind"><option value="comment">تعليق</option><option value="question">سؤال</option><option value="suggestion">مقترح</option></select>
     <textarea id="dcBody" placeholder="اكتب رسالتك..."></textarea>
-    <button class="hbtn" id="dcSend" style="background:var(--gold);border-color:var(--gold);width:100%">إرسال</button>
+    <button class="hbtn gold wide" id="dcSend">إرسال</button>
   </div>`;
   return composer+'<div class="crlist">'+thread+'</div>';
 }
@@ -2385,7 +2385,7 @@ function vRequests(rows){
       <select id="rqDept"><option value="marketing">التسويق</option><option value="tech">التقني</option><option value="strategy">الاستراتيجية</option><option value="consulting">الاستشارات</option><option value="other">أخرى</option></select>
       <select id="rqPrio"><option value="normal">أولوية عادية</option><option value="low">منخفضة</option><option value="high">عالية</option><option value="urgent">عاجلة</option></select>
     </div>
-    <button class="hbtn" id="rqSend" style="background:var(--gold);border-color:var(--gold);width:100%">إرسال الطلب</button>
+    <button class="hbtn gold wide" id="rqSend">إرسال الطلب</button>
   </div>`;
   if(!rows.length) return composer+'<p class="empty" style="padding:14px">لا طلبات بعد.</p>';
   const cards=rows.map(r=>{
@@ -2662,7 +2662,7 @@ function tkTalk(){
     <div class="crform" style="position:static;margin-top:14px">
       <select id="tkKind"><option value="comment">تعليق</option><option value="question">سؤال</option><option value="suggestion">مقترح</option></select>
       <textarea id="tkBodyIn" placeholder="اكتب رسالتك حول هذا البند..."></textarea>
-      <button class="hbtn" id="tkSend" style="background:var(--gold);border-color:var(--gold);width:100%">إرسال</button>
+      <button class="hbtn gold wide" id="tkSend">إرسال</button>
     </div>`;
 }
 
@@ -2737,7 +2737,7 @@ function dialog(opts){ // {title, message, html, fields:[{key,label,value,type,p
       return `<label class="dlg-l">${esc(f.label)}<input class="dlg-i" data-k="${f.key}" type="${f.type||'text'}" value="${esc(f.value||'')}" placeholder="${esc(f.placeholder||'')}"></label>`;
     }).join('');
     document.getElementById('dlgBox').innerHTML=`
-      <div class="rqhd"><h3 style="font-size:1.02rem" id="dlgTitle">${esc(opts.title||'')}</h3><button id="dlgX" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
+      <div class="rqhd"><h3 id="dlgTitle">${esc(opts.title||'')}</h3><button id="dlgX" aria-label="إغلاق" class="rq-x">✕</button></div>
       <div style="padding:18px">
         ${opts.message?`<p style="font-size:.86rem;color:var(--muted);margin-bottom:14px;line-height:1.7;white-space:pre-line">${esc(opts.message)}</p>`:''}
         ${opts.html||''}
@@ -3041,7 +3041,7 @@ function renderTrkPanel(){
       </div>
     </div>
     <div class="imp-actions">
-      <button class="hbtn" id="trkSave" style="background:var(--gold);border-color:var(--gold)">حفظ التعديلات</button>
+      <button class="hbtn gold" id="trkSave">حفظ التعديلات</button>
       <button class="hbtn ghost" id="trkClose">إغلاق</button>
     </div>`;
   $('#trkClose').onclick=()=>{$('#trkOverlay').style.display='none';};
@@ -3272,7 +3272,7 @@ async function openAssignPanel(projectId,projectName){
       ${members.map(u=>`<label class="assign-row"><input type="checkbox" data-assign="${u.id}" ${aset.has(u.id)?'checked':''}>
         <b>${esc(u.full_name||u.email)}</b><span class="assign-role">${roleAr[u.role]||u.role}</span></label>`).join('')||'<p class="pempty">لا أعضاء طاقم نشطين بعد.</p>'}
       <div class="imp-actions">
-        <button class="hbtn" id="assignSave" style="background:var(--gold);border-color:var(--gold)">حفظ الإسناد</button>
+        <button class="hbtn gold" id="assignSave">حفظ الإسناد</button>
         <button class="hbtn ghost" id="assignClose">إغلاق</button>
       </div>`;
     $('#assignClose').onclick=()=>{$('#assignOverlay').style.display='none';};
@@ -3295,7 +3295,7 @@ async function openHolidaysManager(){
       <div class="hol-row new">
         <input id="holName" placeholder="اسم العطلة" class="trk-name">
         <input id="holDate" type="date" class="trk-name" style="max-width:160px">
-        <button class="hbtn" id="holAdd" style="background:var(--ok);border-color:var(--ok)">+ إضافة</button>
+        <button class="hbtn ok" id="holAdd">+ إضافة</button>
       </div>`;
     body.querySelectorAll('[data-holdel]').forEach(b=>b.onclick=async()=>{
       try{await delHolidayRow(b.dataset.holdel);toast('حُذفت','ok');paint();}catch(e){toast('تعذّر','err');}});
@@ -3351,7 +3351,7 @@ async function openSecurityAudit(){
       <p class="sa-hint" style="margin-top:10px">آخر فحص: ${new Date(r.checked_at).toLocaleString('ar')}</p>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="reqbtn" id="secRecheck">إعادة الفحص</button>
-        ${r.leaked_count?'<button class="hbtn" id="secFix" style="background:var(--ok);border-color:var(--ok);color:#fff">🔧 سحب الإتاحة المتسرّبة</button>':''}
+        ${r.leaked_count?'<button class="hbtn ok" id="secFix">🔧 سحب الإتاحة المتسرّبة</button>':''}
       </div>`;
     document.getElementById('secRecheck').onclick=openSecurityAudit;
     const fx=document.getElementById('secFix');
@@ -3528,7 +3528,7 @@ async function openOrgProfile(){
       <input id="orgTitle" placeholder="صفته" value="${esc(o.rep_title||'')}" style="flex:1;min-width:130px">
       <input id="orgEmail" placeholder="البريد الرسمي" value="${esc(o.contact_email||'')}" style="flex:1;min-width:170px" dir="ltr">
       <input id="orgPhone" placeholder="رقم الجوال" value="${esc(o.contact_phone||'')}" style="flex:1;min-width:140px" dir="ltr">
-      <button class="hbtn" id="orgSave" style="background:var(--gold);border-color:var(--gold)">حفظ الملف</button>
+      <button class="hbtn gold" id="orgSave">حفظ الملف</button>
     </div>`;
   document.getElementById('orgSave').onclick=async()=>{
     const btn=document.getElementById('orgSave');btn.disabled=true;
@@ -3734,7 +3734,7 @@ async function renderPortfolio(){
     // إبقاء التركيز بعد إعادة العرض
     if(PSEARCH){ setTimeout(()=>{const el=$('#pSearch');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}},0); } }
 
-  if(!shown.length){grid.innerHTML='<div class="empty-cta"><div class="ico">🔍</div><h3>لا نتائج مطابقة</h3><p>جرّب تعديل الفلاتر أو مسحها.</p><button class="hbtn" id="pEmptyClear" style="background:var(--gold);border-color:var(--gold)">مسح الفلاتر</button></div>';
+  if(!shown.length){grid.innerHTML='<div class="empty-cta"><div class="ico">🔍</div><h3>لا نتائج مطابقة</h3><p>جرّب تعديل الفلاتر أو مسحها.</p><button class="hbtn gold" id="pEmptyClear">مسح الفلاتر</button></div>';
     const pec=$('#pEmptyClear');if(pec)pec.onclick=()=>{PFILTER='all';PSEARCH='';PALERTS.clear();savePFilters();renderPortfolio();};
     return;}
   grid.className='pcompany-grid';
@@ -3868,7 +3868,7 @@ function renderSABody(){
         <input id="saNewEmail" type="email" placeholder="البريد الإلكتروني" style="flex:1;min-width:200px;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-family:inherit">
         <input id="saNewName" placeholder="الاسم (اختياري)" style="border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-family:inherit">
         <select id="saNewRole"><option value="manager">فريق (manager)</option><option value="admin">إدارة كاملة (admin)</option></select>
-        <button class="hbtn" id="saAddMember" style="background:var(--ok);border-color:var(--ok)">إضافة</button>
+        <button class="hbtn ok" id="saAddMember">إضافة</button>
       </div>
     </div>
     <div class="sa-section">
@@ -3885,7 +3885,7 @@ function renderSABody(){
         <select id="saScopeClient" style="display:none">${clientOpts}</select>
         <select id="saScopeProject" style="display:none">${projOpts}</select>
         <select id="saLevel"><option value="view">عرض فقط</option><option value="edit">عرض وتعديل</option></select>
-        <button class="hbtn" id="saGrant" style="background:var(--gold);border-color:var(--gold)">منح</button>
+        <button class="hbtn gold" id="saGrant">منح</button>
       </div>
     </div>
     <div class="sa-section">
@@ -4020,7 +4020,7 @@ function renderCHBody(stats,access){
 
   const projCards=stats.noProjects?
     `<div class="empty-cta"><div class="ico">${I.folder||'📁'}</div><h3>لا مشاريع بعد</h3><p>ابدأ أول مشروع لهذا الشريك.</p>
-      <button class="hbtn" id="chNewProj" style="background:var(--gold);border-color:var(--gold)">+ مشروع جديد</button></div>`
+      <button class="hbtn gold" id="chNewProj">+ مشروع جديد</button></div>`
     :stats.list.map(r=>{
       const pct=r.total_tasks>0?Math.round(r.done_tasks/r.total_tasks*100):0;
       const st=computeProjectStatus(r);
@@ -4065,7 +4065,7 @@ function renderCHBody(stats,access){
         <select id="chScope"><option value="client">كل مشاريع هذا الشريك</option>${projOpts?'<option value="project">مشروع بعينه:</option>':''}</select>
         <select id="chProj" style="display:none">${projOpts}</select>
         <select id="chLevel"><option value="view">عرض فقط</option><option value="edit">عرض وتعديل</option></select>
-        <button class="hbtn" id="chGrant" style="background:var(--gold);border-color:var(--gold)">منح</button>
+        <button class="hbtn gold" id="chGrant">منح</button>
       </div>
       <div class="sa-grants">${accessRows}</div>
     </div>`;
@@ -4115,7 +4115,7 @@ function openClientSettings(stats,access){
       <div class="sa-form">
         <span style="color:var(--muted);font-size:.82rem;white-space:nowrap">${location.origin}${location.pathname}#/c/</span>
         <input id="cpSlug" value="${esc(c.slug||'')}" placeholder="مثال: sanam" style="flex:1;min-width:140px;font-family:monospace" dir="ltr">
-        <button class="hbtn" id="cpSlugSave" style="background:var(--gold);border-color:var(--gold)">حفظ الرابط</button>
+        <button class="hbtn gold" id="cpSlugSave">حفظ الرابط</button>
       </div>
       <p class="sa-hint" style="margin-top:6px">حروف لاتينية وأرقام وشرطات فقط — يُنظَّف تلقائيًا. أي رابط سبق مشاركته يبقى يعمل دائمًا حتى بعد التغيير.</p>
     </div>
@@ -4130,7 +4130,7 @@ function openClientSettings(stats,access){
         <input id="cpRepTitle" placeholder="صفته" value="${esc(c.rep_title||'')}" style="flex:1;min-width:140px">
         <input id="cpEmail" placeholder="البريد الرسمي (يظهر في العقد)" value="${esc(c.contact_email||'')}" style="flex:1;min-width:180px" dir="ltr">
         <input id="cpPhone" placeholder="رقم الجوال (يظهر في العقد)" value="${esc(c.contact_phone||'')}" style="flex:1;min-width:150px" dir="ltr">
-        <button class="hbtn" id="cpSave" style="background:var(--gold);border-color:var(--gold)">حفظ الملف</button>
+        <button class="hbtn gold" id="cpSave">حفظ الملف</button>
       </div>
     </div>`;
 
@@ -4970,7 +4970,7 @@ async function refreshContractPanel(){
     <div class="sa-section" style="margin-bottom:14px">
       <h4>عقود هذا المشروع <span class="sa-hint">العقد كيان مستقل في محفظة العقود — اربط عقدًا قائمًا بدل إنشاء واحد جديد في كل مرة</span></h4>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="hbtn" id="ctLinkExisting" style="background:var(--gold);border-color:var(--gold)">🔗 ربط عقد قائم بهذا المشروع</button>
+        <button class="hbtn gold" id="ctLinkExisting">🔗 ربط عقد قائم بهذا المشروع</button>
         <button class="reqbtn" id="ctGoHub">+ إنشاء عقد جديد (إدارة العقود)</button>
       </div>
       <div id="ctLinkPicker" style="display:none;margin-top:14px"></div>
@@ -5199,7 +5199,7 @@ function renderContractsHubBody(){
            <div class="chub-empty-icon" aria-hidden="true">📄</div>
            <b>لا عقود في المحفظة بعد</b>
            <p>ابدأ بإنشاء عقد — يُنشأ مستقلًا باسمه ورقمه، وتربطه بمشروع أو تُسنده لشريك لاحقًا.</p>
-           <button class="hbtn" id="chubEmptyNew" style="background:var(--gold);border-color:var(--gold)">+ إنشاء أول عقد</button>
+           <button class="hbtn gold" id="chubEmptyNew">+ إنشاء أول عقد</button>
          </div>`;
   })();
 
@@ -5217,7 +5217,7 @@ function renderContractsHubBody(){
           ${['all','pending_alamaa','pending_client','signed','void'].map(s=>
             `<button class="chub-pill ${CH_FILTER.status===s?'active':''}" data-chubstatus="${s}">${s==='all'?'الكل':CH_STL[s]} <span>${counts[s]||0}</span></button>`).join('')}
         </div>
-        <button class="hbtn" id="chubNew" style="background:var(--gold);border-color:var(--gold)">+ عقد جديد</button>
+        <button class="hbtn gold" id="chubNew">+ عقد جديد</button>
       </div>
       <div class="chub-filters" style="margin-top:10px">
         <select id="chubClient" style="min-width:150px"><option value="">كل الشركاء</option>
@@ -5372,7 +5372,7 @@ function chubRenderClauseEditor(boxId,onChange){
       <input id="${boxId}-etitle" value="${esc(ed.title||sec.title)}" style="width:100%;margin-bottom:8px;font-weight:700;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
       <textarea id="${boxId}-ebody" style="width:100%;min-height:180px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px;line-height:1.7">${esc(ed.body!=null?ed.body:(sec.body||''))}</textarea>
       <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="hbtn" id="${boxId}-esave" style="background:var(--gold);border-color:var(--gold)">تطبيق على هذا العقد</button>
+        <button class="hbtn gold" id="${boxId}-esave">تطبيق على هذا العقد</button>
         ${CHD_OVERRIDES.edited[num]?`<button class="reqbtn" id="${boxId}-ereset">استعادة نص النموذج الأصلي</button>`:''}
         <button class="reqbtn" id="${boxId}-ecancel">إلغاء</button>
       </div></div>`;
@@ -5560,7 +5560,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
           <input id="chdTitle" placeholder="عنوان العقد" value="${esc(c.custom_title||'')}" style="width:100%;margin-bottom:10px;font-weight:700;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
           <textarea id="chdBody" placeholder="نص العقد الكامل..." style="width:100%;min-height:220px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px;line-height:1.7">${esc(c.custom_body||'')}</textarea>
           <div style="display:flex;gap:8px;margin-top:10px">
-            <button class="hbtn" id="chdSave" style="background:var(--gold);border-color:var(--gold)">📌 حفظ وتثبيت التعديلات</button>
+            <button class="hbtn gold" id="chdSave">📌 حفظ وتثبيت التعديلات</button>
           </div>`:`
           <input id="chdTitle" type="hidden" value="${esc(c.custom_title||'')}">
           <textarea id="chdBody" style="display:none">${esc(c.custom_body||'')}</textarea>
@@ -5577,7 +5577,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
         </div>
         <textarea id="chdSpecial" placeholder="شروط إضافية خاصة بهذا العقد (اختياري)" style="width:100%;min-height:70px;margin-top:10px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px">${esc(c.special_terms||'')}</textarea>
         <div style="display:flex;gap:8px;margin-top:10px">
-          <button class="hbtn" id="chdSave" style="background:var(--gold);border-color:var(--gold)">📌 حفظ وتثبيت التعديلات</button>
+          <button class="hbtn gold" id="chdSave">📌 حفظ وتثبيت التعديلات</button>
         </div>`:`
         <input id="chdValue" type="hidden" value="${c.contract_value||''}"><input id="chdDate" type="hidden" value="${c.effective_date||''}">
         <input id="chdDuration" type="hidden" value="${c.duration_months||''}"><input id="chdEnd" type="hidden" value="${c.end_date||''}">
@@ -5623,7 +5623,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
           ${!cl?`
           <input id="chdSendTo" type="email" placeholder="بريد الشريك" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin:8px 0 6px">
           ${!c.client_contact_email&&c.client_id?'<label class="sa-hint" style="display:flex;gap:5px;align-items:center;margin-bottom:6px"><input type="checkbox" id="chdSaveEmail" checked> احفظه في ملف الشريك (فلا يُعاد إدخاله)</label>':''}
-          <button class="hbtn" id="chdSendBtn" style="background:var(--gold);border-color:var(--gold);width:100%">
+          <button class="hbtn gold wide" id="chdSendBtn">
             ${c.send_count>0?'🔔 إرسال تذكير':'📧 إرسال للشريك'}</button>`:''}
           <button class="reqbtn" id="chdMailCheck" style="width:100%;margin-top:6px;font-size:.72rem">🔍 فحص جاهزية الإرسال</button>
           <div id="chdMailStatus"></div>
@@ -6037,7 +6037,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
        <input id="chdSignName" placeholder="اسم الموقِّع عن علامة" style="width:100%;margin-bottom:10px;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
        <div id="chdSignPad"></div>
        <div style="display:flex;gap:8px;margin-top:10px">
-         <button class="hbtn" id="chdSignConfirm" style="background:var(--ok);border-color:var(--ok);color:#fff">اعتماد التوقيع</button>
+         <button class="hbtn ok" id="chdSignConfirm">اعتماد التوقيع</button>
          <button class="reqbtn" id="chdSignCancel">إلغاء</button>
        </div></div>`;
      const pad=mountSignaturePad(document.getElementById('chdSignPad'));
@@ -6488,7 +6488,7 @@ function renderWorkloadBody(){
         <select id="wlWeeks" style="min-width:120px">
           ${[4,8,12,16].map(n=>`<option value="${n}" ${WL_WEEKS===n?'selected':''}>${n} أسابيع</option>`).join('')}
         </select>
-        <span class="wl-legend" style="margin-inline-start:auto">
+        <span class="wl-legend ms-auto">
           <i class="z0"></i><i class="z1"></i><i class="z2"></i><i class="z3"></i><i class="z4"></i>
           <span class="sa-hint">من فارغ إلى فوق الطاقة</span>
         </span>
@@ -6627,6 +6627,20 @@ function toastUndo(msg,onUndo){
   t.querySelector('.undo-btn').onclick=async()=>{clearTimeout(tm);t.remove();
     try{await onUndo();}catch(e){toast('تعذّر التراجع: '+e.message,'err');}};
 }
+
+// ===== إغلاق موحّد للنوافذ: data-close بدل onclick سطري =====
+// سبب النشأة: أربع نوافذ كانت تغلق بـ
+//   onclick="document.getElementById('holOverlay').style.display='none'"
+// مكتوبًا في الترميز. وله ثمنان: تكرار المنطق نفسه في كل نافذة، و**فرض
+// script-src 'unsafe-inline'** على أي CSP مستقبلية — وهي الطبقة الدفاعية
+// الثانية الغائبة اليوم (AUDIT §د-١). معالج مفوَّض واحد يغطي كل نافذة حالية
+// وقادمة: يكفي أن يحمل زر الإغلاق data-close="<معرّف الطبقة>".
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-close]');
+  if (!b) return;
+  const ov = document.getElementById(b.dataset.close);
+  if (ov) ov.style.display = 'none';
+});
 
 // ===== نوافذ الحوار المخصّصة (بديل prompt/confirm المتصفح) =====
 
@@ -7018,7 +7032,7 @@ function vCR(){
     <div id="crModeHint" class="cr-modehint">${crAutoNote}</div>
     <input id="crVal" placeholder="القيمة المقترحة (مثل: 12)">
     <textarea id="crReason" placeholder="المبرر..."></textarea>
-    <button class="hbtn" id="crSubmit" style="background:var(--gold);border-color:var(--gold);width:100%">إرسال الطلب</button>
+    <button class="hbtn gold wide" id="crSubmit">إرسال الطلب</button>
   </div>`:'';
   const list=CRS.length?CRS.map(c=>{
     const t=PROJECT.tasks.find(x=>x.id===c.task_ref);
@@ -7027,7 +7041,7 @@ function vCR(){
     const kd=CR_KIND[c.kind]||{t:c.kind,auto:false};
     // زر الموافقة يقول بصدق ما سيفعله النظام فعلًا
     const apText=kd.auto?'موافقة وتطبيق':'موافقة (تنفيذ يدوي)';
-    const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn" data-ap="${c.id}" style="background:var(--ok);border-color:var(--ok)">${apText}</button><button class="hbtn" data-rj="${c.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc">رفض</button></div>`:'';
+    const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn ok" data-ap="${c.id}">${apText}</button><button class="hbtn" data-rj="${c.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc">رفض</button></div>`:'';
     // تنبيه تنفيذ معلّق: وافق عليه ولم يُطبَّق آليًا ⇒ الخطة لم تتغيّر بعد
     const awaitingExec=(c.status==='approved'&&!kd.auto&&!c.executed_at);
     const pendingExec=awaitingExec?`<div class="cr-pendexec">⚠ معتمد — الخطة لم تتغيّر تلقائيًا. أدوات بناء الخطة مفتوحة الآن في تبويب «الجدول» لتنفيذه.</div>

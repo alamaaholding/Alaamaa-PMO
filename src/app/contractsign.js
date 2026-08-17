@@ -257,7 +257,7 @@ async function refreshContractPanel(){
     <div class="sa-section" style="margin-bottom:14px">
       <h4>عقود هذا المشروع <span class="sa-hint">العقد كيان مستقل في محفظة العقود — اربط عقدًا قائمًا بدل إنشاء واحد جديد في كل مرة</span></h4>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="hbtn" id="ctLinkExisting" style="background:var(--gold);border-color:var(--gold)">🔗 ربط عقد قائم بهذا المشروع</button>
+        <button class="hbtn gold" id="ctLinkExisting">🔗 ربط عقد قائم بهذا المشروع</button>
         <button class="reqbtn" id="ctGoHub">+ إنشاء عقد جديد (إدارة العقود)</button>
       </div>
       <div id="ctLinkPicker" style="display:none;margin-top:14px"></div>

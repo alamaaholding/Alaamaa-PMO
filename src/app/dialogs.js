@@ -14,7 +14,7 @@ function dialog(opts){ // {title, message, html, fields:[{key,label,value,type,p
       return `<label class="dlg-l">${esc(f.label)}<input class="dlg-i" data-k="${f.key}" type="${f.type||'text'}" value="${esc(f.value||'')}" placeholder="${esc(f.placeholder||'')}"></label>`;
     }).join('');
     document.getElementById('dlgBox').innerHTML=`
-      <div class="rqhd"><h3 style="font-size:1.02rem" id="dlgTitle">${esc(opts.title||'')}</h3><button id="dlgX" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
+      <div class="rqhd"><h3 id="dlgTitle">${esc(opts.title||'')}</h3><button id="dlgX" aria-label="إغلاق" class="rq-x">✕</button></div>
       <div style="padding:18px">
         ${opts.message?`<p style="font-size:.86rem;color:var(--muted);margin-bottom:14px;line-height:1.7;white-space:pre-line">${esc(opts.message)}</p>`:''}
         ${opts.html||''}

@@ -66,7 +66,7 @@ function renderSABody(){
         <input id="saNewEmail" type="email" placeholder="البريد الإلكتروني" style="flex:1;min-width:200px;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-family:inherit">
         <input id="saNewName" placeholder="الاسم (اختياري)" style="border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-family:inherit">
         <select id="saNewRole"><option value="manager">فريق (manager)</option><option value="admin">إدارة كاملة (admin)</option></select>
-        <button class="hbtn" id="saAddMember" style="background:var(--ok);border-color:var(--ok)">إضافة</button>
+        <button class="hbtn ok" id="saAddMember">إضافة</button>
       </div>
     </div>
     <div class="sa-section">
@@ -83,7 +83,7 @@ function renderSABody(){
         <select id="saScopeClient" style="display:none">${clientOpts}</select>
         <select id="saScopeProject" style="display:none">${projOpts}</select>
         <select id="saLevel"><option value="view">عرض فقط</option><option value="edit">عرض وتعديل</option></select>
-        <button class="hbtn" id="saGrant" style="background:var(--gold);border-color:var(--gold)">منح</button>
+        <button class="hbtn gold" id="saGrant">منح</button>
       </div>
     </div>
     <div class="sa-section">

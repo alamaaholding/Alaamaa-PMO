@@ -52,7 +52,7 @@ function render(){
     const canBuild=can('editStruct');
     host.innerHTML=`<div class="empty-cta"><div class="ico">${I.clipboard}</div><h3>لا توجد خطة بعد لهذا المشروع</h3>
       <p>${canBuild?'ابدأ ببناء خطة المشروع بإضافة أول بند، ثم عرّف المسارات والتبعيات.':'لم تُبنَ خطة هذا المشروع بعد. سيظهر المحتوى فور إعدادها من فريق إدارة المشاريع.'}</p>
-      ${canBuild?`<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px"><button id="emptyImport" class="hbtn" style="background:var(--blue);border-color:var(--blue)">${I.upload} استيراد خطة من Excel</button><button id="emptyAdd" class="hbtn" style="background:var(--ok);border-color:var(--ok)">+ إضافة أول بند</button></div>`:''}</div>`;
+      ${canBuild?`<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px"><button id="emptyImport" class="hbtn blue">${I.upload} استيراد خطة من Excel</button><button id="emptyAdd" class="hbtn ok">+ إضافة أول بند</button></div>`:''}</div>`;
     const ea=$('#emptyAdd');if(ea)ea.onclick=()=>{VIEW='table';handleAddTask();};
     const ei=$('#emptyImport');if(ei)ei.onclick=openImporter;
     return;
@@ -786,7 +786,7 @@ function vDiscuss(rows){
     <h4>إضافة للنقاش</h4>
     <select id="dcKind"><option value="comment">تعليق</option><option value="question">سؤال</option><option value="suggestion">مقترح</option></select>
     <textarea id="dcBody" placeholder="اكتب رسالتك..."></textarea>
-    <button class="hbtn" id="dcSend" style="background:var(--gold);border-color:var(--gold);width:100%">إرسال</button>
+    <button class="hbtn gold wide" id="dcSend">إرسال</button>
   </div>`;
   return composer+'<div class="crlist">'+thread+'</div>';
 }
@@ -838,7 +838,7 @@ function vRequests(rows){
       <select id="rqDept"><option value="marketing">التسويق</option><option value="tech">التقني</option><option value="strategy">الاستراتيجية</option><option value="consulting">الاستشارات</option><option value="other">أخرى</option></select>
       <select id="rqPrio"><option value="normal">أولوية عادية</option><option value="low">منخفضة</option><option value="high">عالية</option><option value="urgent">عاجلة</option></select>
     </div>
-    <button class="hbtn" id="rqSend" style="background:var(--gold);border-color:var(--gold);width:100%">إرسال الطلب</button>
+    <button class="hbtn gold wide" id="rqSend">إرسال الطلب</button>
   </div>`;
   if(!rows.length) return composer+'<p class="empty" style="padding:14px">لا طلبات بعد.</p>';
   const cards=rows.map(r=>{

@@ -69,7 +69,7 @@ function renderCHBody(stats,access){
 
   const projCards=stats.noProjects?
     `<div class="empty-cta"><div class="ico">${I.folder||'📁'}</div><h3>لا مشاريع بعد</h3><p>ابدأ أول مشروع لهذا الشريك.</p>
-      <button class="hbtn" id="chNewProj" style="background:var(--gold);border-color:var(--gold)">+ مشروع جديد</button></div>`
+      <button class="hbtn gold" id="chNewProj">+ مشروع جديد</button></div>`
     :stats.list.map(r=>{
       const pct=r.total_tasks>0?Math.round(r.done_tasks/r.total_tasks*100):0;
       const st=computeProjectStatus(r);
@@ -114,7 +114,7 @@ function renderCHBody(stats,access){
         <select id="chScope"><option value="client">كل مشاريع هذا الشريك</option>${projOpts?'<option value="project">مشروع بعينه:</option>':''}</select>
         <select id="chProj" style="display:none">${projOpts}</select>
         <select id="chLevel"><option value="view">عرض فقط</option><option value="edit">عرض وتعديل</option></select>
-        <button class="hbtn" id="chGrant" style="background:var(--gold);border-color:var(--gold)">منح</button>
+        <button class="hbtn gold" id="chGrant">منح</button>
       </div>
       <div class="sa-grants">${accessRows}</div>
     </div>`;
@@ -164,7 +164,7 @@ function openClientSettings(stats,access){
       <div class="sa-form">
         <span style="color:var(--muted);font-size:.82rem;white-space:nowrap">${location.origin}${location.pathname}#/c/</span>
         <input id="cpSlug" value="${esc(c.slug||'')}" placeholder="مثال: sanam" style="flex:1;min-width:140px;font-family:monospace" dir="ltr">
-        <button class="hbtn" id="cpSlugSave" style="background:var(--gold);border-color:var(--gold)">حفظ الرابط</button>
+        <button class="hbtn gold" id="cpSlugSave">حفظ الرابط</button>
       </div>
       <p class="sa-hint" style="margin-top:6px">حروف لاتينية وأرقام وشرطات فقط — يُنظَّف تلقائيًا. أي رابط سبق مشاركته يبقى يعمل دائمًا حتى بعد التغيير.</p>
     </div>
@@ -179,7 +179,7 @@ function openClientSettings(stats,access){
         <input id="cpRepTitle" placeholder="صفته" value="${esc(c.rep_title||'')}" style="flex:1;min-width:140px">
         <input id="cpEmail" placeholder="البريد الرسمي (يظهر في العقد)" value="${esc(c.contact_email||'')}" style="flex:1;min-width:180px" dir="ltr">
         <input id="cpPhone" placeholder="رقم الجوال (يظهر في العقد)" value="${esc(c.contact_phone||'')}" style="flex:1;min-width:150px" dir="ltr">
-        <button class="hbtn" id="cpSave" style="background:var(--gold);border-color:var(--gold)">حفظ الملف</button>
+        <button class="hbtn gold" id="cpSave">حفظ الملف</button>
       </div>
     </div>`;
 

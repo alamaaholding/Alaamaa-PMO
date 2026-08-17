@@ -255,7 +255,7 @@ function renderTrkPanel(){
       </div>
     </div>
     <div class="imp-actions">
-      <button class="hbtn" id="trkSave" style="background:var(--gold);border-color:var(--gold)">حفظ التعديلات</button>
+      <button class="hbtn gold" id="trkSave">حفظ التعديلات</button>
       <button class="hbtn ghost" id="trkClose">إغلاق</button>
     </div>`;
   $('#trkClose').onclick=()=>{$('#trkOverlay').style.display='none';};
@@ -486,7 +486,7 @@ async function openAssignPanel(projectId,projectName){
       ${members.map(u=>`<label class="assign-row"><input type="checkbox" data-assign="${u.id}" ${aset.has(u.id)?'checked':''}>
         <b>${esc(u.full_name||u.email)}</b><span class="assign-role">${roleAr[u.role]||u.role}</span></label>`).join('')||'<p class="pempty">لا أعضاء طاقم نشطين بعد.</p>'}
       <div class="imp-actions">
-        <button class="hbtn" id="assignSave" style="background:var(--gold);border-color:var(--gold)">حفظ الإسناد</button>
+        <button class="hbtn gold" id="assignSave">حفظ الإسناد</button>
         <button class="hbtn ghost" id="assignClose">إغلاق</button>
       </div>`;
     $('#assignClose').onclick=()=>{$('#assignOverlay').style.display='none';};
@@ -509,7 +509,7 @@ async function openHolidaysManager(){
       <div class="hol-row new">
         <input id="holName" placeholder="اسم العطلة" class="trk-name">
         <input id="holDate" type="date" class="trk-name" style="max-width:160px">
-        <button class="hbtn" id="holAdd" style="background:var(--ok);border-color:var(--ok)">+ إضافة</button>
+        <button class="hbtn ok" id="holAdd">+ إضافة</button>
       </div>`;
     body.querySelectorAll('[data-holdel]').forEach(b=>b.onclick=async()=>{
       try{await delHolidayRow(b.dataset.holdel);toast('حُذفت','ok');paint();}catch(e){toast('تعذّر','err');}});
