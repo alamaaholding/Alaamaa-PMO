@@ -1,4 +1,4 @@
-const BUILD_V='aa357546';
+const BUILD_V='4603cb7d';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -377,7 +377,18 @@ function scheduleTasks(tasks,projectStartStr){
     else{
       let mn=null;
       succEdges.forEach(({s,type,lag})=>{
-        const rs=R[s.id];let cand;
+        const rs=R[s.id];
+        // حارس الدورة: المرور الخلفي يفترض أن كل لاحق حُسبت له LS/LF قبل سابقه — وهو
+        // ضمان يوفّره الترتيب الطبولوجي وحده. مع وجود دورة يسقط الترتيب (seq يصير
+        // ترتيب الإدخال الخام)، فيُقرأ LS/LF لبند لم يُحسب بعد.
+        // سبب النشأة: كان هذا يرمي TypeError عند أول دورة، فتفشل scheduleTasks،
+        // فتفشل compute()، فتفشل render() — وتبقى شاشة المشروع **بيضاء بالكامل** بلا
+        // مخرج من الواجهة. والدورة قابلة للبلوغ فعلًا: المستورد يكتشفها ويحذّر منها
+        // لكنه لا يمنع الاستيراد (importer.js)، وbulkInsertDeps لا تتحقق منها إطلاقًا.
+        // المقصد المعلن في المحرك أن الدورة تُنتج «جدولة غير دقيقة» مع تحذير — لا انهيارًا؛
+        // وهذا الحارس يجعل السلوك يطابق ذلك المقصد: تُتجاهَل الحافة غير المحسوبة فقط.
+        if(!rs||!(type==='FF'?rs.LF:rs.LS))return;
+        let cand;
         if(type==='SS'){
           // القيد الحقيقي على بداية السابق لا نهايته — نحوّله لمكافئ «نهاية» بإضافة مدة t نفسه
           const lsCand=invLag(rs.LS,lag);
@@ -394,7 +405,8 @@ function scheduleTasks(tasks,projectStartStr){
         }
         if(mn===null||cand<mn)mn=cand;
       });
-      LF=clone(mn);
+      // كل الحوافّ أُسقطت بحارس الدورة أعلاه → لا قيد معروف، فيُعامَل كبند بلا لاحق
+      LF=(mn===null)?clone(pEnd):clone(mn);
     }
     const dur=R[id].dur;let LS;if(t.type==='milestone')LS=clone(LF);else if(t.type==='cont')LS=clone(R[id].ES);else LS=subWD(LF,Math.max(1,dur)-1);
     R[id].LF=LF;R[id].LS=LS;let slack=wdB(R[id].ES,LS);if(t.type==='fixed')slack=0;R[id].slack=slack;R[id].critical=(t.type!=='cont')&&slack<=0;});
