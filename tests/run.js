@@ -92,7 +92,51 @@ if (untested.length < UNTESTED_CAP) {
   console.log(`  ${GREEN}✓${OFF} ${untested.length} ملفًا بلا اختبار — عند السقف تمامًا (${UNTESTED_CAP})`);
 }
 
-// ===== ٥) تشغيل ملفات الاختبار =====
+// ===== ٥) حارسا نظام التصميم: سقفان يَنقصان ولا يزيدان =====
+//
+// سبب النشأة: نظام التصميم في styles.css قويّ (756 رمزًا)، لكن نصف القرارات البصرية
+// كانت تُتّخذ خارجه — 548 نمطًا سطريًا و176 لونًا مكتوبًا صراحةً داخل الورقة نفسها.
+// الأثر المقيس: تغيير --gold وحده كان يغيّر نصف الواجهة ويترك نصفها ذهبيًا.
+// وللأنماط السطرية ثمن ثانٍ: تفرض 'unsafe-inline' في أي CSP، فتحجب إصلاحًا أمنيًا.
+//
+// الترحيل تدريجي بطبيعته (AUDIT §ب-١ · ROADMAP §W4)، فالحارس هو ما يجعله تدريجيًا
+// **لا متراجعًا**: يُسمح بالنقصان دائمًا، ويُمنع النموّ دائمًا.
+console.log(`${BOLD}▸ حارسا نظام التصميم...${OFF}`);
+const INLINE_STYLE_CAP = 372;   // أنماط سطرية **ثابتة** فقط
+const RAW_COLOR_CAP    = 91;    // ألوان صريحة خارج :root داخل styles.css
+
+// الأنماط الديناميكية (التي تحمل قيمة محسوبة: عرض شريط، لون مسار) استعمال مشروع
+// ولا تُحتسب — لا يمكن التعبير عنها بصنف ثابت أصلًا.
+const styleSources = [
+  ...fs.readdirSync('src').filter(f => f.endsWith('.js') && f !== 'qrgen.js').map(f => `src/${f}`),
+  ...fs.readdirSync('src/app').filter(f => f.endsWith('.js')).map(f => `src/app/${f}`),
+  'src/index.html'
+];
+let inlineStatic = 0;
+for (const f of styleSources) {
+  const hits = fs.readFileSync(f, 'utf8').match(/style="[^"]*"/g) || [];
+  inlineStatic += hits.filter(h => !h.includes('${')).length;
+}
+// الألوان داخل :root هي التعريف نفسه — تُستثنى؛ والمقصود ما يلتفّ حولها.
+const cssBody = fs.readFileSync('src/styles.css', 'utf8').replace(/:root\{[\s\S]*?\n\}/, '');
+const rawColors = (cssBody.match(/#[0-9a-fA-F]{3,6}\b/g) || []).length;
+
+let designFailed = 0;
+const ratchet = (label, got, cap) => {
+  if (got > cap) {
+    console.error(`  ${RED}✗ ${label}: ${got} — السقف ${cap}. السقف ينقص ولا يزيد.${OFF}`);
+    designFailed++;
+  } else if (got < cap) {
+    console.log(`  ${GREEN}✓${OFF} ${label}: ${got} (أقل من ${cap}). ${BOLD}أنزِل السقف إلى ${got}.${OFF}`);
+  } else {
+    console.log(`  ${GREEN}✓${OFF} ${label}: ${got} — عند السقف تمامًا`);
+  }
+};
+ratchet('أنماط سطرية ثابتة', inlineStatic, INLINE_STYLE_CAP);
+ratchet('ألوان صريحة خارج :root', rawColors, RAW_COLOR_CAP);
+if (designFailed) process.exit(1);
+
+// ===== ٦) تشغيل ملفات الاختبار =====
 const testFiles = fs.readdirSync(__dirname)
   .filter(f => f.startsWith('test_') && f.endsWith('.js')).sort();
 
