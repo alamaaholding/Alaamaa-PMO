@@ -18,11 +18,11 @@
     الدخول عبر Google
   </button>
   <div class="lerr" id="loginErr"></div>
-  <div class="lmute hidden" id="denied">هذا الحساب غير مصرّح له. تواصل مع مكتب إدارة المشاريع.<br><button class="hbtn" id="signoutDenied" style="margin-top:8px;background:#fff;color:var(--crit);border-color:#e8c4bc">خروج</button></div>
+  <div class="lmute hidden" id="denied">هذا الحساب غير مصرّح له. تواصل مع مكتب إدارة المشاريع.<br><button class="hbtn danger-soft mt-2" id="signoutDenied">خروج</button></div>
 </div></div>
 
 <!-- التحميل -->
-<div id="loader" class="loader hidden"><div class="spin"></div><div style="color:var(--muted);font-size:.85rem">جارٍ تحميل المشروع…</div></div>
+<div id="loader" class="loader hidden"><div class="spin"></div><div class="loader-txt">جارٍ تحميل المشروع…</div></div>
 
 <!-- مسار التوقيع العام — بلا تسجيل دخول، مستقل تمامًا -->
 <div id="publicSign" class="hidden"></div>
@@ -44,14 +44,14 @@
 </div></div></header>
 
 <div class="bar2"><div class="wrap">
-  <div id="barClient" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+  <div id="barClient" class="barclient">
     <span class="tg"><span title="التاريخ الذي تُحسب عنده حالة التقدم والتأخير">تاريخ الحالة (اليوم):</span> <input type="date" id="dataDate" aria-label="تاريخ الحالة"></span>
     <span class="lifebadge" id="lifeBadge">—</span>
-    <button class="hbtn" id="manageAccess" style="display:none;background:var(--gold);border-color:var(--gold)">إدارة وصول الشريك</button>
-    <button class="hbtn" id="projMenuBtn" style="display:none;background:#fff;color:var(--ink);border-color:var(--line)">إجراءات المشروع</button>
-    <button class="hbtn" id="exportReport" style="background:#fff;color:var(--ink);border-color:var(--line)">تصدير تقرير</button>
-    <button class="hbtn" id="approveContract" style="display:none;background:var(--ok);border-color:var(--ok)">اعتماد العقد + تثبيت الأساس</button>
-    <span class="hintbar" id="roleHint" style="margin-inline-start:auto"></span>
+    <button class="hbtn" id="manageAccess" class="gold" style="display:none">إدارة وصول الشريك</button>
+    <button class="hbtn" id="projMenuBtn" class="ghost" style="display:none">إجراءات المشروع</button>
+    <button class="hbtn" id="exportReport" class="ghost">تصدير تقرير</button>
+    <button class="hbtn" id="approveContract" class="ok" style="display:none">اعتماد العقد + تثبيت الأساس</button>
+    <span class="hintbar ms-auto" id="roleHint"></span>
   </div>
   <div class="kpis" id="kpisRow">
     <div class="kpi kpi-start"><b id="kStart">—</b><span>بداية المشروع <button id="editStart" class="kstart-edit" title="تعديل تاريخ البدء" aria-label="تعديل تاريخ بدء المشروع"><svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg></button></span></div>
@@ -72,11 +72,11 @@
 <!-- نافذة المتطلبات -->
 <div id="reqOverlay" class="rqoverlay">
   <div class="rqmodal">
-    <div class="rqhd"><h3 id="reqTitle" style="font-size:1.02rem">متطلبات البند</h3><button id="reqClose" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
-    <div style="padding:16px 18px">
-      <p style="font-size:.8rem;color:var(--muted);margin-bottom:10px">📎 <b>متطلبات البند:</b> مدخلات يحتاجها تنفيذ هذا البند تحديدًا (ملفات، موافقات، وصول). المتطلب «الحاجز» غير المُستلم يوقف البند، وتجاوز SLA يُحتسب تأخيرًا على الجهة المسؤولة.</p>
+    <div class="rqhd"><h3 id="reqTitle">متطلبات البند</h3><button id="reqClose" class="rq-x">✕</button></div>
+    <div class="rqbody">
+      <p class="rqnote">📎 <b>متطلبات البند:</b> مدخلات يحتاجها تنفيذ هذا البند تحديدًا (ملفات، موافقات، وصول). المتطلب «الحاجز» غير المُستلم يوقف البند، وتجاوز SLA يُحتسب تأخيرًا على الجهة المسؤولة.</p>
       <table class="rqtbl" id="reqTbl"></table>
-      <button class="hbtn" id="reqAdd" style="margin-top:10px;background:var(--gold);border-color:var(--gold)">+ إضافة متطلب</button>
+      <button class="hbtn gold mt-3" id="reqAdd">+ إضافة متطلب</button>
     </div>
   </div>
 </div>
@@ -84,9 +84,9 @@
 <!-- لوحة البند: كل ما يخص بندًا واحدًا في مكان واحد -->
 <div id="taskOverlay" class="rqoverlay">
   <div class="rqmodal">
-    <div class="rqhd"><h3 id="tkTitle" style="font-size:1.02rem">تفاصيل البند</h3><button id="tkClose" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
+    <div class="rqhd"><h3 id="tkTitle">تفاصيل البند</h3><button id="tkClose" aria-label="إغلاق" class="rq-x">✕</button></div>
     <div id="tkTabs" class="tktabs" role="tablist"></div>
-    <div id="tkBody" style="padding:16px 18px;min-height:160px"></div>
+    <div id="tkBody" class="rqbody tall"></div>
   </div>
 </div>
 
@@ -94,17 +94,17 @@
 </div>
 
 <!-- نافذة إدارة وصول الشريك -->
-<div id="accessOverlay" style="position:fixed;inset:0;background:rgba(26,26,26,.5);z-index:120;display:none;align-items:flex-start;justify-content:center;padding:50px 16px;overflow:auto">
-  <div style="background:#fff;border-radius:14px;max-width:520px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-    <div style="background:var(--ink);color:#fff;padding:14px 18px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center">
-      <h3 id="accTitle" style="font-size:1.02rem">إدارة وصول الشريك</h3>
-      <button id="accClose" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+<div id="accessOverlay" class="rqoverlay top">
+  <div class="rqmodal w-lg">
+    <div class="rqhd">
+      <h3 id="accTitle">إدارة وصول الشريك</h3>
+      <button id="accClose" class="rq-x">✕</button>
     </div>
-    <div style="padding:16px 18px">
-      <p style="font-size:.82rem;color:var(--muted);margin-bottom:12px">الإيميلات المضافة هنا يمكنها الدخول عبر Google ورؤية داشبورد هذا الشريك فقط. يمكن الإضافة قبل أن يسجّل صاحب الإيميل دخوله.</p>
-      <div style="display:flex;gap:8px;margin-bottom:14px">
-        <input id="accEmail" type="email" placeholder="email@example.com" style="flex:1;border:1.5px solid var(--line);border-radius:9px;padding:9px;font-family:inherit;font-size:.86rem">
-        <button id="accAdd" class="hbtn" style="background:var(--gold);border-color:var(--gold);padding:9px 16px">إضافة</button>
+    <div class="rqbody">
+      <p class="rqnote">الإيميلات المضافة هنا يمكنها الدخول عبر Google ورؤية داشبورد هذا الشريك فقط. يمكن الإضافة قبل أن يسجّل صاحب الإيميل دخوله.</p>
+      <div class="rqrow">
+        <input id="accEmail" type="email" placeholder="email@example.com" class="rqfield">
+        <button id="accAdd" class="hbtn gold pad">إضافة</button>
       </div>
       <div id="accList"></div>
     </div>
@@ -115,46 +115,46 @@
 <div id="contractPrint"></div>
 
 <!-- نافذة الحوار العامة -->
-<div id="dlgOverlay" class="rqoverlay" style="align-items:center">
-  <div id="dlgBox" class="rqmodal" style="max-width:440px"></div>
+<div id="dlgOverlay" class="rqoverlay mid">
+  <div id="dlgBox" class="rqmodal w-sm"></div>
 </div>
 
 <!-- نافذة التبعيات -->
 <!-- لوحة الإسناد -->
-<div id="assignOverlay" class="rqoverlay" style="align-items:flex-start">
-  <div class="rqmodal" style="max-width:480px">
-    <div class="rqhd"><h3 id="assignTitle" style="font-size:1.02rem">إسناد الفريق</h3><button onclick="document.getElementById('assignOverlay').style.display='none'" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
-    <div id="assignBody" style="padding:18px"></div>
+<div id="assignOverlay" class="rqoverlay top">
+  <div class="rqmodal w-md">
+    <div class="rqhd"><h3 id="assignTitle">إسناد الفريق</h3><button data-close="assignOverlay" aria-label="إغلاق" class="rq-x">✕</button></div>
+    <div id="assignBody" class="rqbody lg"></div>
   </div>
 </div>
 <!-- لوحة العطلات -->
-<div id="holOverlay" class="rqoverlay" style="align-items:flex-start">
-  <div class="rqmodal" style="max-width:480px">
-    <div class="rqhd"><h3 style="font-size:1.02rem">العطلات الرسمية</h3><button onclick="document.getElementById('holOverlay').style.display='none'" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
-    <div id="holBody" style="padding:18px"></div>
+<div id="holOverlay" class="rqoverlay top">
+  <div class="rqmodal w-md">
+    <div class="rqhd"><h3>العطلات الرسمية</h3><button data-close="holOverlay" aria-label="إغلاق" class="rq-x">✕</button></div>
+    <div id="holBody" class="rqbody lg"></div>
   </div>
 </div>
 <!-- لوحة إدارة المراحل -->
-<div id="trkOverlay" class="rqoverlay" style="align-items:flex-start">
-  <div class="rqmodal" style="max-width:520px">
-    <div class="rqhd"><h3 style="font-size:1.02rem">إدارة مراحل المشروع</h3><button onclick="document.getElementById('trkOverlay').style.display='none'" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
-    <div id="trkBody" style="padding:18px"></div>
+<div id="trkOverlay" class="rqoverlay top">
+  <div class="rqmodal w-lg">
+    <div class="rqhd"><h3>إدارة مراحل المشروع</h3><button data-close="trkOverlay" aria-label="إغلاق" class="rq-x">✕</button></div>
+    <div id="trkBody" class="rqbody lg"></div>
   </div>
 </div>
 <!-- نافذة الاستيراد -->
-<div id="impOverlay" class="rqoverlay" style="align-items:flex-start">
-  <div class="rqmodal" style="max-width:680px">
-    <div class="rqhd"><h3 style="font-size:1.02rem">استيراد خطة من Excel</h3><button onclick="document.getElementById('impOverlay').style.display='none'" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
-    <div id="impBody" style="padding:18px"></div>
+<div id="impOverlay" class="rqoverlay top">
+  <div class="rqmodal w-xl">
+    <div class="rqhd"><h3>استيراد خطة من Excel</h3><button data-close="impOverlay" class="rq-x">✕</button></div>
+    <div id="impBody" class="rqbody lg"></div>
   </div>
 </div>
 <div id="depOverlay" class="rqoverlay">
-  <div class="rqmodal" style="max-width:520px">
-    <div class="rqhd"><h3 id="depTitle" style="font-size:1.02rem">التبعيات</h3><button id="depClose" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button></div>
-    <div style="padding:16px 18px">
-      <p style="font-size:.8rem;color:var(--muted);margin-bottom:12px">اختر البنود التي يبدأ هذا البند بعد انتهائها. (البنود التي تعتمد عليه مخفية لمنع الدوران.)</p>
-      <div id="depList" style="max-height:50vh;overflow:auto"></div>
-      <button class="hbtn" id="depSave" style="margin-top:12px;background:var(--gold);border-color:var(--gold)">حفظ التبعيات</button>
+  <div class="rqmodal w-lg">
+    <div class="rqhd"><h3 id="depTitle">التبعيات</h3><button id="depClose" class="rq-x">✕</button></div>
+    <div class="rqbody">
+      <p class="rqnote">اختر البنود التي يبدأ هذا البند بعد انتهائها. (البنود التي تعتمد عليه مخفية لمنع الدوران.)</p>
+      <div id="depList" class="rqscroll"></div>
+      <button class="hbtn gold mt-3" id="depSave">حفظ التبعيات</button>
     </div>
   </div>
 </div>

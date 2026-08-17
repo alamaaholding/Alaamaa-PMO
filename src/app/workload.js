@@ -129,7 +129,7 @@ function renderWorkloadBody(){
         <select id="wlWeeks" style="min-width:120px">
           ${[4,8,12,16].map(n=>`<option value="${n}" ${WL_WEEKS===n?'selected':''}>${n} أسابيع</option>`).join('')}
         </select>
-        <span class="wl-legend" style="margin-inline-start:auto">
+        <span class="wl-legend ms-auto">
           <i class="z0"></i><i class="z1"></i><i class="z2"></i><i class="z3"></i><i class="z4"></i>
           <span class="sa-hint">من فارغ إلى فوق الطاقة</span>
         </span>

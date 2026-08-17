@@ -116,7 +116,7 @@ function renderContractsHubBody(){
            <div class="chub-empty-icon" aria-hidden="true">📄</div>
            <b>لا عقود في المحفظة بعد</b>
            <p>ابدأ بإنشاء عقد — يُنشأ مستقلًا باسمه ورقمه، وتربطه بمشروع أو تُسنده لشريك لاحقًا.</p>
-           <button class="hbtn" id="chubEmptyNew" style="background:var(--gold);border-color:var(--gold)">+ إنشاء أول عقد</button>
+           <button class="hbtn gold" id="chubEmptyNew">+ إنشاء أول عقد</button>
          </div>`;
   })();
 
@@ -134,7 +134,7 @@ function renderContractsHubBody(){
           ${['all','pending_alamaa','pending_client','signed','void'].map(s=>
             `<button class="chub-pill ${CH_FILTER.status===s?'active':''}" data-chubstatus="${s}">${s==='all'?'الكل':CH_STL[s]} <span>${counts[s]||0}</span></button>`).join('')}
         </div>
-        <button class="hbtn" id="chubNew" style="background:var(--gold);border-color:var(--gold)">+ عقد جديد</button>
+        <button class="hbtn gold" id="chubNew">+ عقد جديد</button>
       </div>
       <div class="chub-filters" style="margin-top:10px">
         <select id="chubClient" style="min-width:150px"><option value="">كل الشركاء</option>
@@ -289,7 +289,7 @@ function chubRenderClauseEditor(boxId,onChange){
       <input id="${boxId}-etitle" value="${esc(ed.title||sec.title)}" style="width:100%;margin-bottom:8px;font-weight:700;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
       <textarea id="${boxId}-ebody" style="width:100%;min-height:180px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px;line-height:1.7">${esc(ed.body!=null?ed.body:(sec.body||''))}</textarea>
       <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="hbtn" id="${boxId}-esave" style="background:var(--gold);border-color:var(--gold)">تطبيق على هذا العقد</button>
+        <button class="hbtn gold" id="${boxId}-esave">تطبيق على هذا العقد</button>
         ${CHD_OVERRIDES.edited[num]?`<button class="reqbtn" id="${boxId}-ereset">استعادة نص النموذج الأصلي</button>`:''}
         <button class="reqbtn" id="${boxId}-ecancel">إلغاء</button>
       </div></div>`;
@@ -477,7 +477,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
           <input id="chdTitle" placeholder="عنوان العقد" value="${esc(c.custom_title||'')}" style="width:100%;margin-bottom:10px;font-weight:700;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
           <textarea id="chdBody" placeholder="نص العقد الكامل..." style="width:100%;min-height:220px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px;line-height:1.7">${esc(c.custom_body||'')}</textarea>
           <div style="display:flex;gap:8px;margin-top:10px">
-            <button class="hbtn" id="chdSave" style="background:var(--gold);border-color:var(--gold)">📌 حفظ وتثبيت التعديلات</button>
+            <button class="hbtn gold" id="chdSave">📌 حفظ وتثبيت التعديلات</button>
           </div>`:`
           <input id="chdTitle" type="hidden" value="${esc(c.custom_title||'')}">
           <textarea id="chdBody" style="display:none">${esc(c.custom_body||'')}</textarea>
@@ -494,7 +494,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
         </div>
         <textarea id="chdSpecial" placeholder="شروط إضافية خاصة بهذا العقد (اختياري)" style="width:100%;min-height:70px;margin-top:10px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px">${esc(c.special_terms||'')}</textarea>
         <div style="display:flex;gap:8px;margin-top:10px">
-          <button class="hbtn" id="chdSave" style="background:var(--gold);border-color:var(--gold)">📌 حفظ وتثبيت التعديلات</button>
+          <button class="hbtn gold" id="chdSave">📌 حفظ وتثبيت التعديلات</button>
         </div>`:`
         <input id="chdValue" type="hidden" value="${c.contract_value||''}"><input id="chdDate" type="hidden" value="${c.effective_date||''}">
         <input id="chdDuration" type="hidden" value="${c.duration_months||''}"><input id="chdEnd" type="hidden" value="${c.end_date||''}">
@@ -540,7 +540,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
           ${!cl?`
           <input id="chdSendTo" type="email" placeholder="بريد الشريك" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin:8px 0 6px">
           ${!c.client_contact_email&&c.client_id?'<label class="sa-hint" style="display:flex;gap:5px;align-items:center;margin-bottom:6px"><input type="checkbox" id="chdSaveEmail" checked> احفظه في ملف الشريك (فلا يُعاد إدخاله)</label>':''}
-          <button class="hbtn" id="chdSendBtn" style="background:var(--gold);border-color:var(--gold);width:100%">
+          <button class="hbtn gold wide" id="chdSendBtn">
             ${c.send_count>0?'🔔 إرسال تذكير':'📧 إرسال للشريك'}</button>`:''}
           <button class="reqbtn" id="chdMailCheck" style="width:100%;margin-top:6px;font-size:.72rem">🔍 فحص جاهزية الإرسال</button>
           <div id="chdMailStatus"></div>
@@ -954,7 +954,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
        <input id="chdSignName" placeholder="اسم الموقِّع عن علامة" style="width:100%;margin-bottom:10px;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
        <div id="chdSignPad"></div>
        <div style="display:flex;gap:8px;margin-top:10px">
-         <button class="hbtn" id="chdSignConfirm" style="background:var(--ok);border-color:var(--ok);color:#fff">اعتماد التوقيع</button>
+         <button class="hbtn ok" id="chdSignConfirm">اعتماد التوقيع</button>
          <button class="reqbtn" id="chdSignCancel">إلغاء</button>
        </div></div>`;
      const pad=mountSignaturePad(document.getElementById('chdSignPad'));

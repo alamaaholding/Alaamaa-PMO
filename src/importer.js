@@ -281,9 +281,9 @@ function renderImpPreview(p){
     ${warns}
     <div class="imp-tablewrap"><table class="imp-table"><thead><tr><th>المعرّف</th><th>الاسم</th><th>المسار</th><th>النوع</th><th>المدة</th><th>يعتمد على</th></tr></thead><tbody>${sample}</tbody>${tcount>6?`<tfoot><tr><td colspan="6">… و${tcount-6} مهمة أخرى</td></tr></tfoot>`:''}</table></div>
     <div class="imp-actions">
-      <button class="hbtn" id="impMerge" style="background:var(--blue);border-color:var(--blue)">دمج مع الموجود</button>
+      <button class="hbtn blue" id="impMerge">دمج مع الموجود</button>
       <button class="hbtn" id="impReplace" style="background:var(--crit);border-color:var(--crit)">استبدال كامل</button>
-      <button class="hbtn" id="impCancel" style="background:#fff;color:var(--ink);border-color:var(--line)">إلغاء</button>
+      <button class="hbtn ghost" id="impCancel">إلغاء</button>
     </div>`;
   $('#impMerge').onclick=()=>runImport('merge');
   $('#impReplace').onclick=()=>runImport('replace');

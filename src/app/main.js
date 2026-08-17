@@ -23,6 +23,20 @@ function toastUndo(msg,onUndo){
     try{await onUndo();}catch(e){toast('تعذّر التراجع: '+e.message,'err');}};
 }
 
+// ===== إغلاق موحّد للنوافذ: data-close بدل onclick سطري =====
+// سبب النشأة: أربع نوافذ كانت تغلق بـ
+//   onclick="document.getElementById('holOverlay').style.display='none'"
+// مكتوبًا في الترميز. وله ثمنان: تكرار المنطق نفسه في كل نافذة، و**فرض
+// script-src 'unsafe-inline'** على أي CSP مستقبلية — وهي الطبقة الدفاعية
+// الثانية الغائبة اليوم (AUDIT §د-١). معالج مفوَّض واحد يغطي كل نافذة حالية
+// وقادمة: يكفي أن يحمل زر الإغلاق data-close="<معرّف الطبقة>".
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-close]');
+  if (!b) return;
+  const ov = document.getElementById(b.dataset.close);
+  if (ov) ov.style.display = 'none';
+});
+
 // ===== نوافذ الحوار المخصّصة (بديل prompt/confirm المتصفح) =====
 
 // ===== مبدّل سريع للشركاء والمشاريع (طاقم فقط) =====
@@ -413,7 +427,7 @@ function vCR(){
     <div id="crModeHint" class="cr-modehint">${crAutoNote}</div>
     <input id="crVal" placeholder="القيمة المقترحة (مثل: 12)">
     <textarea id="crReason" placeholder="المبرر..."></textarea>
-    <button class="hbtn" id="crSubmit" style="background:var(--gold);border-color:var(--gold);width:100%">إرسال الطلب</button>
+    <button class="hbtn gold wide" id="crSubmit">إرسال الطلب</button>
   </div>`:'';
   const list=CRS.length?CRS.map(c=>{
     const t=PROJECT.tasks.find(x=>x.id===c.task_ref);
@@ -422,7 +436,7 @@ function vCR(){
     const kd=CR_KIND[c.kind]||{t:c.kind,auto:false};
     // زر الموافقة يقول بصدق ما سيفعله النظام فعلًا
     const apText=kd.auto?'موافقة وتطبيق':'موافقة (تنفيذ يدوي)';
-    const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn" data-ap="${c.id}" style="background:var(--ok);border-color:var(--ok)">${apText}</button><button class="hbtn" data-rj="${c.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc">رفض</button></div>`:'';
+    const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn ok" data-ap="${c.id}">${apText}</button><button class="hbtn" data-rj="${c.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc">رفض</button></div>`:'';
     // تنبيه تنفيذ معلّق: وافق عليه ولم يُطبَّق آليًا ⇒ الخطة لم تتغيّر بعد
     const awaitingExec=(c.status==='approved'&&!kd.auto&&!c.executed_at);
     const pendingExec=awaitingExec?`<div class="cr-pendexec">⚠ معتمد — الخطة لم تتغيّر تلقائيًا. أدوات بناء الخطة مفتوحة الآن في تبويب «الجدول» لتنفيذه.</div>

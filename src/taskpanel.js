@@ -146,7 +146,7 @@ function tkTalk(){
     <div class="crform" style="position:static;margin-top:14px">
       <select id="tkKind"><option value="comment">تعليق</option><option value="question">سؤال</option><option value="suggestion">مقترح</option></select>
       <textarea id="tkBodyIn" placeholder="اكتب رسالتك حول هذا البند..."></textarea>
-      <button class="hbtn" id="tkSend" style="background:var(--gold);border-color:var(--gold);width:100%">إرسال</button>
+      <button class="hbtn gold wide" id="tkSend">إرسال</button>
     </div>`;
 }
 
