@@ -9,7 +9,8 @@ const ROLE_NAMES={pmo:'مكتب إدارة المشاريع',delivery:'الفر�
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 const fmt=d=>{const x=new Date(d);return('0'+x.getDate()).slice(-2)+'/'+('0'+(x.getMonth()+1)).slice(-2);};
 const fmtY=d=>{const x=new Date(d);return x.getFullYear()+'-'+('0'+(x.getMonth()+1)).slice(-2)+'-'+('0'+x.getDate()).slice(-2);};
-const D=s=>new Date(s+'T00:00:00');
+// D انتقلت إلى engine.js (الموجة W2) — موضعها الصحيح مع تقويم العمل والجدولة.
+// تصل إلى هنا عبر globalThis من حزمة ESM التي تسبق هذا الملف في الترتيب.
 function todayISO(){return fmtY(new Date());}
 
 

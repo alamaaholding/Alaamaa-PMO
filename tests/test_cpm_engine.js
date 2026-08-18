@@ -14,14 +14,21 @@
 //   الأحد 02 · الإثنين 03 · الثلاثاء 04 · الأربعاء 05 · الخميس 06 · [جمعة 07 · سبت 08]
 //   الأحد 09 · الإثنين 10 · الثلاثاء 11 · الأربعاء 12 · الخميس 13 · [جمعة 14 · سبت 15]
 
-const fs = require('fs');
+const { execFileSync } = require('child_process');
 const vm = require('vm');
 
+// المحرك صار وحدة ESM (الموجة W2)، فلم يعد يُقرأ كسكربت. القدرة المفحوصة لم تتغيّر
+// — 75 تأكيدًا كما هي — وإنما موضعها: يُحزَم بـesbuild في IIFE ويُشغَّل في سياق معزول.
+// وهذا **أدقّ** من السابق: كان الاختبار يحقن D من عنده محاكيًا config.js، والآن تأتي
+// من الوحدة نفسها كما تصل للمستخدم. (القاعدة الحاكمة السادسة: حدّث التأكيد، لا تعطّله.)
+const built = execFileSync('node_modules/.bin/esbuild',
+  ['src/engine.js', '--bundle', '--format=iife', '--global-name=__engine'],
+  { encoding: 'utf8' });
+
 const ctx = { console };
-ctx.D = s => new Date(s + 'T00:00:00');   // معرَّفة في config.js — تحتاجها computeTracking
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync('src/engine.js', 'utf8'), ctx);
-const { scheduleTasks, computeTracking, setHolidays, isWorkday, wdBetween } = ctx;
+vm.runInContext(built, ctx);
+const { scheduleTasks, computeTracking, setHolidays, isWorkday, wdBetween } = ctx.__engine;
 
 let ok = 0, fail = 0;
 const t = (n, c, x) => { if (c) { ok++; console.log('  ✓ ' + n); } else { fail++; console.log('  ✗ ' + n + (x ? ' → ' + x : '')); } };

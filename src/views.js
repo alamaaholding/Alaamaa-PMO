@@ -514,7 +514,7 @@ function ganttScaleHeader(lo,hi,off,px,scale,fmt){
     let d=new Date(lo);
     while(d<=hi){const nx=new Date(d.getFullYear(),d.getMonth()+1,1);const se=nx>hi?hi:new Date(nx-oneDay);const days=Math.round((se-d)/oneDay)+1;top+=T(off(d)*px,days*px,_MNAR[d.getMonth()]+' '+d.getFullYear());d=nx;}
     let dd=new Date(lo);
-    while(dd<=hi){const g=dd.getDay(),iso=isoLocal(dd),hol=(typeof HOLIDAYS!=='undefined'&&HOLIDAYS.has(iso)),we=(g===5||g===6)||hol;
+    while(dd<=hi){const g=dd.getDay(),iso=isoLocal(dd),hol=isHoliday(iso),we=(g===5||g===6)||hol;
       if(hol)wkends+=`<div class="wkend hol" style="right:${off(dd)*px}px;width:${px}px" title="${(window.HOLIDAY_NAMES&&window.HOLIDAY_NAMES[iso])||'عطلة'}"></div>`;
       bot+=`<div class="dhead${we?' we':''}${hol?' hd':''}" title="${hol?((window.HOLIDAY_NAMES&&window.HOLIDAY_NAMES[iso])||'عطلة'):''}" style="right:${off(dd)*px}px;width:${px}px">${dd.getDate()}</div>`;if(dd.getDay()===0)grid+=`<div class="vg" style="right:${off(dd)*px}px"></div>`;if(we)wkends+=`<div class="wkend" style="right:${off(dd)*px}px;width:${px}px"></div>`;dd=new Date(dd.getTime()+oneDay);}
   }else if(scale==='month'){
@@ -534,7 +534,7 @@ function ganttScaleHeader(lo,hi,off,px,scale,fmt){
     while(wk<=hi){bot+=`<div class="whead" style="right:${off(wk)*px}px;width:${7*px}px"><b>أسبوع ${wi}</b><s>${fmt(wk)}</s></div>`;grid+=`<div class="vg" style="right:${off(wk)*px}px"></div>`;wk=new Date(wk.getTime()+7*oneDay);wi++;}
     let wd=new Date(lo);
     while(wd<=hi){const g=wd.getDay(),iso=isoLocal(wd);
-      if(typeof HOLIDAYS!=='undefined'&&HOLIDAYS.has(iso)){wkends+=`<div class="wkend hol" style="right:${off(wd)*px}px;width:${px}px" title="${(window.HOLIDAY_NAMES&&window.HOLIDAY_NAMES[iso])||'عطلة'}"></div>`;wd=new Date(wd.getTime()+oneDay);continue;}
+      if(isHoliday(iso)){wkends+=`<div class="wkend hol" style="right:${off(wd)*px}px;width:${px}px" title="${(window.HOLIDAY_NAMES&&window.HOLIDAY_NAMES[iso])||'عطلة'}"></div>`;wd=new Date(wd.getTime()+oneDay);continue;}
       if(g===5){wkends+=`<div class="wkend" style="right:${off(wd)*px}px;width:${2*px}px"></div>`;wd=new Date(wd.getTime()+2*oneDay);continue;}
       if(g===6){wkends+=`<div class="wkend" style="right:${off(wd)*px}px;width:${px}px"></div>`;}wd=new Date(wd.getTime()+oneDay);}
   }
