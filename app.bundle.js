@@ -1,4 +1,4 @@
-const BUILD_V='5d35bd80';
+const BUILD_V='ab17145a';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -6675,9 +6675,18 @@ function qjRender(q){
   list.hidden=false;
   $$('#qjumpList [data-qj]').forEach((b,i)=>b.onclick=()=>qjGo(top[i]));
 }
+// إغلاق لوحة القفز السريع (الجوال) — واستعادة التركيز للزر الذي فتحها
+function qjClose(){
+  const wrap=$('#qjumpWrap'),list=$('#qjumpList'),input=$('#qjumpInput'),btn=$('#qjumpBtn');
+  if(list)list.hidden=true;
+  if(input){input.value='';input.blur();}
+  if(wrap&&wrap.classList.contains('open')){
+    wrap.classList.remove('open');
+    if(btn){btn.setAttribute('aria-expanded','false');btn.focus();}
+  }
+}
 async function qjGo(item){
-  const list=$('#qjumpList'),input=$('#qjumpInput');
-  if(list)list.hidden=true;if(input){input.value='';input.blur();}
+  qjClose();
   if(item.kind==='project'){CID=item.cid;PID=item.id;await openProject();return;}
   await renderClientHome(item.cid);
 }
@@ -6689,10 +6698,25 @@ function bindQJump(){
   input.addEventListener('focus',async()=>{if(!QJ_INDEX.length)await refreshQJIndex();qjRender(input.value);});
   input.addEventListener('input',()=>qjRender(input.value));
   input.addEventListener('keydown',e=>{
-    if(e.key==='Escape'){list.hidden=true;input.blur();}
+    if(e.key==='Escape'){qjClose();}
     else if(e.key==='Enter'){const first=list.querySelector('[data-qj]');if(first)first.click();}
   });
-  document.addEventListener('click',e=>{if(!wrap.contains(e.target))list.hidden=true;});
+  document.addEventListener('click',e=>{
+    if(wrap.classList.contains('open'))return;      // اللوحة كاملة الشاشة: لا «خارجها» تُنقَر
+    if(!wrap.contains(e.target)&&e.target!==$('#qjumpBtn'))list.hidden=true;
+  });
+  // الجوال: الزر يفتح اللوحة نفسها — لا واجهة بحث ثانية
+  const qbtn=$('#qjumpBtn');
+  if(qbtn){
+    qbtn.style.display=(ROLE==='pmo'||ROLE==='delivery')?'':'none';
+    qbtn.onclick=async()=>{
+      wrap.classList.add('open');
+      qbtn.setAttribute('aria-expanded','true');
+      if(!QJ_INDEX.length)await refreshQJIndex();
+      input.focus();
+    };
+  }
+  const qx=$('#qjumpClose');if(qx)qx.onclick=qjClose;
 }
 
 async function startApp(){
