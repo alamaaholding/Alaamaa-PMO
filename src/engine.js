@@ -1,13 +1,35 @@
+// ═══════════════════════════════════════════════════════════════════════
+//  محرك CPM — أول وحدة ESM حقيقية في المشروع (الموجة W2)
+// ═══════════════════════════════════════════════════════════════════════
+//  اختيرت أولًا لأنها **الورقة**: لا تعتمد على شيء بعد نقل D إليها، ويعتمد
+//  عليها سبعة ملفات. والتحويل يبدأ من الأوراق صعودًا لا من الجذر نزولًا.
+//  وهي أيضًا الأكثر حراسةً (75 تأكيدًا + فحص أنواع)، فأي انزلاق يظهر فورًا.
+//
+//  D كانت في config.js وتُستخدَم هنا — وهي مساعد تقويم يخصّ الجدولة أصلًا،
+//  فنقلها إلى موضعها الصحيح هو ما جعل هذه الوحدة مكتفية بذاتها. تُصدَّر منها
+//  ويستهلكها الباقي عبر globalThis حتى يُحوَّل بدوره.
+// ═══════════════════════════════════════════════════════════════════════
+
+/** نص ISO (YYYY-MM-DD) → Date محلّي عند منتصف الليل */
+export const D = s => new Date(s + 'T00:00:00');
+
 // تقويم العمل: الجمعة/السبت + العطلات الرسمية (تُحمَّل من القاعدة)
 let HOLIDAYS=new Set();
-function setHolidays(list){HOLIDAYS=new Set((list||[]).map(h=>typeof h==='string'?h:h.hdate));}
-function isoLocal(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-function isWorkday(d){const g=d.getDay();return g!==5&&g!==6&&!HOLIDAYS.has(isoLocal(d));}
+export function setHolidays(list){HOLIDAYS=new Set((list||[]).map(h=>typeof h==='string'?h:h.hdate));}
+export function isoLocal(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+/** هل هذا التاريخ (بصيغة ISO) عطلة رسمية؟
+ *  سبب النشأة: كان views.js يقرأ المجموعة HOLIDAYS مباشرةً من النطاق العام ليلوّن
+ *  أعمدة العطلات في الجانت — بحارس `typeof HOLIDAYS!=='undefined'`. وبتحويل المحرك
+ *  إلى وحدة صارت المجموعة خاصّة، فكان الحارس **سيبتلع العطل صامتًا**: تختفي أعمدة
+ *  العطلات من الجانت بلا خطأ ولا أثر. أمسكه no-undef على الحزمة قبل أن يصل لمستخدم.
+ *  الواجهة الصريحة أصحّ من تسريب البنية أصلًا: المستهلك يسأل سؤاله، لا يفتّش الداخل. */
+export function isHoliday(isoDate){return HOLIDAYS.has(isoDate);}
+export function isWorkday(d){const g=d.getDay();return g!==5&&g!==6&&!HOLIDAYS.has(isoLocal(d));}
 // عدّاد أيام العمل بين تاريخين (شامل الطرفين)
-function wdBetween(a,b){let c=0,d=new Date(a);const e=new Date(b);
+export function wdBetween(a,b){let c=0,d=new Date(a);const e=new Date(b);
   while(d<=e){if(isWorkday(d))c++;d=new Date(d.getTime()+86400000);}return c;}
 // ===== محرك CPM (مختبَر) =====
-function scheduleTasks(tasks,projectStartStr){
+export function scheduleTasks(tasks,projectStartStr){
   const isWD=isWorkday;const clone=d=>new Date(d.getTime());
   const ensureWD=d=>{d=clone(d);while(!isWD(d))d.setDate(d.getDate()+1);return d;};
   const nextWD=d=>{d=clone(d);d.setDate(d.getDate()+1);while(!isWD(d))d.setDate(d.getDate()+1);return d;};
@@ -115,7 +137,7 @@ function scheduleTasks(tasks,projectStartStr){
   return {R,pStart:start,pEnd,hasCycle,warnings,totalWD:wdB(start,pEnd)+1};
 }
 // ===== المتابعة =====
-function computeTracking(tasks,S,ddStr){
+export function computeTracking(tasks,S,ddStr){
   const isWD=isWorkday;
   const addWD=(d,n)=>{d=new Date(d.getTime());while(!isWD(d))d.setDate(d.getDate()+1);let c=0;while(c<n){d.setDate(d.getDate()+1);if(isWD(d))c++;}return d;};
   const wdB=(a,b)=>{let s=new Date(a),e=new Date(b),sg=1;if(e<s){const t=s;s=e;e=t;sg=-1;}let c=0,d=new Date(s);while(d<e){d.setDate(d.getDate()+1);if(isWD(d))c++;}return c*sg;};

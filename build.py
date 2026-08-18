@@ -9,17 +9,39 @@ ROOT=os.path.dirname(os.path.abspath(__file__))
 def read(p): return open(os.path.join(ROOT,p),encoding='utf-8').read()
 def write(p,c): open(os.path.join(ROOT,p),'w',encoding='utf-8').write(c)
 
-CORE=['src/config.js','src/engine.js','src/api.js','src/views.js','src/taskpanel.js',
+CORE=['src/config.js','src/api.js','src/views.js','src/taskpanel.js',
       'src/app/state.js','src/app/dialogs.js','src/app/lifecycle.js',
       'src/app/portfolio.js','src/app/staffaccess.js','src/app/clienthome.js','src/app/exportcontract.js','src/app/contracttemplate.js','src/app/contractsign.js','src/app/contractshub.js','src/app/workload.js','src/app/main.js']
 LAZY=['src/dol.js','src/importer.js','src/pgantt.js','src/timeline.js','src/trello.js','src/qrgen.js']
 
-core_js='\n\n'.join('/* ===== '+os.path.basename(f)+' ===== */\n'+read(f) for f in CORE)
+# ===== حزمة ESM: الوحدات المُحوَّلة تُحزَم بـesbuild وتُوضع أولًا =====
+# المشروع في هجرة تدريجية من نطاق عام مشترك إلى وحدات ESM (الموجة W2). البناء
+# هجين مؤقتًا: esbuild يحزم ما تحوّل، ثم تُلحَق الملفات القديمة نصيًا كما كانت.
+#
+# صيغة الإخراج IIFE لا ESM — وهذا قيد مفروض لا تفضيل: ستة عشر ملف اختبار تحقن
+# app.bundle.js **كنص** داخل نافذة jsdom، وأي صيغة أخرى تُسقط شبكة الأمان دفعة
+# واحدة. والقطعة توضع **أولًا** لأنها تعرض صادراتها على globalThis، فيراها ما
+# يليها من كود قديم لم يُحوَّل بعد.
+import subprocess, shutil
+ESM_ENTRY='src/bundle-entry.js'
+_esbuild = shutil.which('esbuild') or os.path.join(ROOT,'node_modules','.bin','esbuild')
+if not os.path.exists(_esbuild) and not shutil.which('esbuild'):
+    raise SystemExit('✗ esbuild غير موجود — شغّل `npm ci` أولًا. '
+                     '(ملاحظة: لا تستبعد devDependencies من تثبيت النشر، فالبناء يحتاجها.)')
+_r = subprocess.run([_esbuild, ESM_ENTRY, '--bundle', '--format=iife',
+                     '--target=es2020', '--legal-comments=none'],
+                    capture_output=True, text=True)
+if _r.returncode != 0:
+    raise SystemExit('✗ فشل حزم وحدات ESM:\n' + _r.stderr)
+esm_chunk = '/* ===== وحدات ESM (esbuild) ===== */\n' + _r.stdout
+
+core_js = esm_chunk + '\n\n' + '\n\n'.join('/* ===== '+os.path.basename(f)+' ===== */\n'+read(f) for f in CORE)
 lazy_js={os.path.basename(f):read(f) for f in LAZY}
 css=read('src/styles.css')
 html=read('src/index.html')
 
 # بصمة الإصدار من كامل المحتوى (أي تغيير في أي ملف = بصمة جديدة)
+# core_js يتضمّن قطعة ESM المحزومة، فأي تعديل في وحدة مُحوَّلة يغيّر البصمة.
 v=hashlib.sha1((core_js+css+''.join(lazy_js.values())+html).encode()).hexdigest()[:8]
 
 # حقن البصمة كثابت في أول الحزمة (تستخدمه مغلّفات التحميل الكسول)
