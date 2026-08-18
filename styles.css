@@ -369,7 +369,30 @@ header{background:linear-gradient(180deg,#1f1d18,var(--ink));color:var(--on-soli
 .qjump-item b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .qjs{font-size:var(--fs-xs);color:var(--muted);flex-shrink:0}
 .qjump-empty{padding:14px;text-align:center;color:var(--muted);font-size:var(--fs-sm)}
-@media(max-width:900px){.qjump-wrap{display:none!important}}
+/* ═══ الجوال: القفز السريع لا يختفي — يصير لوحة كاملة الشاشة ═══
+   سبب النشأة: كان `@media(max-width:900px){.qjump-wrap{display:none!important}}`
+   يُخفي **أهم أداة تنقّل في المنصّة** على الجوال **بلا أي بديل**. الإخفاء نفسه قرار
+   سليم (حقل بحث لا يليق بشريط رأس ضيّق)؛ الفجوة كانت غياب البديل (AUDIT §ب-٤).
+   والحل يعيد استخدام اللوحة نفسها ومنطقها نفسه (qjRender/qjGo) — لا واجهة بحث
+   ثانية موازية تتفرّع عنها لاحقًا. */
+.qjump-btn,.qjump-x{display:none}
+@media(max-width:900px){
+  .qjump-wrap{display:none!important}
+  .qjump-btn{display:inline-flex;font-size:1rem;padding:7px 11px}
+  .qjump-wrap.open{
+    display:block!important;position:fixed;inset:0;z-index:160;
+    background:var(--paper);padding:var(--s4);overflow:auto}
+  .qjump-wrap.open .qjump-in{
+    width:100%;font-size:16px;padding:13px var(--s4)}   /* 16px يمنع تكبير iOS التلقائي عند التركيز */
+  .qjump-wrap.open .qjump-list{
+    position:static;margin-top:var(--s3);max-height:none;box-shadow:none;border:none}
+  .qjump-wrap.open .qjump-item{padding:14px var(--s3);min-height:52px}   /* هدف لمس مريح */
+  .qjump-x{
+    display:block;position:absolute;inset-inline-end:var(--s4);top:var(--s4);
+    background:none;border:none;font-size:1.5rem;color:var(--muted);cursor:pointer;
+    line-height:1;padding:var(--s2);z-index:1}
+  .qjump-wrap.open .qjump-in{margin-top:var(--s8)}
+}
 .hright{margin-inline-start:auto;display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
 .usr{font-size:var(--fs-md);color:#cdbfa6}.usr b{color:var(--on-solid);font-weight:600}
 .rolechip{font-size:var(--fs-sm);font-weight:700;background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:var(--on-solid);padding:4px 12px;border-radius:999px;box-shadow:var(--e1)}
