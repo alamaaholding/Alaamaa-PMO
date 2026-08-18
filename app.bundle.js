@@ -1,4 +1,4 @@
-const BUILD_V='ab17145a';
+const BUILD_V='32c5dbbb';
 /* ===== config.js ===== */
 // ===== الإعدادات =====
 const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
@@ -1547,7 +1547,23 @@ async function openTrello(mode){
 /* ===== views.js ===== */
 // ===== العرض =====
 const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS Project)',gantt:'مخطط جانت',deliv:'المخرجات والمعالم',timeline:'خط التسليمات',cr:'طلبات تعديل الخطة',requests:'طلبات الخدمة',discuss:'النقاش',audit:'سجل المشروع'};
-function render(){
+// ===== render: المدخل الوحيد لإعادة بناء الشاشة — يحفظ موضع المستخدم دائمًا =====
+//
+// سبب النشأة: `preserveFocus` حلٌّ ناضج ومُختبَر لمشكلة حقيقية (إعادة البناء تهدم
+// DOM فتُصفَّر مواضع التمرير ويُفقد تركيز الحقل الذي كان المستخدم يكتب فيه للتو،
+// فتبدو الصفحة وكأنها «قفزت» أو أن ما كُتب «تصفّر»). لكنه كان مطبَّقًا في **موضعين
+// من 61** استدعاءً لـrender() — أي أن الـ59 الباقية ظلّت تُسقط المستخدم من مكانه.
+// (AUDIT §ج-١: فجوة تعميم لا فجوة معرفة.)
+//
+// العلاج ليس تعديل 61 موضع استدعاء — بل جعل السلوك الصحيح **هو المسار الافتراضي**:
+// render() صارت غلافًا يحفظ الموضع، والبناء الفعلي في renderNow(). كل موضع استدعاء
+// قائم أو قادم ينال السلوك الصحيح بلا أن يتذكّره كاتبه. وهذا يطابق قاعدة W4 الحاكمة:
+// ما يُصلَح يُجعل افتراضيًا، وإلا عاد.
+//
+// آمن على مسارات التنقّل أيضًا: preserveFocus لا تستعيد إلا ما وجدته — فإن لم يكن
+// ثمّة حقل مركَّز أو بقي العنصر المُمرَّر مفصولًا عن DOM بعد إعادة البناء، لا تفعل شيئًا.
+function render(){ preserveFocus(renderNow); }
+function renderNow(){
   if(!PROJECT){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا يوجد مشروع لهذا الشريك.</p>';return;}
   $('#backPortfolio').style.display=(ROLE!=='client')?'':'none';
   $('#manageAccess').style.display=(ROLE==='pmo')?'':'none';
@@ -1975,7 +1991,7 @@ function bindTable(){
           if(error){toast('تعذّر الحفظ: '+error.message,'err');return;}
           if(f==='fixedDate')toast(val?'ثُبِّتت البداية — لن تتغيّر بإعادة الجدولة':'أُزيل التثبيت — عادت للحساب من التبعيات','ok');
         }
-        preserveFocus(render);
+        render();   // التغليف صار داخل render نفسها
       });
     });
   });
