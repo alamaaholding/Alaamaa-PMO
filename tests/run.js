@@ -42,21 +42,42 @@ for (const f of jsFiles) {
 if (syntaxFailed) { console.error(`${RED}✗ ${syntaxFailed} ملفًا به خطأ صياغي${OFF}`); process.exit(1); }
 console.log(`  ${GREEN}✓${OFF} ${jsFiles.length} ملفًا سليمًا صياغيًا`);
 
-// ===== ٣) حارس النشر: كل ملف مُولَّد يجب أن يطابق مصدره بعد البناء =====
-// يمنع تكرار خطأ حقيقي وقع سابقًا: نُشر src/styles.css ونُسي styles.css الجذري،
-// فبقيت أنماط صفحة كاملة غائبة عن الموقع الحي رغم صحة الكود المصدري.
-console.log(`${BOLD}▸ حارس تطابق الملفات المُولَّدة...${OFF}`);
-const artifactPairs = [['src/styles.css', 'styles.css']];
-let mismatched = 0;
-for (const [src, out] of artifactPairs) {
-  if (!fs.existsSync(src) || !fs.existsSync(out)) continue;
-  if (fs.readFileSync(src, 'utf8') !== fs.readFileSync(out, 'utf8')) {
-    console.error(`  ${RED}✗ ${out} لا يطابق ${src} — شغّل build.py وانشر كليهما معًا${OFF}`);
-    mismatched++;
-  }
+// ===== ٣) حارس النشر: البناء يُنتج **كل** ملف يخدمه الموقع =====
+//
+// سبب النشأة محفوظ كما هو: نُشر src/styles.css مرة ونُسي styles.css الجذري، فبقيت
+// أنماط صفحة كاملة غائبة عن الموقع الحي رغم صحة الكود المصدري.
+//
+// ما تغيّر بعد W1 هو **الوسيلة لا الدرس**. كان الحارس يقارن الملف المُولَّد بمصدره
+// لأن المُولَّد كان مُلتزَمًا في المستودع. الآن يبنيه Cloudflare وقت النشر، فلم يعد
+// ثمّة نسخة مُلتزَمة تُقارَن. والخطر الجديد أدقّ: أن يضيف أحدهم ملفًا إلى LAZY في
+// build.py وينسى إدراجه في DEPLOY_ARTIFACTS، أو أن يتوقّف البناء عن إنتاج ملف يخدمه
+// الموقع فعلًا — فيصمت العطل حتى يفتح مستخدم الصفحة.
+//
+// فصار الحارس يسأل السؤال الصحيح: هل أنتج البناء كل ملف يعلن build.py أنه ينشره؟
+console.log(`${BOLD}▸ حارس النشر: اكتمال ناتج البناء...${OFF}`);
+const buildPy = fs.readFileSync('build.py', 'utf8');
+// قراءة قائمة أسماء من مصفوفة في build.py — تُبقي مصدر الحقيقة هناك لا هنا،
+// فإضافة وحدة كسولة جديدة تدخل الحراسة تلقائيًا بلا تعديل هذا الملف.
+const listFrom = key => {
+  const block = buildPy.match(new RegExp(key + '\\s*=\\s*\\[([^\\]]*)\\]'));
+  if (!block) return [];
+  return (block[1].match(/'([^']+)'/g) || []).map(q => q.slice(1, -1));
+};
+const expected = [
+  ...listFrom('DEPLOY_ARTIFACTS'),
+  ...listFrom('LAZY').map(f => path.basename(f))   // كل وحدة كسولة تُخدَم من الجذر
+];
+const missing = [...new Set(expected)].filter(f => !fs.existsSync(f));
+if (!expected.length) {
+  console.error(`  ${RED}✗ تعذّر قراءة DEPLOY_ARTIFACTS من build.py — الحارس أعمى${OFF}`);
+  process.exit(1);
 }
-if (mismatched) process.exit(1);
-console.log(`  ${GREEN}✓${OFF} الملفات المُولَّدة مطابقة لمصادرها`);
+if (missing.length) {
+  console.error(`  ${RED}✗ البناء لم يُنتج ${missing.length} ملفًا يعلن build.py أنه يُنشر:${OFF}`);
+  missing.forEach(f => console.error(`     ${f}`));
+  process.exit(1);
+}
+console.log(`  ${GREEN}✓${OFF} ${new Set(expected).size} ملفًا مُعلَنًا للنشر — كلها أنتجها البناء`);
 
 // ===== ٤) حارس الاتّساع: عدد الملفات المصدرية التي لا يستهدفها أي اختبار لا يزيد =====
 //

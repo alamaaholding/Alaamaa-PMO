@@ -1,2 +1,15 @@
 node_modules/
 coverage/
+
+# ═══ ملفات مُولَّدة — تُبنى في Cloudflare Pages وقت النشر (الموجة W1) ═══
+# الشرطة البادئة ضرورية: بدونها يطابق النمط الملفَّ في أي مستوى — فـ'index.html'
+# كان سيُخفي src/index.html نفسه، أي **المصدر** لا الناتج.
+/app.bundle.js
+/styles.css
+/index.html
+/dol.js
+/importer.js
+/pgantt.js
+/timeline.js
+/trello.js
+/qrgen.js

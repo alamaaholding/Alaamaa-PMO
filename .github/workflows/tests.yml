@@ -50,18 +50,22 @@ jobs:
       - name: تشغيل الاختبارات
         run: node tests/run.js
 
-      # حارس إضافي: البناء يجب ألا يُنتج أي فرق عن الملفات المدفوعة.
-      # يمنع تكرار خطأ حقيقي وقع سابقًا — نُشر المصدر ونُسي الملف المُولَّد الجذري،
-      # فبقيت أنماط صفحة كاملة غائبة عن الموقع الحي رغم صحة الكود المصدري.
-      - name: التحقق من أن الملفات المُولَّدة محدَّثة ومدفوعة
+      # حارس ما بعد W1: المُولَّد لم يعد مُلتزَمًا في المستودع — يبنيه Cloudflare Pages
+      # وقت النشر بالأمر `python3 build.py`. فلم يعد ثمّة نسخة مُلتزَمة تُقارَن، وحارس
+      # «الفرق عن المدفوع» فقد معناه. بديله يعمل داخل tests/run.js (القسم ٣): يتحقق
+      # أن البناء أنتج **كل** ملف يعلن build.py أنه ينشره — وهو السؤال الصحيح الآن.
+      #
+      # ويبقى حارس مستقل هنا: ألا يعود ملف مُولَّد إلى التتبّع سهوًا، فيتعارض المدفوع
+      # مع ما يبنيه النشر ويصير مصدرًا ثانيًا للحقيقة.
+      - name: التحقق من أن المُولَّد لم يعد إلى التتبّع
         run: |
-          python3 build.py > /dev/null
-          if ! git diff --quiet -- app.bundle.js styles.css index.html dol.js importer.js pgantt.js timeline.js trello.js qrgen.js; then
-            echo "::error::الملفات المُولَّدة غير محدَّثة — شغّل build.py وادفع الناتج معها"
-            git diff --stat -- app.bundle.js styles.css index.html dol.js importer.js pgantt.js timeline.js trello.js qrgen.js
+          TRACKED=$(git ls-files -- app.bundle.js styles.css index.html dol.js importer.js pgantt.js timeline.js trello.js qrgen.js)
+          if [ -n "$TRACKED" ]; then
+            echo "::error::ملفات مُولَّدة عادت إلى التتبّع — يبنيها النشر، فالتزامها يخلق مصدر حقيقة ثانيًا:"
+            echo "$TRACKED"
             exit 1
           fi
-          echo "✓ الملفات المُولَّدة محدَّثة ومطابقة"
+          echo "✓ لا ملف مُولَّد في التتبّع"
 
   # ===== حارس نظافة السجل =====
   # سبب النشأة: عشر دفعات متتالية في main برسالة **متطابقة حرفيًا** — السجل، وهو أرخص
