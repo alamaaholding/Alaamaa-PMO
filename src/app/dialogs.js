@@ -1,7 +1,14 @@
-// ===== app/dialogs.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
+// ===== app/dialogs.js — الحوار الموحَّد (وحدة ESM) =====
+//
+// اعتمادها الوحيد خارجها كان `esc` من views.js — دالة سطر واحد في ملف من ٩٨٢
+// سطرًا. بانتقال `esc` إلى format.js صار هذا الملف قابلًا للتحويل بلا أن يجرّ
+// طبقة العرض كلها معه.
+//
 // opts.html: HTML جاهز يُدرَج بين الرسالة والحقول (للمحتوى المُنسَّق كجدول الفروق).
 // يُبنى داخليًا فقط ولا يقبل مدخلات مستخدم خامًا.
-function dialog(opts){ // {title, message, html, fields:[{key,label,value,type,placeholder,options}], confirmText, danger}
+import { esc } from '../format.js';
+
+export function dialog(opts){ // {title, message, html, fields:[{key,label,value,type,placeholder,options}], confirmText, danger}
   return new Promise(resolve=>{
     const ov=document.getElementById('dlgOverlay');
     const fieldsHtml=(opts.fields||[]).map(f=>{
@@ -51,7 +58,7 @@ function dialog(opts){ // {title, message, html, fields:[{key,label,value,type,p
   });
 }
 
-async function confirmDialog(title,message,danger,confirmText){
+export async function confirmDialog(title,message,danger,confirmText){
   const r=await dialog({title,message,confirmText:confirmText||'تأكيد',danger});
   return r!==null;
 }

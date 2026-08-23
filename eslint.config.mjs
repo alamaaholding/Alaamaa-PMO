@@ -30,6 +30,27 @@ const SRC_DIRS = ['src', 'src/app'];
 // qrgen.js مكتبة خارجية مضمَّنة (vendored) — لا تخضع لقواعدنا ولا تُستخرج أسماؤها.
 const VENDORED = new Set(['qrgen.js']);
 
+// ═══ حدود الهجرة إلى ESM (الموجة W2) ═══
+// القائمة هي **مقياس التقدّم**: كل اسم هنا ملف تحوّل إلى وحدة حقيقية. تنمو مع كل
+// دفعة حتى تشمل الجميع، وعندها يُحذف استخراج الـglobals أدناه ويصير no-undef
+// دقيقًا لكل ملف على حدة بلا أي تنازل.
+const ESM_FILES = new Set(['engine.js', 'format.js', 'dialogs.js', 'bundle-entry.js']);
+const isESM = f => ESM_FILES.has(f);
+// المسارات الفعلية: بعض الوحدات في src/ وبعضها في src/app/، والقائمة أعلاه بالاسم
+// المجرّد كي يستخدمها الاستخراج أدناه (الذي يقرأ الأسماء لا المسارات). الفحص التالي
+// يمنع الخطأ الصامت الوحيد الممكن هنا: اسم مكتوب خطأً يسقط من الكتلتين معًا فلا
+// يُفحَص الملف بأي منهما.
+const ESM_PATHS = SRC_DIRS.flatMap(d => readdirSync(d).filter(isESM).map(f => `${d}/${f}`));
+if (ESM_PATHS.length !== ESM_FILES.size) {
+  throw new Error(`ESM_FILES يذكر ${ESM_FILES.size} ملفًا ووُجد منها ${ESM_PATHS.length}: ${ESM_PATHS.join(' ')}`);
+}
+// صادرات الوحدات المُحوَّلة التي يجسرها bundle-entry.js إلى globalThis للكود القديم.
+const ESM_BRIDGED = Object.fromEntries(
+  ['D', 'setHolidays', 'isoLocal', 'isWorkday', 'isHoliday', 'wdBetween',
+   'scheduleTasks', 'computeTracking',
+   'esc', 'fmt', 'fmtY', 'todayISO', 'slugify', 'uniqueSlug',
+   'dialog', 'confirmDialog'].map(n => [n, 'readonly']));
+
 function boundNames(node, out) {
   if (!node) return;
   switch (node.type) {
@@ -48,12 +69,22 @@ function collectTopLevelNames() {
     for (const file of readdirSync(dir)) {
       if (!file.endsWith('.js') || VENDORED.has(file)) continue;
       const code = readFileSync(join(dir, file), 'utf8');
-      const ast = parse(code, { ecmaVersion: 'latest', sourceType: 'script', loc: false });
+      const ast = parse(code, {
+        ecmaVersion: 'latest',
+        sourceType: isESM(file) ? 'module' : 'script',
+        loc: false
+      });
       for (const stmt of ast.body) {
-        if (stmt.type === 'FunctionDeclaration' || stmt.type === 'ClassDeclaration') {
-          if (stmt.id) names.add(stmt.id.name);
-        } else if (stmt.type === 'VariableDeclaration') {
-          stmt.declarations.forEach(d => boundNames(d.id, names));
+        // الوحدات المُحوَّلة: صادراتها تصل للكود القديم عبر globalThis (bundle-entry.js)،
+        // فتبقى globals من منظوره حتى يتحوّل بدوره. أما تعريفاتها الداخلية غير المُصدَّرة
+        // فلا تُسرَّب — وهذا هو المكسب: كل تحويل يُنقص النطاق العام فعليًا.
+        const decl = stmt.type === 'ExportNamedDeclaration' ? stmt.declaration : stmt;
+        if (!decl) continue;
+        if (stmt.type !== 'ExportNamedDeclaration' && isESM(file)) continue;
+        if (decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration') {
+          if (decl.id) names.add(decl.id.name);
+        } else if (decl.type === 'VariableDeclaration') {
+          decl.declarations.forEach(d => boundNames(d.id, names));
         }
       }
     }
@@ -127,6 +158,7 @@ export default [
   // ===== ملفات المصدر =====
   {
     files: ['src/**/*.js'],
+    ignores: ESM_PATHS,
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'script',
@@ -143,6 +175,19 @@ export default [
     }
   },
 
+  // ===== الوحدات المُحوَّلة إلى ESM =====
+  // هنا `no-undef` دقيق **بلا حيلة**: نطاق الوحدة مغلق، وكل اسم خارجي يجب أن يُستورَد
+  // صراحةً. هذا هو المكسب الحقيقي من W2، وهذه الكتلة تنمو حتى تبتلع الكتلة أعلاها.
+  {
+    files: ESM_PATHS,
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.browser }
+    },
+    rules: { ...js.configs.recommended.rules, ...CRITICAL_RULES }
+  },
+
   // ===== الحزمة المُولَّدة — النطاق الحقيقي وقت التشغيل =====
   // هنا وحدها يكون `no-undef` و`no-redeclare` دقيقين بلا تنازل: كل ملفات النواة في
   // نطاق واحد فعلًا، تمامًا كما يراها المتصفح. أي بلاغ هنا خطأ حقيقي سيقع عند المستخدم:
@@ -153,8 +198,11 @@ export default [
       ecmaVersion: 'latest',
       sourceType: 'script',
       // BUILD_V ليست global هنا — build.py تُصرّح بها في أول الحزمة نفسها.
+      // وصادرات وحدات ESM تصل إلى النطاق عبر `Object.assign(globalThis, …)` وقت
+      // التشغيل — وهو ما لا يراه التحليل الساكن. تُعلَن هنا صراحةً، والقائمة **تتقلّص**
+      // مع كل ملف يتحوّل ويستورد بدل أن يقرأ من globalThis، حتى تختفي مع اكتمال W2.
       // eslint-disable-next-line no-unused-vars
-      globals: (({ BUILD_V, ...rest }) => ({ ...globals.browser, ...rest }))(VENDOR_GLOBALS)
+      globals: (({ BUILD_V, ...rest }) => ({ ...globals.browser, ...rest, ...ESM_BRIDGED }))(VENDOR_GLOBALS)
     },
     rules: { ...js.configs.recommended.rules, ...CRITICAL_RULES }
   },
