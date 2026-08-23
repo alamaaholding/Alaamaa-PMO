@@ -19,5 +19,28 @@
 import * as engine from './engine.js';
 import * as format from './format.js';
 import * as dialogs from './app/dialogs.js';
+import * as contractTemplate from './app/contracttemplate.js';
+import { STATE_KEYS, getState, setState } from './app/state.js';
 
-Object.assign(globalThis, engine, format, dialogs);
+Object.assign(globalThis, engine, format, dialogs, contractTemplate);
+
+// ═══ الحالة المشتركة: واصفات لا نسخ ═══
+// النسخ (Object.assign) يصلح للدوال ولا يصلح للحالة — ينسخ القيمة مرة واحدة
+// فتتجمّد، بينما تتغيّر الحالة الحقيقية بعدها فلا يرى الكود القديم التغيير.
+// فالحالة تُوصَل بواصفات: كل قراءة وكل كتابة تمرّ إلى الوحدة وقت حدوثها.
+//
+// وهذا ما يجعل ٦٣١ موضع قراءة و٦٩ موضع كتابة تعمل **بلا تعديل حرف واحد فيها**:
+// الكود القديم يكتب `CID = x` فيلتقطها الـsetter، ويقرأ `PROJECT.tasks` فيجيبه
+// الـgetter بالقيمة الحيّة. (الإسناد بلا تصريح يصل إلى globalThis لأن الحزمة
+// سكربت غير صارم — وهو نفس القيد الذي فرض صيغة IIFE.)
+//
+// configurable: true عن قصد — كي تُحذف هذه الواصفات دفعةً واحدة يوم يكتمل
+// التحويل ويستورد كل ملف getState/setState صراحةً.
+for (const key of STATE_KEYS) {
+  Object.defineProperty(globalThis, key, {
+    configurable: true,
+    enumerable: true,
+    get: () => getState(key),
+    set: value => { setState(key, value); }
+  });
+}

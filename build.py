@@ -10,8 +10,8 @@ def read(p): return open(os.path.join(ROOT,p),encoding='utf-8').read()
 def write(p,c): open(os.path.join(ROOT,p),'w',encoding='utf-8').write(c)
 
 CORE=['src/config.js','src/api.js','src/views.js','src/taskpanel.js',
-      'src/app/state.js','src/app/lifecycle.js',
-      'src/app/portfolio.js','src/app/staffaccess.js','src/app/clienthome.js','src/app/exportcontract.js','src/app/contracttemplate.js','src/app/contractsign.js','src/app/contractshub.js','src/app/workload.js','src/app/main.js']
+      'src/app/lifecycle.js',
+      'src/app/portfolio.js','src/app/staffaccess.js','src/app/clienthome.js','src/app/exportcontract.js','src/app/contractsign.js','src/app/contractshub.js','src/app/workload.js','src/app/main.js']
 LAZY=['src/dol.js','src/importer.js','src/pgantt.js','src/timeline.js','src/trello.js','src/qrgen.js']
 
 # ===== حزمة ESM: الوحدات المُحوَّلة تُحزَم بـesbuild وتُوضع أولًا =====
