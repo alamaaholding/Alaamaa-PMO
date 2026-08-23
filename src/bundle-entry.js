@@ -17,5 +17,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 
 import * as engine from './engine.js';
+import * as format from './format.js';
+import * as dialogs from './app/dialogs.js';
 
-Object.assign(globalThis, engine);
+Object.assign(globalThis, engine, format, dialogs);

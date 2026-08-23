@@ -34,12 +34,22 @@ const VENDORED = new Set(['qrgen.js']);
 // القائمة هي **مقياس التقدّم**: كل اسم هنا ملف تحوّل إلى وحدة حقيقية. تنمو مع كل
 // دفعة حتى تشمل الجميع، وعندها يُحذف استخراج الـglobals أدناه ويصير no-undef
 // دقيقًا لكل ملف على حدة بلا أي تنازل.
-const ESM_FILES = new Set(['engine.js', 'bundle-entry.js']);
+const ESM_FILES = new Set(['engine.js', 'format.js', 'dialogs.js', 'bundle-entry.js']);
 const isESM = f => ESM_FILES.has(f);
+// المسارات الفعلية: بعض الوحدات في src/ وبعضها في src/app/، والقائمة أعلاه بالاسم
+// المجرّد كي يستخدمها الاستخراج أدناه (الذي يقرأ الأسماء لا المسارات). الفحص التالي
+// يمنع الخطأ الصامت الوحيد الممكن هنا: اسم مكتوب خطأً يسقط من الكتلتين معًا فلا
+// يُفحَص الملف بأي منهما.
+const ESM_PATHS = SRC_DIRS.flatMap(d => readdirSync(d).filter(isESM).map(f => `${d}/${f}`));
+if (ESM_PATHS.length !== ESM_FILES.size) {
+  throw new Error(`ESM_FILES يذكر ${ESM_FILES.size} ملفًا ووُجد منها ${ESM_PATHS.length}: ${ESM_PATHS.join(' ')}`);
+}
 // صادرات الوحدات المُحوَّلة التي يجسرها bundle-entry.js إلى globalThis للكود القديم.
 const ESM_BRIDGED = Object.fromEntries(
   ['D', 'setHolidays', 'isoLocal', 'isWorkday', 'isHoliday', 'wdBetween',
-   'scheduleTasks', 'computeTracking'].map(n => [n, 'readonly']));
+   'scheduleTasks', 'computeTracking',
+   'esc', 'fmt', 'fmtY', 'todayISO', 'slugify', 'uniqueSlug',
+   'dialog', 'confirmDialog'].map(n => [n, 'readonly']));
 
 function boundNames(node, out) {
   if (!node) return;
@@ -148,7 +158,7 @@ export default [
   // ===== ملفات المصدر =====
   {
     files: ['src/**/*.js'],
-    ignores: [...ESM_FILES].map(f => `src/${f}`),
+    ignores: ESM_PATHS,
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'script',
@@ -169,7 +179,7 @@ export default [
   // هنا `no-undef` دقيق **بلا حيلة**: نطاق الوحدة مغلق، وكل اسم خارجي يجب أن يُستورَد
   // صراحةً. هذا هو المكسب الحقيقي من W2، وهذه الكتلة تنمو حتى تبتلع الكتلة أعلاها.
   {
-    files: [...ESM_FILES].map(f => `src/${f}`),
+    files: ESM_PATHS,
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

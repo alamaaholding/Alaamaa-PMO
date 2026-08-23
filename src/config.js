@@ -7,11 +7,9 @@ const STATUS={notstarted:'لم تبدأ',inprogress:'جارية',blocked:'متو
 const TYPES={task:'مهمة',milestone:'معلم',fixed:'ثابت',cont:'مستمر',package:'حزمة عمل'};
 const ROLE_NAMES={pmo:'مكتب إدارة المشاريع',delivery:'الفريق',client:'الشريك'};
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
-const fmt=d=>{const x=new Date(d);return('0'+x.getDate()).slice(-2)+'/'+('0'+(x.getMonth()+1)).slice(-2);};
-const fmtY=d=>{const x=new Date(d);return x.getFullYear()+'-'+('0'+(x.getMonth()+1)).slice(-2)+'-'+('0'+x.getDate()).slice(-2);};
-// D انتقلت إلى engine.js (الموجة W2) — موضعها الصحيح مع تقويم العمل والجدولة.
-// تصل إلى هنا عبر globalThis من حزمة ESM التي تسبق هذا الملف في الترتيب.
-function todayISO(){return fmtY(new Date());}
+// D انتقلت إلى engine.js، و fmt/fmtY/todayISO/slugify/uniqueSlug إلى format.js
+// (الموجة W2). كلها تصل إلى هنا عبر globalThis من حزمة ESM التي تسبق هذا الملف
+// في ترتيب البناء.
 
 
 // ===== الصلاحيات =====
@@ -202,34 +200,6 @@ function preserveFocus(rerenderFn){
     }
   }
   scrollers.forEach(([c,top])=>{if(document.body.contains(c))c.scrollTop=top;});
-}
-
-// ===== توليد معرّف نظيف (Slug) من اسم عربي — تقريب صوتي، يُعرض دائمًا كحقل قابل للتعديل =====
-// لا يوجد تحويل آلي عربي↔لاتيني دقيق ١٠٠٪ (الحروف المتحركة القصيرة لا تُكتب عربيًا أصلًا)،
-// فهذا تقريب معقول يُراجعه المستخدم ويُعدِّله يدويًا قبل الاعتماد — هذا قرار مقصود لا نقص.
-const AR_TRANSLIT={
-  'أ':'a','إ':'i','آ':'a','ا':'a','ء':'','ئ':'e','ؤ':'o',
-  'ب':'b','ت':'t','ث':'th','ج':'j','ح':'h','خ':'kh',
-  'د':'d','ذ':'th','ر':'r','ز':'z','س':'s','ش':'sh',
-  'ص':'s','ض':'d','ط':'t','ظ':'z','ع':'a','غ':'gh',
-  'ف':'f','ق':'q','ك':'k','ل':'l','م':'m','ن':'n',
-  'ه':'h','و':'w','ي':'y','ة':'a','ى':'a',
-  ' ':'-','_':'-','-':'-'
-};
-function transliterateArabic(s){
-  return (s||'').split('').map(ch=>ch in AR_TRANSLIT?AR_TRANSLIT[ch]:(/[a-zA-Z0-9]/.test(ch)?ch:'')).join('');
-}
-function slugify(name){
-  return transliterateArabic(String(name||'').trim().toLowerCase())
-    .replace(/[^a-z0-9-]/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'')||'client';
-}
-// معرّف فريد: يتحقق مقابل القائمة الحالية (CLIENTS)، ويضيف لاحقة رقمية عند التطابق
-function uniqueSlug(name,existing){
-  const base=slugify(name);
-  const taken=new Set((existing||[]).map(c=>c.slug).filter(Boolean));
-  if(!taken.has(base))return base;
-  let i=2;while(taken.has(base+'-'+i))i++;
-  return base+'-'+i;
 }
 
 const I={

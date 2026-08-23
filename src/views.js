@@ -135,7 +135,7 @@ function emptyState(o){
   return `<${tag} class="empty-state">${inner}</${tag}>`;
 }
 
-function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+// esc() انتقلت إلى format.js (الموجة W2) — تصل عبر globalThis من حزمة ESM.
 
 function vDashboard(){
   const tasks=PROJECT.tasks.filter(t=>t.type!=='cont'&&t.type!=='package'),S=SCHED,T=TRACK,dd=D(DATA_DATE);
