@@ -19,12 +19,13 @@
 import * as engine from './engine.js';
 import * as format from './format.js';
 import * as config from './config.js';
+import * as api from './api.js';
 import * as toastMod from './toast.js';
 import * as dialogs from './app/dialogs.js';
 import * as contractTemplate from './app/contracttemplate.js';
 import { STATE_KEYS, getState, setState } from './app/state.js';
 
-Object.assign(globalThis, engine, format, config, toastMod, dialogs, contractTemplate);
+Object.assign(globalThis, engine, format, config, api, toastMod, dialogs, contractTemplate);
 
 // ═══ الحالة المشتركة: واصفات لا نسخ ═══
 // النسخ (Object.assign) يصلح للدوال ولا يصلح للحالة — ينسخ القيمة مرة واحدة
