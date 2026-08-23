@@ -34,7 +34,7 @@ const VENDORED = new Set(['qrgen.js']);
 // القائمة هي **مقياس التقدّم**: كل اسم هنا ملف تحوّل إلى وحدة حقيقية. تنمو مع كل
 // دفعة حتى تشمل الجميع، وعندها يُحذف استخراج الـglobals أدناه ويصير no-undef
 // دقيقًا لكل ملف على حدة بلا أي تنازل.
-const ESM_FILES = new Set(['engine.js', 'format.js', 'config.js', 'dialogs.js',
+const ESM_FILES = new Set(['engine.js', 'format.js', 'config.js', 'toast.js', 'dialogs.js',
   'contracttemplate.js', 'state.js', 'bundle-entry.js']);
 const isESM = f => ESM_FILES.has(f);
 // المسارات الفعلية: بعض الوحدات في src/ وبعضها في src/app/، والقائمة أعلاه بالاسم
@@ -50,7 +50,7 @@ const ESM_BRIDGED = Object.fromEntries(
   ['D', 'setHolidays', 'isoLocal', 'isWorkday', 'isHoliday', 'wdBetween',
    'scheduleTasks', 'computeTracking',
    'esc', 'fmt', 'fmtY', 'todayISO', 'slugify', 'uniqueSlug',
-   'dialog', 'confirmDialog',
+   'dialog', 'confirmDialog', 'toast', 'toastUndo',
    'CONTRACT_TEMPLATES', 'mergeContract',
    'renderMergedContractHTML', 'renderCustomContractHTML',
    // config.js — اثنان وثلاثون اسمًا
