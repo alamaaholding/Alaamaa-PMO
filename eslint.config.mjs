@@ -34,8 +34,8 @@ const VENDORED = new Set(['qrgen.js']);
 // القائمة هي **مقياس التقدّم**: كل اسم هنا ملف تحوّل إلى وحدة حقيقية. تنمو مع كل
 // دفعة حتى تشمل الجميع، وعندها يُحذف استخراج الـglobals أدناه ويصير no-undef
 // دقيقًا لكل ملف على حدة بلا أي تنازل.
-const ESM_FILES = new Set(['engine.js', 'format.js', 'dialogs.js', 'contracttemplate.js',
-  'state.js', 'bundle-entry.js']);
+const ESM_FILES = new Set(['engine.js', 'format.js', 'config.js', 'dialogs.js',
+  'contracttemplate.js', 'state.js', 'bundle-entry.js']);
 const isESM = f => ESM_FILES.has(f);
 // المسارات الفعلية: بعض الوحدات في src/ وبعضها في src/app/، والقائمة أعلاه بالاسم
 // المجرّد كي يستخدمها الاستخراج أدناه (الذي يقرأ الأسماء لا المسارات). الفحص التالي
@@ -52,7 +52,14 @@ const ESM_BRIDGED = Object.fromEntries(
    'esc', 'fmt', 'fmtY', 'todayISO', 'slugify', 'uniqueSlug',
    'dialog', 'confirmDialog',
    'CONTRACT_TEMPLATES', 'mergeContract',
-   'renderMergedContractHTML', 'renderCustomContractHTML'].map(n => [n, 'readonly']));
+   'renderMergedContractHTML', 'renderCustomContractHTML',
+   // config.js — اثنان وثلاثون اسمًا
+   'SUPABASE_URL', 'sb', 'TRACKS', 'STATUS', 'TYPES', 'ROLE_NAMES', '$', '$$',
+   'PERMS', 'openCRs', 'structuralUnlocked', 'can', 'AUDIT_ACTIONS', 'AUDIT_ENTITIES',
+   'hasCompanyScope', 'canSeeProject', 'PROJECT_STATUS_DEFS', 'statusByKey',
+   'computeProjectStatus', 'worstProjectStatus', 'renderStatusBadge', 'aggregateClientRows',
+   'preserveFocus', 'I', 'VIEW_ICONS', 'VIEW_TONE', 'taskTopAncestor', 'projTrackList',
+   'trackMeta', 'DELIV_SRC', 'DELIV_KIND', 'DELIV_STATUS'].map(n => [n, 'readonly']));
 
 // ═══ الحالة المشتركة — تصل عبر واصفات على globalThis (bundle-entry.js) ═══
 // ليست صادرات تُنسَخ، فلا يراها الاستخراج أعلاه ولا أي تحليل ساكن. وتُعلَن هنا
