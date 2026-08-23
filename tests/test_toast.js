@@ -85,13 +85,26 @@ t('النقر يزيل الإشعار فورًا', wrap.children.length === befo
 setTimeout(() => {
   t('ونداء التراجع نُفِّذ', undone === 1);
 
-  console.log('\n▸ ثغرة موثَّقة — قائمة في هذه الدفعة، تُغلَق في التالية');
-  // القاعدة الحاكمة الثانية: هذه الدفعة **نقل خالص**، ولا تغيّر سلوكًا. الثغرة
-  // تُثبَّت كما هي أولًا كي يكون إغلاقها في الدفعة التالية فرقًا يُقرأ وحده،
-  // ودليلًا على أنه أغلقها فعلًا لا أنه بدا كذلك.
+  console.log('\n▸ الثغرة مُغلَقة — والرسالة نصّ لا HTML');
+  // الحالة الحقيقية: اسم شريك يكتبه المستخدم يصل إلى toast عبر
+  //   toast('أُنشئ الشريك «'+r.name+'» — أضف مشروعه الأول من ⋮','ok')
   clear(); w.toast('أُنشئ الشريك «<img src=x onerror=alert(1)>»', 'ok');
-  t('وسم يُبنى فعلًا من نصّ يكتبه المستخدم (الثغرة)',
-    last().querySelectorAll('img').length === 1);
+  t('لا وسم يُبنى من اسم يكتبه المستخدم', last().querySelectorAll('img').length === 0);
+  t('والنص يظهر كنص كما كتبه', last().textContent.includes('<img src=x onerror=alert(1)>'));
+
+  // المسار الثاني والأكثر شيوعًا: رسالة خطأ من الخادم قد تُعيد ما أُرسل إليه.
+  clear(); w.toast('تعذّر الحفظ: ' + '<script>alert(1)</scr' + 'ipt>', 'err');
+  t('حمولة من رسالة الخادم لا تصير سكربتًا', last().querySelectorAll('script').length === 0);
+  t('ولا وسم واحد داخل خانة الرسالة',
+    last().lastElementChild.children.length === 0);
+
+  clear(); w.toastUndo('حُذف «<b>x</b>»', () => {});
+  t('toastUndo تُرمّز أيضًا', last().querySelectorAll('b').length === 0);
+  t('وزر التراجع يبقى سليمًا بعد الترميز', !!last().querySelector('.undo-btn'));
+
+  // الأيقونة ثابتة داخلية ولا تُرمَّز — يجب أن تبقى ظاهرة كما هي.
+  clear(); w.toast('نص', 'ok');
+  t('الترميز لم يمسّ الأيقونة', last().textContent.includes('✓'));
 
   console.log(`\nنجح ${ok} · فشل ${fail}`);
   process.exit(fail ? 1 : 0);
