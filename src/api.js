@@ -1,36 +1,6 @@
-// ===== المصادقة =====
-async function loadIdentity(){
-  const {data:{user}}=await sb.auth.getUser();USER=user;if(!user)return null;
-  const {data:tm}=await sb.from('team_members').select('role,is_active,full_name').eq('id',user.id).maybeSingle();
-  if(tm&&tm.is_active){ROLE=(tm.role==='admin')?'pmo':(tm.role==='manager'?'delivery':'client');USER._name=tm.full_name||user.email;
-    try{const {data:own}=await sb.rpc('pmo_is_owner');IS_OWNER=(own===true);if(IS_OWNER)ROLE='pmo';}catch(e){IS_OWNER=false;}
-    if(!IS_OWNER){try{MY_ACCESS=await fetchMyStaffAccess();}catch(e){MY_ACCESS=[];}}}
-  else{
-    // شريك: نتحقق من التصريح بالإيميل (دالة pmo_my_client_ids)
-    const {data:ids}=await sb.rpc('pmo_my_client_ids');
-    if(ids&&ids.length){ROLE='client';USER._name=user.email;}else ROLE=null;
-  }
-  return ROLE;
-}
-async function boot(){
-  // رابط التوقيع العام: مسار مستقل تمامًا، لا يمرّ عبر تسجيل الدخول إطلاقًا —
-  // الحارس الحقيقي هو الرمز العشوائي في الرابط نفسه، لا الجلسة.
-  const signMatch=/^#\/sign\/([a-zA-Z0-9]+)$/.exec(location.hash||'');
-  if(signMatch){ $('#loader').classList.add('hidden'); return renderPublicSign(signMatch[1]); }
-  const {data:{session}}=await sb.auth.getSession();
-  if(session){await loadIdentity();if(ROLE){return startApp();}else{return showDenied();}}
-  showLogin();
-}
-function showLogin(){$('#login').classList.remove('hidden');$('#app').classList.add('hidden');$('#loader').classList.add('hidden');}
-function showDenied(){showLogin();$('#denied').classList.remove('hidden');}
-$('#googleBtn').onclick=async()=>{
-  $('#loginErr').style.display='none';
-  const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname}});
-  if(error){$('#loginErr').textContent='تعذّر بدء الدخول';$('#loginErr').style.display='block';}
-};
-$('#signout').onclick=$('#signoutDenied').onclick=async()=>{await sb.auth.signOut();location.reload();};
-$('#backPortfolio').onclick=async()=>{ await renderPortfolio(); $('#backPortfolio').style.display='none'; };
-
+// ===== api.js — الوصول إلى البيانات =====
+// المصادقة وبوابة الدخول انتقلتا إلى app/session.js (الموجة W2): لم تكونا من
+// عمل هذا الملف، وكانتا وحدهما ما يربطه بالملفات غير المُحوَّلة.
 
 // ===== تحميل المشروع =====
 async function loadClients(){
