@@ -44,7 +44,6 @@ async function loadClients(){
     CLIENTS=CLIENTS.filter(c=>okClientIds.has(c.id));
   }
 }
-const PROJECT_CACHE={}; // تخزين مؤقت للمشاريع المحمّلة (يُبطل عند الكتابة)
 async function loadProject(clientId, projectId){
   CID=clientId;
   let q=sb.from('pmo_projects').select('*').eq('client_id',clientId);
@@ -284,11 +283,8 @@ async function insertRequirement(row){ return await sb.from('pmo_requirements').
 async function fetchDecisions(){ return (await sb.from('pmo_v2_decisions').select('*').order('created_at')).data||[]; }
 async function fetchDecisionProjects(){ return (await sb.from('pmo_v2_decision_projects').select('*')).data||[]; }
 async function insertDecision(row){ return await sb.from('pmo_v2_decisions').insert(row).select().single(); }
-async function updateDecision(id,patch){ return await sb.from('pmo_v2_decisions').update(patch).eq('id',id); }
 async function deleteDecision(id){ return await sb.from('pmo_v2_decisions').delete().eq('id',id); }
-async function linkDecisionProject(decisionId,projectId){ return await sb.from('pmo_v2_decision_projects').insert({decision_id:decisionId,project_id:projectId}); }
 async function evaluateDecision(gateId,values){ return await sb.rpc('pmo_v2_evaluate_decision',{p_gate_id:gateId,p_values:values}); }
-async function fetchDeviations(decisionId){ return (await sb.from('pmo_v2_deviations').select('*').eq('decision_id',decisionId)).data||[]; }
 async function insertDeviation(row){ return await sb.from('pmo_v2_deviations').insert(row); }
 async function fetchDecisionLinks(decisionId){ return (await sb.from('pmo_v2_decision_links').select('*').eq('decision_id',decisionId)).data||[]; }
 async function insertDecisionLink(row){ return await sb.from('pmo_v2_decision_links').insert(row); }
@@ -577,25 +573,6 @@ async function sealContract(c){
   if(error)throw error;
   return data||{};
 }
-async function createContract(projectId,baselineId,opts){
-  opts=opts||{};
-  const clientC=(CLIENTS||[]).find(x=>x.id===CID)||{};
-  const hash=await computeContractHash({
-    clientName:clientC.name,clientCr:clientC.cr_number,clientAddress:clientC.national_address_short,
-    clientRepName:clientC.rep_name,clientRepTitle:clientC.rep_title,clientEmail:clientC.contact_email,clientPhone:clientC.contact_phone,
-    includesAdSpend:!!opts.includesAdSpend,effectiveDate:opts.effectiveDate,
-    contractValue:opts.contractValue!=null?Number(opts.contractValue):null,
-    latePaymentCap:opts.contractValue?Math.round(Number(opts.contractValue)*0.03*100)/100:null
-  });
-  const {data,error}=await sb.rpc('pmo_create_contract',{
-    p_project_id:projectId,p_baseline_id:baselineId,
-    p_includes_ad_spend:!!opts.includesAdSpend,
-    p_effective_date:opts.effectiveDate||null,
-    p_contract_value:opts.contractValue!=null?Number(opts.contractValue):null,
-    p_document_hash:hash
-  });
-  if(error)throw error;return data;
-}
 // إنشاء شامل: يدعم نطاقَي مشروع/شريك كامل، ونوعَي قياسي/مخصَّص بنص حر — دالة واحدة لكل الحالات
 async function createContractV2(opts){
   opts=opts||{};
@@ -804,10 +781,6 @@ async function saveClientEmail(clientId,email){
   const {error}=await sb.from('pmo_clients').update({contact_email:email}).eq('id',clientId);
   if(error)throw error;
 }
-async function fetchContractSends(contractId){
-  const {data,error}=await sb.rpc('pmo_contract_sends_list',{p_contract_id:contractId});
-  if(error)throw error;return data||[];
-}
 async function fetchExpiringContracts(){
   const {data,error}=await sb.rpc('pmo_expiring_contracts');
   if(error)throw error;return data||[];
@@ -905,10 +878,6 @@ async function fetchContractsNeedingReminder(days){
   if(error)throw error;return data||[];
 }
 // (٨) تعارض القيمة المالية بين المشروع وعقده الموقَّع
-async function fetchValueMismatch(projectId){
-  const {data,error}=await sb.rpc('pmo_contract_value_mismatch',{p_project_id:projectId});
-  if(error)throw error;return data||{};
-}
 async function updateContract(contractId,opts){
   opts=opts||{};
   const {data,error}=await sb.rpc('pmo_update_contract',{

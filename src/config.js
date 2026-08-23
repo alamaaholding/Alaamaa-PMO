@@ -102,12 +102,6 @@ function myAccessLevelFor(projectId,dept,clientId){
   return rows.some(r=>r.access_level==='edit')?'edit':'view';
 }
 // هل يُسمح لي برؤية شريك كامل (له أي مشروع أراه، أو نطاق شريك/شركة مباشر)؟
-function canSeeClient(clientId,clientProjects){
-  if(IS_OWNER||hasCompanyScope())return true;
-  if(!MY_ACCESS.length)return true;
-  if(myClientScopes().has(clientId))return true;
-  return (clientProjects||[]).some(p=>canSeeProject(p.id,p.department,clientId));
-}
 
 // ===== نظام حالة المشروع الموحّد =====
 // كل حالة مبنية على بيانات حقيقية قابلة للحساب من pmo_portfolio() مباشرة، عدا حالة واحدة
