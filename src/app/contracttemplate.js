@@ -1,9 +1,25 @@
-// ===== app/contracttemplate.js — محرك دمج نص العقد =====
+// ===== app/contracttemplate.js — محرك دمج نص العقد (وحدة ESM) =====
+//
+// اعتمادها الوحيد خارجها `esc`، فصارت ورقة بانتقالها إلى format.js.
+//
+// وهي أوضح مثال حتى الآن على ما يعنيه التحويل عمليًا: عشرة أسماء في المستوى
+// الأعلى، **أربعة فقط** يستدعيها أحد من الخارج. الستة الباقية — نصّا النموذجين
+// ومساعدات التصيير الأربع — كانت في النطاق العام بلا سبب، وأثقلها
+// `CONTRACT_TEMPLATE` و`CONTRACT_TEMPLATE_V2`: مستندان قانونيان كاملان مكشوفان
+// لأي كود في المنصّة يمكنه تعديلهما. الآن لا يُرى منهما شيء إلا عبر
+// `CONTRACT_TEMPLATES` و`mergeContract`.
+//
+// (تنبيه للقارئ: `D` داخل `mergeContract` قاموس بيانات محلّي لا علاقة له بمساعد
+// التاريخ `D` في engine.js — وهو نفسه مثال حيّ على ما تمنعه الوحدات: اسم من حرف
+// واحد في نطاق مشترك.)
+//
 // مبدأ حاكم: لا إزاحة ترقيم إطلاقًا. العقد يحوي إحالات داخلية متبادلة برقم البند
 // (مثال: البند ٦ يحيل لـ«البند ٧»، ١٤.٥ يحيل لـ«١٠.٤»، ١٢.٣ يحيل لـ«١٢.١») — أي إزاحة
 // رقمية آلية بعد حذف بند تكسر هذه الإحالات وتُنتج مستندًا قانونيًا خاطئًا. لذا: البند
 // المشروط (الإنفاق الإعلاني) يبقى برقمه دائمًا، ويُستبدل متنه بسطر «غير منطبق» عند
 // استبعاده — كل الأرقام الأخرى وإحالاتها تبقى صحيحة دون أي تعديل.
+
+import { esc } from '../format.js';
 
 const CONTRACT_TEMPLATE = {
   intro: `**علامة**\n\n**عقد تقديم خدمات**\n\nأُبرم هذا العقد بين الطرفين الموضحة بياناتهما أدناه، وذلك وفق الشروط والأحكام التالية:`,
@@ -221,12 +237,12 @@ const CONTRACT_TEMPLATE_V2 = {
   signatures: CONTRACT_TEMPLATE.signatures
 };
 
-const CONTRACT_TEMPLATES={
+export const CONTRACT_TEMPLATES={
   alamaa_v1:{key:'alamaa_v1',label:'النموذج الشامل (17 بندًا — دوري + مشروع محدد النطاق)',tpl:CONTRACT_TEMPLATE},
   alamaa_v2:{key:'alamaa_v2',label:'النموذج المبسَّط الدوري (المعتمَد)',tpl:CONTRACT_TEMPLATE_V2}
 };
 
-function mergeContract(data){
+export function mergeContract(data){
   const D={
     اسم_الشريك:data.clientName||'—', سجل_الشريك:data.clientCr||'—', ضريبي_الشريك:data.clientVat||'—', عنوان_الشريك:data.clientAddress||'—',
     اسم_علامة:(data.org&&data.org.legal_name)||'علامة',
@@ -323,7 +339,7 @@ function ctrPartyTable(rows,orgName,partnerName){
       `<tr><th class="ctr-party-lbl">${esc(l)}</th><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}</tbody></table>`;
 }
 
-function renderMergedContractHTML(merged){
+export function renderMergedContractHTML(merged){
   const sectionsHtml=merged.sections.map(s=>
     `<div class="ctr-sec"><h4>${esc(s.num)}. ${esc(s.title)}</h4>${ctrBodyHtml(s.body)}</div>`).join('');
   const specialHtml=merged.specialTerms?
@@ -339,7 +355,7 @@ function renderMergedContractHTML(merged){
 
 // عقد بنص حر بالكامل — يحافظ على نفس هوية العرض البصرية (رأس + جدول أطراف + توقيعات)
 // لكن المتن نص حر كتبه المستخدم بنفسه، لا قالبًا مرقَّمًا ثابتًا.
-function renderCustomContractHTML(data){
+export function renderCustomContractHTML(data){
   const o=data.org||{};
   const partyRows=[
     ['الاسم',o.legal_name||'علامة',data.clientName||'—'],

@@ -34,7 +34,8 @@ const VENDORED = new Set(['qrgen.js']);
 // القائمة هي **مقياس التقدّم**: كل اسم هنا ملف تحوّل إلى وحدة حقيقية. تنمو مع كل
 // دفعة حتى تشمل الجميع، وعندها يُحذف استخراج الـglobals أدناه ويصير no-undef
 // دقيقًا لكل ملف على حدة بلا أي تنازل.
-const ESM_FILES = new Set(['engine.js', 'format.js', 'dialogs.js', 'bundle-entry.js']);
+const ESM_FILES = new Set(['engine.js', 'format.js', 'dialogs.js', 'contracttemplate.js',
+  'state.js', 'bundle-entry.js']);
 const isESM = f => ESM_FILES.has(f);
 // المسارات الفعلية: بعض الوحدات في src/ وبعضها في src/app/، والقائمة أعلاه بالاسم
 // المجرّد كي يستخدمها الاستخراج أدناه (الذي يقرأ الأسماء لا المسارات). الفحص التالي
@@ -49,7 +50,30 @@ const ESM_BRIDGED = Object.fromEntries(
   ['D', 'setHolidays', 'isoLocal', 'isWorkday', 'isHoliday', 'wdBetween',
    'scheduleTasks', 'computeTracking',
    'esc', 'fmt', 'fmtY', 'todayISO', 'slugify', 'uniqueSlug',
-   'dialog', 'confirmDialog'].map(n => [n, 'readonly']));
+   'dialog', 'confirmDialog',
+   'CONTRACT_TEMPLATES', 'mergeContract',
+   'renderMergedContractHTML', 'renderCustomContractHTML'].map(n => [n, 'readonly']));
+
+// ═══ الحالة المشتركة — تصل عبر واصفات على globalThis (bundle-entry.js) ═══
+// ليست صادرات تُنسَخ، فلا يراها الاستخراج أعلاه ولا أي تحليل ساكن. وتُعلَن هنا
+// **writable** لا readonly لأن الكود القديم يكتب فيها فعلًا (٦٩ موضعًا).
+// والقائمة تُقارَن آليًا بمصدرها أدناه: أي مفتاح يُضاف أو يُحذف في state.js بلا
+// تحديث هنا يُوقف ESLint برسالة تسمّي الفرق — بدل أن يمرّ كـno-undef زائف، أو
+// (وهو الأسوأ) كاسم مقبول بلا أساس.
+const STATE_KEYS = ['USER', 'ROLE', 'IS_OWNER', 'CLIENTS', 'CID', 'PID', 'PROJECT',
+  'SCHED', 'TRACK', 'DATA_DATE', 'PX', 'VIEW', 'CRS', 'PFILTER', 'PSEARCH',
+  'PEXPANDED', 'PALERTS', 'PSORT', 'MY_ACCESS', 'PROJ_DEPTS', 'PROJECT_ACCESS_DENIED'];
+{
+  const src = readFileSync('src/app/state.js', 'utf8');
+  const body = src.slice(src.indexOf('const state = {'), src.indexOf('\n};'));
+  const actual = [...body.matchAll(/^ {2}([A-Z_][A-Z0-9_]*):/gm)].map(m => m[1]);
+  const diff = [...actual.filter(k => !STATE_KEYS.includes(k)).map(k => '+' + k),
+                ...STATE_KEYS.filter(k => !actual.includes(k)).map(k => '-' + k)];
+  if (diff.length) {
+    throw new Error(`مفاتيح الحالة في eslint.config.mjs لا تطابق src/app/state.js: ${diff.join(' ')}`);
+  }
+}
+const STATE_GLOBALS = Object.fromEntries(STATE_KEYS.map(n => [n, 'writable']));
 
 function boundNames(node, out) {
   if (!node) return;
@@ -162,7 +186,7 @@ export default [
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'script',
-      globals: { ...globals.browser, ...PROJECT_GLOBALS, ...VENDOR_GLOBALS }
+      globals: { ...globals.browser, ...PROJECT_GLOBALS, ...VENDOR_GLOBALS, ...STATE_GLOBALS }
     },
     rules: {
       ...js.configs.recommended.rules,
@@ -202,7 +226,7 @@ export default [
       // التشغيل — وهو ما لا يراه التحليل الساكن. تُعلَن هنا صراحةً، والقائمة **تتقلّص**
       // مع كل ملف يتحوّل ويستورد بدل أن يقرأ من globalThis، حتى تختفي مع اكتمال W2.
       // eslint-disable-next-line no-unused-vars
-      globals: (({ BUILD_V, ...rest }) => ({ ...globals.browser, ...rest, ...ESM_BRIDGED }))(VENDOR_GLOBALS)
+      globals: (({ BUILD_V, ...rest }) => ({ ...globals.browser, ...rest, ...ESM_BRIDGED, ...STATE_GLOBALS }))(VENDOR_GLOBALS)
     },
     rules: { ...js.configs.recommended.rules, ...CRITICAL_RULES }
   },

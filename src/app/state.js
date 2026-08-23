@@ -1,8 +1,100 @@
-// ===== app/state.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
-// ===== الحالة =====
-let USER=null,ROLE=null,IS_OWNER=false,CLIENTS=[],CID=null,PID=null,PROJECT=null,SCHED=null,TRACK=null,DATA_DATE=todayISO(),PX=20,VIEW='dashboard',CRS=[],PFILTER='all',PSEARCH='',PEXPANDED=new Set(),PALERTS=new Set(),PSORT='alerts';
-// نظام صلاحيات الفريق: MY_ACCESS=صلاحيات المستخدم الحالي المخصَّصة له (فارغة = لا قيود، كما كان دائمًا)
-let MY_ACCESS=[],PROJ_DEPTS={},PROJECT_ACCESS_DENIED=false;
-try{const sv=JSON.parse(localStorage.getItem('pmo_pfilters')||'{}');
-  if(sv.PFILTER)PFILTER=sv.PFILTER; if(sv.PSORT)PSORT=sv.PSORT; if(Array.isArray(sv.PALERTS))PALERTS=new Set(sv.PALERTS);
-}catch(e){}
+// ═══════════════════════════════════════════════════════════════════════
+//  app/state.js — حالة التطبيق المشتركة (وحدة ESM)
+// ═══════════════════════════════════════════════════════════════════════
+//
+//  هذه أخطر خطوة في W2، فالقرار فيها بُني على قياس لا على تقدير. عُدَّت مواضع
+//  القراءة والكتابة لكل اسم من الأحد والعشرين عبر الملفات الاثنين والعشرين:
+//
+//      كتابة:  ٦٩ موضعًا
+//      قراءة: ٦٣١ موضعًا        ← النسبة ١:٩
+//
+//  والنسبة هي التي حسمت التصميم. أي حلٍّ يفرض تعديل مواضع القراءة (تحويلها إلى
+//  `getState('PROJECT')` مثلًا) يعني فرقًا في **سبعمئة موضع** — أي إعادة كتابة
+//  التطبيق كله في دفعة واحدة غير قابلة للمراجعة، وفي أخطر جزء منه. وهذا بالضبط
+//  ما تمنعه القاعدة الحاكمة الثانية.
+//
+//  فالحلّ يبقي كل موضع كما هو حرفيًا:
+//
+//      الحالة تعيش في **كائن واحد** تملكه هذه الوحدة، ويُنصَّب لكل مفتاح
+//      واصفُ خاصية (getter/setter) على globalThis في الجسر. فالكود القديم
+//      يكتب `CID = x` ويقرأ `PROJECT.tasks` بلا حرف واحد يتغيّر — لكن كليهما
+//      يمرّ الآن عبر نقطة واحدة تملكها الوحدة.
+//
+//  ما رُبح فعليًا، لا شكليًا:
+//
+//   ١) **مصدر حقيقة واحد.** كانت إحدى وعشرين رابطة `let` سائبة في نطاق مشترك،
+//      يملكها الجميع ولا يملكها أحد. صارت كائنًا واحدًا له مالك.
+//
+//   ٢) **كل كتابة صارت مرصودة.** ٦٩ موضعًا كانت غير مرئية تمامًا تمرّ الآن عبر
+//      `setState`. وهذا ما يجعل التراجع العام (W5) و«مركز الإشعارات» ممكنَين
+//      أصلًا — لا يمكن التراجع عمّا لا تراه.
+//
+//   ٣) **الوحدات المُحوَّلة ترى القيمة الحيّة.** الجسر بالنسخ
+//      (`Object.assign`) يصلح للدوال ولا يصلح للحالة: ينسخ القيمة مرة واحدة،
+//      فتتجمّد. الواصفات تقرأ عند كل وصول.
+//
+//  وهذا **مرحلة لا غاية**: حين تتحوّل كل الملفات وتستورد `getState/setState`
+//  صراحةً، تُحذف الواصفات ولا يبقى للحالة أثر على globalThis.
+//
+//  ملاحظة على القراءة: `typeof PROJECT !== 'undefined'` المنتشر في الكود بقايا
+//  حراسة من TDZ يوم كان الترتيب النصي هو كل شيء. يبقى صحيحًا كما هو.
+
+import { todayISO } from '../format.js';
+
+/**
+ * الحالة المشتركة. كل مفتاح هنا كان `let` عامًّا قبل W2.
+ * لا تُصدَّر مباشرةً — الوصول عبر getState/setState وحدهما، كي تبقى نقطة
+ * الرصد واحدة ولا يلتفّ حولها أحد بمرجع مباشر.
+ */
+const state = {
+  USER: null,
+  ROLE: null,
+  IS_OWNER: false,
+  CLIENTS: [],
+  CID: null,
+  PID: null,
+  PROJECT: null,
+  SCHED: null,
+  TRACK: null,
+  DATA_DATE: todayISO(),
+  PX: 20,
+  VIEW: 'dashboard',
+  CRS: [],
+  PFILTER: 'all',
+  PSEARCH: '',
+  PEXPANDED: new Set(),
+  PALERTS: new Set(),
+  PSORT: 'alerts',
+  // نظام صلاحيات الفريق: MY_ACCESS = صلاحيات المستخدم الحالي المخصَّصة له
+  // (فارغة = لا قيود، كما كان دائمًا)
+  MY_ACCESS: [],
+  PROJ_DEPTS: {},
+  PROJECT_ACCESS_DENIED: false
+};
+
+/** أسماء المفاتيح — يقرؤها الجسر لتنصيب الواصفات، ويقرؤها الاختبار للتحقق. */
+export const STATE_KEYS = Object.freeze(Object.keys(state));
+
+/** قراءة قيمة حالة. مفتاح غير معروف خطأ برمجي لا قيمة `undefined` صامتة. */
+export function getState(key) {
+  if (!(key in state)) throw new Error(`مفتاح حالة غير معروف: ${key}`);
+  return state[key];
+}
+
+/** كتابة قيمة حالة — النقطة الوحيدة التي تمرّ منها كل كتابات التطبيق الـ٦٩. */
+export function setState(key, value) {
+  if (!(key in state)) throw new Error(`مفتاح حالة غير معروف: ${key}`);
+  state[key] = value;
+  return value;
+}
+
+// ===== استعادة تفضيلات اللوحة المحفوظة =====
+// تُقرأ عند التحميل كما كانت تمامًا. الفارق الوحيد أنها تكتب في الكائن لا في
+// روابط سائبة. `catch` الفارغ متعمَّد: تعذُّر الوصول لـlocalStorage (وضع خاص،
+// حظر ملفات تعريف) ليس عطلًا — التفضيلات ترجع لقيمها الافتراضية وحسب.
+try {
+  const sv = JSON.parse(localStorage.getItem('pmo_pfilters') || '{}');
+  if (sv.PFILTER) state.PFILTER = sv.PFILTER;
+  if (sv.PSORT) state.PSORT = sv.PSORT;
+  if (Array.isArray(sv.PALERTS)) state.PALERTS = new Set(sv.PALERTS);
+} catch (e) {}
