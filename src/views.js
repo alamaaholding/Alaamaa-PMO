@@ -909,7 +909,6 @@ function bindRequests(){
 }
 
 // ===== داشبورد الشريك: أين نحن الآن، المتأخر، المعالم القادمة =====
-const CD_PHASES=[['0','التأسيس'],['B','الذكاء والرؤى'],['C','الاستراتيجية'],['A','التنفيذ']];
 function vClientDash(){
   const tasks=PROJECT.tasks, dd=new Date(DATA_DATE);
   const real=tasks.filter(t=>t.type!=='milestone'&&t.type!=='cont');

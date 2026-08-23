@@ -148,7 +148,6 @@ function showChrome(){ $('#kpisRow').style.display=''; $('#tabs').style.display=
 
 // ===== شاشة المحفظة (للطاقم) =====
 
-async function loadSummary(clientId){ return null; /* لم تعد مستخدمة — استُبدلت بـpmo_portfolio */ }
 
 // ===== الروابط العميقة =====
 // الشكل الجديد: #/c/{شريك}/{مشروع}/{تبويب}[/t/{بند}] — مجلد فرعي داخل مجلد الشريك.

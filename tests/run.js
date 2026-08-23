@@ -113,7 +113,83 @@ if (untested.length < UNTESTED_CAP) {
   console.log(`  ${GREEN}✓${OFF} ${untested.length} ملفًا بلا اختبار — عند السقف تمامًا (${UNTESTED_CAP})`);
 }
 
-// ===== ٥) حارسا نظام التصميم: سقفان يَنقصان ولا يزيدان =====
+// ===== ٥) حارس الكود الميت: اسم مُعرَّف لا يشير إليه شيء =====
+//
+// سبب النشأة: أثناء تحويل config.js في W2 تبيّن أن `canSeeClient` مُعرَّفة ولا
+// يستدعيها أحد — منذ متى؟ لا أحد يعرف. والسبب معماري لا إهمال: في نطاق عام مشترك
+// **لا توجد جهة تملك السؤال**. `no-unused-vars` على ملف مفرد يرى الاسم مُصدَّرًا
+// ضمنًا لإخوته، وعلى الحزمة وحدها يُبلّغ زورًا عن كل ما تستعمله الوحدات الكسولة
+// (وهي ليست في الحزمة، لكنها تشارك النطاق نفسه وقت التشغيل).
+//
+// فالسؤال الصحيح يحتاج **نطاق التشغيل كاملًا**: الحزمة + الوحدات الكسولة + الهيكل
+// + الاختبارات. وهذا ما يفعله هذا الحارس.
+//
+// منهج العدّ متحفّظ عمدًا: يُحتسب كل ظهور نصّي للاسم — بما فيه `window.X` و`'X'`
+// النصية — لأن الخطأ في الاتجاهين ليس متكافئًا. ادّعاء «ميت» خاطئ يحذف كودًا حيًّا؛
+// ادّعاء «حيّ» خاطئ لا يكلّف إلا بايتات. (وهذا الفخّ وقعتُ فيه فعلًا أول مرة:
+// استثنيتُ `X.` من العدّ فبدت مداخل الوحدات الكسولة الثلاثة ميتة، وهي تُستدعى
+// عبر `window.dolOpen()` بالضبط.)
+console.log(`${BOLD}▸ حارس الكود الميت...${OFF}`);
+const DEAD_CAP = 0;   // W2: حُذف الأحد عشر الموجودة. أي اسم جديد بلا مستدعٍ يُوقف البناء.
+{
+  const { parse } = require('espree');
+  // أي ملف وحدة ESM؟ يُقرأ من eslint.config.mjs كي يبقى مصدر الحقيقة واحدًا:
+  // ملف يُضاف هناك يدخل التحليل الصحيح هنا تلقائيًا (module لا script).
+  const esmBlock = fs.readFileSync('eslint.config.mjs', 'utf8')
+    .match(/const ESM_FILES = new Set\(\[([\s\S]*?)\]\)/);
+  if (!esmBlock) {
+    console.error(`  ${RED}✗ تعذّر قراءة ESM_FILES من eslint.config.mjs — الحارس أعمى${OFF}`);
+    process.exit(1);
+  }
+  const esmSet = new Set((esmBlock[1].match(/'([^']+)'/g) || []).map(q => q.slice(1, -1)));
+  const srcAll = [
+    ...fs.readdirSync('src').filter(f => f.endsWith('.js') && f !== 'qrgen.js').map(f => `src/${f}`),
+    ...fs.readdirSync('src/app').filter(f => f.endsWith('.js')).map(f => `src/app/${f}`)
+  ];
+  const bound = (node, out) => {
+    if (!node) return;
+    if (node.type === 'Identifier') out.add(node.name);
+    else if (node.type === 'ObjectPattern') node.properties.forEach(p => bound(p.value || p.argument, out));
+    else if (node.type === 'ArrayPattern') node.elements.forEach(e => bound(e, out));
+    else if (node.type === 'AssignmentPattern') bound(node.left, out);
+    else if (node.type === 'RestElement') bound(node.argument, out);
+  };
+  const defs = new Map();
+  for (const f of srcAll) {
+    const ast = parse(fs.readFileSync(f, 'utf8'),
+      { ecmaVersion: 'latest', sourceType: esmSet.has(path.basename(f)) ? 'module' : 'script' });
+    for (const stmt of ast.body) {
+      const decl = stmt.type === 'ExportNamedDeclaration' ? stmt.declaration : stmt;
+      if (!decl) continue;
+      const names = new Set();
+      if (decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration') { if (decl.id) names.add(decl.id.name); }
+      else if (decl.type === 'VariableDeclaration') decl.declarations.forEach(d => bound(d.id, names));
+      for (const n of names) defs.set(n, f);
+    }
+  }
+  const corpus = [
+    ...srcAll.map(f => fs.readFileSync(f, 'utf8')),
+    fs.readFileSync('src/index.html', 'utf8'),
+    ...fs.readdirSync(__dirname).filter(f => f.startsWith('test_'))
+      .map(f => fs.readFileSync(path.join(__dirname, f), 'utf8'))
+  ];
+  const dead = [];
+  for (const [n, f] of defs) {
+    const re = new RegExp(`(?<![\\w$])${n.replace(/\$/g, '\\$')}(?![\\w$])`, 'g');
+    let hits = 0;
+    for (const c of corpus) hits += (c.match(re) || []).length;
+    if (hits <= 1) dead.push(`${f} → ${n}`);
+  }
+  if (dead.length > DEAD_CAP) {
+    console.error(`  ${RED}✗ ${dead.length} اسمًا بلا مستدعٍ في أي ملف تشغيل — السقف ${DEAD_CAP}.${OFF}`);
+    dead.sort().forEach(d => console.error(`     ${d}`));
+    process.exit(1);
+  }
+  console.log(`  ${GREEN}✓${OFF} ${dead.length} اسمًا بلا مستدعٍ` +
+    (dead.length < DEAD_CAP ? ` — ${BOLD}أنزِل DEAD_CAP إلى ${dead.length}.${OFF}` : ' — نظيف'));
+}
+
+// ===== ٦) حارسا نظام التصميم: سقفان يَنقصان ولا يزيدان =====
 //
 // سبب النشأة: نظام التصميم في styles.css قويّ (756 رمزًا)، لكن نصف القرارات البصرية
 // كانت تُتّخذ خارجه — 548 نمطًا سطريًا و176 لونًا مكتوبًا صراحةً داخل الورقة نفسها.
@@ -157,7 +233,7 @@ ratchet('أنماط سطرية ثابتة', inlineStatic, INLINE_STYLE_CAP);
 ratchet('ألوان صريحة خارج :root', rawColors, RAW_COLOR_CAP);
 if (designFailed) process.exit(1);
 
-// ===== ٦) تشغيل ملفات الاختبار =====
+// ===== ٧) تشغيل ملفات الاختبار =====
 const testFiles = fs.readdirSync(__dirname)
   .filter(f => f.startsWith('test_') && f.endsWith('.js')).sort();
 

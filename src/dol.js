@@ -28,7 +28,6 @@ async function loadDOL(){
   DOL_DECISIONS=await fetchDecisions();
   DOL_LINKS=await fetchDecisionProjects();
 }
-function projName(pid){const dp=DOL_LINKS.filter(l=>l.decision_id===pid);if(!dp.length)return'';return dp.length+' مشروع';}
 
 function renderDOL(){
   const gates=DOL_DECISIONS.filter(d=>d.decision_type!=='operational');
