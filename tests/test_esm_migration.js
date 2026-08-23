@@ -101,6 +101,62 @@ console.log('\n▸ انحدار كاد يمرّ صامتًا: تلوين الع�
   t('وتتبع تفريغ القائمة', ctx.E.isHoliday('2026-08-04') === false);
 }
 
+console.log('\n▸ الدفعة الثانية: format.js و app/dialogs.js');
+// المساعدات النقية المدفونة داخل الملفات الكبيرة هي ما كان يصنع الدورات في مخطط
+// الاعتماد: `esc` (سطر واحد) عاشت في views.js، فصار app/dialogs.js — أصغر ملف في
+// طبقة التطبيق — يعتمد على أكبر ملف عرض. وإخراجها كسر الدورة عند مصدرها.
+{
+  const format  = fs.readFileSync('src/format.js', 'utf8');
+  const dialogs = fs.readFileSync('src/app/dialogs.js', 'utf8');
+  const views   = fs.readFileSync('src/views.js', 'utf8');
+
+  ['esc', 'fmt', 'fmtY', 'todayISO', 'slugify', 'uniqueSlug']
+    .forEach(n => t(`format يصدّر ${n}`, new RegExp(`export (function|const) ${n}\\b`).test(format)));
+  // النطاق العام ينقص فعلًا: ما لا يحتاجه أحد خارج الملف لا يُصدَّر.
+  t('AR_TRANSLIT لم تعد عامّة', !/export const AR_TRANSLIT/.test(format));
+  t('transliterateArabic لم تعد عامّة', !/export function transliterateArabic/.test(format));
+  t('format.js ورقة: لا تستورد شيئًا', !/^import /m.test(format));
+
+  t('dialogs يصدّر dialog', /export function dialog\(/.test(dialogs));
+  t('dialogs يصدّر confirmDialog', /export async function confirmDialog\(/.test(dialogs));
+
+  // أول استيراد بين وحدتين مُحوَّلتين — الجسر لم يعد المسار الوحيد.
+  t('dialogs يستورد esc صراحةً من format', /import \{ esc \} from '\.\.\/format\.js'/.test(dialogs));
+
+  t('مصدر حقيقة واحد لـesc: views.js لم تعد تعرّفها', !/^function esc\(/m.test(views));
+  t('config.js لم تعد تعرّف fmt/fmtY/todayISO',
+    !/^const fmt=/m.test(config) && !/^const fmtY=/m.test(config) && !/^function todayISO\(/m.test(config));
+  t('config.js لم تعد تعرّف slugify/uniqueSlug',
+    !/^function slugify\(/m.test(config) && !/^function uniqueSlug\(/m.test(config));
+  t('dialogs.js خرج من قائمة الدمج النصي', !/CORE=\[[^\]]*'src\/app\/dialogs\.js'/.test(buildPy));
+}
+
+console.log('\n▸ الاستيراد الصريح لا يمرّ عبر globalThis');
+// الفرق ليس شكليًا: لو ظلّ dialogs يقرأ esc من النطاق العام، لبقيت الدورة قائمة
+// وبقي الترتيب مهمًّا. الدليل القاطع: احذف globalThis.esc ثم افتح حوارًا — إن ظلّ
+// يرمّز، فالربط لغويّ داخل القطعة كما يجب.
+{
+  const dom = new JSDOM('<div id="dlgOverlay"></div><div id="dlgBox"></div>', { runScripts: 'dangerously' });
+  const w = dom.window;
+  w.eval(`window.supabase={createClient:()=>({rpc:()=>Promise.resolve({data:[],error:null}),
+    from:()=>({select:()=>({order:()=>Promise.resolve({data:[],error:null})})}),
+    auth:{getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},
+    channel:()=>({on(){return this},subscribe(){return this}}),removeChannel:()=>{}})}`);
+  const s2 = w.document.createElement('script');
+  s2.textContent = bundle;
+  w.document.body.appendChild(s2);
+
+  ['esc', 'fmt', 'fmtY', 'todayISO', 'slugify', 'uniqueSlug', 'dialog', 'confirmDialog']
+    .forEach(n => t(`${n} وصلت إلى globalThis`, typeof w[n] === 'function'));
+
+  delete w.esc;
+  t('esc أُزيلت من النطاق العام فعلًا', typeof w.esc === 'undefined');
+  w.dialog({ title: '<b>x</b>' });
+  const box = w.document.getElementById('dlgBox');
+  t('الحوار ما زال يرمّز بعد إزالتها — الربط لغويّ لا عام',
+    box.querySelectorAll('b').length === 0 && box.textContent.includes('<b>x</b>'));
+}
+
 console.log('\n▸ الجسر مؤقّت بطبيعته — موثَّق لا منسيّ');
 t('bundle-entry يُصرّح أنه مرحلي', /مؤقّت|مرحلي/.test(entry));
 t('يشرح سبب IIFE لا ESM', entry.includes('jsdom') && entry.includes('IIFE'));

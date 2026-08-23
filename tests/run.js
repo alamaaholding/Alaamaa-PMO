@@ -93,7 +93,7 @@ console.log(`  ${GREEN}✓${OFF} ${new Set(expected).size} ملفًا مُعلَ
 //   هذا مؤشّر **استهداف مقصود** لا تنفيذ فعلي — أضعف من التغطية، لكنه حقيقي وقابل
 //   للقياس اليوم، ويخدم مباشرةً ما رصده AUDIT.md §هـ-١. السقف ينقص ولا يزيد أبدًا.
 console.log(`${BOLD}▸ حارس اتّساع الاختبار...${OFF}`);
-const UNTESTED_CAP = 10;  // خط الأساس عند تفعيل الحارس (W0). كل موجة تُنقصه — ولا ترفعه.
+const UNTESTED_CAP = 9;   // W0=10 · W2=9 (format.js و app/dialogs.js دخلا التغطية مع تحويلهما). ينقص ولا يزيد.
 const testSources = fs.readdirSync(__dirname)
   .filter(f => f.startsWith('test_') && f.endsWith('.js'))
   .map(f => fs.readFileSync(path.join(__dirname, f), 'utf8')).join('\n');
