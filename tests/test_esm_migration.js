@@ -157,6 +157,20 @@ console.log('\n▸ الاستيراد الصريح لا يمرّ عبر globalTh
     box.querySelectorAll('b').length === 0 && box.textContent.includes('<b>x</b>'));
 }
 
+console.log('\n▸ الدفعة الثالثة: app/contracttemplate.js — التغليف يظهر بأوضح صوره');
+// عشرة أسماء في المستوى الأعلى، أربعة فقط يستدعيها أحد من الخارج. الستة الباقية
+// كانت في النطاق العام بلا سبب — وأثقلها نصّا النموذجين: مستندان قانونيان كاملان
+// مكشوفان لأي كود في المنصّة يمكنه تعديلهما.
+{
+  const ct = fs.readFileSync('src/app/contracttemplate.js', 'utf8');
+  ['CONTRACT_TEMPLATES', 'mergeContract', 'renderMergedContractHTML', 'renderCustomContractHTML']
+    .forEach(n => t(`${n} مُصدَّرة`, new RegExp(`export (function|const) ${n}\\b`).test(ct)));
+  ['CONTRACT_TEMPLATE', 'CONTRACT_TEMPLATE_V2', 'fmtLong', 'ctrMdInline', 'ctrBodyHtml', 'ctrPartyTable']
+    .forEach(n => t(`${n} لم تعد عامّة`, !new RegExp(`export (function|const) ${n}\\b`).test(ct)));
+  t('تستورد esc من format لا من النطاق العام', /import \{ esc \} from '\.\.\/format\.js'/.test(ct));
+  t('خرجت من قائمة الدمج النصي', !/CORE=\[[^\]]*contracttemplate/.test(buildPy));
+}
+
 console.log('\n▸ الجسر مؤقّت بطبيعته — موثَّق لا منسيّ');
 t('bundle-entry يُصرّح أنه مرحلي', /مؤقّت|مرحلي/.test(entry));
 t('يشرح سبب IIFE لا ESM', entry.includes('jsdom') && entry.includes('IIFE'));
