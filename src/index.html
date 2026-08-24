@@ -38,6 +38,7 @@
   </div>
   <div class="hright">
     <button class="hbtn qjump-btn" id="qjumpBtn" aria-label="بحث عن شريك أو مشروع" aria-expanded="false">🔍</button>
+    <button class="hbtn ntf-btn" id="ntfBtn" aria-label="مركز الإشعارات" aria-haspopup="dialog">🔔<span class="ntf-badge" id="ntfBadge" hidden>0</span></button>
     <button class="hbtn" id="backPortfolio" style="display:none">▸ المحفظة</button>
     <span class="usr">مرحبًا <b id="uName">—</b></span>
     <span class="rolechip" id="roleChip">—</span>
@@ -114,6 +115,19 @@
 </div>
 
 <div id="toastWrap"></div>
+
+<!-- مركز الإشعارات: كل ما مرّ في الجلسة، يُراجَع متى شاء المستخدم -->
+<div id="ntfOverlay" class="rqoverlay top">
+  <div class="rqmodal w-md" role="dialog" aria-modal="true" aria-labelledby="ntfTitle">
+    <div class="rqhd"><h3 id="ntfTitle">مركز الإشعارات</h3>
+      <span class="ntf-hd-actions">
+        <button class="hbtn ghost" id="ntfClear">مسح</button>
+        <button id="ntfClose" aria-label="إغلاق" class="rq-x">✕</button>
+      </span>
+    </div>
+    <div class="rqbody rqscroll" id="ntfBody"></div>
+  </div>
+</div>
 <div id="contractPrint"></div>
 
 <!-- نافذة الحوار العامة -->

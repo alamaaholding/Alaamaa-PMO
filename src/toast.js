@@ -14,7 +14,9 @@
 //
 //  وموضعها هنا مقصود لسبب ثانٍ: **مركز الإشعارات في W5 يبدأ من هذا الملف.**
 //  التشخيص رصد أن الخطأ يختفي بعد ٣٫٢ ثانية بلا أثر يُراجَع — وعلاج ذلك يحتاج
-//  جهة واحدة تملك كل إشعار في المنصّة. هذه هي.
+//  جهة واحدة تملك كل إشعار في المنصّة. هذه هي — وقد صار ذلك واقعًا في W5:
+//  كل ما يمرّ من هنا **يُسجَّل** في notifications.js قبل أن يُعرَض، فلم يعد
+//  التوست المكان الوحيد الذي يعيش فيه الخبر.
 //
 //  ═══ ترميز الرسالة ═══
 //  `msg` تُرمَّز قبل الإدراج. ليست احتياطًا نظريًا: من أصل استدعاءات هاتين
@@ -30,12 +32,16 @@
 //  وسمًا عمدًا. فالدالة تقبل نصًّا عاديًا لا HTML — وهذا عقدها الصريح الآن.
 
 import { esc } from './format.js';
+import { record } from './notifications.js';
 
 /**
  * إشعار عابر. kind: ok | err | warn | (افتراضي)
  * msg **نصّ عادي** — يُرمَّز قبل الإدراج ولا يقبل وسمًا.
  */
 export function toast(msg, kind){
+  // التسجيل **قبل** فحص الحاوية: إشعار يُطلق قبل بناء الصفحة أو بعد هدمها
+  // كان يضيع كليًا، وهو بالضبط النوع الذي يستحق أن يبقى له أثر.
+  record(msg, kind);
   const wrap=document.getElementById('toastWrap'); if(!wrap)return;
   const t=document.createElement('div'); t.className='toast'+(kind?' '+kind:'');
   const icon=kind==='ok'?'✓':kind==='err'?'✕':kind==='warn'?'⚠':'•';
@@ -46,6 +52,7 @@ export function toast(msg, kind){
 
 /** توست بزر تراجع (يبقى 8 ثوانٍ) */
 export function toastUndo(msg,onUndo){
+  record(msg,'info');
   const wrap=document.getElementById('toastWrap'); if(!wrap)return;
   const t=document.createElement('div'); t.className='toast undo';
   t.innerHTML='<span>🗑</span><span>'+esc(msg)+'</span><button class="undo-btn">تراجع</button>';
