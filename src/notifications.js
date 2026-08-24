@@ -36,6 +36,14 @@ import { esc, fmt } from './format.js';
 const CAP = 200;
 const log = [];
 let seq = 0;
+
+//  ═══ المرجع للدعم ═══
+//  «ظهرت لي رسالة حمراء» لا يكفي لتشخيص شيء. فلكل إشعار مرجعٌ يُنسخ ويُرسَل:
+//  رمز جلسة قصير + رقم تسلسلي. الرمز يميّز الجلسة (تبويبان مفتوحان ليسا واحدًا)،
+//  والرقم يحدّد الترتيب داخلها — فيعرف من يساعد **أيّ** خطأ وفي أي تسلسل وقع.
+//  عشوائي بلا معنى في ذاته: لا يحمل هوية ولا يصلح للتتبّع، وينتهي بانتهاء التبويب.
+const SESSION_REF = Math.random().toString(36).slice(2, 7).toUpperCase();
+export const refOf = e => `${SESSION_REF}-${e.id}`;
 let lastSeen = 0;
 const listeners = new Set();
 
@@ -85,14 +93,50 @@ const dayOf = d => {
   return sameDay ? '' : fmt(d);
 };
 
+/** النص الذي يُنسَخ: كل ما يحتاجه من يساعد، في سطر واحد. */
+export function copyTextOf(e) {
+  return `[${refOf(e)}] ${KINDS[e.kind]} · ${e.at.toISOString()}\n${e.msg}`;
+}
+
 /** بناء صفّ واحد. النص مُرمَّز — نفس السبب الذي أُصلح في toast. */
 function rowHtml(e) {
   const day = dayOf(e.at);
   return `<li class="ntf-row ntf-${e.kind}">
     <span class="ntf-ic" aria-hidden="true">${ICON[e.kind]}</span>
     <span class="ntf-msg">${esc(e.msg)}</span>
-    <time class="ntf-at" datetime="${e.at.toISOString()}">${day ? esc(day) + ' ' : ''}${time(e.at)}</time>
+    <span class="ntf-meta">
+      <time class="ntf-at" datetime="${e.at.toISOString()}">${day ? esc(day) + ' ' : ''}${time(e.at)}</time>
+      <code class="ntf-ref">${esc(refOf(e))}</code>
+    </span>
+    <button class="ntf-copy" data-ntf-copy="${e.id}" aria-label="نسخ الإشعار ${esc(refOf(e))}">نسخ</button>
   </li>`;
+}
+
+/**
+ * النسخ إلى الحافظة. `navigator.clipboard` غير متاح في كل سياق (بروتوكول غير
+ * آمن، أو رفض المستخدم)، فثمّة مسار احتياطي بـtextarea مؤقتة — والفشل التام
+ * يُبلَّغ عنه بدل أن يُبتلع، فالمستخدم كان ينسخ نصًّا يحتاجه.
+ */
+export async function copyEntry(id) {
+  const e = log.find(x => x.id === Number(id));
+  if (!e) return false;
+  const text = copyTextOf(e);
+  try {
+    if (globalThis.navigator && navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (err) {}
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', '');
+    ta.className = 'ntf-copy-sink';
+    document.body.appendChild(ta);
+    ta.select();
+    const done = document.execCommand && document.execCommand('copy');
+    ta.remove();
+    return !!done;
+  } catch (err) { return false; }
 }
 
 export function renderNotificationCenter() {
@@ -147,6 +191,17 @@ export function bindNotificationCenter() {
   const clear = document.getElementById('ntfClear');
   if (clear) clear.onclick = () => { clearNotifications(); renderNotificationCenter(); refreshNotificationBadge(); };
   ov.onclick = ev => { if (ev.target === ov) closeNotificationCenter(); };
+  // تفويض النقر: الصفوف تُبنى من جديد عند كل عرض، فربطُ كل زر على حدة يعيد
+  // الربط في كل مرة ويترك مستمعين ميتين خلفه.
+  const body = document.getElementById('ntfBody');
+  if (body) body.addEventListener('click', async ev => {
+    const b = ev.target.closest && ev.target.closest('[data-ntf-copy]');
+    if (!b) return;
+    const okCopy = await copyEntry(b.dataset.ntfCopy);
+    b.textContent = okCopy ? 'نُسخ ✓' : 'تعذّر';
+    b.classList.toggle('failed', !okCopy);
+    setTimeout(() => { b.textContent = 'نسخ'; b.classList.remove('failed'); }, 1400);
+  });
   document.addEventListener('keydown', ev => {
     if (ev.key === 'Escape' && ov.style.display === 'flex') { ev.preventDefault(); closeNotificationCenter(); }
   });

@@ -116,7 +116,8 @@ console.log('\n▸ لا تخزين على القرص');
 
 // ───────── الحزمة الحقيقية ─────────
 console.log('\n▸ الوصل بـtoast: كل ما يُعرَض يُسجَّل');
-{
+(async () => {
+
   const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true });
   const w = dom.window, doc = w.document;
@@ -180,6 +181,50 @@ console.log('\n▸ الوصل بـtoast: كل ما يُعرَض يُسجَّل')
   t('لا وسم يُبنى من نص المستخدم', body.querySelectorAll('img').length === 0);
   t('والنص يظهر كنص', body.textContent.includes('<img src=x onerror=alert(1)>'));
 
+  console.log('\n▸ النسخ والمرجع للدعم');
+  // معيار القبول في ROADMAP §W5: «كل رسالة خطأ قابلة للاسترجاع **والنسخ** بعد
+  // اختفائها». الاسترجاع وحده لا يكفي — «ظهرت لي رسالة حمراء» لا يشخّص شيئًا.
+  w.clearNotifications();
+  w.toast('تعذّر الحفظ: constraint violation', 'err');
+  w.renderNotificationCenter();
+  const row = body.querySelector('.ntf-row');
+  const ref = row.querySelector('.ntf-ref').textContent;
+  t('لكل إشعار مرجع ظاهر', /^[A-Z0-9]{5}-\d+$/.test(ref), ref);
+  const entry = w.notifications()[0];
+  t('والمرجع نفسه من الوحدة', w.refOf(entry) === ref);
+  const txt = w.copyTextOf(entry);
+  t('نصّ النسخ يحمل المرجع', txt.includes(ref));
+  t('ويحمل النوع', txt.includes('خطأ'));
+  t('ويحمل وقتًا قابلًا للتحليل', /\d{4}-\d{2}-\d{2}T/.test(txt));
+  t('ويحمل الرسالة كاملة', txt.includes('constraint violation'));
+
+  const copyBtn = row.querySelector('[data-ntf-copy]');
+  t('زر نسخ على الصف', !!copyBtn);
+  t('وله aria-label يذكر المرجع', copyBtn.getAttribute('aria-label').includes(ref));
+
+  // المرجع يميّز الجلسة: تبويبان مفتوحان ليسا واحدًا.
+  const A = mk(), B = mk();
+  A.record('x'); B.record('x');
+  t('رمز الجلسة يختلف بين نافذتين', A.refOf(A.notifications()[0]) !== B.refOf(B.notifications()[0]));
+  t('والتسلسل يبدأ من ١ في كلٍّ', A.refOf(A.notifications()[0]).endsWith('-1'));
+
+  // المسار الاحتياطي: لا clipboard متاحًا (بروتوكول غير آمن أو رفض المستخدم).
+  let copied = null;
+  Object.defineProperty(w.navigator, 'clipboard', {
+    configurable: true, value: { writeText: async v => { copied = v; } }
+  });
+  await w.copyEntry(entry.id);
+  t('النسخ يمرّ عبر clipboard حين يتاح', copied === txt);
+  Object.defineProperty(w.navigator, 'clipboard', {
+    configurable: true, value: { writeText: async () => { throw new Error('denied'); } }
+  });
+  doc.execCommand = () => true;
+  t('ورفض clipboard يسقط إلى المسار الاحتياطي', (await w.copyEntry(entry.id)) === true);
+  t('ولا تبقى textarea مؤقتة في المستند', doc.querySelectorAll('.ntf-copy-sink').length === 0);
+  doc.execCommand = () => false;
+  t('وفشل المسارين يُبلَّغ لا يُبتلع', (await w.copyEntry(entry.id)) === false);
+  t('ومعرّف غير موجود يُرجع false', (await w.copyEntry(99999)) === false);
+
   console.log('\n▸ المسح والإغلاق');
   doc.getElementById('ntfClear').onclick();
   t('المسح يُفرغ العرض', body.textContent.includes('لا إشعارات'));
@@ -189,7 +234,7 @@ console.log('\n▸ الوصل بـtoast: كل ما يُعرَض يُسجَّل')
   doc.getElementById('ntfBtn').onclick();
   doc.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
   eq('Escape يُغلق', ov.style.display, 'none');
-}
 
-console.log(`\nنجح ${ok} · فشل ${fail}`);
-process.exit(fail ? 1 : 0);
+  console.log(`\nنجح ${ok} · فشل ${fail}`);
+  process.exit(fail ? 1 : 0);
+})();
