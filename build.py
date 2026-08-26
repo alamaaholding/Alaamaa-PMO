@@ -9,8 +9,8 @@ ROOT=os.path.dirname(os.path.abspath(__file__))
 def read(p): return open(os.path.join(ROOT,p),encoding='utf-8').read()
 def write(p,c): open(os.path.join(ROOT,p),'w',encoding='utf-8').write(c)
 
-CORE=['src/config.js','src/api.js','src/views.js','src/taskpanel.js',
-      'src/app/lifecycle.js',
+CORE=['src/views.js','src/taskpanel.js',
+      'src/app/session.js','src/app/lifecycle.js',
       'src/app/portfolio.js','src/app/staffaccess.js','src/app/clienthome.js','src/app/exportcontract.js','src/app/contractsign.js','src/app/contractshub.js','src/app/workload.js','src/app/main.js']
 LAZY=['src/dol.js','src/importer.js','src/pgantt.js','src/timeline.js','src/trello.js','src/qrgen.js']
 
@@ -28,8 +28,13 @@ _esbuild = shutil.which('esbuild') or os.path.join(ROOT,'node_modules','.bin','e
 if not os.path.exists(_esbuild) and not shutil.which('esbuild'):
     raise SystemExit('✗ esbuild غير موجود — شغّل `npm ci` أولًا. '
                      '(ملاحظة: لا تستبعد devDependencies من تثبيت النشر، فالبناء يحتاجها.)')
+# --minify-whitespace و--minify-syntax **دون** --minify-identifiers، وهذا قرار
+# مقصود لا نصف خطوة: تصغير الأسماء يوفّر ١٦ KB إضافية ويكلّف أثرًا لا يُقرأ في
+# كل تتبّع خطأ يصل من مستخدم. الفريق صغير والأخطاء تُشخَّص من الطرفية مباشرةً،
+# فالمقايضة خاسرة اليوم. تُعاد حين توجد خرائط مصدر (W6).
 _r = subprocess.run([_esbuild, ESM_ENTRY, '--bundle', '--format=iife',
-                     '--target=es2020', '--legal-comments=none'],
+                     '--target=es2020', '--legal-comments=none',
+                     '--minify-whitespace', '--minify-syntax'],
                     capture_output=True, text=True)
 if _r.returncode != 0:
     raise SystemExit('✗ فشل حزم وحدات ESM:\n' + _r.stderr)

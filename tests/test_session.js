@@ -1,0 +1,183 @@
+// ===== src/app/session.js — المصادقة وبوابة الدخول =====
+//
+// هذه الكتلة كانت في api.js، ولم تكن يومًا من عمله: تقرأ الـhash، وتُظهر وتُخفي
+// #loader و#login و#app و#denied، وتربط أزرار الدخول والخروج، وتقرّر متى يبدأ
+// التطبيق. لا شيء من ذلك وصولٌ إلى بيانات.
+//
+// وهي بوابة الوصول الوحيدة إلى المنصّة، وكانت بلا اختبار واحد. أخطر ما فيها
+// **مسار التوقيع العام**: يتجاوز تسجيل الدخول عمدًا وكليًا، وحارسه الوحيد هو
+// الرمز العشوائي في الرابط. تجاوزٌ متعمَّد كهذا يجب أن يكون محروسًا بتأكيد
+// يمنع اتّساعه صدفةً — نمط `#/sign/<رمز>` لا يقبل شرطة مائلة ولا نقطتين ولا
+// محرفًا خارج [a-zA-Z0-9]، ولو اتّسع لصار بابًا خلفيًا.
+
+const fs = require('fs');
+const { JSDOM } = require('jsdom');
+
+let ok = 0, fail = 0;
+const t = (n, c, x) => { if (c) { ok++; console.log('  ✓ ' + n); } else { fail++; console.log('  ✗ ' + n + (x ? ' → ' + x : '')); } };
+
+const src = fs.readFileSync('src/app/session.js', 'utf8');
+const html = fs.readFileSync('index.html', 'utf8');
+const bundle = fs.readFileSync('app.bundle.js', 'utf8');
+
+console.log('\n▸ الفصل: api.js لم تعد تحمل بوابة الدخول');
+{
+  const api = fs.readFileSync('src/api.js', 'utf8');
+  ['async function boot(', 'function showLogin(', 'function showDenied(', 'async function loadIdentity(']
+    .forEach(f => t(`${f.replace(/^(async )?function /, '').replace('(', '')} خرجت من api.js`, !api.includes(f)));
+  t('وانتقلت إلى session.js', ['boot(', 'showLogin(', 'showDenied(', 'loadIdentity('].every(f => src.includes(f)));
+  t('api.js لم تعد تذكر startApp', !/\bstartApp\b/.test(api));
+  t('ولا renderPublicSign', !/\brenderPublicSign\b/.test(api));
+  t('ولا renderPortfolio', !/\brenderPortfolio\b/.test(api));
+  // الوحدات الكسولة تُستدعى بـwindow. عمدًا — ربط متأخّر لا اعتماد.
+  t('نداء الوحدات الكسولة يبقى متأخّرًا عبر window.',
+    ['dolOpen', 'importerOpen', 'pganttOpen', 'timelineRender', 'timelinePortfolio', 'trelloMenu']
+      .every(n => new RegExp(`window\\.${n}\\b`).test(api)));
+}
+
+console.log('\n▸ نمط رابط التوقيع العام — التجاوز المتعمَّد لا يتّسع');
+{
+  const m = src.match(/\/\^#\\\/sign\\\/\(\[([^\]]+)\]\+\)\$\//);
+  t('النمط مثبَّت ومقروء', !!m, 'تعذّر إيجاد تعبير المطابقة');
+  const re = /^#\/sign\/([a-zA-Z0-9]+)$/;
+  t('النمط في المصدر هو نفسه المفحوص هنا', src.includes(String(re).slice(1, -1)));
+  [['#/sign/abc123', true], ['#/sign/A1', true],
+   ['#/sign/', false], ['#/sign', false], ['#/signx/abc', false],
+   ['#/sign/a/b', false], ['#/sign/../admin', false], ['#/sign/a-b', false],
+   ['#/sign/a b', false], ['#/sign/a.b', false], ['#/sign/a%2F', false],
+   ['#/SIGN/abc', false], ['x#/sign/abc', false], ['', false]
+  ].forEach(([h, want]) => t(`${JSON.stringify(h)} ${want ? 'يطابق' : 'لا يطابق'}`, re.test(h) === want));
+}
+
+/**
+ * يبني نافذة كاملة بالحزمة الحقيقية، مع تحكّم في الجلسة والهوية والـhash.
+ *
+ * ملاحظة لزمة: الحزمة **تُقلع نفسها** — آخر سطر في app/main.js هو `boot();`.
+ * فالإقلاع التلقائي يحدث أولًا، ثم تُصفَّر العدّادات، ثم يُستدعى boot صراحةً.
+ * بلا هذا يُحتسب كل شيء مرّتين — وهو ما وقع فعلًا في أول تشغيل لهذا الملف.
+ */
+async function boot(opts) {
+  const { session = null, teamRow = null, clientIds = null, hash = '' } = opts;
+  const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'https://pmo.example/' + hash });
+  const w = dom.window;
+  const calls = { startApp: 0, publicSign: [], portfolio: 0, signOut: 0, oauth: [] };
+  w.__calls = calls;
+  w.eval(`window.supabase={createClient:()=>({
+    rpc:(n)=>Promise.resolve({data: n==='pmo_my_client_ids' ? ${JSON.stringify(clientIds)} : false, error:null}),
+    from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:${JSON.stringify(teamRow)},error:null})}),
+      order:()=>Promise.resolve({data:[],error:null})})}),
+    auth:{getSession:async()=>({data:{session:${JSON.stringify(session)}}}),
+      getUser:async()=>({data:{user:${session ? '{id:"u1",email:"a@b.c"}' : 'null'}}}),
+      signInWithOAuth:async(o)=>{window.__calls.oauth.push(o);return{error:null};},
+      signOut:async()=>{window.__calls.signOut++;},
+      onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},
+    channel:()=>({on(){return this},subscribe(){return this}}),removeChannel:()=>{}})}`);
+  const s = w.document.createElement('script');
+  s.textContent = bundle;
+  w.document.body.appendChild(s);
+  // تُستبدل بعد تحميل الحزمة كي تُرصد النداءات بدل تنفيذ التطبيق كاملًا.
+  w.eval(`startApp=async()=>{window.__calls.startApp++;};
+          renderPublicSign=async(tok)=>{window.__calls.publicSign.push(tok);};
+          renderPortfolio=async()=>{window.__calls.portfolio++;};`);
+  // انتظار الإقلاع التلقائي حتى يستقرّ، ثم تصفير ما رصده.
+  for (let i = 0; i < 5; i++) await new Promise(r => setTimeout(r, 0));
+  const autoStart = calls.startApp, autoSign = calls.publicSign.length;
+  calls.startApp = 0; calls.publicSign.length = 0; calls.portfolio = 0;
+  return { w, doc: w.document, calls, autoStart, autoSign, run: () => w.boot() };
+}
+const vis = (doc, id) => !doc.getElementById(id).classList.contains('hidden');
+
+(async () => {
+  console.log('\n▸ الحزمة تُقلع نفسها عند التحميل');
+  // آخر سطر في app/main.js هو boot(). سلوك مقصود، لكنه غير مرئي في أي مكان آخر
+  // — ويُضاعف كل رصد في أي اختبار لا يحسب حسابه.
+  {
+    const { autoStart } = await boot({ session: { user: { id: 'u1' } },
+      teamRow: { role: 'admin', is_active: true, full_name: 'أ' } });
+    t('الإقلاع التلقائي يحدث مرة واحدة بلا نداء صريح', autoStart === 1);
+    t('و main.js تناديه في مستواها الأعلى',
+      /^boot\(\);$/m.test(fs.readFileSync('src/app/main.js', 'utf8')));
+  }
+
+  console.log('\n▸ بلا جلسة → شاشة الدخول');
+  {
+    const { doc, calls, run } = await boot({ session: null });
+    await run();
+    t('#login ظاهرة', vis(doc, 'login'));
+    t('#app مخفية', !vis(doc, 'app'));
+    t('#loader مخفي', !vis(doc, 'loader'));
+    t('#denied مخفية', !vis(doc, 'denied'));
+    t('التطبيق لم يبدأ', calls.startApp === 0);
+  }
+
+  console.log('\n▸ جلسة + عضو فريق مُفعَّل → يبدأ التطبيق');
+  {
+    const { calls, run, w } = await boot({ session: { user: { id: 'u1' } },
+      teamRow: { role: 'admin', is_active: true, full_name: 'أ' } });
+    await run();
+    t('startApp نُودي مرة', calls.startApp === 1);
+    t('الدور pmo لمدير النظام', w.ROLE === 'pmo');
+    t('واسم المستخدم مُحمَّل', w.USER && w.USER._name === 'أ');
+  }
+  {
+    const { w, run } = await boot({ session: { user: { id: 'u1' } },
+      teamRow: { role: 'manager', is_active: true, full_name: 'ب' } });
+    await run();
+    t('manager يصير delivery', w.ROLE === 'delivery');
+  }
+
+  console.log('\n▸ جلسة بلا تصريح → شاشة الرفض لا شاشة التطبيق');
+  {
+    const { doc, calls, run } = await boot({ session: { user: { id: 'u1' } },
+      teamRow: { role: 'admin', is_active: false }, clientIds: [] });
+    await run();
+    t('#denied ظاهرة', vis(doc, 'denied'));
+    t('#login ظاهرة معها', vis(doc, 'login'));
+    t('#app تبقى مخفية', !vis(doc, 'app'));
+    t('التطبيق لم يبدأ', calls.startApp === 0);
+  }
+  {
+    // شريك مصرَّح له بالإيميل: ليس عضو فريق، لكن له مشاريع.
+    const { calls, run, w } = await boot({ session: { user: { id: 'u1' } },
+      teamRow: null, clientIds: ['c1'] });
+    await run();
+    t('الشريك المصرَّح له يدخل', calls.startApp === 1);
+    t('بدور client', w.ROLE === 'client');
+  }
+
+  console.log('\n▸ مسار التوقيع العام يتجاوز الدخول كليًا');
+  {
+    const { calls, doc, run } = await boot({ session: null, hash: '#/sign/tok123' });
+    await run();
+    t('renderPublicSign نُودي بالرمز', calls.publicSign[0] === 'tok123');
+    t('بلا جلسة وبلا شاشة دخول', !vis(doc, 'login'));
+    t('والتطبيق لم يبدأ', calls.startApp === 0);
+    t('و#loader أُخفي', !vis(doc, 'loader'));
+  }
+  {
+    // رابط توقيع مشوَّه: يسقط إلى المسار العادي، لا يمرّ.
+    const { calls, doc, run } = await boot({ session: null, hash: '#/sign/a/b' });
+    await run();
+    t('رمز مشوَّه لا يفتح مسار التوقيع', calls.publicSign.length === 0);
+    t('ويسقط إلى شاشة الدخول', vis(doc, 'login'));
+  }
+
+  console.log('\n▸ أزرار البوابة مربوطة');
+  {
+    const { doc, calls } = await boot({ session: null });
+    doc.getElementById('googleBtn').onclick({ preventDefault(){} });
+    await new Promise(r => setTimeout(r, 0));
+    t('زر Google يبدأ OAuth', calls.oauth.length === 1);
+    t('بمزوّد google', calls.oauth[0].provider === 'google');
+    t('وبعودة إلى نفس الصفحة', /^https:\/\/pmo\.example\//.test(calls.oauth[0].options.redirectTo));
+    t('#loginErr مخفي عند البدء', doc.getElementById('loginErr').style.display === 'none');
+    t('زرّا الخروج مربوطان',
+      typeof doc.getElementById('signout').onclick === 'function' &&
+      typeof doc.getElementById('signoutDenied').onclick === 'function');
+    t('وهما النداء نفسه',
+      doc.getElementById('signout').onclick === doc.getElementById('signoutDenied').onclick);
+  }
+
+  console.log(`\nنجح ${ok} · فشل ${fail}`);
+  process.exit(fail ? 1 : 0);
+})();

@@ -4,24 +4,7 @@ let SCREEN='portfolio'; // portfolio | project — للطاقم؛ الشريك �
 
 // ===== الإشعارات (Toast) =====
 
-function toast(msg, kind){ // kind: ok | err | warn | (افتراضي)
-  const wrap=document.getElementById('toastWrap'); if(!wrap)return;
-  const t=document.createElement('div'); t.className='toast'+(kind?' '+kind:'');
-  const icon=kind==='ok'?'✓':kind==='err'?'✕':kind==='warn'?'⚠':'•';
-  t.innerHTML='<span>'+icon+'</span><span>'+msg+'</span>';
-  wrap.appendChild(t);
-  setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),300);},3200);
-}
-// توست بزر تراجع (يبقى 8 ثوانٍ)
-function toastUndo(msg,onUndo){
-  const wrap=document.getElementById('toastWrap'); if(!wrap)return;
-  const t=document.createElement('div'); t.className='toast undo';
-  t.innerHTML='<span>🗑</span><span>'+msg+'</span><button class="undo-btn">تراجع</button>';
-  wrap.appendChild(t);
-  const tm=setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),300);},8000);
-  t.querySelector('.undo-btn').onclick=async()=>{clearTimeout(tm);t.remove();
-    try{await onUndo();}catch(e){toast('تعذّر التراجع: '+e.message,'err');}};
-}
+// toast/toastUndo انتقلتا إلى src/toast.js (الموجة W2) — تصلان عبر globalThis.
 
 // ===== إغلاق موحّد للنوافذ: data-close بدل onclick سطري =====
 // سبب النشأة: أربع نوافذ كانت تغلق بـ
@@ -809,6 +792,10 @@ if(typeof window!=='undefined'&&window.matchMedia){
   else if(_mq.addListener)_mq.addListener(_onMQ);
 }
 // انطلاق
+// مركز الإشعارات يُربط عند التحميل لا بعد الدخول: الأخطاء التي تقع أثناء
+// المصادقة نفسها هي أولى ما يستحق أن يبقى له أثر. والجرس داخل #app المخفي
+// حتى الدخول، فلا يظهر قبل أوانه.
+bindNotificationCenter();
 boot();
 // طباعة احترافية: الجدول (كل مرحلة صفحة) أو الجانت (مصغّر ليطابق الصفحة، بلا تداخل)
 

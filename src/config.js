@@ -1,19 +1,43 @@
+// ═══════════════════════════════════════════════════════════════════════
+//  config.js — الإعدادات والصلاحيات والرموز (وحدة ESM)
+// ═══════════════════════════════════════════════════════════════════════
+//
+//  تحوّلت بعد أن تحوّل اعتماداها كلاهما: `esc` إلى format.js، والحالة إلى
+//  app/state.js. وهذا هو الترتيب الطبولوجي يعمل كما وُعِد — لا كقاعدة نظرية
+//  بل كأثر مباشر: كل تحويل يفتح الملف الذي يليه.
+//
+//  اثنان وثلاثون اسمًا تُصدَّر، وتسعة تبقى داخل الملف — وأهمها `SUPABASE_ANON`.
+//  المفتاح المجهول (anon) عام بطبيعته ومحميّ بـRLS لا بالإخفاء، لكن كونه في
+//  النطاق العام لم يكن له داعٍ أصلًا: لا يستعمله إلا سطر إنشاء العميل أدناه.
+//
+//  **قراءة الحالة صارت صريحة.** كان الملف يقرأ ٣٩ مرة من روابط عامة؛ صار
+//  يستدعي `getState` عند رأس كل دالة ثم يعمل على متغيّر محلّي. أجسام الدوال
+//  لم تتغيّر حرفًا — تغيّر من أين تأتي القيمة، لا ما يُفعل بها.
+//
+//  ومعها سقطت حراسات `typeof X !== 'undefined'` المتناثرة: كانت بقايا من يوم
+//  كان الترتيب النصي هو كل شيء (config.js تسبق state.js في الدمج، فكان الاسم
+//  في TDZ لحظة القراءة). بعد الوحدات صار الشرط **صحيحًا دائمًا** — و`getState`
+//  إما تُرجع قيمة أو ترمي على مفتاح مجهول. حذف شرط تحصيل حاصل لا يغيّر سلوكًا.
+
+import { esc } from './format.js';
+import { getState } from './app/state.js';
+
 // ===== الإعدادات =====
-const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
+export const SUPABASE_URL='https://gxiucsieezkvwztbsrgf.supabase.co';
 const SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd4aXVjc2llZXprdnd6dGJzcmdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyOTI5NzksImV4cCI6MjA5NDg2ODk3OX0.yKw4yQEJM_4wPk1ki5m084OZqqmAA8A07uVeamlIT3M';
-const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON);
-const TRACKS={"0":{name:"التأسيس المضغوط",code:"0",color:"#1A1A1A"},"A":{name:"النمو السريع والمواسم",code:"A",color:"#C8A06B"},"B":{name:"التحليل والتشخيص بالموجات",code:"B",color:"#7A8B6F"},"C":{name:"الاستراتيجية وبناء الأصول",code:"C",color:"#9C6B4A"}};
-const STATUS={notstarted:'لم تبدأ',inprogress:'جارية',blocked:'متوقفة',done:'مكتملة'};
-const TYPES={task:'مهمة',milestone:'معلم',fixed:'ثابت',cont:'مستمر',package:'حزمة عمل'};
-const ROLE_NAMES={pmo:'مكتب إدارة المشاريع',delivery:'الفريق',client:'الشريك'};
-const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
+export const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON);
+export const TRACKS={"0":{name:"التأسيس المضغوط",code:"0",color:"#1A1A1A"},"A":{name:"النمو السريع والمواسم",code:"A",color:"#C8A06B"},"B":{name:"التحليل والتشخيص بالموجات",code:"B",color:"#7A8B6F"},"C":{name:"الاستراتيجية وبناء الأصول",code:"C",color:"#9C6B4A"}};
+export const STATUS={notstarted:'لم تبدأ',inprogress:'جارية',blocked:'متوقفة',done:'مكتملة'};
+export const TYPES={task:'مهمة',milestone:'معلم',fixed:'ثابت',cont:'مستمر',package:'حزمة عمل'};
+export const ROLE_NAMES={pmo:'مكتب إدارة المشاريع',delivery:'الفريق',client:'الشريك'};
+export const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 // D انتقلت إلى engine.js، و fmt/fmtY/todayISO/slugify/uniqueSlug إلى format.js
 // (الموجة W2). كلها تصل إلى هنا عبر globalThis من حزمة ESM التي تسبق هذا الملف
 // في ترتيب البناء.
 
 
 // ===== الصلاحيات =====
-const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:true,crAction:'approve',views:['dashboard','table','gantt','deliv','timeline','cr','requests','discuss','audit']},
+export const PERMS={pmo:{editStruct:true,editProg:true,editReqs:true,approveContract:true,crAction:'approve',views:['dashboard','table','gantt','deliv','timeline','cr','requests','discuss','audit']},
   delivery:{editStruct:true,editProg:true,editReqs:true,approveContract:false,crAction:'request',views:['dashboard','table','gantt','deliv','timeline','cr','requests','discuss','audit']},
   client:{editStruct:false,editProg:false,editReqs:false,approveContract:false,crAction:'request',views:['dashboard','gantt','deliv','cr','requests','discuss']}};
 // إجراءات التعديل تخضع أيضًا لمستوى الصلاحية الفعلي على هذا المشروع تحديدًا (myAccessLevelFor) —
@@ -24,23 +48,27 @@ const EDIT_ACTIONS=['editStruct','editProg','editReqs','approveContract'];
 // طلب تغيير بنيوي معتمَد ولم يُنفَّذ بعد يفتح تعديل بنية الخطة مؤقتًا رغم تثبيت خط الأساس،
 // وإلا بقي الطلب معتمَدًا بلا سبيل لتنفيذه (أداة الإضافة تختفي عند التثبيت).
 const CR_STRUCTURAL=['add','remove','deps','other'];
-function openCRs(){
-  if(typeof CRS==='undefined'||!CRS)return [];
+export function openCRs(){
+  const CRS=getState('CRS');
+  if(!CRS)return [];
   return CRS.filter(c=>c.status==='approved'&&!c.executed_at&&CR_STRUCTURAL.includes(c.kind));
 }
-function structuralUnlocked(){return openCRs().length>0;}
-function can(p){
+export function structuralUnlocked(){return openCRs().length>0;}
+export function can(p){
+  const ROLE=getState('ROLE');
   if(!(PERMS[ROLE]&&PERMS[ROLE][p]))return false;
-  if(EDIT_ACTIONS.includes(p)&&!IS_OWNER&&(MY_ACCESS||[]).length&&typeof PID!=='undefined'&&PID){
-    const dept=(typeof PROJ_DEPTS!=='undefined'&&PROJ_DEPTS)?PROJ_DEPTS[PID]:null;
-    if(myAccessLevelFor(PID,dept,CID)==='view')return false;
+  const PID=getState('PID'),MY_ACCESS=getState('MY_ACCESS');
+  if(EDIT_ACTIONS.includes(p)&&!getState('IS_OWNER')&&(MY_ACCESS||[]).length&&PID){
+    const PROJ_DEPTS=getState('PROJ_DEPTS');
+    const dept=PROJ_DEPTS?PROJ_DEPTS[PID]:null;
+    if(myAccessLevelFor(PID,dept,getState('CID'))==='view')return false;
   }
   return true;
 }
 
 // ===== سجل التدقيق: قاموس موحّد (مصدر وحيد لسجل المشروع وسجل المكتب) =====
 // المفاتيح مطابقة لأسماء الأفعال التي تكتبها دوال القاعدة (pmo_audit_*) فعليًا.
-const AUDIT_ACTIONS={
+export const AUDIT_ACTIONS={
   contract_created:'إنشاء عقد', contract_amendment_created:'إنشاء ملحق تعديل',
   contract_instance_created:'إنشاء نسخة عقد لشريك', contract_internally_approved:'اعتماد داخلي للعقد',
   contract_sealed:'ختم نص العقد', contract_terms_updated:'تعديل شروط العقد',
@@ -70,20 +98,20 @@ const AUDIT_ACTIONS={
   archive_client:'أرشفة شريك',restore_client:'استرجاع شريك',
   request_deletion:'طلب حذف شريك',purge_client:'حذف نهائي لشريك'
 };
-const AUDIT_ENTITIES={contract:'عقد',task:'بند',change_request:'طلب تعديل خطة',requirement:'متطلب',
+export const AUDIT_ENTITIES={contract:'عقد',task:'بند',change_request:'طلب تعديل خطة',requirement:'متطلب',
   comment:'تعليق',client_request:'طلب خدمة',project:'مشروع',client:'شريك'};
 
 // ===== نطاق صلاحيات الفريق =====
 // المبدأ: لا تغيير في سلوك أي موظف قائم إطلاقًا حتى يمنحه مالك النظام صلاحية محددة صراحة.
 // موظف بلا أي سجل في MY_ACCESS = يرى كل شيء كما كان دائمًا (سلوك ما قبل هذا النظام).
-function hasCompanyScope(){return IS_OWNER||MY_ACCESS.some(a=>a.scope_type==='company');}
-function myDeptScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='department').map(a=>a.scope_value));}
-function myClientScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='client').map(a=>a.scope_value));}
-function myProjectScopes(){return new Set(MY_ACCESS.filter(a=>a.scope_type==='project').map(a=>a.scope_value));}
+export function hasCompanyScope(){return getState('IS_OWNER')||getState('MY_ACCESS').some(a=>a.scope_type==='company');}
+function myDeptScopes(){return new Set(getState('MY_ACCESS').filter(a=>a.scope_type==='department').map(a=>a.scope_value));}
+function myClientScopes(){return new Set(getState('MY_ACCESS').filter(a=>a.scope_type==='client').map(a=>a.scope_value));}
+function myProjectScopes(){return new Set(getState('MY_ACCESS').filter(a=>a.scope_type==='project').map(a=>a.scope_value));}
 // هل يُسمح لي برؤية مشروع بعينه (بمعرّفه وقسمه وشريكه)؟
-function canSeeProject(projectId,dept,clientId){
-  if(IS_OWNER||hasCompanyScope())return true;
-  if(!MY_ACCESS.length)return true; // لا تخصيص = لا قيود (توافق خلفي)
+export function canSeeProject(projectId,dept,clientId){
+  if(getState('IS_OWNER')||hasCompanyScope())return true;
+  if(!getState('MY_ACCESS').length)return true; // لا تخصيص = لا قيود (توافق خلفي)
   if(myProjectScopes().has(projectId))return true;
   if(clientId&&myClientScopes().has(clientId))return true;
   if(dept&&myDeptScopes().has(dept))return true;
@@ -91,7 +119,8 @@ function canSeeProject(projectId,dept,clientId){
 }
 // أعلى مستوى صلاحية ممنوح لي على مشروع بعينه: 'edit'|'view'|null (null فقط إن كان مقيّدًا ولا يراه أصلًا)
 function myAccessLevelFor(projectId,dept,clientId){
-  if(IS_OWNER)return 'edit';
+  if(getState('IS_OWNER'))return 'edit';
+  const MY_ACCESS=getState('MY_ACCESS');
   if(!MY_ACCESS.length)return 'edit'; // لا تخصيص = صلاحية كاملة كما كانت دائمًا
   const rows=MY_ACCESS.filter(a=>
     a.scope_type==='company'||
@@ -108,7 +137,7 @@ function myAccessLevelFor(projectId,dept,clientId){
 // («قد يحتاج مراجعة») مُعلَّمة صراحة كتقدير لا حساب جدولة دقيق — ذلك موجود فعليًا وبدقة
 // كاملة داخل كل مشروع بمفرده عبر الجانت (شبكة التبعيات الكاملة)، ويكلف كثيرًا حسابه لكل
 // مشروع في المحفظة دفعة واحدة. الترتيب أدناه هو ترتيب الأولوية عند التجميع لعدة مشاريع.
-const PROJECT_STATUS_DEFS=[
+export const PROJECT_STATUS_DEFS=[
   {key:'blocked',   priority:0,icon:'🔴',label:'متوقف',        color:'var(--crit)',  bg:'var(--crit-bg)'},
   {key:'attention', priority:1,icon:'🟠',label:'يحتاج انتباه',  color:'#B5651D',      bg:'var(--warn-bg)'},
   {key:'paused',    priority:2,icon:'⏸',label:'متوقف مؤقتًا',   color:'var(--muted)', bg:'var(--soft-2)'},
@@ -117,8 +146,8 @@ const PROJECT_STATUS_DEFS=[
   {key:'active',    priority:5,icon:'🟢',label:'نشط وعلى المسار',color:'var(--ok)',   bg:'var(--ok-bg)'},
   {key:'done',      priority:6,icon:'✅',label:'مكتمل',         color:'var(--ok)',    bg:'var(--ok-bg)'}
 ];
-const statusByKey={};PROJECT_STATUS_DEFS.forEach(s=>{statusByKey[s.key]=s;});
-function computeProjectStatus(row){
+export const statusByKey={};PROJECT_STATUS_DEFS.forEach(s=>{statusByKey[s.key]=s;});
+export function computeProjectStatus(row){
   if(row.lifecycle_state==='paused')return statusByKey.paused;
   const total=Number(row.total_tasks||0),done=Number(row.done_tasks||0),blocked=Number(row.blocked_tasks||0);
   const pending=Number(row.pending_client_reqs||0),discuss=Number(row.open_comments||0);
@@ -134,20 +163,20 @@ function computeProjectStatus(row){
   return statusByKey.active;
 }
 // لشريك بعدة مشاريع: الحالة الأسوأ (الأعلى أولوية) بين كل مشاريعه النشطة
-function worstProjectStatus(rows){
+export function worstProjectStatus(rows){
   if(!rows||!rows.length)return statusByKey.not_started;
   let worst=null;
   rows.forEach(r=>{const s=computeProjectStatus(r);if(!worst||s.priority<worst.priority)worst=s;});
   return worst;
 }
-function renderStatusBadge(s,extraClass){
+export function renderStatusBadge(s,extraClass){
   return `<span class="pstatus-badge ${extraClass||''}" style="--sc:${s.color};--sbg:${s.bg}" title="${esc(s.label)}"><i class="pstatus-dot" style="background:${s.color}"></i>${esc(s.label)}</span>`;
 }
 // تُستخدم من شبكة المحفظة وصفحة الشريك المخصَّصة كليهما؛ لا حساب مكرّر في مكانين
 // (بالضبط الخلل الذي عالجناه سابقًا في مطابقة المراحل — نفس المبدأ هنا).
-function aggregateClientRows(cid,list,fallback){
+export function aggregateClientRows(cid,list,fallback){
   const r0=(list&&list[0])||{};
-  const c=CLIENTS.find(x=>x.id===cid)||fallback||{name:r0.client_name,color:r0.color||'#C8A06B'};
+  const c=getState('CLIENTS').find(x=>x.id===cid)||fallback||{name:r0.client_name,color:r0.color||'#C8A06B'};
   if(!list||!list.length)return{cid,c,list:[],tot:0,done:0,blocked:0,reqs:0,comments:0,
     hasAlerts:false,isActive:false,isDraft:true,pct:0,noProjects:true};
   const tot=list.reduce((s,r)=>s+Number(r.total_tasks||0),0);
@@ -165,7 +194,7 @@ function aggregateClientRows(cid,list,fallback){
 // (داخل .tablewrap مثلًا) ويُفقَد تركيز الحقل الذي كان المستخدم يكتب فيه للتو، مما يبدو
 // وكأن الصفحة «قفزت» أو أن ما كُتب «تصفّر». هذه الدالة تغلّف أي إعادة بناء كهذه فتُبقي
 // المستخدم في مكانه بالضبط.
-function preserveFocus(rerenderFn){
+export function preserveFocus(rerenderFn){
   const el=document.activeElement;
   const isField=el&&/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName);
   const row=isField?el.closest('[data-id],[data-i]'):null;
@@ -196,7 +225,7 @@ function preserveFocus(rerenderFn){
   scrollers.forEach(([c,top])=>{if(document.body.contains(c))c.scrollTop=top;});
 }
 
-const I={
+export const I={
  scale:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 21h18M6 7l-3 6h6l-3-6zM18 7l-3 6h6l-3-6zM7 7h10"/></svg>',
  clipboard:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4a2 2 0 0 1 6 0M9 10h6M9 14h6M9 18h4"/></svg>',
  archive:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/></svg>',
@@ -213,7 +242,7 @@ const I={
 // ملاحظة تصميمية: «تعديل الخطة» (لوح مستطيل + قلم) و«طلبات الخدمة» (جرس دائري)
 // أُعطيا شكلين ظاهريين مختلفين تمامًا — لا لونين فقط — لأنهما أكثر تبويبين يقع فيهما اللبس.
 const _sv=p=>'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
-const VIEW_ICONS={
+export const VIEW_ICONS={
   dashboard:_sv('<rect x="3" y="3" width="7.5" height="8" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="5" rx="1.5"/><rect x="3" y="14" width="7.5" height="7" rx="1.5"/><rect x="13.5" y="11" width="7.5" height="10" rx="1.5"/>'),
   table:_sv('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14.5h18M9 9v11"/>'),
   gantt:_sv('<path d="M4 4v16M8 7h9M6.5 12h11M10 17h7"/>'),
@@ -225,12 +254,12 @@ const VIEW_ICONS={
   audit:_sv('<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3.5 4.5V9H8"/><path d="M12 8v4.5l3 1.8"/>')
 };
 // التابات التي تحتاج تمييزًا لونيًا إضافيًا لتقارب معناها
-const VIEW_TONE={cr:'plan',requests:'service'};
+export const VIEW_TONE={cr:'plan',requests:'service'};
 
 // أعلى سلف في شجرة WBS — هذا هو تعريف «المرحلة» الحقيقي والوحيد.
 // لا نثق بعمود track كمصدر حقيقة (قد ينحرف عن الهرمية الفعلية)؛ الهرمية عبر parent
 // المبنية من parent_id الفعلي في القاعدة موثوقة دائمًا لأنها قيد مفتاح أجنبي حقيقي.
-function taskTopAncestor(t, byRef){
+export function taskTopAncestor(t, byRef){
   let cur=t, guard=0;
   while(cur.parent && byRef[cur.parent] && guard++<50){ cur=byRef[cur.parent]; }
   return cur.id;
@@ -240,8 +269,9 @@ function taskTopAncestor(t, byRef){
 // في المشروع، لا من سجل pmo_project_tracks وحده. إن وُجد تخصيص اسم/لون في السجل يُستخدم؛
 // وإلا يُشتق افتراضي من اسم البند الجذر نفسه — فلا تظهر تصفية فارغة أبدًا بسبب انحراف البيانات.
 const _TRACK_PALETTE=['#8A8071','#4A6B8A','#A67F4E','#6B8E6B','#8A5E7A','#5E8A8A','#8A6B4A','#4B3F72'];
-function projTrackList(){
-  if(typeof PROJECT!=='undefined'&&PROJECT&&PROJECT.tasks&&PROJECT.tasks.length){
+export function projTrackList(){
+  const PROJECT=getState('PROJECT');
+  if(PROJECT&&PROJECT.tasks&&PROJECT.tasks.length){
     const reg={};(PROJECT.tracks||[]).forEach(x=>{reg[x.key]=x;});
     const byRef={};PROJECT.tasks.forEach(t=>{byRef[t.id]=t;});
     const seen=new Set(),out=[];let pi=0;
@@ -256,11 +286,11 @@ function projTrackList(){
     out.sort((a,b)=>a.sort-b.sort);
     if(out.length)return out;
   }
-  if(typeof PROJECT!=='undefined'&&PROJECT&&PROJECT.tracks&&PROJECT.tracks.length)
+  if(PROJECT&&PROJECT.tracks&&PROJECT.tracks.length)
     return PROJECT.tracks.map(t=>({key:t.key,name:t.name,color:t.color,code:t.key,id:t.id,sort:t.sort}));
   return Object.keys(TRACKS).map((k,i)=>({key:k,name:TRACKS[k].name,color:TRACKS[k].color,code:TRACKS[k].code||k,sort:i}));
 }
-function trackMeta(k){
+export function trackMeta(k){
   const t=projTrackList().find(x=>x.key===k);
   if(t)return t;
   if(TRACKS[k])return{key:k,name:TRACKS[k].name,color:TRACKS[k].color,code:TRACKS[k].code||k};
@@ -268,12 +298,12 @@ function trackMeta(k){
 }
 
 // خط التسليمات: المصادر والأنواع والحالات
-const DELIV_SRC={
+export const DELIV_SRC={
   client:{t:'الشريك',c:'#a8442f'},
   pmo:{t:'إدارة المشاريع',c:'#4B3F72'},
   marketing:{t:'التسويق',c:'#B28E67'},
   tech:{t:'التقني',c:'#35608F'},
   consulting:{t:'الاستشارات',c:'#5B8266'}
 };
-const DELIV_KIND={file:{t:'تسليم ملف',i:'📎'},request:{t:'طلب',i:'📤'},reply:{t:'رد',i:'↩'},approval:{t:'اعتماد',i:'✅'},note:{t:'ملاحظة',i:'📝'}};
-const DELIV_STATUS={sent:'مُرسل',awaiting:'بانتظار الرد',received:'مُستلم',approved:'معتمد'};
+export const DELIV_KIND={file:{t:'تسليم ملف',i:'📎'},request:{t:'طلب',i:'📤'},reply:{t:'رد',i:'↩'},approval:{t:'اعتماد',i:'✅'},note:{t:'ملاحظة',i:'📝'}};
+export const DELIV_STATUS={sent:'مُرسل',awaiting:'بانتظار الرد',received:'مُستلم',approved:'معتمد'};

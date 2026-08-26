@@ -34,8 +34,8 @@ const VENDORED = new Set(['qrgen.js']);
 // القائمة هي **مقياس التقدّم**: كل اسم هنا ملف تحوّل إلى وحدة حقيقية. تنمو مع كل
 // دفعة حتى تشمل الجميع، وعندها يُحذف استخراج الـglobals أدناه ويصير no-undef
 // دقيقًا لكل ملف على حدة بلا أي تنازل.
-const ESM_FILES = new Set(['engine.js', 'format.js', 'dialogs.js', 'contracttemplate.js',
-  'state.js', 'bundle-entry.js']);
+const ESM_FILES = new Set(['engine.js', 'format.js', 'config.js', 'toast.js', 'api.js', 'notifications.js', 'dialogs.js',
+  'contracttemplate.js', 'state.js', 'bundle-entry.js']);
 const isESM = f => ESM_FILES.has(f);
 // المسارات الفعلية: بعض الوحدات في src/ وبعضها في src/app/، والقائمة أعلاه بالاسم
 // المجرّد كي يستخدمها الاستخراج أدناه (الذي يقرأ الأسماء لا المسارات). الفحص التالي
@@ -45,14 +45,67 @@ const ESM_PATHS = SRC_DIRS.flatMap(d => readdirSync(d).filter(isESM).map(f => `$
 if (ESM_PATHS.length !== ESM_FILES.size) {
   throw new Error(`ESM_FILES يذكر ${ESM_FILES.size} ملفًا ووُجد منها ${ESM_PATHS.length}: ${ESM_PATHS.join(' ')}`);
 }
-// صادرات الوحدات المُحوَّلة التي يجسرها bundle-entry.js إلى globalThis للكود القديم.
-const ESM_BRIDGED = Object.fromEntries(
-  ['D', 'setHolidays', 'isoLocal', 'isWorkday', 'isHoliday', 'wdBetween',
-   'scheduleTasks', 'computeTracking',
-   'esc', 'fmt', 'fmtY', 'todayISO', 'slugify', 'uniqueSlug',
-   'dialog', 'confirmDialog',
-   'CONTRACT_TEMPLATES', 'mergeContract',
-   'renderMergedContractHTML', 'renderCustomContractHTML'].map(n => [n, 'readonly']));
+// صادرات الوحدات المُحوَّلة، تصل إلى الكود القديم عبر globalThis (bundle-entry.js).
+//
+// كانت قائمة يدوية. وقد نمت من ثمانية أسماء إلى أكثر من خمسين في ست دفعات، وكان
+// تحويل api.js وحدها سيضيف ١٦٢ اسمًا آخر — أي أن الصيانة اليدوية كانت ستنهار في
+// الدفعة التالية لا في دفعة بعيدة. والانهيار صامت بطبيعته: اسم منسيّ يظهر كـ
+// no-undef زائف على الحزمة، فيُغري بإسكات القاعدة بدل إصلاح القائمة.
+//
+// فصارت **مشتقّة من المصدر**: تُقرأ صادرات كل ملف في ESM_FILES آليًا. لا قائمة
+// تُحدَّث، ولا انحراف ممكن أصلًا — والملف الذي يتحوّل تدخل صادراته تلقائيًا.
+// المصدر هو الجسر نفسه لا تخمينٌ عنه: يُقرأ `Object.assign(globalThis, …)` من
+// bundle-entry.js، وتُتبَع كل وحدة مذكورة فيه إلى مسارها، وتُجمع صادراتها.
+//
+// والفارق ليس شكليًا: `state.js` تُصدّر getState/setState لكنها **لا تُمرَّر إلى
+// Object.assign** — حالتها تصل بواصفات لا بنسخ. فاشتقاقٌ من «كل ملفات ESM» كان
+// سيعلنهما globals وهما ليسا كذلك، فيسكت no-undef عن نداءٍ يفشل وقت التشغيل.
+function collectBridgedExports() {
+  const entrySrc = readFileSync('src/bundle-entry.js', 'utf8');
+  const entry = parse(entrySrc, { ecmaVersion: 'latest', sourceType: 'module' });
+
+  // أي وحدة استُوردت من أي مسار
+  const sourceOf = new Map();
+  for (const stmt of entry.body) {
+    if (stmt.type !== 'ImportDeclaration') continue;
+    for (const spec of stmt.specifiers) {
+      if (spec.type === 'ImportNamespaceSpecifier') sourceOf.set(spec.local.name, stmt.source.value);
+    }
+  }
+
+  // أي منها مرَّ فعلًا في Object.assign(globalThis, …)
+  const spread = [];
+  for (const stmt of entry.body) {
+    const e = stmt.type === 'ExpressionStatement' ? stmt.expression : null;
+    if (!e || e.type !== 'CallExpression') continue;
+    const c = e.callee;
+    if (c.type !== 'MemberExpression' || c.object.name !== 'Object' || c.property.name !== 'assign') continue;
+    if (!e.arguments.length || e.arguments[0].name !== 'globalThis') continue;
+    for (const a of e.arguments.slice(1)) if (a.type === 'Identifier') spread.push(a.name);
+  }
+  if (!spread.length) throw new Error('تعذّر قراءة Object.assign(globalThis, …) من bundle-entry.js');
+
+  const out = {};
+  for (const ns of spread) {
+    const rel = sourceOf.get(ns);
+    if (!rel) throw new Error(`الجسر يمرّر ${ns} ولا استيراد له في bundle-entry.js`);
+    const path = join('src', rel.replace(/^\.\//, ''));
+    const ast = parse(readFileSync(path, 'utf8'), { ecmaVersion: 'latest', sourceType: 'module' });
+    for (const stmt of ast.body) {
+      if (stmt.type !== 'ExportNamedDeclaration' || !stmt.declaration) continue;
+      const d = stmt.declaration;
+      if (d.type === 'FunctionDeclaration' || d.type === 'ClassDeclaration') {
+        if (d.id) out[d.id.name] = 'readonly';
+      } else if (d.type === 'VariableDeclaration') {
+        const names = new Set();
+        d.declarations.forEach(x => boundNames(x.id, names));
+        for (const n of names) out[n] = 'readonly';
+      }
+    }
+  }
+  return out;
+}
+const ESM_BRIDGED = collectBridgedExports();
 
 // ═══ الحالة المشتركة — تصل عبر واصفات على globalThis (bundle-entry.js) ═══
 // ليست صادرات تُنسَخ، فلا يراها الاستخراج أعلاه ولا أي تحليل ساكن. وتُعلَن هنا

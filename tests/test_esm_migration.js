@@ -53,8 +53,18 @@ t('لا export في المستوى الأعلى للحزمة', !/^export[\s{]/m.
 t('لا import في المستوى الأعلى للحزمة', !/^import[\s{'"]/m.test(bundle));
 t('البناء يفرض صيغة IIFE صراحةً', buildPy.includes('--format=iife'));
 t('قطعة ESM موسومة في الناتج', bundle.includes('/* ===== وحدات ESM (esbuild) ===== */'));
-t('القطعة توضع **أولًا** — قبل الكود القديم الذي يقرأ منها',
-  bundle.indexOf('وحدات ESM (esbuild)') < bundle.indexOf('===== config.js ====='));
+{
+  // القاعدة الحاكمة السادسة: القدرة المفحوصة لم تتغيّر، موضعها تغيّر. كان التأكيد
+  // مثبَّتًا على `config.js` بصفتها أول ملف في الدمج النصي — ثم تحوّلت هي نفسها،
+  // فاختفى المرساة وسقط التأكيد. العلاج ليس تثبيته على الملف التالي (فيسقط مجددًا
+  // مع كل تحويل)، بل أن يقرأ المرساة من build.py: **أوّل ملف قديم أيًّا كان**.
+  const first = (buildPy.match(/CORE=\[\s*'src\/(?:app\/)?([\w.-]+)'/) || [])[1];
+  t('build.py ما زالت تُعلن ملفات دمج نصي', !!first, 'تعذّرت قراءة أول عنصر في CORE');
+  t('القطعة توضع **أولًا** — قبل الكود القديم الذي يقرأ منها',
+    bundle.includes(`===== ${first} =====`) &&
+    bundle.indexOf('وحدات ESM (esbuild)') < bundle.indexOf(`===== ${first} =====`),
+    `أول ملف قديم: ${first}`);
+}
 t('engine.js خرجت من قائمة الدمج النصي (تُحزَم لا تُلصَق)',
   !/CORE=\[[^\]]*'src\/engine\.js'/.test(buildPy));
 
@@ -169,6 +179,48 @@ console.log('\n▸ الدفعة الثالثة: app/contracttemplate.js — ال
     .forEach(n => t(`${n} لم تعد عامّة`, !new RegExp(`export (function|const) ${n}\\b`).test(ct)));
   t('تستورد esc من format لا من النطاق العام', /import \{ esc \} from '\.\.\/format\.js'/.test(ct));
   t('خرجت من قائمة الدمج النصي', !/CORE=\[[^\]]*contracttemplate/.test(buildPy));
+}
+
+console.log('\n▸ api.js — أكبر ملف، والتصغير صار ممكنًا');
+{
+  const api = fs.readFileSync('src/api.js', 'utf8');
+  const exported = (api.match(/^export (async function|function|const|let|class)/gm) || []).length;
+  t('١٦٢ اسمًا مُصدَّرًا', exported === 162, exported + ' تصريحًا مُصدَّرًا');
+  ['fetchProjectCounts', 'ensureXLSX', '_planPayload', 'refreshClientContracts', 'fetchRolesFlat']
+    .forEach(n => t(`${n} تبقى خاصّة`, !new RegExp(`^export (async )?function ${n}\\b`, 'm').test(api)));
+  t('خرجت من الدمج النصي', !/CORE=\[[^\]]*'src\/api\.js'/.test(buildPy));
+
+  // BUILD_V تُحقن في أول الحزمة لا داخل قطعة ESM (تُحسب من محتوى الحزمة كلها،
+  // فحقنها في جزء منها دورٌ مغلق). كانت تُقرأ ضمنيًا، وأمسكها no-undef أول مرة
+  // صار فيها دقيقًا على هذا الملف.
+  {
+    // يُفحَص الكود لا التعليقات: الترويسة تشرح BUILD_V فتذكره بلا بادئة.
+    const code = api.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+    const bare = (code.match(/(?<!\.)\bBUILD_V\b/g) || []).length;
+    t('لا قراءة ضمنية واحدة باقية', bare === 0, bare + ' موضعًا بلا بادئة');
+    t('وستة مواضع صريحة — كل تحميل كسول', (code.match(/globalThis\.BUILD_V/g) || []).length === 6);
+  }
+  t('وbuild.py هي من تحقنها في أول الحزمة', /const BUILD_V=/.test(buildPy));
+
+  // الوحدات الكسولة ربط متأخّر متعمَّد: الملف غير موجود أصلًا وقت تحميل الحزمة.
+  ['dolOpen', 'importerOpen', 'pganttOpen', 'timelineRender', 'timelinePortfolio', 'trelloMenu']
+    .forEach(n => t(`${n} تبقى مربوطة متأخّرًا`, new RegExp(`window\\.${n}\\b`).test(api)));
+}
+
+console.log('\n▸ التصغير: مساحة بلا فقد إمكانية التشخيص');
+{
+  // القرار: --minify-whitespace و--minify-syntax **دون** تصغير الأسماء. الأخير
+  // يوفّر ١٦ KB ويكلّف أثرًا لا يُقرأ في كل تتبّع خطأ يصل من مستخدم.
+  // تُقرأ **وسائط esbuild** لا الملف كله: التعليق أعلاها يذكر --minify-identifiers
+  // ليشرح سبب استبعادها، فالفحص النصّي الساذج ينقلب على نفسه.
+  const argsBlock = (buildPy.match(/subprocess\.run\(\[_esbuild[\s\S]*?\]/) || [''])[0];
+  const flags = (argsBlock.match(/'--[a-z-]+'/g) || []).map(f => f.slice(1, -1));
+  t('التصغير مفعَّل', flags.includes('--minify-whitespace') && flags.includes('--minify-syntax'));
+  t('وتصغير الأسماء **ليس** مفعَّلًا',
+    !flags.includes('--minify-identifiers') && !flags.includes('--minify'), flags.join(' '));
+  t('فالأسماء تبقى مقروءة في الحزمة',
+    bundle.includes('scheduleTasks') && bundle.includes('loadProject') && bundle.includes('computeTracking'));
+  t('والقرار موثَّق بسببه', /تتبّع خطأ|خرائط مصدر/.test(buildPy));
 }
 
 console.log('\n▸ الجسر مؤقّت بطبيعته — موثَّق لا منسيّ');
