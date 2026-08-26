@@ -581,9 +581,25 @@ function renderReqs(){
     compute();preserveFocus(renderReqs);
   }));
   $('#reqTbl').querySelectorAll('[data-rdel]').forEach(b=>b.onclick=async()=>{
-    const r=REQ_TASK.requirements[+b.dataset.rdel];
-    if(r._id)await deleteRequirement(r._id);
-    REQ_TASK.requirements.splice(+b.dataset.rdel,1);compute();renderReqs();
+    const i=+b.dataset.rdel, r=REQ_TASK.requirements[i];
+    // اللقطة في اليد أصلًا — لا حاجة لجلبها.
+    const snap={description:r.desc,owner:r.owner,sla_days:r.sla,blocking:r.blocking,
+      requested_at:r.requested||null,received_at:r.received||null};
+    try{
+      await undoable({
+        label:'حُذف المتطلب',
+        remove:async()=>{ if(r._id)await deleteRequirement(r._id); REQ_TASK.requirements.splice(i,1); },
+        refresh:async()=>{ compute(); renderReqs(); },
+        restore:async()=>{
+          const {data,error}=await insertRequirement(Object.assign({task_id:REQ_TASK._dbId},snap));
+          if(error)throw error;
+          REQ_TASK.requirements.splice(i,0,{_id:data.id,desc:snap.description,owner:snap.owner,
+            sla:snap.sla_days,blocking:snap.blocking,
+            requested:snap.requested_at||'',received:snap.received_at||''});
+        },
+        doneMsg:'استُعيد المتطلب'
+      });
+    }catch(e){ toast('تعذّر الحذف: '+e.message,'err'); }
   });
 }
 $('#reqAdd').onclick=async()=>{

@@ -93,7 +93,7 @@ console.log(`  ${GREEN}✓${OFF} ${new Set(expected).size} ملفًا مُعلَ
 //   هذا مؤشّر **استهداف مقصود** لا تنفيذ فعلي — أضعف من التغطية، لكنه حقيقي وقابل
 //   للقياس اليوم، ويخدم مباشرةً ما رصده AUDIT.md §هـ-١. السقف ينقص ولا يزيد أبدًا.
 console.log(`${BOLD}▸ حارس اتّساع الاختبار...${OFF}`);
-const UNTESTED_CAP = 8;   // W0=10 · W2: format+dialogs=9 · state=8. الملفات المُضافة في W2 تدخل التغطية فورًا فلا يرتفع. ينقص ولا يزيد.
+const UNTESTED_CAP = 7;   // W0=10 · W2: format+dialogs=9 · state=8 · W5: lifecycle=7. ينقص ولا يزيد.
 const testSources = fs.readdirSync(__dirname)
   .filter(f => f.startsWith('test_') && f.endsWith('.js'))
   .map(f => fs.readFileSync(path.join(__dirname, f), 'utf8')).join('\n');
