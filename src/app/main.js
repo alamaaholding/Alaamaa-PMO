@@ -106,6 +106,9 @@ async function startApp(){
   bindQJump();
   $('#dataDate').value=DATA_DATE;$('#dataDate').onchange=e=>{DATA_DATE=e.target.value;if(SCREEN==='project')render();else renderPortfolio();};
   if(!CLIENTS.length){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا توجد مشاريع متاحة لحسابك بعد.</p>';hideChrome();return;}
+  // الفلاتر من الرابط قبل أي تصيير: تطبيقها بعده يعني وميضًا يعرض المحفظة
+  // كاملة ثم يصفّيها — والمستخدم يرى شاشة لم يطلبها للحظة.
+  applyHashFilters();
   // الشريك: دخول مباشر لمشروعه الوحيد. الطاقم: شاشة المحفظة
   if(ROLE==='client'){
     SCREEN='project';CID=CLIENTS[0].id;await loadProject(CID);render();
@@ -139,7 +142,8 @@ let _hashLock=false,_focusRef=null;
 // المحفظة نفسها «مجلد جذري» له رابط نظيف خاص به — لا يبقى الرابط عالقًا على آخر مشروع
 // أو شريك كان مفتوحًا قبلها، وهذا بالضبط ما يجعل التنقّل يعكس ما يُعرَض فعليًا دائمًا.
 function writePortfolioHash(){
-  const h='#/';
+  const h=joinHash('#/',encodePortfolio({
+    filter:PFILTER,sort:PSORT,alerts:PALERTS,search:PSEARCH}));
   if(location.hash===h)return;
   _hashLock=true;
   try{history.replaceState(null,'',h);}catch(e){location.hash=h;}
@@ -150,18 +154,45 @@ function writeHash(){
   const client=(CLIENTS||[]).find(x=>x.id===CID);
   const cRef=(client&&client.slug)||CID;
   const pRef=PROJECT.slug||PROJECT._dbId;
-  const h='#/c/'+cRef+'/'+pRef+'/'+VIEW+(_focusRef?('/t/'+encodeURIComponent(_focusRef)):'');
+  const base='#/c/'+cRef+'/'+pRef+'/'+VIEW+(_focusRef?('/t/'+encodeURIComponent(_focusRef)):'');
+  // تصفية الجدول تخصّ تبويب الجدول وحده — حملُها في تبويب آخر ضجيج بلا معنى.
+  const h=joinHash(base,VIEW==='table'?encodeTable(TFILTER):'');
   if(location.hash===h)return;
   _hashLock=true;
   try{history.replaceState(null,'',h);}catch(e){location.hash=h;}
   setTimeout(()=>{_hashLock=false;},0);
 }
 function parseHash(){
-  let m=/^#\/c\/([^/]+)\/([^/]+)\/([a-z]+)(?:\/t\/(.+))?$/.exec(location.hash||'');
+  // الاستعلام يُفصل أولًا: المسار يحدّد **أين**، والاستعلام يحدّد **ماذا يُرى**،
+  // ولا يجوز أن يُفسد أحدهما تحليل الآخر.
+  const {path}=splitHash(location.hash||'');
+  let m=/^#\/c\/([^/]+)\/([^/]+)\/([a-z]+)(?:\/t\/(.+))?$/.exec(path);
   if(m)return {clientRef:m[1],projectRef:m[2],view:m[3],ref:m[4]?decodeURIComponent(m[4]):null};
-  m=/^#\/p\/([^/]+)\/([a-z]+)(?:\/t\/(.+))?$/.exec(location.hash||''); // صيغة قديمة — للتوافق فقط
+  m=/^#\/p\/([^/]+)\/([a-z]+)(?:\/t\/(.+))?$/.exec(path); // صيغة قديمة — للتوافق فقط
   if(m)return {clientRef:null,projectRef:m[1],view:m[2],ref:m[3]?decodeURIComponent(m[3]):null};
   return null;
+}
+
+// ===== الرابط يفوز على التفضيل المحفوظ =====
+// localStorage افتراضٌ حين لا يقول الرابط شيئًا؛ فإن قال، فهي نيّة صريحة من
+// المُرسِل. والعكس يعني أن رابطًا مشتركًا يُعرَض بتفضيلات المُستقبِل — وهو
+// بالضبط العطل الذي تعالجه هذه الدفعة.
+function applyHashFilters(){
+  const {path,query}=splitHash(location.hash||'');
+  if(!query)return false;
+  if(/^#\/?$/.test(path)){
+    const f=decodePortfolio(query);
+    if(f.filter)PFILTER=f.filter;
+    if(f.sort)PSORT=f.sort;
+    if(f.alerts)PALERTS=new Set(f.alerts);
+    if(f.search!==undefined)PSEARCH=f.search;
+    return true;
+  }
+  const f=decodeTable(query);
+  if(!Object.keys(f).length)return false;
+  TFILTER={phases:new Set(f.phases||[]),statuses:new Set(f.statuses||[]),
+           smart:new Set(f.smart||[]),q:f.q||''};
+  return true;
 }
 // تبديل التبويب — نقطة الدخول الوحيدة (تحدّث الرابط أيضًا)
 function setView(v,ref){
