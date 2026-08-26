@@ -829,8 +829,24 @@ function bindDiscuss(){
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
   document.querySelectorAll('[data-delc]').forEach(b=>b.onclick=async()=>{
-    if(!await confirmDialog('حذف التعليق','حذف هذا التعليق؟ لا يمكن التراجع.',true,'حذف'))return;
-    try{ await deleteComment(b.dataset.delc); toast('حُذف','ok'); await refreshProjectCounts(); render(); }
+    // كان الحوار يقول «لا يمكن التراجع» — وعدٌ لم يكن ثمّة سبب تقنيّ لقطعه.
+    if(!await confirmDialog('حذف التعليق','حذف هذا التعليق؟',true,'حذف'))return;
+    const id=b.dataset.delc;
+    try{
+      // اللقطة تُجلب قبل الحذف: المعرّف وحده لا يكفي لإعادة البناء، والصفّ
+      // المعروض لا يصل إلى هنا (التصيير يبنيه نصًّا ثم يُنسى).
+      const snap=(await loadComments(PROJECT._dbId)).find(x=>x.id===id);
+      await undoable({
+        label:'حُذف التعليق',
+        remove:()=>deleteComment(id),
+        refresh:async()=>{ await refreshProjectCounts(); render(); },
+        restore:async()=>{
+          if(!snap)throw new Error('تعذّر إيجاد نسخة التعليق');
+          await addComment(PROJECT._dbId,snap.kind,snap.body,snap.parent_id||null,snap.task_id||null);
+        },
+        doneMsg:'استُعيد التعليق'
+      });
+    }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
 }
@@ -902,8 +918,21 @@ function bindRequests(){
     if(r&&r.who){try{ await updateClientRequest(b.dataset.assign,{assigned_to:r.who}); toast('تم الإسناد','ok'); render(); }catch(e){toast('تعذّر','err');}}
   });
   document.querySelectorAll('[data-delreq]').forEach(b=>b.onclick=async()=>{
-    if(!await confirmDialog('حذف الطلب','حذف هذا الطلب نهائيًا؟',true,'حذف'))return;
-    try{ await deleteClientRequest(b.dataset.delreq); toast('حُذف','ok'); render(); }
+    if(!await confirmDialog('حذف الطلب','حذف هذا الطلب؟',true,'حذف'))return;
+    const id=b.dataset.delreq;
+    try{
+      const snap=(await loadClientRequests(PROJECT._dbId)).find(x=>x.id===id);
+      await undoable({
+        label:'حُذف الطلب',
+        remove:()=>deleteClientRequest(id),
+        refresh:async()=>{ await refreshProjectCounts(); render(); },
+        restore:async()=>{
+          if(!snap)throw new Error('تعذّر إيجاد نسخة الطلب');
+          await addClientRequest(PROJECT._dbId,snap.title,snap.body,snap.department,snap.priority);
+        },
+        doneMsg:'استُعيد الطلب'
+      });
+    }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
 }

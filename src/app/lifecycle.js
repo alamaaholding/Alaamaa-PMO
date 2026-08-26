@@ -282,12 +282,19 @@ async function deleteTrackRow(id,n){
     ? `المرحلة «${t.name}» فيها ${n} بندًا. حذفها لا يحذف البنود، لكنها ستُعرض بلا مرحلة معروفة حتى تُنقل. هل تريد المتابعة؟`
     : `حذف المرحلة «${t.name}»؟`;
   if(!await confirmDialog('حذف مرحلة',msg,n>0,'حذف'))return;
+  const snap={key:t.key,name:t.name,color:t.color,sort:t.sort};
   try{
-    await deleteTrack(id);
-    PROJECT.tracks=await fetchTracks(PROJECT._dbId);
-    toast('حُذفت المرحلة','ok');
-    renderTrkPanel();
-    if(SCREEN==='project')render();
+    await undoable({
+      label:'حُذفت المرحلة «'+t.name+'»',
+      remove:()=>deleteTrack(id),
+      refresh:async()=>{
+        PROJECT.tracks=await fetchTracks(PROJECT._dbId);
+        renderTrkPanel();
+        if(SCREEN==='project')render();
+      },
+      restore:()=>addTrack(PROJECT._dbId,snap.key,snap.name,snap.color,snap.sort),
+      doneMsg:'استُعيدت المرحلة'
+    });
   }catch(e){toast('تعذّر الحذف: '+e.message,'err');}
 }
 
