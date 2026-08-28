@@ -108,27 +108,44 @@ eq('view عبر القسم يمنع التعديل', w.can('editStruct'), false)
 setup({ ROLE: 'pmo', PID: 'p5', PROJ_DEPTS: { p5: 'تسويق' },
         MY_ACCESS: [{ scope_type: 'department', scope_value: 'تسويق', access_level: 'edit' }] });
 t('edit عبر القسم يسمح', w.can('editStruct') === true);
-console.log('\n▸ فجوة موثَّقة: «لا سجل مطابق» ليست «ممنوع»');
-// هذا سلوك **قائم لم يتغيّر في هذه الدفعة**، ويُثبَّت هنا كما هو لا كما يُفترض:
+console.log('\n▸ الفجوة مُغلَقة: «لا سجل مطابق» صارت «ممنوع»');
+// كانت can() تفحص `=== 'view'` فقط، فتمرّ `null` — وهي أشدّ من 'view' لا أخفّ:
+// تعني «مقيَّد ولا سجل واحد يشمل هذا المشروع». فمن مُنِح قراءةً على مشروع كانت
+// الواجهة تسمح له بتعديل مشروع **لم يُمنح عليه شيئًا**، بينما تمنع من مُنِح
+// قراءةً عليه — أي أن القيد كان ينقلب على نفسه.
 //
-//   myAccessLevelFor تُرجع 'edit' | 'view' | null، و null تعني «مقيَّد ولا سجل
-//   يشمل هذا المشروع». لكن can() تفحص === 'view' فقط، فـnull تمرّ.
+// صارت تفحص `!== 'edit'`: يُقارَن ما هو مسموح لا ما هو ممنوع.
 //
-// الأثر عمليًا محدود: من لا سجل له على المشروع لا يراه أصلًا (canSeeProject
-// تُرجع false)، فالواجهة لا تفتحه له. لكنها طبقة دفاع ناقصة لا حصانة: لو وصل
-// إليه بمسار آخر لما منعه can().
-//
-// **لم أغيّره**: تعديل منطق تفويض قرارُ منتج لا تنظيف هيكلة، والقاعدة الحاكمة
-// الثانية تمنع خلط الاثنين في دفعة واحدة. مُثبَّت هنا كي لا يتغيّر صدفةً، ومرفوع
-// للقرار.
+// وقد فُحصت السياسات على قاعدة البيانات قبل التغيير: كل كتابة محميّة بـ
+// `pmo_is_staff() AND pmo_can_edit_project(project_id)`، وتلك تشترط منحًا
+// صريحًا بمستوى edit. فالخادم كان يرفض الكتابة على أي حال — الأثر كان زرًّا
+// يُعرَض ثم يفشل برسالة خام، لا خرقًا. ومع ذلك: طبقة دفاع ناقصة تُصلَح.
 setup({ ROLE: 'pmo', PID: 'p5', PROJ_DEPTS: {},
         MY_ACCESS: [{ scope_type: 'department', scope_value: 'تسويق', access_level: 'edit' }] });
-eq('بلا سجل مطابق: can تسمح (السلوك القائم)', w.can('editStruct'), true);
+eq('بلا سجل مطابق: can تمنع', w.can('editStruct'), false);
 
 setup({ ROLE: 'pmo', PID: 'p2',
         MY_ACCESS: [{ scope_type: 'project', scope_value: 'p1', access_level: 'view' }] });
 t('مقيَّد على p1 لا يرى p2', w.canSeeProject('p2', null, null) === false);
-eq('لكن can لا تمنعه من تعديل p2 — الفجوة نفسها', w.can('editStruct'), true);
+eq('ولا يعدّله أيضًا', w.can('editStruct'), false);
+
+// ═══ ما لا يجوز أن يتغيّر مع هذا الإصلاح ═══
+// الخطر الحقيقي في تشديد قيد تفويض ليس أن يظلّ فضفاضًا، بل أن يمنع من لا يجب
+// منعه. فهذه التأكيدات تحرس المسارات الثلاثة التي تمرّ **قبل** الفحص المُشدَّد.
+setup({ ROLE: 'pmo', PID: 'p1', MY_ACCESS: [] });
+EDIT.forEach(p => t(`بلا تخصيص إطلاقًا: ${p} يبقى مسموحًا`, w.can(p) === true));
+setup({ ROLE: 'pmo', IS_OWNER: true, PID: 'p9',
+        MY_ACCESS: [{ scope_type: 'project', scope_value: 'other', access_level: 'view' }] });
+t('المالك يبقى فوق التخصيص', w.can('editStruct') === true);
+setup({ ROLE: 'pmo', PID: null,
+        MY_ACCESS: [{ scope_type: 'project', scope_value: 'p1', access_level: 'view' }] });
+t('خارج مشروع بعينه لا قيد', w.can('editStruct') === true);
+setup({ ROLE: 'pmo', PID: 'p1',
+        MY_ACCESS: [{ scope_type: 'company', scope_value: null, access_level: 'edit' }] });
+t('نطاق الشركة بـedit يبقى يعدّل', w.can('editStruct') === true);
+setup({ ROLE: 'pmo', PID: 'p1',
+        MY_ACCESS: [{ scope_type: 'company', scope_value: null, access_level: 'view' }] });
+eq('ونطاق الشركة بـview يُمنع', w.can('editStruct'), false);
 
 console.log('\n▸ بلا PID مفتوح لا يُطبَّق تقييد المشروع');
 setup({ ROLE: 'pmo', PID: null,
