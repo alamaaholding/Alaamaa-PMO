@@ -20,7 +20,7 @@ async function dolOpen(){
   $('#hProject').innerHTML='<span class="ctx-dot" style="background:var(--crit)"></span>طبقة تشغيل القرار — DOL Console';
   $('#barClient').style.display='none';hideChrome();
   $('#backPortfolio').style.display='';
-  $('#host').innerHTML='<div id="dolWrap"><div class="skeleton" style="height:60px;margin-bottom:8px"></div><div class="skeleton" style="height:120px"></div></div>';
+  $('#host').innerHTML='<div id="dolWrap">'+skeleton('cards',2)+'</div>';
   await loadDOL();
   renderDOL();
 }

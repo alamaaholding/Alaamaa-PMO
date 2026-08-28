@@ -90,7 +90,7 @@ async function renderWorkload(){
   $('#host').innerHTML=`
     <div class="hintbar"><button class="reqbtn" id="wlBack">↩ المحفظة</button>
       <span style="margin-inline-start:auto">توزيع البنود النشطة على الأيام عبر كل المشاريع — لضبط الحمل قبل أن يقع التعارض.</span></div>
-    <div id="wlBody"><div class="skeleton" style="height:220px"></div></div>`;
+    <div id="wlBody">${skeleton('cards',1)}</div>`;
   $('#wlBack').onclick=renderPortfolio;
   try{ WL_DATA=await fetchPortfolioWorkload(); }
   catch(e){ $('#wlBody').innerHTML='<p class="pempty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }

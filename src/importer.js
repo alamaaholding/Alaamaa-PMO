@@ -252,7 +252,7 @@ function importerOpen(){
 async function handleImpFile(e){
   const file=e.target.files[0]; if(!file) return;
   const res=$('#impResult');
-  res.innerHTML='<div class="skeleton" style="height:50px"></div>';
+  res.innerHTML=skeleton('panel',1);
   try{
     const buf=await file.arrayBuffer();
     const parsed=parseWorkbook(buf);

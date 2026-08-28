@@ -79,7 +79,7 @@ async function openProjectMenu(projectId, projectName){
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='إجراءات المشروع: '+(projectName||'');
   document.getElementById('tkTabs').innerHTML='';
-  document.getElementById('tkBody').innerHTML='<div class="skeleton" style="height:200px"></div>';
+  document.getElementById('tkBody').innerHTML=skeleton('cards',1);
   // جلب مباشر وحصري من القاعدة — الحقيقة الوحيدة المعتمَدة لهذه القيمة تحديدًا، بلا أي
   // اعتماد على حالة محفوظة في ذاكرة المتصفح مهما كان مصدرها أو مدى حداثتها المفترضة.
   let freshTrelloSync=undefined,freshLifecycleState=undefined;
@@ -408,7 +408,7 @@ async function openClientMenu(clientId){
 
 async function renderArchived(){
   SCREEN='archived';$('#hProject').textContent='الشركاء المؤرشفون';hideChrome();
-  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">الشركاء المؤرشفون والمجدولون للحذف. الاسترجاع متاح طوال مهلة الـ30 يومًا.</span></div><div id="archList"><div class="skeleton" style="height:60px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div></div>';
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">الشركاء المؤرشفون والمجدولون للحذف. الاسترجاع متاح طوال مهلة الـ30 يومًا.</span></div><div id="archList">'+skeleton('list',2)+'</div>';
   $('#backP').onclick=renderPortfolio;
   const isOwner=await checkIsOwner();
   const arch=await fetchClientsByState('archived');
@@ -483,7 +483,7 @@ async function renderArchived(){
 async function openAssignPanel(projectId,projectName){
   $('#assignOverlay').style.display='flex';
   $('#assignTitle').textContent='إسناد الفريق: '+(projectName||'');
-  const body=$('#assignBody');body.innerHTML='<div class="skeleton" style="height:100px"></div>';
+  const body=$('#assignBody');body.innerHTML=skeleton('cards',1);
   try{
     const [members,assigned]=await Promise.all([fetchTeamMembers(),fetchProjectStaff(projectId)]);
     const aset=new Set(assigned);
@@ -507,7 +507,7 @@ async function openAssignPanel(projectId,projectName){
 // ===== مدير العطلات الرسمية =====
 async function openHolidaysManager(){
   $('#holOverlay').style.display='flex';
-  const body=$('#holBody');body.innerHTML='<div class="skeleton" style="height:100px"></div>';
+  const body=$('#holBody');body.innerHTML=skeleton('cards',1);
   const paint=async()=>{
     const rows=await fetchHolidays();
     body.innerHTML=`

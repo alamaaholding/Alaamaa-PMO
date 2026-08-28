@@ -12,7 +12,7 @@ async function renderStaffAccess(){
   $('#host').innerHTML=`<div class="hintbar"><button class="reqbtn" id="backSA">↩ المحفظة</button>
     <span style="margin-inline-start:auto">🔐 <b>صلاحيات الفريق:</b> من يرى/يعدّل ماذا — على مستوى الشركة، القسم، أو مشروع واحد.
     موظف بلا أي صلاحية مخصَّصة هنا يبقى كما كان دائمًا (يرى كل شيء).</span></div>
-    <div id="saBody"><div class="skeleton" style="height:120px;margin-bottom:10px"></div><div class="skeleton" style="height:200px"></div></div>`;
+    <div id="saBody">${skeleton('cards',2)}</div>`;
   $('#backSA').onclick=renderPortfolio;
   try{
     [SA_MEMBERS,SA_GRANTS,SA_PROJECTS,SA_OWNER_EMAILS]=await Promise.all([

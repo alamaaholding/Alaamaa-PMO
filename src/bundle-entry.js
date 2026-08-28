@@ -24,11 +24,12 @@ import * as toastMod from './toast.js';
 import * as notifications from './notifications.js';
 import * as undo from './undo.js';
 import * as urlstate from './urlstate.js';
+import * as skeletonMod from './skeleton.js';
 import * as dialogs from './app/dialogs.js';
 import * as contractTemplate from './app/contracttemplate.js';
 import { STATE_KEYS, getState, setState } from './app/state.js';
 
-Object.assign(globalThis, engine, format, config, api, toastMod, notifications, undo, urlstate, dialogs, contractTemplate);
+Object.assign(globalThis, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate);
 
 // ═══ الحالة المشتركة: واصفات لا نسخ ═══
 // النسخ (Object.assign) يصلح للدوال ولا يصلح للحالة — ينسخ القيمة مرة واحدة

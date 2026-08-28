@@ -17,7 +17,7 @@ async function openSecurityAudit(){
   document.getElementById('tkTitle').textContent='فحص أمني';
   document.getElementById('tkTabs').innerHTML='';
   const body=document.getElementById('tkBody');
-  body.innerHTML='<div class="skeleton" style="height:120px"></div>';
+  body.innerHTML=skeleton('cards',1);
   const render=(r)=>{
     body.innerHTML=`
       <div class="${r.clean?'ctr-integrity ok':'chub-expiry-banner'}" style="margin-bottom:14px">
@@ -62,7 +62,7 @@ async function openCapacityPanel(){
   document.getElementById('tkTitle').textContent='الأقسام والمسمّيات الوظيفية';
   document.getElementById('tkTabs').innerHTML='';
   const body=document.getElementById('tkBody');
-  body.innerHTML='<div class="skeleton" style="height:200px"></div>';
+  body.innerHTML=skeleton('cards',1);
   let tree=[];
   try{ tree=await fetchCapacityTree(); }
   catch(e){ body.innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
@@ -139,7 +139,7 @@ async function openAutomationPanel(){
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='أتمتة العقود';
   document.getElementById('tkTabs').innerHTML='';
-  document.getElementById('tkBody').innerHTML='<div class="skeleton" style="height:160px"></div>';
+  document.getElementById('tkBody').innerHTML=skeleton('cards',1);
   let st={};
   try{ st=await fetchAutomationSettings(); }catch(e){
     document.getElementById('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>';return; }
@@ -198,7 +198,7 @@ async function openOrgProfile(){
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='الملف التعاقدي لعلامة';
   document.getElementById('tkTabs').innerHTML='';
-  document.getElementById('tkBody').innerHTML='<div class="skeleton" style="height:180px"></div>';
+  document.getElementById('tkBody').innerHTML=skeleton('cards',1);
   let o={};
   try{ o=await fetchOrgProfile(true); }catch(e){
     document.getElementById('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>';return; }
@@ -268,7 +268,7 @@ async function renderPortfolio(){
   $('#barClient').style.display='none';hideChrome();
   const isStaff=(ROLE==='pmo'||ROLE==='delivery');
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
-  const skel=CLIENTS.map(()=>'<div class="pcard"><div class="skeleton" style="height:22px;width:55%;margin-bottom:14px"></div><div class="skeleton" style="height:8px;margin-bottom:12px"></div><div class="skeleton" style="height:36px"></div></div>').join('');
+  const skel=CLIENTS.map(()=>'<div class="pcard">'+skeleton('panel',3)+'</div>').join('');
   const toolItems=[];
   if(isStaff){
     toolItems.push({g:'عروض شاملة',id:'showPGantt',t:'الخط الزمني الشامل',i:'📅'});
