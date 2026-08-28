@@ -53,8 +53,8 @@ async function renderPublicSign(token){
   document.getElementById('app').classList.add('hidden');
   const root=document.getElementById('publicSign');
   root.classList.remove('hidden');
-  root.innerHTML=`<div class="pubsign-wrap"><div class="pubsign-card"><div class="skeleton" style="height:26px;width:60%;margin-bottom:14px"></div>
-    <div class="skeleton" style="height:200px"></div></div></div>`;
+  root.innerHTML=`<div class="pubsign-wrap"><div class="pubsign-card">${skeleton('panel',1)}
+    ${skeleton('cards',1)}</div></div>`;
 
   let d;
   try{ d=await fetchPublicContract(token); }
@@ -214,7 +214,7 @@ async function openContractPanel(){
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='عقود المشروع والتوقيع';
   document.getElementById('tkTabs').innerHTML='';
-  document.getElementById('tkBody').innerHTML='<div class="skeleton" style="height:120px"></div>';
+  document.getElementById('tkBody').innerHTML=skeleton('cards',1);
   await refreshContractPanel();
 }
 async function refreshContractPanel(){
@@ -271,7 +271,7 @@ async function refreshContractPanel(){
     const show=picker.style.display==='none';
     picker.style.display=show?'':'none';
     if(!show)return;
-    picker.innerHTML='<div class="skeleton" style="height:60px"></div>';
+    picker.innerHTML=skeleton('list',1);
     let unlinked;
     try{ unlinked=await fetchUnlinkedClientContracts(CID); }
     catch(e){ picker.innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }

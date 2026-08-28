@@ -14,8 +14,8 @@ async function renderContractsHub(){
   $('#host').innerHTML=`
     <div class="hintbar"><button class="reqbtn" id="chubBack">↩ المحفظة</button>
       <span style="margin-inline-start:auto">كل عقود المحفظة في مكان واحد — إنشاء (قياسي أو بنص مخصَّص)، اعتماد داخلي، تعديل، توقيع، وإلغاء.</span></div>
-    <div id="chubBody"><div class="skeleton" style="height:60px;margin-bottom:10px"></div>
-      <div class="skeleton" style="height:300px"></div></div>
+    <div id="chubBody">${skeleton('list',1)}
+      ${skeleton('chart',1)}</div>
     <div id="chubPanel"></div>`;
   $('#chubBack').onclick=renderPortfolio;
 
@@ -520,7 +520,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
     <div class="chub-pane" data-pane="attach" ${CHD_TAB==='attach'?'':'hidden'}>
       <div class="sa-section">
         <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للشريك في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
-        <div id="chdAttachments"><div class="skeleton" style="height:40px"></div></div>
+        <div id="chdAttachments">${skeleton('panel',1)}</div>
       </div>
     </div>
 
@@ -551,7 +551,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
     <div class="chub-pane" data-pane="log" ${CHD_TAB==='log'?'':'hidden'}>
       <div class="sa-section">
         <h4>📜 سجل العقد <span class="sa-hint">كل إجراء موثَّق: من فعله ومتى</span></h4>
-        <div id="chdAudit"><div class="skeleton" style="height:40px"></div></div>
+        <div id="chdAudit">${skeleton('panel',1)}</div>
       </div>
     </div>
   </div>`;

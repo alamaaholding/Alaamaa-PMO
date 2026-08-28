@@ -1409,3 +1409,36 @@ tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
 .ntf-copy:hover{border-color:var(--gold);color:var(--ink)}
 .ntf-copy.failed{border-color:var(--crit);color:var(--crit)}
 .ntf-copy-sink{position:fixed;inset-inline-start:-9999px;opacity:0}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   الهياكل العظمية للتحميل (W5)
+
+   الصنف `.skeleton` كان مستعملًا في **خمسين موضعًا ولم يكن مُعرَّفًا هنا
+   إطلاقًا**. أي أن كل حالة تحميل في المنصّة كانت تُصيَّر عنصرًا فارغًا بلا
+   خلفية ولا حركة: يشغل ارتفاعه من الصفحة ولا يُرى. فما بدا «حالة تحميل
+   مطبَّقة في كل مكان» كان في الواقع فراغًا أبيض في كل مكان.
+
+   ولم يكن ليظهر في أي اختبار: الـDOM صحيح، والصنف موجود، والارتفاع مضبوط
+   — والمستخدم يرى بياضًا.
+   ═══════════════════════════════════════════════════════════════════════ */
+.skeleton{position:relative;overflow:hidden;border-radius:var(--r-sm);
+  background:var(--soft);min-height:8px}
+.skeleton::after{content:'';position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,var(--paper),transparent);opacity:.6;
+  animation:skshimmer 1.5s ease-in-out infinite}
+@keyframes skshimmer{100%{transform:translateX(100%)}}
+/* من يطلب تقليل الحركة يرى خلفية ثابتة — الرسالة تصل بلا وميض. */
+@media(prefers-reduced-motion:reduce){.skeleton::after{animation:none;opacity:0}}
+
+/* المقاييس السبعة التي كانت مبعثرة في خمسين نمطًا سطريًا */
+.sk-bar{height:8px}
+.sk-line{height:22px}
+.sk-field{height:40px}
+.sk-row{height:56px}
+.sk-card{height:110px}
+.sk-block{height:200px}
+.sk-chart{height:300px}
+.sk-half{width:55%}
+.sk-gap{margin-bottom:var(--s3)}
+.sk-stack{display:flex;flex-direction:column;gap:var(--s2)}

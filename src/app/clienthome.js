@@ -18,9 +18,9 @@ async function renderClientHome(clientId){
       <button class="reqbtn" id="chMenu" style="margin-inline-start:8px" aria-haspopup="true" aria-label="إجراءات الشريك">⋮ إجراءات الشريك</button>
       <button class="reqbtn" id="chSettings" style="margin-inline-start:8px" aria-label="إعدادات الشريك">⚙ إعدادات الشريك</button>
       <span style="margin-inline-start:auto">ملف الشريك الكامل: لوحة قيادة مجمَّعة، كل مشاريعه، خططه، وفريقه — في مكان واحد.</span></div>
-    <div id="chBody"><div class="skeleton" style="height:90px;margin-bottom:10px"></div>
-      <div class="skeleton" style="height:160px;margin-bottom:10px"></div>
-      <div class="skeleton" style="height:220px"></div></div>`;
+    <div id="chBody">${skeleton('list',1)}
+      ${skeleton('cards',1)}
+      ${skeleton('cards',1)}</div>`;
   $('#chBack').onclick=renderPortfolio;
   $('#chMenu').onclick=()=>openClientMenu(clientId);
   $('#chSettings').onclick=()=>openClientSettings(stats,access);
