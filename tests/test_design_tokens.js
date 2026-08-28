@@ -119,7 +119,28 @@ t('الصنف .barclient يعرّف التخطيط المرن', /\.barclient\{[^
 {
   const css = require('fs').readFileSync('src/styles.css', 'utf8');
   const root = css.match(/:root\{[\s\S]*?\n\}/)[0];
-  const body = css.replace(root, '');
+  // تعريفات الرموز صارت في ثلاث كتل بعد الوضع الداكن (:root · [data-theme] ·
+  // prefers-color-scheme)، فالمعيار محتوى الكتلة لا موضعها: كتلةٌ جسمها
+  // تعريفاتُ رموز فقط هي تعريف أينما كانت — ويُنزَل في الكتل الأخرى لأنها
+  // قد تلفّها (@media يلفّ :root:not(…)).
+  const stripTokenBlocks = c => {
+    let out = '', i = 0;
+    while (i < c.length) {
+      const open = c.indexOf('{', i);
+      if (open === -1) { out += c.slice(i); break; }
+      let d = 0, j = open;
+      while (j < c.length) { if (c[j] === '{') d++; else if (c[j] === '}') { d--; if (!d) break; } j++; }
+      if (j >= c.length) { out += c.slice(i); break; }
+      const inner = c.slice(open + 1, j);
+      const bare = inner.replace(/\/\*[\s\S]*?\*\//g, '').trim();
+      const onlyTokens = bare.length > 0 && bare.split(';').map(x => x.trim()).filter(Boolean)
+        .every(dcl => /^--[a-z0-9-]+\s*:/i.test(dcl) || /^color-scheme\s*:/i.test(dcl));
+      out += c.slice(i, open) + (onlyTokens ? '{}' : '{' + stripTokenBlocks(inner) + '}');
+      i = j + 1;
+    }
+    return out;
+  };
+  const body = stripTokenBlocks(css);
 
   // ١) داخل @media print: الورق أبيض دائمًا مهما كان وضع الشاشة. ترميزها يعني
   //    طباعة صفحة سوداء على من يفتح الوضع الداكن.
