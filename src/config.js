@@ -61,7 +61,14 @@ export function can(p){
   if(EDIT_ACTIONS.includes(p)&&!getState('IS_OWNER')&&(MY_ACCESS||[]).length&&PID){
     const PROJ_DEPTS=getState('PROJ_DEPTS');
     const dept=PROJ_DEPTS?PROJ_DEPTS[PID]:null;
-    if(myAccessLevelFor(PID,dept,getState('CID'))==='view')return false;
+    // يُقارَن ما هو **مسموح** لا ما هو ممنوع. الصيغة السابقة كانت
+    // `=== 'view'`، فتمرّ `null` — وهي أشدّ من 'view' لا أخفّ: تعني «مقيَّد
+    // ولا سجل واحد يشمل هذا المشروع». فمن مُنِح قراءةً على مشروع كانت تسمح
+    // له الواجهة بتعديل مشروع **لم يُمنح عليه شيئًا**، بينما تمنع من مُنِح
+    // قراءةً عليه. (قاعدة البيانات كانت ترفض الكتابة على أي حال — انظر
+    // pmo_can_edit_project — فالأثر كان زرًّا يُعرَض ثم يفشل برسالة خام،
+    // لا خرقًا. ومع ذلك: طبقة دفاع ناقصة تُصلَح لا تُحتمَل.)
+    if(myAccessLevelFor(PID,dept,getState('CID'))!=='edit')return false;
   }
   return true;
 }
