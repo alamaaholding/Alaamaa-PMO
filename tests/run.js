@@ -200,7 +200,7 @@ const DEAD_CAP = 0;   // W2: حُذف الأحد عشر الموجودة. أي �
 // **لا متراجعًا**: يُسمح بالنقصان دائمًا، ويُمنع النموّ دائمًا.
 console.log(`${BOLD}▸ حارسا نظام التصميم...${OFF}`);
 const INLINE_STYLE_CAP = 322;   // W0=372 · W5=322 (الهياكل العظمية صارت أصنافًا)
-const RAW_COLOR_CAP    = 91;    // ألوان صريحة خارج :root داخل styles.css
+const RAW_COLOR_CAP    = 12;    // W0=91 · W4=12 (الباقي: ١١ داخل @media print — الورق أبيض دائمًا — وخلفية رمز QR)
 
 // الأنماط الديناميكية (التي تحمل قيمة محسوبة: عرض شريط، لون مسار) استعمال مشروع
 // ولا تُحتسب — لا يمكن التعبير عنها بصنف ثابت أصلًا.
@@ -214,8 +214,40 @@ for (const f of styleSources) {
   const hits = fs.readFileSync(f, 'utf8').match(/style="[^"]*"/g) || [];
   inlineStatic += hits.filter(h => !h.includes('${')).length;
 }
-// الألوان داخل :root هي التعريف نفسه — تُستثنى؛ والمقصود ما يلتفّ حولها.
-const cssBody = fs.readFileSync('src/styles.css', 'utf8').replace(/:root\{[\s\S]*?\n\}/, '');
+// الألوان داخل **تعريفات الرموز** هي التعريف نفسه — تُستثنى؛ والمقصود ما يلتفّ حولها.
+//
+// كان الاستثناء مثبَّتًا على `:root{…}` وحده. ومع الوضع الداكن (W4) صارت
+// التعريفات في ثلاث كتل: `:root` و`:root[data-theme="dark"]` وكتلة
+// `prefers-color-scheme`. فحُدِّث المعيار من **موضع** الكتلة إلى **محتواها**:
+// كتلةٌ جسمها تعريفاتُ رموز فقط هي تعريف أينما كانت. (القاعدة الحاكمة السادسة:
+// القدرة المفحوصة لم تتغيّر — «لا لون صريح خارج التعريفات» — وإنما موضعها.)
+function stripTokenBlocks(css) {
+  let out = '', i = 0;
+  while (i < css.length) {
+    const open = css.indexOf('{', i);
+    if (open === -1) { out += css.slice(i); break; }
+    let d = 0, j = open;
+    while (j < css.length) {
+      if (css[j] === '{') d++;
+      else if (css[j] === '}') { d--; if (!d) break; }
+      j++;
+    }
+    if (j >= css.length) { out += css.slice(i); break; }
+    const body = css.slice(open + 1, j);
+    // جسمٌ لا يحمل إلا `--x: …;` وتعليقات ومسافات = تعريف رموز.
+    const bare = body.replace(/\/\*[\s\S]*?\*\//g, '').trim();
+    const onlyTokens = bare.length > 0 &&
+      bare.split(';').map(x => x.trim()).filter(Boolean)
+          .every(decl => /^--[a-z0-9-]+\s*:/i.test(decl) || /^color-scheme\s*:/i.test(decl));
+    // كتلة ليست تعريفًا قد **تحوي** تعريفًا: `@media(prefers-color-scheme:dark)`
+    // تلفّ `:root:not([data-theme="light"])`. فيُنزَل فيها لا تُنسَخ كما هي.
+    out += css.slice(i, open) +
+      (onlyTokens ? '{}' : '{' + stripTokenBlocks(body) + '}');
+    i = j + 1;
+  }
+  return out;
+}
+const cssBody = stripTokenBlocks(fs.readFileSync('src/styles.css', 'utf8'));
 const rawColors = (cssBody.match(/#[0-9a-fA-F]{3,6}\b/g) || []).length;
 
 let designFailed = 0;

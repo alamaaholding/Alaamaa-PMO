@@ -16,6 +16,9 @@
 //  التحويل ويصير الاستيراد صريحًا في كل موضع.
 // ═══════════════════════════════════════════════════════════════════════
 
+// theme أولًا عمدًا: تطبيق الوسم على <html> يقع عند تحميل هذه الوحدة، فيسبق
+// بناء الصفحة كلها. تأخيره يعني ومضة بيضاء لمن يفتح المنصّة في الوضع الداكن.
+import * as theme from './theme.js';
 import * as engine from './engine.js';
 import * as format from './format.js';
 import * as config from './config.js';
@@ -29,7 +32,7 @@ import * as dialogs from './app/dialogs.js';
 import * as contractTemplate from './app/contracttemplate.js';
 import { STATE_KEYS, getState, setState } from './app/state.js';
 
-Object.assign(globalThis, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate);
+Object.assign(globalThis, theme, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate);
 
 // ═══ الحالة المشتركة: واصفات لا نسخ ═══
 // النسخ (Object.assign) يصلح للدوال ولا يصلح للحالة — ينسخ القيمة مرة واحدة

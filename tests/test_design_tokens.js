@@ -109,5 +109,70 @@ t('الصنف .barclient يعرّف التخطيط المرن', /\.barclient\{[^
     w.getComputedStyle(D.getElementById('b')).display === 'block');
 }
 
+// ═══ ترميز الألوان (W4) — الحدّ بين ما يُرمَّز وما لا يُرمَّز ═══
+//
+// الوضع الداكن يقوم على أن **كل** لون يمرّ برمز: لونٌ واحد صريح يبقى فاتحًا في
+// الوضع الداكن ويكسر التباين حوله. فالسقف نزل من ٩١ إلى ١٢.
+//
+// والاثنا عشر الباقية **ليست بقايا عمل**، بل استثناءات مقصودة تُحرَس كي لا
+// تُرمَّز يومًا بحسن نيّة:
+{
+  const css = require('fs').readFileSync('src/styles.css', 'utf8');
+  const root = css.match(/:root\{[\s\S]*?\n\}/)[0];
+  // تعريفات الرموز صارت في ثلاث كتل بعد الوضع الداكن (:root · [data-theme] ·
+  // prefers-color-scheme)، فالمعيار محتوى الكتلة لا موضعها: كتلةٌ جسمها
+  // تعريفاتُ رموز فقط هي تعريف أينما كانت — ويُنزَل في الكتل الأخرى لأنها
+  // قد تلفّها (@media يلفّ :root:not(…)).
+  const stripTokenBlocks = c => {
+    let out = '', i = 0;
+    while (i < c.length) {
+      const open = c.indexOf('{', i);
+      if (open === -1) { out += c.slice(i); break; }
+      let d = 0, j = open;
+      while (j < c.length) { if (c[j] === '{') d++; else if (c[j] === '}') { d--; if (!d) break; } j++; }
+      if (j >= c.length) { out += c.slice(i); break; }
+      const inner = c.slice(open + 1, j);
+      const bare = inner.replace(/\/\*[\s\S]*?\*\//g, '').trim();
+      const onlyTokens = bare.length > 0 && bare.split(';').map(x => x.trim()).filter(Boolean)
+        .every(dcl => /^--[a-z0-9-]+\s*:/i.test(dcl) || /^color-scheme\s*:/i.test(dcl));
+      out += c.slice(i, open) + (onlyTokens ? '{}' : '{' + stripTokenBlocks(inner) + '}');
+      i = j + 1;
+    }
+    return out;
+  };
+  const body = stripTokenBlocks(css);
+
+  // ١) داخل @media print: الورق أبيض دائمًا مهما كان وضع الشاشة. ترميزها يعني
+  //    طباعة صفحة سوداء على من يفتح الوضع الداكن.
+  const spans = [];
+  for (const m of body.matchAll(/@media print\s*\{/g)) {
+    let i = m.index + m[0].length - 1, d = 0, j = i;
+    while (j < body.length) {
+      if (body[j] === '{') d++;
+      else if (body[j] === '}') { d--; if (!d) break; }
+      j++;
+    }
+    spans.push([m.index, j]);
+  }
+  const inPrint = p => spans.some(([a, b]) => a <= p && p <= b);
+  const hexes = [...body.matchAll(/#[0-9a-fA-F]{3,6}\b/g)];
+  const screen = hexes.filter(m => !inPrint(m.index));
+  const printed = hexes.filter(m => inPrint(m.index));
+
+  t('ألوان الطباعة تبقى حرفية', printed.length > 0);
+  // ٢) خلفية رمز QR: يجب أن تبقى بيضاء للماسحات — رمزٌ يقلبها يكسر المسح.
+  t('خلفية رمز QR تبقى بيضاء حرفيًا', /\.cx-qr img\{[^}]*background:#fff/.test(body));
+  t('ولا لون شاشة آخر خارج الرموز',
+    screen.filter(m => !/\.cx-qr img\{[^}]*$/.test(body.slice(Math.max(0, m.index - 140), m.index))).length === 0,
+    screen.map(m => m[0]).join(' '));
+
+  // ٣) وكل رمز جديد له قيمة فعلية — رمز فارغ يُصيّر اللون شفافًا بلا خطأ.
+  const names = [...root.matchAll(/(--[a-z0-9-]+):\s*([^;]+);/g)];
+  t('كل رمز له قيمة', names.every(m => m[2].trim().length > 0));
+  t('الرموز الجديدة موجودة',
+    ['--ink-head', '--sand-1', '--ok-tint-2', '--crit-tint-3', '--gold-deep', '--line-doc']
+      .every(n => root.includes(n + ':')));
+}
+
 console.log('\nنجح ' + ok + ' · فشل ' + fail);
 process.exit(fail ? 1 : 0);

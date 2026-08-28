@@ -79,7 +79,14 @@ const wait=setInterval(()=>{
   const extra=[
     ['الغلاف لم يعد يستخدم 100vh (وحدة شاشة لا معنى لها في الطباعة)',
       !/\.cx-cover\{min-height:100vh/.test(css)],
-    ['منع انقسام الغلاف عبر حدّ الصفحة',css.includes('.cx-cover{display:flex')&&css.includes('page-break-inside:avoid;break-inside:avoid;\n  background:var(--ink)')],
+    // القاعدة الحاكمة السادسة: القدرة هي «الغلاف لا ينقسم عبر حدّ الصفحة»،
+    // وكان التأكيد مثبَّتًا على نصّ يتضمّن `background:var(--ink)` — وهو تفصيل
+    // عارض لا علاقة له بالقدرة. تغيّر الرمز في W4 (‎--ink للنصّ و‎--solid للأرضية)
+    // فسقط التأكيد بلا أن تتغيّر القدرة. فصار يقرأ كتلة `.cx-cover` نفسها.
+    ['منع انقسام الغلاف عبر حدّ الصفحة',(()=>{
+      const m=css.match(/\.cx-cover\{[^}]*\}/);
+      return !!m && /page-break-inside:avoid/.test(m[0]) && /break-inside:avoid/.test(m[0]);
+    })()],
     ['منع انقسام رمز QR تحديدًا',css.includes('.cx-qr{margin-top:22px')&&css.includes('page-break-inside:avoid;break-inside:avoid}')],
     ['نص وصف QR بعرض كافٍ لا يتناثر عموديًا',css.includes('width:320px;max-width:100%')&&css.includes('word-break:normal')],
     ['مقاس صفحة وهوامش رسمية محدَّدة للطباعة',css.includes('@page{size:A4;margin:12mm}')],
