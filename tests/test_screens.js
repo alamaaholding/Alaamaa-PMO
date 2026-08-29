@@ -143,30 +143,27 @@ console.log('\n▸ الدورة مكسورة — وتبقى مكسورة');
 
   // والقيد الذي يقوم عليه امتناع السجلّ عن لمس SCREEN: كل شاشة تضبطه بنفسها.
   //
-  // و«leads» **استثناء مقيس لا مسكوت عنه**: كشفه هذا التأكيد نفسه. `renderLeads`
-  // وحدها لا تضبط SCREEN ولا تنادي hideChrome — بخلاف شقيقتيها المجاورتين لها
-  // حرفيًّا في الملف نفسه. وأثره اليوم **صفر**، لأن لا مستهلك واحد يميّز 'leads'
-  // عن 'portfolio': `writeHash` تطلب 'project'، و`#dataDate` تُصيّر المحفظة لكل ما
-  // ليس 'project'. فهو تناقض يصير عطلًا يوم يفرّق أي مستهلك بينهما.
   //
-  // ولا يُصلَح هنا: ضبطُ SCREEN تغييرُ سلوك، ودسّه في دفعة بنية هو ما تمنعه
-  // القاعدة الحاكمة الثانية. فيُثبَّت المقيس، ويُنقَل الإصلاح إلى دفعته.
-  const SETS_SCREEN_EXEMPT = new Set(['leads']);
+  // وكان «leads» استثناءً كشفه هذا التأكيد نفسه: `renderLeads` وحدها لا تضبط
+  // SCREEN ولا تنادي hideChrome، بخلاف شقيقتيها المجاورتين لها في الملف نفسه.
+  // أُصلح في دفعته المستقلة (سلوك لا بنية)، فسقط الاستثناء ولم يبقَ إلا القاعدة.
   const noSelfSet = [];
   for (const [key, [fn, owner]] of Object.entries(SCREENS)) {
-    if (SETS_SCREEN_EXEMPT.has(key)) continue;
     const src = fs.readFileSync(owner, 'utf8');
     const at = src.indexOf(`function ${fn}(`);
     const body = src.slice(at, at + 400);
     if (!new RegExp(`SCREEN\\s*=\\s*'${key}'`).test(body)) noSelfSet.push(`${fn}→${key}`);
   }
-  t('كل شاشة تضبط SCREEN بنفسها — عدا المستثنى', noSelfSet.length === 0, noSelfSet.join(' '));
-  // ويُثبَّت الاستثناء بقياسه، فلا ينمو بصمت ولا يبقى بعد إصلاحه.
-  {
-    const m = fs.readFileSync('src/app/main.js', 'utf8');
-    const at = m.indexOf('function renderLeads(');
-    t('و«leads» لا تزال هي وحدها', !/SCREEN\s*=/.test(m.slice(at, at + 400)));
+  t('كل شاشة بلا استثناء تضبط SCREEN بنفسها', noSelfSet.length === 0, noSelfSet.join(' '));
+  // وكل شاشة تُخفي الإطار كذلك — عدا 'project' وحدها، فهي الشاشة التي يخصّها.
+  const noHide = [];
+  for (const [key, [fn, owner]] of Object.entries(SCREENS)) {
+    if (key === 'project') continue;
+    const src = fs.readFileSync(owner, 'utf8');
+    const at = src.indexOf(`function ${fn}(`);
+    if (!/hideChrome\(\)/.test(src.slice(at, at + 700))) noHide.push(fn);
   }
+  t('وكل شاشة سوى المشروع تُخفي الإطار', noHide.length === 0, noHide.join(' '));
 }
 
 console.log('\nنجح ' + ok + ' · فشل ' + fail);

@@ -353,7 +353,10 @@ async function renderAuditLog(){
 // ===== شاشة الشركاء المحتملين (PMO) =====
 
 async function renderLeads(){
-  $('#hProject').textContent='الشركاء المحتملون';
+  // كانت هذه الشاشة وحدها لا تضبط SCREEN ولا تُخفي الإطار — بخلاف شقيقتيها
+  // المجاورتين لها أعلاه حرفيًّا. ولم يظهر الأثر لأن لا مستهلك يميّز 'leads' عن
+  // 'portfolio' بعدُ، فبقي التناقض مستترًا خلف صدفةٍ لا خلف قرار.
+  SCREEN='leads';$('#hProject').textContent='الشركاء المحتملون';hideChrome();
   $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backToPortfolio">↩ المحفظة</button><span class="ms-auto">النماذج الواردة من الموقع — حوّل أيًّا منها إلى مشروع-مقترح.</span></div><div id="leadsList">'+skeleton('list',2)+'</div>';
   $('#backToPortfolio').onclick=()=>showScreen('portfolio');
   let leads;
