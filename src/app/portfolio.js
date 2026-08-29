@@ -308,23 +308,23 @@ async function renderPortfolio(){
   const legendBtn=isStaff?'<button class="hbtn" id="statusLegendBtn" title="دليل حالات المشاريع">ⓘ دليل الحالات</button>':'';
   const toolbar=isStaff?`<div class="portfolio-tools">${primaryBtn}${legendBtn}${toolsMenu}</div>`:'';
   $('#host').innerHTML='<div class="hintbar">اختر شريكًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
-  if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=renderLeads;
+  if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=()=>showScreen('leads');
     const ac=$('#addClientBtn');if(ac)ac.onclick=addNewClient;}
   {const db=$('#showDOL');if(db)db.onclick=openDOL;}
-  {const ab=$('#showAudit');if(ab)ab.onclick=renderAuditLog;}
-  {const cb=$('#showContractsHub');if(cb)cb.onclick=renderContractsHub;}
+  {const ab=$('#showAudit');if(ab)ab.onclick=()=>showScreen('audit');}
+  {const cb=$('#showContractsHub');if(cb)cb.onclick=()=>showScreen('contractshub');}
   {const lb=$('#statusLegendBtn');if(lb)lb.onclick=openStatusLegend;}
   {const op=$('#showOrgProfile');if(op)op.onclick=openOrgProfile;}
-  {const wl=$('#showWorkload');if(wl)wl.onclick=renderWorkload;}
+  {const wl=$('#showWorkload');if(wl)wl.onclick=()=>showScreen('workload');}
   {const cp=$('#showCapacity');if(cp)cp.onclick=openCapacityPanel;}
   {const au=$('#showAutomation');if(au)au.onclick=openAutomationPanel;}
   {const sa2=$('#showSecAudit');if(sa2)sa2.onclick=openSecurityAudit;}
-  {const tb=$('#showTimeline');if(tb)tb.onclick=renderPortfolioTimeline;}
+  {const tb=$('#showTimeline');if(tb)tb.onclick=()=>showScreen('ptimeline');}
   {const hb=$('#showHolidays');if(hb)hb.onclick=openHolidaysManager;}
-  {const arb=$('#showArchived');if(arb)arb.onclick=renderArchived;}
+  {const arb=$('#showArchived');if(arb)arb.onclick=()=>showScreen('archived');}
   {const pg=$('#showPGantt');if(pg)pg.onclick=()=>renderPortfolioGantt();}
   {const ts=$('#showTrelloSet');if(ts)ts.onclick=()=>openTrello('settings');}
-  {const sa=$('#showStaffAccess');if(sa)sa.onclick=renderStaffAccess;}
+  {const sa=$('#showStaffAccess');if(sa)sa.onclick=()=>showScreen('staffaccess');}
   {const tb=$('#toolsBtn'),pop=$('#toolsPop');
     if(tb&&pop){
       const close=()=>{pop.classList.remove('open');tb.setAttribute('aria-expanded','false');};
@@ -474,14 +474,18 @@ async function renderPortfolio(){
   document.querySelectorAll('[data-toggle]').forEach(el=>el.onclick=async(e)=>{
     if(e.target.closest('[data-cmenu]'))return;
     const cid=el.dataset.toggle;
-    await renderClientHome(cid);
+    await showScreen('clienthome', cid);
   });
   // نقرة على مشروع داخل التوسيع
   document.querySelectorAll('[data-openproj]').forEach(el=>el.onclick=async(e)=>{
     e.stopPropagation();
-    CID=el.dataset.cid; PID=el.dataset.openproj; await openProject();
+    CID=el.dataset.cid; PID=el.dataset.openproj; await showScreen('project');
   });
   document.querySelectorAll('[data-cmenu]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openClientMenu(b.dataset.cmenu);});
   document.querySelectorAll('[data-pmenu]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openProjectMenu(b.dataset.pmenu,b.dataset.pname);});
   document.querySelectorAll('[data-addproj]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();newProjectDialog(b.dataset.addproj);});
 }
+
+// ===== تسجيل الشاشة في السجلّ (src/screens.js) =====
+// المفتاح هو ما يناديه بقية التطبيق، فلا ملف شاشةٍ يعرف اسم دالة شاشةٍ أخرى.
+registerScreen('portfolio', renderPortfolio);

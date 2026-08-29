@@ -45,4 +45,4 @@ $('#googleBtn').onclick=async()=>{
   if(error){$('#loginErr').textContent='تعذّر بدء الدخول';$('#loginErr').style.display='block';}
 };
 $('#signout').onclick=$('#signoutDenied').onclick=async()=>{await sb.auth.signOut();location.reload();};
-$('#backPortfolio').onclick=async()=>{ await renderPortfolio(); $('#backPortfolio').style.display='none'; };
+$('#backPortfolio').onclick=async()=>{ await showScreen('portfolio'); $('#backPortfolio').style.display='none'; };

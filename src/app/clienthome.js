@@ -8,7 +8,7 @@ async function ensureMembersCache(){if(!SA_MEMBERS_CACHE)SA_MEMBERS_CACHE=await 
 
 async function renderClientHome(clientId){
   const c=CLIENTS.find(x=>x.id===clientId);
-  if(!c){toast('شريك غير موجود','err');await renderPortfolio();return;}
+  if(!c){toast('شريك غير موجود','err');await showScreen('portfolio');return;}
   SCREEN='clienthome';CID=clientId;PID=null;
   $('#hProject').textContent=c.name;
   $('#barClient').style.display='none';hideChrome();
@@ -21,7 +21,7 @@ async function renderClientHome(clientId){
     <div id="chBody">${skeleton('list',1)}
       ${skeleton('cards',1)}
       ${skeleton('cards',1)}</div>`;
-  $('#chBack').onclick=renderPortfolio;
+  $('#chBack').onclick=()=>showScreen('portfolio');
   $('#chMenu').onclick=()=>openClientMenu(clientId);
   $('#chSettings').onclick=()=>openClientSettings(stats,access);
 
@@ -119,7 +119,7 @@ function renderCHBody(stats,access){
       <div class="sa-grants">${accessRows}</div>
     </div>`;
 
-  $$('#chBody [data-openp]').forEach(b=>b.onclick=async()=>{CID=stats.cid;PID=b.dataset.openp;await openProject();});
+  $$('#chBody [data-openp]').forEach(b=>b.onclick=async()=>{CID=stats.cid;PID=b.dataset.openp;await showScreen('project');});
   const nb=$('#chNewProj');if(nb)nb.onclick=()=>newProjectDialog(stats.cid);
   const scopeSel=$('#chScope'),projSel=$('#chProj');
   if(scopeSel)scopeSel.onchange=()=>{projSel.style.display=(scopeSel.value==='project')?'':'none';};
@@ -212,3 +212,7 @@ function openClientSettings(stats,access){
   };
 }
 window.openClientSettings=openClientSettings;
+
+// ===== تسجيل الشاشة في السجلّ (src/screens.js) =====
+// المفتاح هو ما يناديه بقية التطبيق، فلا ملف شاشةٍ يعرف اسم دالة شاشةٍ أخرى.
+registerScreen('clienthome', renderClientHome);

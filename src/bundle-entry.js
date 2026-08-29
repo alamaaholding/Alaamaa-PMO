@@ -23,6 +23,7 @@ import * as engine from './engine.js';
 import * as format from './format.js';
 import * as config from './config.js';
 import * as chrome from './chrome.js';
+import * as screens from './screens.js';
 import * as api from './api.js';
 import * as toastMod from './toast.js';
 import * as notifications from './notifications.js';
@@ -34,7 +35,7 @@ import * as contractTemplate from './app/contracttemplate.js';
 import * as exportContract from './app/exportcontract.js';
 import { STATE_KEYS, getState, setState } from './app/state.js';
 
-Object.assign(globalThis, theme, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate, exportContract, chrome);
+Object.assign(globalThis, theme, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate, exportContract, chrome, screens);
 
 // ═══ الحالة المشتركة: واصفات لا نسخ ═══
 // النسخ (Object.assign) يصلح للدوال ولا يصلح للحالة — ينسخ القيمة مرة واحدة

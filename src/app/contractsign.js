@@ -265,7 +265,7 @@ async function refreshContractPanel(){
     ${rows}
     <div id="ctSignArea"></div>`;
 
-  document.getElementById('ctGoHub').onclick=()=>renderContractsHub();
+  document.getElementById('ctGoHub').onclick=()=>showScreen('contractshub');
   document.getElementById('ctLinkExisting').onclick=async()=>{
     const picker=document.getElementById('ctLinkPicker');
     const show=picker.style.display==='none';

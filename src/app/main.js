@@ -66,7 +66,7 @@ function qjClose(){
 async function qjGo(item){
   qjClose();
   if(item.kind==='project'){CID=item.cid;PID=item.id;await openProject();return;}
-  await renderClientHome(item.cid);
+  await showScreen('clienthome', item.cid);
 }
 function bindQJump(){
   const wrap=$('#qjumpWrap');if(!wrap||wrap._bound)return;wrap._bound=true;
@@ -104,7 +104,7 @@ async function startApp(){
   $('#uName').textContent=USER._name||USER.email;
   $('#roleChip').textContent=ROLE_NAMES[ROLE];
   bindQJump();
-  $('#dataDate').value=DATA_DATE;$('#dataDate').onchange=e=>{DATA_DATE=e.target.value;if(SCREEN==='project')render();else renderPortfolio();};
+  $('#dataDate').value=DATA_DATE;$('#dataDate').onchange=e=>{DATA_DATE=e.target.value;if(SCREEN==='project')render();else showScreen('portfolio');};
   if(!CLIENTS.length){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا توجد مشاريع متاحة لحسابك بعد.</p>';hideChrome();return;}
   // الفلاتر من الرابط قبل أي تصيير: تطبيقها بعده يعني وميضًا يعرض المحفظة
   // كاملة ثم يصفّيها — والمستخدم يرى شاشة لم يطلبها للحظة.
@@ -115,15 +115,15 @@ async function startApp(){
   }else if(await tryOpenProjectFromHash()){
     // فُتح مشروع مباشرة من رابط عميق (مجلد فرعي أو الصيغة القديمة) — لا شيء إضافي مطلوب
   }else if(/^#\/workload\/?$/.test(location.hash||'')&&(ROLE==='pmo'||ROLE==='delivery')){
-    SCREEN='workload';await renderWorkload();
+    SCREEN='workload';await showScreen('workload');
   }else if(/^#\/contracts\/?$/.test(location.hash||'')&&(ROLE==='pmo'||ROLE==='delivery')){
-    SCREEN='contractshub';await renderContractsHub();
+    SCREEN='contractshub';await showScreen('contractshub');
   }else{
     const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
     let rid=cm?resolveClientIdentifier(cm[1]):null;
     if(cm&&!rid){ try{const r=await resolveClientLink(cm[1]);if(r&&r.ok)rid=r.client_id;}catch(e){} }
-    if(rid){SCREEN='clienthome';await renderClientHome(rid);}
-    else{SCREEN='portfolio';await renderPortfolio();}
+    if(rid){SCREEN='clienthome';await showScreen('clienthome', rid);}
+    else{SCREEN='portfolio';await showScreen('portfolio');}
   }
 }
 
@@ -254,21 +254,21 @@ window.addEventListener('hashchange',async()=>{
   if(typeof SCREEN!=='undefined'&&SCREEN==='project'&&applyHash())return;
   if(await tryOpenProjectFromHash())return;
   if(/^#\/workload\/?$/.test(location.hash||'')){
-    if(ROLE==='pmo'||ROLE==='delivery')renderWorkload();
+    if(ROLE==='pmo'||ROLE==='delivery')showScreen('workload');
     return;
   }
   if(/^#\/contracts\/?$/.test(location.hash||'')){
-    if(ROLE==='pmo'||ROLE==='delivery')renderContractsHub();
+    if(ROLE==='pmo'||ROLE==='delivery')showScreen('contractshub');
     return;
   }
   if(/^#\/?$/.test(location.hash||'')){
-    if(ROLE==='pmo'||ROLE==='delivery')renderPortfolio();
+    if(ROLE==='pmo'||ROLE==='delivery')showScreen('portfolio');
     return;
   }
   const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
   let rid=cm?resolveClientIdentifier(cm[1]):null;
   if(cm&&!rid){ try{const r=await resolveClientLink(cm[1]);if(r&&r.ok)rid=r.client_id;}catch(e){} }
-  if(rid&&(ROLE==='pmo'||ROLE==='delivery'))renderClientHome(rid);
+  if(rid&&(ROLE==='pmo'||ROLE==='delivery'))showScreen('clienthome', rid);
 });
 
 // إغلاق لوحة البند: زر، نقر على الخلفية، ومفتاح Esc
@@ -301,7 +301,7 @@ async function openProject(){
   await loadProject(CID,PID);
   $('#loader').classList.add('hidden');
   if(PROJECT_ACCESS_DENIED){
-    SCREEN='portfolio';toast('لا تملك صلاحية الوصول لهذا المشروع','err');await renderPortfolio();return;
+    SCREEN='portfolio';toast('لا تملك صلاحية الوصول لهذا المشروع','err');await showScreen('portfolio');return;
   }
   SCREEN='project';$('#barClient').style.display='';showChrome();
   // إن كان الوصول عبر رابط عميق، افتح التبويب/البند المقصود؛ وإلا اعرض الافتراضي
@@ -331,13 +331,13 @@ async function editStartDate(){
 async function renderPortfolioTimeline(){
   SCREEN='ptimeline';$('#hProject').textContent='خط التسليمات — كل المشاريع';hideChrome();
   $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backPT">↩ المحفظة</button><span class="ms-auto">📦 <b>خط التسليمات:</b> سجل زمني للتبادل بين علامة والشركاء عبر <b>كل المشاريع</b>.</span></div><div id="ptlWrap">'+skeleton('cards',2)+'</div>';
-  $('#backPT').onclick=renderPortfolio;
+  $('#backPT').onclick=()=>showScreen('portfolio');
   openTimelinePortfolio('ptlWrap');
 }
 async function renderAuditLog(){
   SCREEN='audit';$('#hProject').textContent='سجل المكتب — كل المشاريع';hideChrome();
   $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span class="ms-auto">🗂 <b>سجل المكتب:</b> كل الأفعال الحسّاسة عبر <b>كل المشاريع والشركاء</b> — من فعل، ماذا، ومتى. (سجل مشروع واحد: تبويب «سجل المشروع» داخله)</span></div><div id="auditList">'+skeleton('panel',3)+'</div>';
-  $('#backP').onclick=renderPortfolio;
+  $('#backP').onclick=()=>showScreen('portfolio');
   const rows=await fetchAuditLog(150);
   const list=$('#auditList');
   if(!rows.length){list.innerHTML='<div class="empty-cta"><div class="ico">'+I.clipboard+'</div><h3>السجل فارغ</h3><p>الأفعال الحسّاسة (حذف، أرشفة، تعليقات، طلبات) ستظهر هنا.</p></div>';return;}
@@ -355,7 +355,7 @@ async function renderAuditLog(){
 async function renderLeads(){
   $('#hProject').textContent='الشركاء المحتملون';
   $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backToPortfolio">↩ المحفظة</button><span class="ms-auto">النماذج الواردة من الموقع — حوّل أيًّا منها إلى مشروع-مقترح.</span></div><div id="leadsList">'+skeleton('list',2)+'</div>';
-  $('#backToPortfolio').onclick=renderPortfolio;
+  $('#backToPortfolio').onclick=()=>showScreen('portfolio');
   let leads;
   try{ leads=await loadLeads(); }catch(e){ $('#leadsList').innerHTML='<p class="pempty">تعذّر تحميل النماذج.</p>'; return; }
   const box=$('#leadsList');
@@ -867,3 +867,10 @@ function printProject(mode){
   }
 }
 
+
+// ===== تسجيل الشاشة في السجلّ (src/screens.js) =====
+// المفتاح هو ما يناديه بقية التطبيق، فلا ملف شاشةٍ يعرف اسم دالة شاشةٍ أخرى.
+registerScreen('project', openProject);
+registerScreen('ptimeline', renderPortfolioTimeline);
+registerScreen('audit', renderAuditLog);
+registerScreen('leads', renderLeads);
