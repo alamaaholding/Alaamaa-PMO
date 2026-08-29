@@ -36,7 +36,7 @@ console.log('\n▸ سطح الوحدة');
 t('تُصدَّر STATE_KEYS', Array.isArray(S.STATE_KEYS));
 t('تُصدَّر getState', typeof S.getState === 'function');
 t('تُصدَّر setState', typeof S.setState === 'function');
-eq('أحد وعشرون مفتاحًا', S.STATE_KEYS.length, 21);
+eq('اثنان وعشرون مفتاحًا', S.STATE_KEYS.length, 22);   // +SCREEN (W2: خرجت من app/main.js)
 t('القائمة مجمَّدة — لا تُعدَّل من الخارج', Object.isFrozen(S.STATE_KEYS));
 // الكائن نفسه **لا يُصدَّر**: لو صُدِّر لالتفّ أي مستهلك حول نقطة الرصد بمرجع مباشر.
 t('كائن الحالة نفسه لا يُصدَّر', S.state === undefined);
@@ -110,7 +110,7 @@ console.log('\n▸ الجسر على الحزمة الحقيقية: واصفات
     if (d && typeof d.get === 'function' && typeof d.set === 'function') accessors++;
     else dataProps.push(k);
   }
-  eq('كل المفاتيح الأحد والعشرين واصفات', accessors, 21);
+  eq('كل المفاتيح الاثنين والعشرين واصفات', accessors, 22);
   t('ولا مفتاح واحد صار قيمة منسوخة', dataProps.length === 0, dataProps.join(' '));
   t('الواصفات قابلة للحذف يوم يكتمل التحويل',
     Object.getOwnPropertyDescriptor(w, 'CID').configurable === true);
