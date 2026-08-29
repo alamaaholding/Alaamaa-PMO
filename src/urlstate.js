@@ -108,3 +108,81 @@ export function splitHash(hash) {
 export function joinHash(path, query) {
   return query ? path + '?' + query : path;
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════
+//  طبقة الرابط: القراءة والكتابة الفعليتان
+// ═══════════════════════════════════════════════════════════════════════
+//
+//  كانت المرمِّزات أعلاه هنا ومُستعمِلوها في app/main.js — أي أن **طبقةً واحدة
+//  كانت مقسومة بين ملفّين**، وكان ذلك يربط views.js و lifecycle.js و portfolio.js
+//  بملف التطبيق الأكبر من أجل `writeHash` و`writePortfolioHash` لا غير.
+//
+//  وما جعل النقل ممكنًا نقلُ حالتين إلى المتجر قبله: `TFILTER` (كانت رابطة سائبة
+//  في views.js) و`FOCUS_REF` (كانت `_focusRef` في main.js). فبعدهما لم يبقَ لهذه
+//  الدوال الأربع مُدخَلٌ خارج المتجر والمرمِّزات.
+
+import { getState, setState } from './app/state.js';
+
+// ═══ قفل الكتابة ═══
+// كل كتابة للرابط تُطلق hashchange. والمُعالِج يُعيد التصيير، فتُنتج كتابةٌ
+// برمجية تصييرًا لم يطلبه أحد — وربما حلقةً. فيُرفَع القفل بعد دورة حدث واحدة:
+// المهلة صفر تكفي لأن hashchange يصل في نفس الدورة التي تليها.
+let hashLock = false;
+/** هل الكتابة الجارية برمجية؟ يقرؤها مُعالِج hashchange ليتجاهل نفسه. */
+export function isHashLocked() { return hashLock; }
+
+function writeLocked(h) {
+  if (location.hash === h) return;
+  hashLock = true;
+  try { history.replaceState(null, '', h); } catch (e) { location.hash = h; }
+  setTimeout(() => { hashLock = false; }, 0);
+}
+
+export function writePortfolioHash(){
+  const h=joinHash('#/',encodePortfolio({
+    filter:getState('PFILTER'),sort:getState('PSORT'),alerts:getState('PALERTS'),search:getState('PSEARCH')}));
+  writeLocked(h);
+}
+
+export function writeHash(){
+  // سقطت حراسة `typeof SCREEN==='undefined'`: كانت من زمن النطاق المشترك حيث
+  // الترتيب النصّي هو كل شيء. و getState تُرجع قيمةً دائمًا لمفتاح معروف.
+  if(getState('SCREEN')!=='project'||!getState('PROJECT')||!getState('PROJECT')._dbId)return;
+  const client=(getState('CLIENTS')||[]).find(x=>x.id===getState('CID'));
+  const cRef=(client&&client.slug)||getState('CID');
+  const pRef=getState('PROJECT').slug||getState('PROJECT')._dbId;
+  const base='#/c/'+cRef+'/'+pRef+'/'+getState('VIEW')+(getState('FOCUS_REF')?('/t/'+encodeURIComponent(getState('FOCUS_REF'))):'');
+  // تصفية الجدول تخصّ تبويب الجدول وحده — حملُها في تبويب آخر ضجيج بلا معنى.
+  const h=joinHash(base,getState('VIEW')==='table'?encodeTable(getState('TFILTER')):'');
+  writeLocked(h);
+}
+
+export function parseHash(){
+  // الاستعلام يُفصل أولًا: المسار يحدّد **أين**، والاستعلام يحدّد **ماذا يُرى**،
+  // ولا يجوز أن يُفسد أحدهما تحليل الآخر.
+  const {path}=splitHash(location.hash||'');
+  let m=/^#\/c\/([^/]+)\/([^/]+)\/([a-z]+)(?:\/t\/(.+))?$/.exec(path);
+  if(m)return {clientRef:m[1],projectRef:m[2],view:m[3],ref:m[4]?decodeURIComponent(m[4]):null};
+  m=/^#\/p\/([^/]+)\/([a-z]+)(?:\/t\/(.+))?$/.exec(path); // صيغة قديمة — للتوافق فقط
+  if(m)return {clientRef:null,projectRef:m[1],view:m[2],ref:m[3]?decodeURIComponent(m[3]):null};
+  return null;
+}
+
+export function applyHashFilters(){
+  const {path,query}=splitHash(location.hash||'');
+  if(!query)return false;
+  if(/^#\/?$/.test(path)){
+    const f=decodePortfolio(query);
+    if(f.filter)setState('PFILTER', f.filter);
+    if(f.sort)setState('PSORT', f.sort);
+    if(f.alerts)setState('PALERTS', new Set(f.alerts));
+    if(f.search!==undefined)setState('PSEARCH', f.search);
+    return true;
+  }
+  const f=decodeTable(query);
+  if(!Object.keys(f).length)return false;
+  setState('TFILTER', {phases:new Set(f.phases||[]),statuses:new Set(f.statuses||[]),
+                       smart:new Set(f.smart||[]),q:f.q||''});
+  return true;
+}

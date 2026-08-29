@@ -75,18 +75,29 @@ function collectBridgedExports() {
   }
 
   // أي منها مرَّ فعلًا في Object.assign(globalThis, …)
-  const spread = [];
+  const spread = [], named = [];
   for (const stmt of entry.body) {
     const e = stmt.type === 'ExpressionStatement' ? stmt.expression : null;
     if (!e || e.type !== 'CallExpression') continue;
     const c = e.callee;
     if (c.type !== 'MemberExpression' || c.object.name !== 'Object' || c.property.name !== 'assign') continue;
     if (!e.arguments.length || e.arguments[0].name !== 'globalThis') continue;
-    for (const a of e.arguments.slice(1)) if (a.type === 'Identifier') spread.push(a.name);
+    for (const a of e.arguments.slice(1)) {
+      if (a.type === 'Identifier') { spread.push(a.name); continue; }
+      // والجسر بالاسم: `Object.assign(globalThis, { savePFilters })`. يلزم لأن
+      // state.js لا تُمرَّر كفضاء أسماء (حالتها بواصفات)، فتُجسَّر منها دالةٌ واحدة
+      // صراحةً. وبدون هذا الفرع يظهر الاسم كـno-undef زائف فيُغري بإسكات القاعدة.
+      if (a.type === 'ObjectExpression') {
+        for (const prp of a.properties) {
+          if (prp.type === 'Property' && prp.key && prp.key.name) named.push(prp.key.name);
+        }
+      }
+    }
   }
   if (!spread.length) throw new Error('تعذّر قراءة Object.assign(globalThis, …) من bundle-entry.js');
 
   const out = {};
+  for (const n of named) out[n] = 'readonly';
   for (const ns of spread) {
     const rel = sourceOf.get(ns);
     if (!rel) throw new Error(`الجسر يمرّر ${ns} ولا استيراد له في bundle-entry.js`);
@@ -115,7 +126,7 @@ const ESM_BRIDGED = collectBridgedExports();
 // تحديث هنا يُوقف ESLint برسالة تسمّي الفرق — بدل أن يمرّ كـno-undef زائف، أو
 // (وهو الأسوأ) كاسم مقبول بلا أساس.
 const STATE_KEYS = ['USER', 'ROLE', 'IS_OWNER', 'CLIENTS', 'CID', 'PID', 'PROJECT',
-  'SCHED', 'TRACK', 'DATA_DATE', 'PX', 'VIEW', 'SCREEN', 'CRS', 'PFILTER', 'PSEARCH',
+  'SCHED', 'TRACK', 'DATA_DATE', 'PX', 'VIEW', 'SCREEN', 'TFILTER', 'FOCUS_REF', 'CRS', 'PFILTER', 'PSEARCH',
   'PEXPANDED', 'PALERTS', 'PSORT', 'MY_ACCESS', 'PROJ_DEPTS', 'PROJECT_ACCESS_DENIED'];
 {
   const src = readFileSync('src/app/state.js', 'utf8');
