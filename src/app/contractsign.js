@@ -10,7 +10,7 @@ function mountSignaturePad(container){
       <button type="button" class="sig-tab" data-sigmode="type">اكتب اسمك بدل الرسم</button>
     </div>
     <div id="sigDrawWrap"><canvas id="sigCanvas" width="480" height="160"></canvas>
-      <button type="button" class="reqbtn" id="sigClear" style="margin-top:6px">مسح</button></div>
+      <button type="button" class="reqbtn mt-6" id="sigClear">مسح</button></div>
     <div id="sigTypeWrap" style="display:none">
       <input id="sigTypeName" placeholder="اكتب اسمك هنا كتوقيع" style="width:100%;font-size:1.4rem;font-family:'Segoe Script',cursive;
         border:1.5px solid var(--line);border-radius:8px;padding:14px;text-align:center">
@@ -244,7 +244,7 @@ async function refreshContractPanel(){
         <a class="reqbtn" href="${mailHref}" style="text-decoration:none;display:inline-flex;align-items:center">📧 إرسال بالبريد</a>
         <button class="reqbtn" data-exportqr="${c.id}">📄 تصدير PDF بـ QR (العقد كاملًا + الخطة)</button>
         <button class="reqbtn" data-viewtext="${c.id}">عرض نص العقد الكامل</button>
-        ${!al?`<button class="reqbtn" data-signalamaa="${c.id}" style="background:var(--ok);border-color:var(--ok);color:#fff">توقيع علامة الآن</button>`:''}
+        ${!al?`<button class="reqbtn ok" data-signalamaa="${c.id}">توقيع علامة الآن</button>`:''}
         ${(c.status!=='signed'&&c.status!=='void')?`<button class="reqbtn" data-voidcontract="${c.id}" style="color:var(--crit);border-color:var(--crit-bg)">🗑 إلغاء العقد</button>`:''}
         <button class="reqbtn" data-unlink="${c.id}">🔓 فك الارتباط بهذا المشروع</button>
       </div>
@@ -254,7 +254,7 @@ async function refreshContractPanel(){
 
   const clientC=CLIENTS.find(x=>x.id===CID)||{};
   document.getElementById('tkBody').innerHTML=`
-    <div class="sa-section" style="margin-bottom:14px">
+    <div class="sa-section mb-14">
       <h4>عقود هذا المشروع <span class="sa-hint">العقد كيان مستقل في محفظة العقود — اربط عقدًا قائمًا بدل إنشاء واحد جديد في كل مرة</span></h4>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="hbtn gold" id="ctLinkExisting">🔗 ربط عقد قائم بهذا المشروع</button>

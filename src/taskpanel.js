@@ -121,8 +121,8 @@ function tkReqs(){
     const s=ST[x._state]||['pending','بانتظار'];
     const lateTxt=(x._state==='overdue'&&x._late)?(' +'+x._late):'';
     return `<tr><td>${esc(x.desc)}</td><td>${esc(x.owner||'—')}</td>
-      <td>${x.blocking?'<span class="crstate rejected" style="font-size:.68rem">حاجز</span>':'—'}</td>
-      <td><span class="crstate ${s[0]}" style="font-size:.68rem">${s[1]}${lateTxt}</span></td></tr>`;
+      <td>${x.blocking?'<span class="crstate rejected fs-68">حاجز</span>':'—'}</td>
+      <td><span class="crstate ${s[0]} fs-68">${s[1]}${lateTxt}</span></td></tr>`;
   }).join('');
   return `<p class="tkhint">مدخلات يحتاجها تنفيذ هذا البند. المتطلب «الحاجز» غير المُستلم يوقف البند.</p>
     <table class="tktbl"><thead><tr><th>المتطلب</th><th>المسؤول</th><th>حاجز</th><th>الحالة</th></tr></thead><tbody>${rows}</tbody></table>`;
@@ -163,7 +163,7 @@ function tkLog(){
     else if(a.action==='progress_change'&&nv)d=(ov?ov.progress:0)+'% ← '+nv.progress+'%';
     else if(a.action==='duration_change'&&nv)d=(ov?ov.duration:'?')+' ← '+nv.duration+' يوم';
     return `<tr><td><small>${when}</small></td>
-      <td><span class="crstate ${auditTone(a.action)}" style="font-size:.68rem">${AUDIT_ACTIONS[a.action]||a.action}</span></td>
+      <td><span class="crstate ${auditTone(a.action)} fs-68">${AUDIT_ACTIONS[a.action]||a.action}</span></td>
       <td>${esc(d)}</td></tr>`;
   }).join('');
   return `<p class="tkhint">آخر ${rows.length} تغييرًا على هذا البند.</p>

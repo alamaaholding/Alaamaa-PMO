@@ -408,7 +408,7 @@ async function openClientMenu(clientId){
 
 async function renderArchived(){
   SCREEN='archived';$('#hProject').textContent='الشركاء المؤرشفون';hideChrome();
-  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">الشركاء المؤرشفون والمجدولون للحذف. الاسترجاع متاح طوال مهلة الـ30 يومًا.</span></div><div id="archList">'+skeleton('list',2)+'</div>';
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span class="ms-auto">الشركاء المؤرشفون والمجدولون للحذف. الاسترجاع متاح طوال مهلة الـ30 يومًا.</span></div><div id="archList">'+skeleton('list',2)+'</div>';
   $('#backP').onclick=renderPortfolio;
   const isOwner=await checkIsOwner();
   const arch=await fetchClientsByState('archived');
@@ -421,7 +421,7 @@ async function renderArchived(){
     html+='<h4 class="arch-sec">بانتظار الحذف</h4>';
     pend.forEach(c=>{
       const days=Math.max(0,Math.ceil((new Date(c.deletion_scheduled_at)-new Date())/(1000*60*60*24)));
-      const purgeBtn=isOwner?`<button class="hbtn" data-purge="${c.id}" style="background:var(--crit);border-color:var(--crit)">حذف نهائي</button>`:`<span class="arch-note">الحذف النهائي بصلاحية المالك</span>`;
+      const purgeBtn=isOwner?`<button class="hbtn solid-crit" data-purge="${c.id}">حذف نهائي</button>`:`<span class="arch-note">الحذف النهائي بصلاحية المالك</span>`;
       html+=`<div class="arch-row pending"><div><b>${c.name}</b><span class="arch-badge crit">يُحذف خلال ${days} يومًا</span></div><div class="arch-acts"><button class="hbtn ghost" data-restore="${c.id}">استرجاع</button>${purgeBtn}</div></div>`;
     });
   }
@@ -439,7 +439,7 @@ async function renderArchived(){
       html+='<h4 class="arch-sec">مشاريع بانتظار الحذف</h4>';
       ppend.forEach(p=>{
         const days=Math.max(0,Math.ceil((new Date(p.deletion_scheduled_at)-new Date())/(1000*60*60*24)));
-        const purgeBtn=isOwner?`<button class="hbtn" data-ppurge="${p.id}" style="background:var(--crit);border-color:var(--crit)">حذف نهائي</button>`:`<span class="arch-note">الحذف النهائي بصلاحية المالك</span>`;
+        const purgeBtn=isOwner?`<button class="hbtn solid-crit" data-ppurge="${p.id}">حذف نهائي</button>`:`<span class="arch-note">الحذف النهائي بصلاحية المالك</span>`;
         html+=`<div class="arch-row pending"><div><b>${esc(p.name)}</b><span class="arch-badge">${esc(cname(p.client_id))}</span><span class="arch-badge crit">يُحذف خلال ${days} يومًا</span></div><div class="arch-acts"><button class="hbtn ghost" data-prestore="${p.id}">استرجاع</button>${purgeBtn}</div></div>`;
       });
     }
@@ -512,7 +512,7 @@ async function openHolidaysManager(){
     const rows=await fetchHolidays();
     body.innerHTML=`
       <p class="trk-hint">العطلات الرسمية (فوق الجمعة/السبت) — تُستثنى من كل الجدولة والمدد والتأخيرات. حدّثها عند إعلان التواريخ الرسمية.</p>
-      ${rows.map(h=>`<div class="hol-row"><b>${esc(h.name)}</b><span>${h.hdate}</span><button class="ib" data-holdel="${h.id}" aria-label="حذف" style="color:var(--crit)">🗑</button></div>`).join('')||'<p class="pempty">لا عطلات مسجلة.</p>'}
+      ${rows.map(h=>`<div class="hol-row"><b>${esc(h.name)}</b><span>${h.hdate}</span><button class="ib txt-crit" data-holdel="${h.id}" aria-label="حذف">🗑</button></div>`).join('')||'<p class="pempty">لا عطلات مسجلة.</p>'}
       <div class="hol-row new">
         <input id="holName" placeholder="اسم العطلة" class="trk-name">
         <input id="holDate" type="date" class="trk-name" style="max-width:160px">

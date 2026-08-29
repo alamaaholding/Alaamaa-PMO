@@ -17,7 +17,7 @@ async function renderClientHome(clientId){
     <div class="hintbar"><button class="reqbtn" id="chBack" aria-label="العودة للمحفظة">↩ المحفظة</button>
       <button class="reqbtn" id="chMenu" style="margin-inline-start:8px" aria-haspopup="true" aria-label="إجراءات الشريك">⋮ إجراءات الشريك</button>
       <button class="reqbtn" id="chSettings" style="margin-inline-start:8px" aria-label="إعدادات الشريك">⚙ إعدادات الشريك</button>
-      <span style="margin-inline-start:auto">ملف الشريك الكامل: لوحة قيادة مجمَّعة، كل مشاريعه، خططه، وفريقه — في مكان واحد.</span></div>
+      <span class="ms-auto">ملف الشريك الكامل: لوحة قيادة مجمَّعة، كل مشاريعه، خططه، وفريقه — في مكان واحد.</span></div>
     <div id="chBody">${skeleton('list',1)}
       ${skeleton('cards',1)}
       ${skeleton('cards',1)}</div>`;
@@ -76,7 +76,7 @@ function renderCHBody(stats,access){
       return `<button class="ch-pcard" data-openp="${r.project_id}" aria-label="فتح مشروع ${esc(r.project_name||'')}">
         <div class="ch-pname">${esc(r.project_name)}</div>
         <div class="ch-pmeta">${renderStatusBadge(st)}</div>
-        <div class="trk-bar" style="margin-top:8px"><div class="trk-bar-fill" style="width:${pct}%;background:var(--ok)"></div></div>
+        <div class="trk-bar mt-8"><div class="trk-bar-fill" style="width:${pct}%;background:var(--ok)"></div></div>
         <div class="ch-ppct">${pct}% · ${r.total_tasks} بند</div>
       </button>`;
     }).join('');
@@ -109,7 +109,7 @@ function renderCHBody(stats,access){
     </div>
     <div class="sa-section">
       <h4>فريق هذا الشريك <span class="sa-hint">دعوة عضو موجود بالفعل — على مستوى الشريك كاملًا أو مشروع واحد بعينه</span></h4>
-      <div class="sa-form" style="margin-bottom:14px">
+      <div class="sa-form mb-14">
         <select id="chMember">${memberOpts}</select>
         <select id="chScope"><option value="client">كل مشاريع هذا الشريك</option>${projOpts?'<option value="project">مشروع بعينه:</option>':''}</select>
         <select id="chProj" style="display:none">${projOpts}</select>
@@ -166,19 +166,19 @@ function openClientSettings(stats,access){
         <input id="cpSlug" value="${esc(c.slug||'')}" placeholder="مثال: sanam" style="flex:1;min-width:140px;font-family:monospace" dir="ltr">
         <button class="hbtn gold" id="cpSlugSave">حفظ الرابط</button>
       </div>
-      <p class="sa-hint" style="margin-top:6px">حروف لاتينية وأرقام وشرطات فقط — يُنظَّف تلقائيًا. أي رابط سبق مشاركته يبقى يعمل دائمًا حتى بعد التغيير.</p>
+      <p class="sa-hint mt-6">حروف لاتينية وأرقام وشرطات فقط — يُنظَّف تلقائيًا. أي رابط سبق مشاركته يبقى يعمل دائمًا حتى بعد التغيير.</p>
     </div>
     <div class="sa-section">
       <h4>الملف التعاقدي <span class="sa-hint">يُستخدم تلقائيًا عند إنشاء أي عقد لهذا الشريك — اختياري، لكن يُستحسن إكماله قبل أول عقد</span></h4>
       ${missingFields.length?`<div class="ch-warn-badge">⚠ بيانات غير مكتملة (${missingFields.length} حقول) — يمكنك المتابعة، ويُنصح بإكمالها قبل إرسال أي عقد للشريك</div>`:''}
-      <div class="sa-form" style="flex-wrap:wrap">
-        <input id="cpCr" placeholder="رقم السجل التجاري" value="${esc(c.cr_number||'')}" style="flex:1;min-width:160px">
-        <input id="cpVat" placeholder="الرقم الضريبي (VAT)" value="${esc(c.vat_number||'')}" style="flex:1;min-width:160px">
+      <div class="sa-form fx-wrap">
+        <input id="cpCr" placeholder="رقم السجل التجاري" value="${esc(c.cr_number||'')}" class="grow-160">
+        <input id="cpVat" placeholder="الرقم الضريبي (VAT)" value="${esc(c.vat_number||'')}" class="grow-160">
         <input id="cpAddr" placeholder="العنوان الوطني المختصر" value="${esc(c.national_address_short||'')}" style="flex:1;min-width:180px">
-        <input id="cpRepName" placeholder="اسم الممثل المفوَّض" value="${esc(c.rep_name||'')}" style="flex:1;min-width:160px">
+        <input id="cpRepName" placeholder="اسم الممثل المفوَّض" value="${esc(c.rep_name||'')}" class="grow-160">
         <input id="cpRepTitle" placeholder="صفته" value="${esc(c.rep_title||'')}" style="flex:1;min-width:140px">
         <input id="cpEmail" placeholder="البريد الرسمي (يظهر في العقد)" value="${esc(c.contact_email||'')}" style="flex:1;min-width:180px" dir="ltr">
-        <input id="cpPhone" placeholder="رقم الجوال (يظهر في العقد)" value="${esc(c.contact_phone||'')}" style="flex:1;min-width:150px" dir="ltr">
+        <input id="cpPhone" placeholder="رقم الجوال (يظهر في العقد)" value="${esc(c.contact_phone||'')}" class="grow-150" dir="ltr">
         <button class="hbtn gold" id="cpSave">حفظ الملف</button>
       </div>
     </div>`;

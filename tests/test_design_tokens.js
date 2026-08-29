@@ -174,5 +174,28 @@ t('الصنف .barclient يعرّف التخطيط المرن', /\.barclient\{[^
       .every(n => root.includes(n + ':')));
 }
 
+// ═══ طبقة الأدوات (W4): لا اسم يتصادم ═══
+//
+// CSS نطاقٌ عام كالنطاق العام في JS. عرّفتُ `.wrap{flex-wrap:wrap}` والاسم مأخوذ
+// أصلًا لحاوية عرض الصفحة (`max-width:1500px`) المستعملة في الترويسة والأشرطة.
+// فأعطى ذلك الحاويات الثلاث `flex-wrap`، وأعطى عناصري عرضًا وحشوًا لا تخصّها.
+//
+// ولم يمسكه أي اختبار: الصنف مُعرَّف، والعنصر يحمله، والـCSS صحيح صياغيًا.
+// أمسكه فحص اللقطة وحده. فهذا التأكيد يجعل ما أمسكته العين آليًا.
+{
+  const css = require('fs').readFileSync('src/styles.css', 'utf8');
+  const i = css.indexOf('طبقة الأدوات (W4)');
+  t('طبقة الأدوات موجودة وموسومة', i > 0);
+  const before = css.slice(0, i), layer = css.slice(i);
+  const names = [...layer.matchAll(/^\.([a-z0-9-]+)\{/gm)].map(m => m[1]);
+  t('الطبقة تحمل أصنافًا', names.length >= 20, names.length + ' صنفًا');
+  const clash = names.filter(c =>
+    new RegExp('(^|[,\\s])\\.' + c.replace(/-/g, '\\-') + '[\\s,{:.]', 'm').test(before));
+  t('لا اسم في الطبقة يتصادم مع صنف قائم', clash.length === 0, clash.join(' '));
+  // والاسم المتصادم تحديدًا لا يعود
+  t('.wrap تبقى حاوية عرض الصفحة وحدها',
+    /^\.wrap\{max-width:1500px/m.test(css) && !/^\.wrap\{flex-wrap/m.test(css));
+}
+
 console.log('\nنجح ' + ok + ' · فشل ' + fail);
 process.exit(fail ? 1 : 0);

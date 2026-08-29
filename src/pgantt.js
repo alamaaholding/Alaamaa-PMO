@@ -27,7 +27,7 @@ async function pganttOpen(clientId,mount){
     SCREEN='pgantt';
     $('#hProject').innerHTML='<span class="ctx-dot" style="background:var(--blue)"></span>الخط الزمني الشامل — '+(clientId?'هذا الشريك':'كل المشاريع');
     $('#barClient').style.display='none';hideChrome();
-    $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ '+(clientId?'ملف الشريك':'المحفظة')+'</button><span style="margin-inline-start:auto">رؤية شاملة لكل المشاريع النشطة. اضغط أي مشروع للدخول إليه.</span></div><div id="pgWrap">'+skeleton('panel',3)+'</div>';
+    $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ '+(clientId?'ملف الشريك':'المحفظة')+'</button><span class="ms-auto">رؤية شاملة لكل المشاريع النشطة. اضغط أي مشروع للدخول إليه.</span></div><div id="pgWrap">'+skeleton('panel',3)+'</div>';
     $('#backP').onclick=clientId?(()=>renderClientHome(clientId)):renderPortfolio;
   }
   const mountId=embedded?mount:'pgWrap';

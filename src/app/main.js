@@ -332,13 +332,13 @@ async function editStartDate(){
 
 async function renderPortfolioTimeline(){
   SCREEN='ptimeline';$('#hProject').textContent='خط التسليمات — كل المشاريع';hideChrome();
-  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backPT">↩ المحفظة</button><span style="margin-inline-start:auto">📦 <b>خط التسليمات:</b> سجل زمني للتبادل بين علامة والشركاء عبر <b>كل المشاريع</b>.</span></div><div id="ptlWrap">'+skeleton('cards',2)+'</div>';
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backPT">↩ المحفظة</button><span class="ms-auto">📦 <b>خط التسليمات:</b> سجل زمني للتبادل بين علامة والشركاء عبر <b>كل المشاريع</b>.</span></div><div id="ptlWrap">'+skeleton('cards',2)+'</div>';
   $('#backPT').onclick=renderPortfolio;
   openTimelinePortfolio('ptlWrap');
 }
 async function renderAuditLog(){
   SCREEN='audit';$('#hProject').textContent='سجل المكتب — كل المشاريع';hideChrome();
-  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span style="margin-inline-start:auto">🗂 <b>سجل المكتب:</b> كل الأفعال الحسّاسة عبر <b>كل المشاريع والشركاء</b> — من فعل، ماذا، ومتى. (سجل مشروع واحد: تبويب «سجل المشروع» داخله)</span></div><div id="auditList">'+skeleton('panel',3)+'</div>';
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span class="ms-auto">🗂 <b>سجل المكتب:</b> كل الأفعال الحسّاسة عبر <b>كل المشاريع والشركاء</b> — من فعل، ماذا، ومتى. (سجل مشروع واحد: تبويب «سجل المشروع» داخله)</span></div><div id="auditList">'+skeleton('panel',3)+'</div>';
   $('#backP').onclick=renderPortfolio;
   const rows=await fetchAuditLog(150);
   const list=$('#auditList');
@@ -356,7 +356,7 @@ async function renderAuditLog(){
 
 async function renderLeads(){
   $('#hProject').textContent='الشركاء المحتملون';
-  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backToPortfolio">↩ المحفظة</button><span style="margin-inline-start:auto">النماذج الواردة من الموقع — حوّل أيًّا منها إلى مشروع-مقترح.</span></div><div id="leadsList">'+skeleton('list',2)+'</div>';
+  $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backToPortfolio">↩ المحفظة</button><span class="ms-auto">النماذج الواردة من الموقع — حوّل أيًّا منها إلى مشروع-مقترح.</span></div><div id="leadsList">'+skeleton('list',2)+'</div>';
   $('#backToPortfolio').onclick=renderPortfolio;
   let leads;
   try{ leads=await loadLeads(); }catch(e){ $('#leadsList').innerHTML='<p class="pempty">تعذّر تحميل النماذج.</p>'; return; }
@@ -371,7 +371,7 @@ async function renderLeads(){
         <div style="font-size:.8rem;color:var(--muted)">${esc(l.contact_name||'')}${l.contact_email?' · '+esc(l.contact_email):''}${date?' · '+date:''}</div>
       </div>
       <span class="crstate ${conv?'approved':'pending'}">${conv?'محوّل لمشروع':(esc(l.status||'جديد'))}</span>
-      ${conv?'':`<button class="reqbtn" data-convert="${l.id}" data-name="${esc(l.company_name||'')}" style="background:var(--gold);border-color:var(--gold);color:#fff">تحويل لمشروع</button>`}
+      ${conv?'':`<button class="reqbtn gold" data-convert="${l.id}" data-name="${esc(l.company_name||'')}">تحويل لمشروع</button>`}
     </div>`;
   }).join('');
   box.querySelectorAll('[data-convert]').forEach(b=>b.onclick=async()=>{
@@ -478,7 +478,7 @@ function vCR(){
     const awaitingExec=(c.status==='approved'&&!kd.auto&&!c.executed_at);
     const pendingExec=awaitingExec?`<div class="cr-pendexec">⚠ معتمد — الخطة لم تتغيّر تلقائيًا. أدوات بناء الخطة مفتوحة الآن في تبويب «الجدول» لتنفيذه.</div>
       <div class="cr-exec-box">
-        <button class="reqbtn" data-goplan="1" style="background:var(--ok);border-color:var(--ok);color:#fff">↗ افتح الجدول لتنفيذه</button>
+        <button class="reqbtn ok" data-goplan="1">↗ افتح الجدول لتنفيذه</button>
         <button class="reqbtn" data-execcr="${c.id}">✅ نُفِّذ — علّمه منفَّذًا</button>
       </div>`:'';
     const doneExec=(c.status==='approved'&&c.executed_at)?
@@ -597,7 +597,7 @@ function renderReqs(){
       <td><input class="rq" type="date" data-rf="received" value="${r.received||''}" ${dis} style="width:120px"></td>
       <td style="text-align:center"><input class="rq" type="checkbox" data-rf="blocking" ${r.blocking?'checked':''} ${dis}></td>
       <td><span class="rstate ${r._state||'notrequested'}">${ST[r._state]||'—'}${extra}</span></td>
-      ${canEdit?`<td><button class="ib" data-rdel="${i}" style="color:var(--crit)" aria-label="حذف هذا المتطلب">✕</button></td>`:''}</tr>`;
+      ${canEdit?`<td><button class="ib txt-crit" data-rdel="${i}" aria-label="حذف هذا المتطلب">✕</button></td>`:''}</tr>`;
   }).join('');
   $('#reqTbl').innerHTML=`<thead><tr><th>المتطلب</th><th>الجهة</th><th>SLA</th><th>الطلب</th><th>الاستلام</th><th>حاجز</th><th>الحالة</th>${canEdit?'<th></th>':''}</tr></thead><tbody>${rows||'<tr><td colspan="8" style="color:var(--muted);padding:12px">لا متطلبات.</td></tr>'}</tbody>`;
   $('#reqAdd').style.display=canEdit?'':'none';
