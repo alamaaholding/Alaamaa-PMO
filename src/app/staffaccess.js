@@ -1,14 +1,26 @@
 // ===== app/staffaccess.js — شاشة صلاحيات الفريق (مالك النظام فقط) =====
 // ثلاثة نطاقات: شركة كاملة · قسم (يطابق أذرع علامة الثلاث) · مشروع واحد.
-// مستويان: عرض · تعديل. مالك النظام فقط يمنح/يسحب — لا أحد آخر.
+// مستويان: عرض · تعديل. مالك النظام فقط يمنح/يسحب — لا أحد آخر.//
+// ═══ وحدة ESM (الموجة W2) ═══
+// تحوّلت لأن القياس أعطاها **صفر تبعية غير مُحوَّلة** بعد كسر دورة التنقّل:
+// نداؤها الوحيد للخارج كان `renderPortfolio`، وقد صار `showScreen('portfolio')`.
 
+import { DEPTS, addTeamMember, fetchAllStaffAccess, fetchTeamMembers, grantStaffAccess, revokeStaffAccess, setProjectDepartment } from '../api.js';
+import { hideChrome } from '../chrome.js';
+import { $, $$, sb } from '../config.js';
+import { esc } from '../format.js';
+import { registerScreen, showScreen } from '../screens.js';
+import { skeleton } from '../skeleton.js';
+import { toast } from '../toast.js';
+import { confirmDialog } from './dialogs.js';
+import { getState, setState } from './state.js';
 let SA_MEMBERS=[],SA_GRANTS=[],SA_PROJECTS=[],SA_OWNER_EMAILS=[];
 
 async function fetchOwnerEmails(){const {data}=await sb.from('pmo_owners').select('email');return (data||[]).map(x=>x.email.toLowerCase());}
 
 async function renderStaffAccess(){
-  if(!IS_OWNER){toast('هذه الشاشة لمالك النظام فقط','err');return;}
-  SCREEN='staffaccess';$('#hProject').textContent='صلاحيات الفريق';hideChrome();
+  if(!getState('IS_OWNER')){toast('هذه الشاشة لمالك النظام فقط','err');return;}
+  setState('SCREEN', 'staffaccess');$('#hProject').textContent='صلاحيات الفريق';hideChrome();
   $('#host').innerHTML=`<div class="hintbar"><button class="reqbtn" id="backSA">↩ المحفظة</button>
     <span class="ms-auto">🔐 <b>صلاحيات الفريق:</b> من يرى/يعدّل ماذا — على مستوى الشركة، القسم، أو مشروع واحد.
     موظف بلا أي صلاحية مخصَّصة هنا يبقى كما كان دائمًا (يرى كل شيء).</span></div>
@@ -21,7 +33,7 @@ async function renderStaffAccess(){
       sb.from('pmo_projects').select('id,name,department,client_id').then(r=>r.data||[]),
       fetchOwnerEmails()
     ]);
-    const clientsById={};(CLIENTS||[]).forEach(c=>{clientsById[c.id]=c.name;});
+    const clientsById={};(getState('CLIENTS')||[]).forEach(c=>{clientsById[c.id]=c.name;});
     SA_PROJECTS.forEach(p=>{p._client=clientsById[p.client_id]||'';});
   }catch(e){$('#saBody').innerHTML='<p class="pempty">تعذّر التحميل: '+esc(e.message)+'</p>';return;}
   renderSABody();
@@ -30,7 +42,7 @@ async function renderStaffAccess(){
 function saScopeLabel(g){
   if(g.scope_type==='company')return 'الشركة كاملة';
   if(g.scope_type==='department')return DEPTS[g.scope_value]||g.scope_value;
-  if(g.scope_type==='client'){const c=CLIENTS.find(x=>x.id===g.scope_value);return c?('كل مشاريع: '+c.name):'شريك محذوف';}
+  if(g.scope_type==='client'){const c=getState('CLIENTS').find(x=>x.id===g.scope_value);return c?('كل مشاريع: '+c.name):'شريك محذوف';}
   const p=SA_PROJECTS.find(x=>x.id===g.scope_value);
   return p?(p._client+' — '+p.name):'مشروع محذوف';
 }
@@ -50,7 +62,7 @@ function renderSABody(){
 
   const memberOpts=SA_MEMBERS.map(m=>`<option value="${m.id}">${esc(m.full_name||m.email)}</option>`).join('');
   const deptOpts=Object.keys(DEPTS).map(k=>`<option value="${k}">${esc(DEPTS[k])}</option>`).join('');
-  const clientOpts=(CLIENTS||[]).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  const clientOpts=(getState('CLIENTS')||[]).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
   const projOpts=SA_PROJECTS.map(p=>`<option value="${p.id}">${esc(p._client)} — ${esc(p.name)}</option>`).join('');
 
   const deptTable=SA_PROJECTS.map(p=>`<tr><td>${esc(p._client)}</td><td>${esc(p.name)}</td>
@@ -143,7 +155,6 @@ function renderSABody(){
   });
 }
 
-window.renderStaffAccess=renderStaffAccess;
 
 // ===== تسجيل الشاشة في السجلّ (src/screens.js) =====
 // المفتاح هو ما يناديه بقية التطبيق، فلا ملف شاشةٍ يعرف اسم دالة شاشةٍ أخرى.

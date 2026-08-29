@@ -152,7 +152,13 @@ console.log('\n▸ الدورة مكسورة — وتبقى مكسورة');
     const src = fs.readFileSync(owner, 'utf8');
     const at = src.indexOf(`function ${fn}(`);
     const body = src.slice(at, at + 400);
-    if (!new RegExp(`SCREEN\\s*=\\s*'${key}'`).test(body)) noSelfSet.push(`${fn}→${key}`);
+    // صيغتان بحكم الهجرة، والمعنى واحد: الملف غير المُحوَّل يكتب `SCREEN='x'`
+    // (واصفٌ على globalThis)، والوحدة المُحوَّلة تكتب `setState('SCREEN','x')`.
+    // فيُفحَص المعنى لا الإملاء — وإلا سقط التأكيد على كل ملف يتحوّل، وهو أسوأ
+    // ما يمكن أن يفعله حارس: أن يعاقب التقدّم الذي وُضع ليحميه.
+    const setsIt = new RegExp(`SCREEN\\s*=\\s*'${key}'`).test(body)
+      || new RegExp(`setState\\(\\s*'SCREEN'\\s*,\\s*'${key}'\\s*\\)`).test(body);
+    if (!setsIt) noSelfSet.push(`${fn}→${key}`);
   }
   t('كل شاشة بلا استثناء تضبط SCREEN بنفسها', noSelfSet.length === 0, noSelfSet.join(' '));
   // وكل شاشة تُخفي الإطار كذلك — عدا 'project' وحدها، فهي الشاشة التي يخصّها.

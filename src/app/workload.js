@@ -1,16 +1,38 @@
 // ===== app/workload.js — حِمل العمل عبر المحفظة =====
 // يجيب على سؤال يومي حقيقي: هل الفريق محمَّل فوق طاقته في يوم بعينه؟
 // المبدأ الحاكم: الجدولة تُحسب هنا بنفس scheduleTasks المستخدَمة في الجانت تمامًا — لا
-// بحساب مستقل — فلا تتناقض الأرقام مع ما يراه المستخدم في أي شاشة أخرى.
+// بحساب مستقل — فلا تتناقض الأرقام مع ما يراه المستخدم في أي شاشة أخرى.//
+// ═══ وحدة ESM (الموجة W2) ═══
+// كانت تبعيتها الأخيرة `emptyState` — ثماني أسطر مدفونة في views.js (٧٢ KB).
+// خرجت إلى وحدتها، فصارت هذه صفرًا.
 
-let WL_DATA=null, WL_WEEKS=8, WL_CAP=(()=>{
+import { fetchPortfolioWorkload } from '../api.js';
+import { hideChrome } from '../chrome.js';
+import { $, $$ } from '../config.js';
+import { emptyState } from '../emptystate.js';
+import { isWorkday, scheduleTasks } from '../engine.js';
+import { esc, todayISO } from '../format.js';
+import { registerScreen, showScreen } from '../screens.js';
+import { skeleton } from '../skeleton.js';
+import { getState, setState } from './state.js';
+
+// ═══ السطح المُصدَّر ═══
+// `renderWorkload` هي المدخل، والباقي **النواة الحسابية الخالصة**: بناء التقويم،
+// وضغط المسمّيات، وتصنيف النبرة. صُدِّرت لأنها ما يستحقّ الاختبار فعلًا — وكانت
+// تُبلَغ عبر النطاق المشترك قبل التحويل، فبقي الاختبار كما هو حرفيًّا.
+let WL_DATA=null, WL_WEEKS=8;
+/**
+ * سقف الطاقة اليومية للمسمّى الواحد. مُصدَّر لأنه **مُدخَل** حساب الضغط لا رقمٌ
+ * داخلي: الاختبار يبني عليه حالات التحميل الزائد، فلو انحرف انحرفت معه بصمت.
+ */
+export let WL_CAP=(()=>{
   try{return Number(localStorage.getItem('pmo_wl_cap'))||5;}catch(e){return 5;}
 })();
 
 function wlDayKey(d){return d.toISOString().slice(0,10);}
 
 // يبني تقويمًا: لكل يوم، البنود النشطة فيه من كل المشاريع
-function wlBuildCalendar(projects){
+export function wlBuildCalendar(projects){
   const cal={};           // 'YYYY-MM-DD' -> [{project,color,task,roleId,...}]
   (projects||[]).forEach(p=>{
     const tasks=(p.tasks||[]).map(t=>({
@@ -46,7 +68,7 @@ function wlBuildCalendar(projects){
 // ===== ضغط المسمّيات =====
 // يحسب لكل مسمّى في كل يوم: كم بندًا نشطًا عليه مقابل طاقته (عدد الشاغلين × حمل الفرد).
 // هذا ما يحوّل السؤال من «من مشغول؟» إلى «أي مسمّى يحتاج توظيفًا؟».
-function wlRolePressure(cal,roles){
+export function wlRolePressure(cal,roles){
   const byRole={};   // roleId -> {days:{k:count}, peak, overDays, capacity, ...}
   (roles||[]).forEach(r=>{byRole[r.id]={role:r,days:{},peak:0,overDays:0,worstDay:null,worstN:0};});
   const unassigned={days:{},count:0};
@@ -74,7 +96,7 @@ function wlRolePressure(cal,roles){
   return {byRole,unassigned};
 }
 
-function wlTone(n){
+export function wlTone(n){
   if(n===0)return 'z0';
   if(n<=Math.ceil(WL_CAP*0.5))return 'z1';
   if(n<=WL_CAP)return 'z2';
@@ -83,7 +105,7 @@ function wlTone(n){
 }
 
 async function renderWorkload(){
-  SCREEN='workload';
+  setState('SCREEN', 'workload');
   $('#hProject').textContent='حِمل العمل';
   $('#barClient').style.display='none';hideChrome();
   try{history.replaceState(null,'','#/workload');}catch(e){}
@@ -104,7 +126,7 @@ function renderWorkloadBody(){
   const RP=wlRolePressure(cal,roles);
   const strained=Object.values(RP.byRole).filter(b=>b.gap>0)
     .sort((a,b)=>b.gap-a.gap||b.util-a.util);
-  const today=new Date(DATA_DATE||todayISO());
+  const today=new Date(getState('DATA_DATE')||todayISO());
   const start=new Date(today); start.setDate(start.getDate()-start.getDay()); // بداية الأسبوع
   const days=[];
   for(let i=0;i<WL_WEEKS*7;i++){const d=new Date(start);d.setDate(d.getDate()+i);days.push(d);}
@@ -240,7 +262,6 @@ function wlShowDay(key,cal){
   $('#wlCloseDay').onclick=()=>{box.innerHTML='';};
 }
 
-window.renderWorkload=renderWorkload;
 
 // ===== تسجيل الشاشة في السجلّ (src/screens.js) =====
 // المفتاح هو ما يناديه بقية التطبيق، فلا ملف شاشةٍ يعرف اسم دالة شاشةٍ أخرى.

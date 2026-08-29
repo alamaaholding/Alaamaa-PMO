@@ -126,14 +126,7 @@ function renderNow(){
 // كل حالة فارغة يجب أن تجيب: لماذا هي فارغة؟ وما الخطوة التالية؟ النص الجاف
 // («لا تنبيهات.») يُخبر ولا يوجّه، فيترك المستخدم واقفًا بلا سياق.
 // wrap: 'li' داخل القوائم و'div' خارجها — لأن إدراج div داخل ul يكسر البنية.
-function emptyState(o){
-  o=o||{};
-  const inner=`${o.icon?`<span class="empty-state-icon" aria-hidden="true">${o.icon}</span>`:''}
-    <b>${esc(o.title||'لا شيء هنا بعد')}</b>
-    ${o.hint?`<span class="empty-state-hint">${esc(o.hint)}</span>`:''}`;
-  const tag=o.wrap||'div';
-  return `<${tag} class="empty-state">${inner}</${tag}>`;
-}
+// emptyState انتقلت إلى src/emptystate.js — كانت تربط workload و clienthome بهذا الملف.
 
 // esc() انتقلت إلى format.js (الموجة W2) — تصل عبر globalThis من حزمة ESM.
 
@@ -732,11 +725,7 @@ function vDeliv(){
 }
 
 // نغمة الحدث في السجل: أخضر للاعتماد/الاسترجاع، أحمر للحذف/الرفض، محايد لغيرها
-function auditTone(action){
-  if(/purge|_delete$|^request_deletion|^request_project_deletion|cr_rejected/.test(action))return 'rejected';
-  if(/cr_approved|^restore_|comment_resolve/.test(action))return 'approved';
-  return 'pending';
-}
+// auditTone انتقلت إلى config.js — بجوار AUDIT_ACTIONS و AUDIT_ENTITIES، فهي ثالثتهما.
 function vAudit(rows){
   if(!rows||!rows.length)return '<p class="empty" style="padding:20px;text-align:center">لا تغييرات مسجّلة بعد.</p>';
   // القاموس موحّد مع سجل المكتب (AUDIT_ACTIONS في config.js) — لا تعريف محلي مكرّر
