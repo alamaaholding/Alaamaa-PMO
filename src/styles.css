@@ -1574,3 +1574,45 @@ tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
 .sk-half{width:55%}
 .sk-gap{margin-bottom:var(--s3)}
 .sk-stack{display:flex;flex-direction:column;gap:var(--s2)}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   طبقة الأدوات (W4)
+
+   ١٣٥ نمطًا سطريًا من أصل ٣٢٢ كانت تكرارًا لستة وعشرين قيمة فقط. وأحد عشر
+   منها كانت تُعيد كتابة أصناف **موجودة أصلًا** (.hbtn.ok · .hbtn.gold ·
+   .ms-auto) — أي أن الكاتب لم يكن يعرف بوجودها، وهو عَرَض غياب طبقة أدوات
+   لا عَرَض إهمال.
+
+   القيم هنا **حرفية كما كانت**: ٦px تبقى ٦px ولا تُقرَّب إلى --s2. تطبيعها
+   على سلّم المسافات قرار تصميم مستقل، وخلطه بهذه الدفعة يجعل الفرق البصري
+   غير قابل للإثبات — وهذه الدفعة تُثبِت أنها لم تغيّر بكسلًا واحدًا.
+
+   والغاية أبعد من الترتيب: كل نمط سطري يُزال يقرّب CSP صارمة بلا
+   'unsafe-inline' (AUDIT §د-١ — وهي محجوبة بهذه الأنماط تحديدًا).
+   ═══════════════════════════════════════════════════════════════════════ */
+.txt-crit{color:var(--crit)}
+.sub-note{color:var(--muted);font-weight:400;font-size:.78rem}
+.solid-crit{background:var(--crit);border-color:var(--crit)}
+.mt-6{margin-top:6px}
+.mt-8{margin-top:8px}
+.mt-10{margin-top:10px}
+.mt-12{margin-top:12px}
+.mt-14{margin-top:14px}
+.mb-8{margin-bottom:8px}
+.mb-14{margin-bottom:14px}
+.fx-wrap{flex-wrap:wrap} /* لا `.wrap`: الاسم مأخوذ لحاوية عرض الصفحة
+   (max-width:1500px) المستعملة في الترويسة والأشرطة. تسميته `wrap` كانت
+   تُعطي تلك الحاويات الثلاث flex-wrap، وتُعطي عناصري عرضًا وحشوًا لا تخصّها.
+   أمسكه فحص اللقطة لا الاختبار — النطاق العام في CSS كالنطاق العام في JS. */
+.row-6{display:flex;align-items:center;gap:6px}
+.row-8{display:flex;gap:8px}
+.grow-150{flex:1;min-width:150px}
+.grow-160{flex:1;min-width:160px}
+.w-130{width:130px}
+.self-center{align-self:center}
+.fs-68{font-size:.68rem}
+.fs-70{font-size:.7rem}
+.fs-72{font-size:.72rem}
+.fs-75{font-size:.75rem}
+.fs-85{font-size:.85rem}

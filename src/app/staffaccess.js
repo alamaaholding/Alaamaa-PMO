@@ -10,7 +10,7 @@ async function renderStaffAccess(){
   if(!IS_OWNER){toast('هذه الشاشة لمالك النظام فقط','err');return;}
   SCREEN='staffaccess';$('#hProject').textContent='صلاحيات الفريق';hideChrome();
   $('#host').innerHTML=`<div class="hintbar"><button class="reqbtn" id="backSA">↩ المحفظة</button>
-    <span style="margin-inline-start:auto">🔐 <b>صلاحيات الفريق:</b> من يرى/يعدّل ماذا — على مستوى الشركة، القسم، أو مشروع واحد.
+    <span class="ms-auto">🔐 <b>صلاحيات الفريق:</b> من يرى/يعدّل ماذا — على مستوى الشركة، القسم، أو مشروع واحد.
     موظف بلا أي صلاحية مخصَّصة هنا يبقى كما كان دائمًا (يرى كل شيء).</span></div>
     <div id="saBody">${skeleton('cards',2)}</div>`;
   $('#backSA').onclick=renderPortfolio;

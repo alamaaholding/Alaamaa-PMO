@@ -89,7 +89,7 @@ async function renderWorkload(){
   try{history.replaceState(null,'','#/workload');}catch(e){}
   $('#host').innerHTML=`
     <div class="hintbar"><button class="reqbtn" id="wlBack">↩ المحفظة</button>
-      <span style="margin-inline-start:auto">توزيع البنود النشطة على الأيام عبر كل المشاريع — لضبط الحمل قبل أن يقع التعارض.</span></div>
+      <span class="ms-auto">توزيع البنود النشطة على الأيام عبر كل المشاريع — لضبط الحمل قبل أن يقع التعارض.</span></div>
     <div id="wlBody">${skeleton('cards',1)}</div>`;
   $('#wlBack').onclick=renderPortfolio;
   try{ WL_DATA=await fetchPortfolioWorkload(); }
@@ -166,7 +166,7 @@ function renderWorkloadBody(){
           <div class="wl-bar"><i style="width:${Math.min(100,b.util)}%"></i>
             ${b.util>100?`<u style="width:${Math.min(60,b.util-100)}%"></u>`:''}</div>
           <div class="sa-hint">ذروة ${b.peak} · طاقة ${b.role.capacity} · ${b.role.headcount} شاغل
-            ${b.gap>0?` · <b style="color:var(--crit)">يلزم +${b.gap}</b>`:''}</div>
+            ${b.gap>0?` · <b class="txt-crit">يلزم +${b.gap}</b>`:''}</div>
         </div>`).join('')}</div>`
         :emptyState({icon:'👥',title:'لا مسمّيات وظيفية بعد',
            hint:'عرّف الأقسام ومسمّياتها وعدد شاغليها من أدوات المكتب ← الأقسام والمسمّيات، ثم أسنِد البنود إليها.'})}
@@ -223,7 +223,7 @@ function wlShowDay(key,cal){
   items.forEach(x=>{(byProject[x.project]=byProject[x.project]||[]).push(x);});
   const box=$('#wlDetail');
   box.innerHTML=`
-    <div class="sa-section" style="margin-top:14px">
+    <div class="sa-section mt-14">
       <h4>${d.toLocaleDateString('ar',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
         <span class="sa-hint">${items.length} بند نشط من ${Object.keys(byProject).length} مشروع</span></h4>
       ${items.length>WL_CAP?`<div class="ctr-integrity warn">⚠ يتجاوز الطاقة المحدَّدة (${WL_CAP}) بـ${items.length-WL_CAP} بند — راجع التوزيع أو أعد جدولة ما يمكن تأجيله.</div>`:''}
@@ -234,7 +234,7 @@ function wlShowDay(key,cal){
           <div class="wl-tasks">${list.map(x=>
             `<span class="wl-task ${x.critical?'crit':''}">${esc(x.task)} — ${esc(x.name)}${x.critical?' ◆':''}</span>`).join('')}</div>
         </div>`).join('')}
-      <button class="reqbtn" id="wlCloseDay" style="margin-top:10px">✕ إغلاق</button>
+      <button class="reqbtn mt-10" id="wlCloseDay">✕ إغلاق</button>
     </div>`;
   if(box.scrollIntoView)box.scrollIntoView({behavior:'smooth',block:'nearest'});
   $('#wlCloseDay').onclick=()=>{box.innerHTML='';};

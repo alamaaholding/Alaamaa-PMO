@@ -131,7 +131,7 @@ function _tlHtml(ctx){
       <td>${ref}</td>
       <td class="tl-acts">
         <button class="ib" data-tledit="${r.id}" aria-label="تعديل">✎</button>
-        <button class="ib" data-tldel="${r.id}" aria-label="حذف" style="color:var(--crit)">🗑</button>
+        <button class="ib txt-crit" data-tldel="${r.id}" aria-label="حذف">🗑</button>
       </td>
     </tr>`;
   }).join('');

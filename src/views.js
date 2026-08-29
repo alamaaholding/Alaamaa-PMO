@@ -311,7 +311,7 @@ function vTable(){
         <td>${pdelay}</td>
         <td>—</td>
         <td style="font-size:.74rem;color:var(--muted)">تجميعي — يُشتق من أبنائه</td>
-        ${editStruct?`<td><button class="ib" data-del="${esc(t.id)}" title="حذف الحزمة (يصعد أبناؤها للمستوى الأعلى)" aria-label="حذف الحزمة" style="color:var(--crit)">${I.trash}</button></td>`:''}
+        ${editStruct?`<td><button class="ib txt-crit" data-del="${esc(t.id)}" title="حذف الحزمة (يصعد أبناؤها للمستوى الأعلى)" aria-label="حذف الحزمة">${I.trash}</button></td>`:''}
       </tr>`;
       return;
     }
@@ -326,7 +326,7 @@ function vTable(){
       ? `<select class="cell" data-f="type">${Object.keys(TYPES).map(x=>`<option value="${x}" ${x===t.type?'selected':''}>${TYPES[x]}</option>`).join('')}</select>`
       : TYPES[t.type];
     const depCount=(t.deps||[]).length;
-    const editCol=editStruct?`<td style="white-space:nowrap"><button class="reqbtn" data-deps="${esc(t.id)}" title="التبعيات" aria-label="تحرير التبعيات">${I.link} ${depCount||''}</button> <button class="ib" data-del="${esc(t.id)}" title="حذف" aria-label="حذف البند" style="color:var(--crit)">${I.trash}</button></td>`:'';
+    const editCol=editStruct?`<td style="white-space:nowrap"><button class="reqbtn" data-deps="${esc(t.id)}" title="التبعيات" aria-label="تحرير التبعيات">${I.link} ${depCount||''}</button> <button class="ib txt-crit" data-del="${esc(t.id)}" title="حذف" aria-label="حذف البند">${I.trash}</button></td>`:'';
     rows+=`<tr data-id="${esc(t.id)}" class="${r.critical?'crit':''}" ${editStruct&&t.type!=='cont'?`draggable="true" data-dragtask="${esc(t.id)}"`:''}>
       <td><button class="idcell idbtn" data-tkopen="${esc(t.id)}" title="فتح لوحة البند" style="--tc:${tc}">${esc(t.id)}${r.critical?'<span class="critdot"></span>':''}</button></td>
       <td class="${t.parent?'child-cell':''}">${t.parent?'<span class="tree-ind" aria-hidden="true">└</span>':''}${nameCell}</td>
@@ -361,8 +361,8 @@ function vTable(){
         بعد تنفيذ التعديل، علّم الطلب «نُفِّذ» من تبويب «طلبات تعديل الخطة» ثم ثبّت أساسًا جديدًا.</span>
       <button class="reqbtn" id="goCRTab" style="background:var(--warn);border-color:var(--warn);color:#fff">↗ طلبات التعديل</button>
     </div>`:'';
-  const addBar=crWin+(editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn" id="addTaskBtn" style="background:var(--ok);border-color:var(--ok);color:#fff">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button>${ROLE==='pmo'?'<button class="reqbtn" id="tracksBtn" style="background:var(--ink);border-color:var(--ink);color:#fff">إدارة المراحل</button>':''}<span style="color:var(--muted);font-weight:400;font-size:.78rem">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'');
-  const printBtn=`<div class="lockbar" style="border-inline-start-color:var(--line)"><button class="hbtn print-btn" id="printTableBtn">🖨 طباعة الجدول</button><span style="color:var(--muted);font-weight:400;font-size:.78rem">تُطبع كل مرحلة في صفحة، والأعمدة مصغّرة للقراءة.</span></div>`;
+  const addBar=crWin+(editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn ok" id="addTaskBtn">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button>${ROLE==='pmo'?'<button class="reqbtn" id="tracksBtn" style="background:var(--ink);border-color:var(--ink);color:#fff">إدارة المراحل</button>':''}<span class="sub-note">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'');
+  const printBtn=`<div class="lockbar" style="border-inline-start-color:var(--line)"><button class="hbtn print-btn" id="printTableBtn">🖨 طباعة الجدول</button><span class="sub-note">تُطبع كل مرحلة في صفحة، والأعمدة مصغّرة للقراءة.</span></div>`;
   if(MOBILE)return addBar+projFilterBar()+vCards(editStruct,editProg);
   return addBar+printBtn+projFilterBar()+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المسمّى</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
@@ -408,7 +408,7 @@ function vCards(editStruct,editProg){
         <select class="st st-${k.effStatus}" data-f="status" ${editProg?'':'disabled'}>${sopt}</select>
         <button class="reqbtn" data-tkopen="${esc(t.id)}">⛶ لوحة البند</button>
         <button class="reqbtn" data-reqs="${esc(t.id)}">${reqs.length?(bad?bad+'⚠ متطلبات':reqs.length+' متطلبات'):'متطلبات'}</button>
-        ${editStruct?`<button class="reqbtn" data-deps="${esc(t.id)}" aria-label="التبعيات">${I.link} ${(t.deps||[]).length||''}</button><button class="ib" data-del="${esc(t.id)}" aria-label="حذف" style="color:var(--crit)">${I.trash}</button>`:''}
+        ${editStruct?`<button class="reqbtn" data-deps="${esc(t.id)}" aria-label="التبعيات">${I.link} ${(t.deps||[]).length||''}</button><button class="ib txt-crit" data-del="${esc(t.id)}" aria-label="حذف">${I.trash}</button>`:''}
       </div>
     </div>`;
   });
@@ -487,7 +487,7 @@ function inlineTrackEdit(key,td){
   td.innerHTML=`<span class="grp-inline">
     <input type="color" class="gie-c" value="${tr.color}" aria-label="لون المرحلة">
     <input class="gie-n" value="${esc(tr.name)}" aria-label="اسم المرحلة">
-    <button class="reqbtn gie-s" style="background:var(--gold);border-color:var(--gold);color:#fff">حفظ</button>
+    <button class="reqbtn gie-s gold">حفظ</button>
     <button class="reqbtn gie-x" style="background:#fff;color:var(--ink)">إلغاء</button></span>`;
   td.querySelector('.gie-x').onclick=()=>render();
   td.querySelector('.gie-s').onclick=async()=>{
@@ -502,7 +502,7 @@ function inlineTrackEdit(key,td){
   n.onkeydown=(e)=>{if(e.key==='Enter')td.querySelector('.gie-s').click();if(e.key==='Escape')render();};
 }
 
-function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div>${(PROJECT.baselines&&PROJECT.baselines.length)?`<select id="blSel" class="pfsort" aria-label="اختيار الأساس" style="font-size:.72rem">${PROJECT.baselines.map((b,i)=>`<option value="${b.id}" ${(!GBASE&&i===PROJECT.baselines.length-1)||GBASE===b.id?'selected':''}>${esc(b.label||("الأساس "+(i+1)))}</option>`).join('')}</select>`:''}<div class="gscale" role="group" aria-label="مقياس الزمن" style="margin-inline-start:auto"><button class="gsc" data-scale="day">يوم</button><button class="gsc" data-scale="week">أسبوع</button><button class="gsc" data-scale="month">شهر</button><button class="gsc" data-scale="quarter">ربع</button></div><button class="hbtn print-btn" id="printGanttBtn">🖨 طباعة الجانت</button><button class="zb gcrit-btn" id="gcritToggle" title="المسار الحرج: عادي ← إبراز ← إخفاء" aria-label="عرض المسار الحرج">◆ حرج</button><div class="zoom"><button class="zb" id="glToggle" title="إظهار/إخفاء روابط التبعية" aria-label="روابط التبعية">⇄</button><button class="zb" id="zfit" title="ملاءمة العرض للشاشة" aria-label="ملاءمة العرض">⤢</button><button class="zb" id="zout" title="تصغير المخطط" aria-label="تصغير المخطط">−</button><button class="zb" id="zin" title="تكبير المخطط" aria-label="تكبير المخطط">+</button></div></div>`;}
+function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div>${(PROJECT.baselines&&PROJECT.baselines.length)?`<select id="blSel" class="pfsort fs-72" aria-label="اختيار الأساس">${PROJECT.baselines.map((b,i)=>`<option value="${b.id}" ${(!GBASE&&i===PROJECT.baselines.length-1)||GBASE===b.id?'selected':''}>${esc(b.label||("الأساس "+(i+1)))}</option>`).join('')}</select>`:''}<div class="gscale ms-auto" role="group" aria-label="مقياس الزمن"><button class="gsc" data-scale="day">يوم</button><button class="gsc" data-scale="week">أسبوع</button><button class="gsc" data-scale="month">شهر</button><button class="gsc" data-scale="quarter">ربع</button></div><button class="hbtn print-btn" id="printGanttBtn">🖨 طباعة الجانت</button><button class="zb gcrit-btn" id="gcritToggle" title="المسار الحرج: عادي ← إبراز ← إخفاء" aria-label="عرض المسار الحرج">◆ حرج</button><div class="zoom"><button class="zb" id="glToggle" title="إظهار/إخفاء روابط التبعية" aria-label="روابط التبعية">⇄</button><button class="zb" id="zfit" title="ملاءمة العرض للشاشة" aria-label="ملاءمة العرض">⤢</button><button class="zb" id="zout" title="تصغير المخطط" aria-label="تصغير المخطط">−</button><button class="zb" id="zin" title="تكبير المخطط" aria-label="تكبير المخطط">+</button></div></div>`;}
 // ===== مقياس الزمن متعدد المستويات (يوم/أسبوع/شهر/ربع) =====
 let GSCALE='week';try{const _gs=localStorage.getItem('pmo_gscale');if(_gs)GSCALE=_gs;}catch(_e){}
 const GSCALE_PX={day:30,week:16,month:6,quarter:3};
@@ -762,7 +762,7 @@ function vAudit(rows){
     const when=new Date(a.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
     return `<tr>
       <td style="white-space:nowrap;font-size:.76rem;color:var(--muted)">${when}</td>
-      <td><span class="crstate ${auditTone(a.action)}" style="font-size:.7rem">${act}</span></td>
+      <td><span class="crstate ${auditTone(a.action)} fs-70">${act}</span></td>
       <td>${target}</td>
       <td style="font-size:.8rem;color:#4a4233">${detail}</td>
     </tr>`;
@@ -779,11 +779,11 @@ function vDiscuss(rows){
   const childrenOf=id=>rows.filter(r=>r.parent_id===id);
   const bubble=(c,isReply)=>{
     const when=new Date(c.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
-    const resBtn=(!isReply&&c.kind!=='comment'&&ROLE==='pmo')?`<button class="reqbtn" data-resolve="${c.id}" data-cur="${c.resolved?1:0}" style="font-size:.7rem">${c.resolved?'إعادة فتح':'تعليم محلول'}</button>`:'';
-    const resBadge=(c.kind!=='comment'&&c.resolved)?'<span class="crstate approved" style="font-size:.68rem">محلول</span>':'';
+    const resBtn=(!isReply&&c.kind!=='comment'&&ROLE==='pmo')?`<button class="reqbtn fs-70" data-resolve="${c.id}" data-cur="${c.resolved?1:0}">${c.resolved?'إعادة فتح':'تعليم محلول'}</button>`:'';
+    const resBadge=(c.kind!=='comment'&&c.resolved)?'<span class="crstate approved fs-68">محلول</span>':'';
     // تعليق مرتبط ببند: يظهر هنا أيضًا مع إشارة وانتقال — لا يختفي في لوحة البند
     const tk=c.task_id?PROJECT.tasks.find(t=>t._dbId===c.task_id):null;
-    const tkChip=tk?`<button class="lnk" data-gotask="${esc(tk.id)}" style="font-size:.7rem">↗ على البند ${esc(tk.id)}</button>`:'';
+    const tkChip=tk?`<button class="lnk fs-70" data-gotask="${esc(tk.id)}">↗ على البند ${esc(tk.id)}</button>`:'';
     return `<div class="crcard" style="${isReply?'margin-inline-start:28px;border-inline-start:3px solid var(--line)':''}">
       <div class="crhd">
         <span><span class="crstate" style="background:color-mix(in srgb,${KCLR[c.kind]} 14%,#fff);color:${KCLR[c.kind]};font-size:.7rem">${KIND[c.kind]}</span>
@@ -792,7 +792,7 @@ function vDiscuss(rows){
         <span style="display:flex;gap:8px;align-items:center">${resBadge}<small style="color:var(--muted)">${when}</small></span>
       </div>
       <div class="crbody">${esc(c.body)}${tkChip?'<br>'+tkChip:''}</div>
-      <div class="cract">${resBtn}<button class="reqbtn" data-reply="${c.id}" style="font-size:.72rem" aria-label="الرد على تعليق ${esc((c.body||'').slice(0,30))}">رد</button>${(ROLE==='pmo'||c.author_id===USER.id)?`<button class="reqbtn" data-delc="${c.id}" aria-label="حذف التعليق" style="font-size:.72rem;color:var(--crit)">حذف</button>`:''}</div>
+      <div class="cract">${resBtn}<button class="reqbtn fs-72" data-reply="${c.id}" aria-label="الرد على تعليق ${esc((c.body||'').slice(0,30))}">رد</button>${(ROLE==='pmo'||c.author_id===USER.id)?`<button class="reqbtn" data-delc="${c.id}" aria-label="حذف التعليق" style="font-size:.72rem;color:var(--crit)">حذف</button>`:''}</div>
       <div id="replyBox-${c.id}"></div>
     </div>`;
   };
@@ -817,7 +817,7 @@ function bindDiscuss(){
   document.querySelectorAll('[data-reply]').forEach(b=>b.onclick=()=>{
     const box=document.getElementById('replyBox-'+b.dataset.reply);
     if(box.innerHTML){box.innerHTML='';return;}
-    box.innerHTML=`<div style="display:flex;gap:6px;margin-top:8px"><input id="rin-${b.dataset.reply}" placeholder="ردك..." style="flex:1;border:1.5px solid var(--line);border-radius:7px;padding:7px;font-family:inherit;font-size:.82rem"><button class="reqbtn" data-sendreply="${b.dataset.reply}" style="background:var(--gold);border-color:var(--gold);color:#fff">رد</button></div>`;
+    box.innerHTML=`<div style="display:flex;gap:6px;margin-top:8px"><input id="rin-${b.dataset.reply}" placeholder="ردك..." style="flex:1;border:1.5px solid var(--line);border-radius:7px;padding:7px;font-family:inherit;font-size:.82rem"><button class="reqbtn gold" data-sendreply="${b.dataset.reply}">رد</button></div>`;
     box.querySelector('[data-sendreply]').onclick=async()=>{
       const v=document.getElementById('rin-'+b.dataset.reply).value.trim();if(!v){return;}
       try{ await addComment(PROJECT._dbId,'comment',v,b.dataset.reply); toast('أُرسل الرد','ok'); await refreshProjectCounts(); render(); }
@@ -865,7 +865,7 @@ function vRequests(rows){
   const composer=`<div class="crform" style="position:static;margin-bottom:16px">
     <h4>${ROLE==='client'?'تقديم طلب جديد':'تسجيل طلب نيابة عن الشريك'}</h4>
     <input id="rqTitle" placeholder="عنوان الطلب (مثل: تصميم إعلان لعرض رمضان)" style="width:100%;border:1.5px solid var(--line);border-radius:7px;padding:9px;font-family:inherit;margin-bottom:8px">
-    <textarea id="rqBody" placeholder="تفاصيل الطلب..." style="margin-bottom:8px"></textarea>
+    <textarea id="rqBody" placeholder="تفاصيل الطلب..." class="mb-8"></textarea>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
       <select id="rqDept"><option value="marketing">التسويق</option><option value="tech">التقني</option><option value="strategy">الاستراتيجية</option><option value="consulting">الاستشارات</option><option value="other">أخرى</option></select>
       <select id="rqPrio"><option value="normal">أولوية عادية</option><option value="low">منخفضة</option><option value="high">عالية</option><option value="urgent">عاجلة</option></select>
@@ -877,7 +877,7 @@ function vRequests(rows){
     const when=new Date(r.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
     // أزرار إدارة الحالة (للطاقم فقط)
     const statusBtns=isStaff?`<div class="rq-statusbtns">${Object.keys(REQ_STATUS_AR).map(s=>`<button class="rq-sbtn ${r.status===s?'active':''}" data-setstatus="${r.id}" data-s="${s}" style="--sc:${REQ_STATUS_CLR[s]}">${REQ_STATUS_AR[s]}</button>`).join('')}</div>`:'';
-    const assignBtn=isStaff?`<button class="reqbtn" data-assign="${r.id}" data-cur="${esc(r.assigned_to||'')}" style="font-size:.72rem">${r.assigned_to?'إعادة الإسناد':'إسناد'}</button>`:'';
+    const assignBtn=isStaff?`<button class="reqbtn fs-72" data-assign="${r.id}" data-cur="${esc(r.assigned_to||'')}">${r.assigned_to?'إعادة الإسناد':'إسناد'}</button>`:'';
     const delBtn=(ROLE==='pmo'||r.created_by===USER.id)?`<button class="reqbtn" data-delreq="${r.id}" style="font-size:.72rem;color:var(--crit)">حذف</button>`:'';
     return `<div class="crcard rq-card" style="border-inline-start:3px solid ${REQ_STATUS_CLR[r.status]}">
       <div class="crhd">

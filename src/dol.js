@@ -37,7 +37,7 @@ function renderDOL(){
   const toolbar=`<div class="lockbar" style="border-inline-start-color:var(--crit)">
     <span>الحوكمة:</span>
     ${ROLE==='pmo'?'<button class="reqbtn" id="dolAddGate" style="background:var(--crit);border-color:var(--crit);color:#fff">+ بوابة قرار</button>':''}
-    <span style="color:var(--muted);font-weight:400;font-size:.78rem">البوابات تضع الحدود · القرارات التشغيلية تعمل داخلها · الانحراف يُقيَّم آليًا.</span>
+    <span class="sub-note">البوابات تضع الحدود · القرارات التشغيلية تعمل داخلها · الانحراف يُقيَّم آليًا.</span>
     <button class="reqbtn" id="dolHelp" style="background:#fff;color:var(--ink);margin-inline-start:auto" aria-label="شرح طبقة القرار">؟ عن الطبقة</button>
   </div>`;
 
@@ -60,7 +60,7 @@ function renderDOL(){
           <div class="gate-acts">
             ${ROLE==='pmo'?`<button class="reqbtn" data-addop="${g.id}">+ قرار تشغيلي</button>`:''}
             <button class="reqbtn" data-trace="${g.id}" title="التتبّع" aria-label="التتبع العكسي">${I.link}</button>
-            ${ROLE==='pmo'?`<button class="ib" data-deldec="${g.id}" style="color:var(--crit)">${I.trash}</button>`:''}
+            ${ROLE==='pmo'?`<button class="ib txt-crit" data-deldec="${g.id}">${I.trash}</button>`:''}
           </div>
         </div>
         ${g.rationale?`<div class="gate-rationale">${esc(g.rationale)}</div>`:''}

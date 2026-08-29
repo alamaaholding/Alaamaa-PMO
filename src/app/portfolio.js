@@ -20,7 +20,7 @@ async function openSecurityAudit(){
   body.innerHTML=skeleton('cards',1);
   const render=(r)=>{
     body.innerHTML=`
-      <div class="${r.clean?'ctr-integrity ok':'chub-expiry-banner'}" style="margin-bottom:14px">
+      <div class="${r.clean?'ctr-integrity ok':'chub-expiry-banner'} mb-14">
         ${r.clean?'✅ <b>لا مشاكل مرصودة</b> — لا دوال مكشوفة للمجهولين ولا توقيعات مكرَّرة.'
                  :'⚠ <b>رُصدت مشاكل تحتاج إصلاحًا</b>'}
       </div>
@@ -29,14 +29,14 @@ async function openSecurityAudit(){
         ${r.leaked_count?r.leaked_to_anon.map(x=>`<div class="chd-att-row"><span>⚠ ${esc(x.function)}</span></div>`).join('')
           :'<p class="sa-hint">لا شيء — المسار العام لصفحة التوقيع فقط.</p>'}
       </div>
-      <div class="sa-section" style="margin-top:12px">
+      <div class="sa-section mt-12">
         <h4>دوال بتوقيعات متعددة <span class="sa-hint">(${r.duplicate_count})</span></h4>
         ${r.duplicate_count?r.duplicate_dupes||r.duplicate_signatures.map(x=>
             `<div class="chd-att-row"><span>⚠ ${esc(x.function)} — ${x.versions} نسخ</span></div>`).join('')
           :'<p class="sa-hint">لا شيء — نسخة واحدة لكل دالة.</p>'}
-        ${r.duplicate_count?'<p class="sa-hint" style="margin-top:6px">نسخة قديمة قد تتجاوز حواجز النسخة الجديدة — تحتاج حذفًا يدويًا مدروسًا.</p>':''}
+        ${r.duplicate_count?'<p class="sa-hint mt-6">نسخة قديمة قد تتجاوز حواجز النسخة الجديدة — تحتاج حذفًا يدويًا مدروسًا.</p>':''}
       </div>
-      <p class="sa-hint" style="margin-top:10px">آخر فحص: ${new Date(r.checked_at).toLocaleString('ar')}</p>
+      <p class="sa-hint mt-10">آخر فحص: ${new Date(r.checked_at).toLocaleString('ar')}</p>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="reqbtn" id="secRecheck">إعادة الفحص</button>
         ${r.leaked_count?'<button class="hbtn ok" id="secFix">🔧 سحب الإتاحة المتسرّبة</button>':''}
@@ -72,7 +72,7 @@ async function openCapacityPanel(){
 
   body.innerHTML=`
     <p class="sa-hint" style="margin-bottom:12px">الإسناد يقع على <b>المسمّى</b> لا الشخص — فالمكتب يعنيه أن المسمّى محمَّل فوق طاقته لا من ينفّذ. الطاقة = عدد الشاغلين × البنود المتزامنة للفرد.</p>
-    <div class="chub-stats" style="margin-bottom:14px">
+    <div class="chub-stats mb-14">
       <div class="chub-stat"><b>${tree.length}</b><span>قسم</span></div>
       <div class="chub-stat"><b>${tree.reduce((a,d)=>a+(d.roles||[]).length,0)}</b><span>مسمّى</span></div>
       <div class="chub-stat"><b>${totalHeads}</b><span>إجمالي الشاغلين</span></div>
@@ -90,14 +90,14 @@ async function openCapacityPanel(){
             <input class="cap-num" type="number" min="1" max="10" value="${r.load_per_person}" data-rf="load">
             <span class="cap-total">= ${r.capacity} بند متزامن</span>
             <span class="sa-hint">${r.assigned_tasks} بند مُسنَد</span>
-            <button class="reqbtn" data-delrole="${r.id}" style="color:var(--crit)" aria-label="حذف مسمّى ${esc(r.name)}">حذف</button>
+            <button class="reqbtn txt-crit" data-delrole="${r.id}" aria-label="حذف مسمّى ${esc(r.name)}">حذف</button>
           </div>`).join('')||'<p class="sa-hint">لا مسمّيات في هذا القسم بعد.</p>'}
-        <div class="sa-form" style="margin-top:10px">
+        <div class="sa-form mt-10">
           <input class="cap-newname" placeholder="مسمّى جديد" data-dept="${d.id}">
           <button class="reqbtn" data-addrole="${d.id}">+ إضافة مسمّى</button>
         </div>
       </div>`).join('')}
-    <div class="sa-form" style="margin-top:12px">
+    <div class="sa-form mt-12">
       <input id="capNewDept" placeholder="قسم جديد">
       <button class="reqbtn" id="capAddDept">+ إضافة قسم</button>
     </div>`;
@@ -145,24 +145,24 @@ async function openAutomationPanel(){
     document.getElementById('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>';return; }
 
   document.getElementById('tkBody').innerHTML=`
-    <div class="${st.auto_reminders_enabled?'ctr-integrity ok':'chub-tpl-banner'}" style="margin-bottom:14px">
+    <div class="${st.auto_reminders_enabled?'ctr-integrity ok':'chub-tpl-banner'} mb-14">
       ${st.auto_reminders_enabled
         ?'⚡ <b>التذكير التلقائي مُفعَّل</b> — تُرسَل رسائل لشركائك تلقائيًا وفق الإعدادات أدناه.'
         :'🔕 <b>التذكير التلقائي معطَّل</b> — لا تُرسَل أي رسالة تلقائيًا. التذكير يدوي من لوحة كل عقد.'}
     </div>
-    <div class="sa-form" style="flex-wrap:wrap">
+    <div class="sa-form fx-wrap">
       <label class="chub-choice"><input type="checkbox" id="autoRem" ${st.auto_reminders_enabled?'checked':''}>
         تفعيل التذكير التلقائي للعقود غير الموقَّعة</label>
     </div>
     <div class="sa-form" style="flex-wrap:wrap;margin-top:10px">
-      <label style="font-size:.85rem;align-self:center">يُذكَّر بعد</label>
+      <label class="fs-85 self-center">يُذكَّر بعد</label>
       <input id="autoDays" type="number" min="1" max="30" value="${st.reminder_after_days||3}" style="width:90px">
-      <label style="font-size:.85rem;align-self:center">أيام · بحد أقصى</label>
+      <label class="fs-85 self-center">أيام · بحد أقصى</label>
       <input id="autoMax" type="number" min="1" max="5" value="${st.max_reminders||2}" style="width:90px">
-      <label style="font-size:.85rem;align-self:center">تذكيرات لكل عقد</label>
+      <label class="fs-85 self-center">تذكيرات لكل عقد</label>
     </div>
-    <p class="sa-hint" style="margin-top:10px">الحدّ الأقصى يمنع إزعاج الشريك — بعد استنفاده يتوقف التذكير التلقائي ويبقى اليدوي متاحًا.</p>
-    <div id="autoPreview" style="margin-top:14px"></div>
+    <p class="sa-hint mt-10">الحدّ الأقصى يمنع إزعاج الشريك — بعد استنفاده يتوقف التذكير التلقائي ويبقى اليدوي متاحًا.</p>
+    <div id="autoPreview" class="mt-14"></div>
     <button class="hbtn" id="autoSave" style="background:var(--gold);border-color:var(--gold);margin-top:12px">حفظ الإعدادات</button>`;
 
   const preview=async()=>{
@@ -205,14 +205,14 @@ async function openOrgProfile(){
   const miss=['cr_number','vat_number','national_address','rep_name','rep_title','contact_email','contact_phone']
     .filter(k=>!o[k]);
   document.getElementById('tkBody').innerHTML=`
-    <p class="sa-hint" style="margin-bottom:14px">بيانات علامة بصفتها <b>الطرف الأول</b> في كل عقد — تُستورَد تلقائيًا عند إنشاء أي عقد جديد، وتُجمَّد داخله كلقطة فلا يتأثر أي عقد موقَّع سابقًا بأي تعديل هنا لاحقًا.</p>
+    <p class="sa-hint mb-14">بيانات علامة بصفتها <b>الطرف الأول</b> في كل عقد — تُستورَد تلقائيًا عند إنشاء أي عقد جديد، وتُجمَّد داخله كلقطة فلا يتأثر أي عقد موقَّع سابقًا بأي تعديل هنا لاحقًا.</p>
     ${miss.length?`<div class="ch-warn-badge">⚠ بيانات غير مكتملة (${miss.length} حقول) — ستظهر كـ«—» في جدول أطراف العقد</div>`:''}
-    <div class="sa-form" style="flex-wrap:wrap">
+    <div class="sa-form fx-wrap">
       <input id="orgName" placeholder="الاسم النظامي" value="${esc(o.legal_name||'علامة')}" style="flex:1;min-width:180px;font-weight:700">
-      <input id="orgCr" placeholder="رقم السجل التجاري" value="${esc(o.cr_number||'')}" style="flex:1;min-width:150px">
-      <input id="orgVat" placeholder="الرقم الضريبي (VAT)" value="${esc(o.vat_number||'')}" style="flex:1;min-width:150px">
+      <input id="orgCr" placeholder="رقم السجل التجاري" value="${esc(o.cr_number||'')}" class="grow-150">
+      <input id="orgVat" placeholder="الرقم الضريبي (VAT)" value="${esc(o.vat_number||'')}" class="grow-150">
       <input id="orgAddr" placeholder="العنوان الوطني" value="${esc(o.national_address||'')}" style="flex:1;min-width:170px">
-      <input id="orgRep" placeholder="اسم الممثل المفوَّض" value="${esc(o.rep_name||'')}" style="flex:1;min-width:160px">
+      <input id="orgRep" placeholder="اسم الممثل المفوَّض" value="${esc(o.rep_name||'')}" class="grow-160">
       <input id="orgTitle" placeholder="صفته" value="${esc(o.rep_title||'')}" style="flex:1;min-width:130px">
       <input id="orgEmail" placeholder="البريد الرسمي" value="${esc(o.contact_email||'')}" style="flex:1;min-width:170px" dir="ltr">
       <input id="orgPhone" placeholder="رقم الجوال" value="${esc(o.contact_phone||'')}" style="flex:1;min-width:140px" dir="ltr">
