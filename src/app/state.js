@@ -63,6 +63,13 @@ const state = {
   // عشرة ملفات كانت تسكن ملفًا واحدًا، فصار كل ملف يقرؤها مرتبطًا بـmain.js.
   // وهي حالة لا سلوك، فمكانها هنا. (portfolio | project | workload | …)
   SCREEN: 'portfolio',
+  // تصفية جدول البنود. كانت `let TFILTER` في views.js يقرؤها ملفان — والكتابة
+  // إليها من main.js (تطبيق فلاتر الرابط) كانت تعبر حدود ملفٍ إلى رابطة سائبة
+  // فيه. وهي حالة لا سلوك، فمكانها هنا.
+  TFILTER: { phases: new Set(), statuses: new Set(), smart: new Set(), q: '' },
+  // البند المُبرَز بعد الانتقال إليه. كان `_focusRef` في app/main.js — والاسم
+  // بشرطة سفلية بقيّةُ زمنٍ كان فيه «خاصًّا بالملف»، وقد صار جزءًا من الرابط.
+  FOCUS_REF: null,
   CRS: [],
   PFILTER: 'all',
   PSEARCH: '',
@@ -90,6 +97,24 @@ export function setState(key, value) {
   if (!(key in state)) throw new Error(`مفتاح حالة غير معروف: ${key}`);
   state[key] = value;
   return value;
+}
+
+/**
+ * حفظ تفضيلات اللوحة.
+ *
+ * كانت في app/main.js بينما **القراءة** أدناه هنا — أي أن مفتاح `pmo_pfilters`
+ * كان يملكه ملفان: هذا يقرؤه وذاك يكتبه. فأيّ تغيير في شكله يجب أن يُطبَّق في
+ * موضعين لا يعرف أحدهما الآخر، وهو بالضبط ما يُنتج انحرافًا صامتًا.
+ *
+ * و`catch` الفارغ متعمَّد كما في الاستعادة: تعذُّر الكتابة (وضع خاص، حظر ملفات
+ * تعريف) ليس عطلًا — التفضيلات لا تُحفَظ وحسب.
+ */
+export function savePFilters() {
+  try {
+    localStorage.setItem('pmo_pfilters', JSON.stringify({
+      PFILTER: state.PFILTER, PSORT: state.PSORT, PALERTS: [...state.PALERTS]
+    }));
+  } catch (e) {}
 }
 
 // ===== استعادة تفضيلات اللوحة المحفوظة =====

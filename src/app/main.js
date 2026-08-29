@@ -1,5 +1,5 @@
 // ===== app/main.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
-function savePFilters(){try{localStorage.setItem('pmo_pfilters',JSON.stringify({PFILTER,PSORT,PALERTS:[...PALERTS]}));}catch(e){}}
+// savePFilters انتقلت إلى app/state.js — حيث كانت القراءة المقابلة لها أصلًا.
 // SCREEN انتقلت إلى app/state.js — حالة يقرؤها عشرة ملفات، لا حالة ملف واحد.
 
 // ===== الإشعارات (Toast) =====
@@ -136,68 +136,23 @@ async function startApp(){
 // ===== الروابط العميقة =====
 // الشكل الجديد: #/c/{شريك}/{مشروع}/{تبويب}[/t/{بند}] — مجلد فرعي داخل مجلد الشريك.
 // الصيغة القديمة #/p/{معرّف المشروع}/{تبويب}[/t/{بند}] تبقى مدعومة للأبد للتوافق مع أي رابط سبق مشاركته.
-let _hashLock=false,_focusRef=null;
+// انتقلت طبقة الرابط كاملةً إلى src/urlstate.js: writeHash · writePortfolioHash ·
+// parseHash · applyHashFilters — ومعها _hashLock الذي تشترك فيه. كانت المرمِّزات
+// هناك ومُستعمِلوها هنا، أي أن الطبقة الواحدة كانت مقسومة بين ملفّين.
+// و`_focusRef` صار FOCUS_REF في app/state.js — جزءٌ من الرابط لا خاصٌّ بالملف.
 // المحفظة نفسها «مجلد جذري» له رابط نظيف خاص به — لا يبقى الرابط عالقًا على آخر مشروع
 // أو شريك كان مفتوحًا قبلها، وهذا بالضبط ما يجعل التنقّل يعكس ما يُعرَض فعليًا دائمًا.
-function writePortfolioHash(){
-  const h=joinHash('#/',encodePortfolio({
-    filter:PFILTER,sort:PSORT,alerts:PALERTS,search:PSEARCH}));
-  if(location.hash===h)return;
-  _hashLock=true;
-  try{history.replaceState(null,'',h);}catch(e){location.hash=h;}
-  setTimeout(()=>{_hashLock=false;},0);
-}
-function writeHash(){
-  if(typeof SCREEN==='undefined'||SCREEN!=='project'||!PROJECT||!PROJECT._dbId)return;
-  const client=(CLIENTS||[]).find(x=>x.id===CID);
-  const cRef=(client&&client.slug)||CID;
-  const pRef=PROJECT.slug||PROJECT._dbId;
-  const base='#/c/'+cRef+'/'+pRef+'/'+VIEW+(_focusRef?('/t/'+encodeURIComponent(_focusRef)):'');
-  // تصفية الجدول تخصّ تبويب الجدول وحده — حملُها في تبويب آخر ضجيج بلا معنى.
-  const h=joinHash(base,VIEW==='table'?encodeTable(TFILTER):'');
-  if(location.hash===h)return;
-  _hashLock=true;
-  try{history.replaceState(null,'',h);}catch(e){location.hash=h;}
-  setTimeout(()=>{_hashLock=false;},0);
-}
-function parseHash(){
-  // الاستعلام يُفصل أولًا: المسار يحدّد **أين**، والاستعلام يحدّد **ماذا يُرى**،
-  // ولا يجوز أن يُفسد أحدهما تحليل الآخر.
-  const {path}=splitHash(location.hash||'');
-  let m=/^#\/c\/([^/]+)\/([^/]+)\/([a-z]+)(?:\/t\/(.+))?$/.exec(path);
-  if(m)return {clientRef:m[1],projectRef:m[2],view:m[3],ref:m[4]?decodeURIComponent(m[4]):null};
-  m=/^#\/p\/([^/]+)\/([a-z]+)(?:\/t\/(.+))?$/.exec(path); // صيغة قديمة — للتوافق فقط
-  if(m)return {clientRef:null,projectRef:m[1],view:m[2],ref:m[3]?decodeURIComponent(m[3]):null};
-  return null;
-}
 
 // ===== الرابط يفوز على التفضيل المحفوظ =====
 // localStorage افتراضٌ حين لا يقول الرابط شيئًا؛ فإن قال، فهي نيّة صريحة من
 // المُرسِل. والعكس يعني أن رابطًا مشتركًا يُعرَض بتفضيلات المُستقبِل — وهو
 // بالضبط العطل الذي تعالجه هذه الدفعة.
-function applyHashFilters(){
-  const {path,query}=splitHash(location.hash||'');
-  if(!query)return false;
-  if(/^#\/?$/.test(path)){
-    const f=decodePortfolio(query);
-    if(f.filter)PFILTER=f.filter;
-    if(f.sort)PSORT=f.sort;
-    if(f.alerts)PALERTS=new Set(f.alerts);
-    if(f.search!==undefined)PSEARCH=f.search;
-    return true;
-  }
-  const f=decodeTable(query);
-  if(!Object.keys(f).length)return false;
-  TFILTER={phases:new Set(f.phases||[]),statuses:new Set(f.statuses||[]),
-           smart:new Set(f.smart||[]),q:f.q||''};
-  return true;
-}
 // تبديل التبويب — نقطة الدخول الوحيدة (تحدّث الرابط أيضًا)
 function setView(v,ref){
   if(!PERMS[ROLE]||PERMS[ROLE].views.indexOf(v)===-1)return;
-  VIEW=v;_focusRef=ref||null;
+  VIEW=v;FOCUS_REF=ref||null;
   render();writeHash();
-  if(_focusRef)focusTask(_focusRef);
+  if(FOCUS_REF)focusTask(FOCUS_REF);
 }
 // إبراز بند بعينه بعد الانتقال إليه
 function focusTask(ref){
@@ -224,9 +179,9 @@ function applyHash(){
   const cOk=!h.clientRef||CID===h.clientRef||(client&&client.slug===h.clientRef);
   const pOk=PROJECT._dbId===h.projectRef||PROJECT.slug===h.projectRef;
   if(cOk&&pOk&&PERMS[ROLE]&&PERMS[ROLE].views.indexOf(h.view)>-1){
-    VIEW=h.view;_focusRef=h.ref||null;
+    VIEW=h.view;FOCUS_REF=h.ref||null;
     render();
-    if(_focusRef)focusTask(_focusRef);
+    if(FOCUS_REF)focusTask(FOCUS_REF);
     return true;
   }
   return false;
@@ -243,14 +198,14 @@ async function tryOpenProjectFromHash(){
     await loadProject(CID,PID);
     if(PROJECT_ACCESS_DENIED||!PROJECT)return false;
     $('#barClient').style.display='';showChrome();
-    if(PERMS[ROLE]&&PERMS[ROLE].views.indexOf(h.view)>-1){VIEW=h.view;_focusRef=h.ref||null;}
+    if(PERMS[ROLE]&&PERMS[ROLE].views.indexOf(h.view)>-1){VIEW=h.view;FOCUS_REF=h.ref||null;}
     render();writeHash();
-    if(_focusRef)focusTask(_focusRef);
+    if(FOCUS_REF)focusTask(FOCUS_REF);
     return true;
   }catch(e){return false;}
 }
 window.addEventListener('hashchange',async()=>{
-  if(_hashLock)return;
+  if(isHashLocked())return;
   if(typeof SCREEN!=='undefined'&&SCREEN==='project'&&applyHash())return;
   if(await tryOpenProjectFromHash())return;
   if(/^#\/workload\/?$/.test(location.hash||'')){

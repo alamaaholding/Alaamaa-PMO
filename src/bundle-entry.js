@@ -37,9 +37,14 @@ import * as exportContract from './app/exportcontract.js';
 import * as staffAccess from './app/staffaccess.js';
 import * as workload from './app/workload.js';
 import * as contractSign from './app/contractsign.js';
-import { STATE_KEYS, getState, setState } from './app/state.js';
+import { STATE_KEYS, getState, setState, savePFilters } from './app/state.js';
 
 Object.assign(globalThis, theme, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate, exportContract, chrome, screens, emptyStateMod, staffAccess, workload, contractSign);
+
+// state.js **لا تُمرَّر كفضاء أسماء** — حالتها تصل بواصفات لا بنسخ (أدناه). لكن
+// `savePFilters` دالةٌ لا حالة، ومكانها هناك لأن القراءة المقابلة لها هناك. فتُجسَّر
+// بالاسم صراحةً: استثناءٌ مقصود ومرئيّ، لا تمريرٌ عامّ يجرّ getState/setState معه.
+Object.assign(globalThis, { savePFilters });
 
 // ═══ الحالة المشتركة: واصفات لا نسخ ═══
 // النسخ (Object.assign) يصلح للدوال ولا يصلح للحالة — ينسخ القيمة مرة واحدة

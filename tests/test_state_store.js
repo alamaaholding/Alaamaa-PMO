@@ -36,7 +36,7 @@ console.log('\n▸ سطح الوحدة');
 t('تُصدَّر STATE_KEYS', Array.isArray(S.STATE_KEYS));
 t('تُصدَّر getState', typeof S.getState === 'function');
 t('تُصدَّر setState', typeof S.setState === 'function');
-eq('اثنان وعشرون مفتاحًا', S.STATE_KEYS.length, 22);   // +SCREEN (W2: خرجت من app/main.js)
+eq('أربعة وعشرون مفتاحًا', S.STATE_KEYS.length, 24);   // +SCREEN +TFILTER +FOCUS_REF (W2)
 t('القائمة مجمَّدة — لا تُعدَّل من الخارج', Object.isFrozen(S.STATE_KEYS));
 // الكائن نفسه **لا يُصدَّر**: لو صُدِّر لالتفّ أي مستهلك حول نقطة الرصد بمرجع مباشر.
 t('كائن الحالة نفسه لا يُصدَّر', S.state === undefined);
@@ -110,7 +110,7 @@ console.log('\n▸ الجسر على الحزمة الحقيقية: واصفات
     if (d && typeof d.get === 'function' && typeof d.set === 'function') accessors++;
     else dataProps.push(k);
   }
-  eq('كل المفاتيح الاثنين والعشرين واصفات', accessors, 22);
+  eq('كل المفاتيح الأربعة والعشرين واصفات', accessors, 24);
   t('ولا مفتاح واحد صار قيمة منسوخة', dataProps.length === 0, dataProps.join(' '));
   t('الواصفات قابلة للحذف يوم يكتمل التحويل',
     Object.getOwnPropertyDescriptor(w, 'CID').configurable === true);
@@ -145,6 +145,41 @@ console.log('\n▸ لا انحراف بين مصادر قائمة المفاتي
   t('كل مفاتيح الوحدة مُعلَنة في ESLint',
     S.STATE_KEYS.every(k => declared.includes(k)),
     S.STATE_KEYS.filter(k => !declared.includes(k)).join(' '));
+}
+
+console.log('\n▸ مفتاح pmo_pfilters له مالك واحد — الكتابة والقراءة معًا');
+{
+  // كانت `savePFilters` في app/main.js والاستعادة هنا: ملفّان يملكان مفتاح تخزين
+  // واحد، ولا يعرف أحدهما الآخر. فأيّ تغيير في شكل المفتاح يجب أن يُطبَّق مرّتين
+  // — وهو بالضبط ما يُنتج انحرافًا لا يُنتج خطأً.
+  //
+  // ويُفحَص هذا بالرحلة كاملةً: نكتب بوحدة، ونقرأ **بوحدة ثانية جديدة** من نفس
+  // التخزين. فلو انحرف الشكل بين الطرفين لسقط الاختبار، ولا يسقط بأيّ فحص نصّي.
+  const store = {};
+  const ls = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
+  const mk = () => { const c = { console, localStorage: ls }; vm.createContext(c); vm.runInContext(built, c); return c.__st; };
+
+  const A = mk();
+  A.setState('PFILTER', 'late');
+  A.setState('PSORT', 'name');
+  A.setState('PALERTS', new Set(['over', 'risk']));
+  A.savePFilters();
+  t('الكتابة تصل إلى pmo_pfilters', typeof store.pmo_pfilters === 'string');
+
+  const B = mk();   // وحدة جديدة تمامًا: تستعيد عند التحميل
+  eq('PFILTER يعود كما كُتب', B.getState('PFILTER'), 'late');
+  eq('PSORT يعود كما كُتب', B.getState('PSORT'), 'name');
+  t('PALERTS يعود مجموعةً لا مصفوفة',
+    B.getState('PALERTS').constructor.name === 'Set' && B.getState('PALERTS').has('risk'));
+
+  // والمفتاح لا يُذكر خارج هذه الوحدة — وإلا عاد الانقسام من باب آخر.
+  const others = ['src/app/main.js', 'src/app/portfolio.js', 'src/urlstate.js']
+    .filter(f => fs.readFileSync(f, 'utf8').includes('pmo_pfilters'));
+  t('ولا ملف آخر يمسّ المفتاح', others.length === 0, others.join(' '));
+
+  // وتصل للكود القديم: ستّة مواضع في portfolio.js تناديها بلا تصريح.
+  t('savePFilters مُجسَّرة بالاسم',
+    /Object\.assign\(globalThis,\s*\{\s*savePFilters\s*\}\)/.test(fs.readFileSync('src/bundle-entry.js', 'utf8')));
 }
 
 console.log(`\nنجح ${ok} · فشل ${fail}`);

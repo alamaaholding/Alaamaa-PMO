@@ -163,7 +163,7 @@ function vDashboard(){
 
 
 // ===== فلترة الجدول والجانت (مدمجة، تُطبَّق على الاثنين معًا) =====
-let TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};
+// TFILTER انتقلت إلى app/state.js — حالةٌ يكتب فيها ملفٌ ويقرؤها آخر.
 function taskMatchesFilter(t){
   const k=TRACK&&TRACK[t.id];
   if(TFILTER.phases.size&&!TFILTER.phases.has(t.track))return false;

@@ -97,19 +97,73 @@ deep('استعلام فارغ بعد ?', U.splitHash('#/?'), { path: '#/', query
 deep('بند مرمَّز في المسار', U.splitHash('#/c/a/b/table/t/%D8%A3'),
   { path: '#/c/a/b/table/t/%D8%A3', query: '' });
 
+console.log('\n▸ قفل الكتابة — الحارس الذي انتقل مع الدالتين');
+{
+  // كل كتابة للرابط تُطلق hashchange، ومُعالِجه يُعيد التصيير. فبلا القفل تُنتج
+  // كتابةٌ برمجية تصييرًا لم يطلبه أحد. وكان `_hashLock` رابطةً في app/main.js
+  // تشترك فيها الكاتبتان ويقرؤها المُعالِج — فانتقل معهما، ويُقرأ الآن بدالة.
+  const hist = [];
+  const c = {
+    console, setTimeout, clearTimeout,
+    localStorage: { getItem: () => null, setItem() {} },
+    location: { hash: '' },
+    history: { replaceState: (a, b, h) => { hist.push(h); c.location.hash = h; } }
+  };
+  c.globalThis = c;
+  vm.createContext(c); vm.runInContext(built, c);
+  const M = c.__u;
+
+  t('isHashLocked مُصدَّرة', typeof M.isHashLocked === 'function');
+  t('ومرفوعة في السكون', M.isHashLocked() === false);
+
+  // بالقيم الافتراضية لا يُكتب استعلام (القاعدة ١) فيكون الرابط `#/` مجرَّدًا،
+  // وهو يخالف '' الابتدائي فتقع كتابة واحدة.
+  M.writePortfolioHash();
+  t('الكتابة تصل إلى history', hist.length === 1 && hist[0] === '#/', hist.join(' '));
+  t('والقفل مُنزَل فورًا بعدها', M.isHashLocked() === true);
+
+  // الكتابة نفسها مرّتين لا تكتب مرّتين — وإلا تراكمت مُدخَلات لا يراها المستخدم.
+  M.writePortfolioHash();
+  t('وكتابة نفس الرابط لا تتكرّر', hist.length === 1, hist.length + ' كتابة');
+}
+
+console.log('\n▸ الحالتان اللتان جعلتا النقل ممكنًا');
+{
+  const st = fs.readFileSync('src/app/state.js', 'utf8');
+  const views = fs.readFileSync('src/views.js', 'utf8');
+  // يُفحَص الكود لا التعليقات: ملاحظات النقل في main.js تذكر الاسمين القديمين
+  // بنصّهما لتشرح إلى أين ذهبا — والفحص النصّي الساذج ينقلب على نفسه.
+  const main = fs.readFileSync('src/app/main.js', 'utf8')
+    .split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+  t('TFILTER في المتجر لا رابطةً في views.js',
+    /^ {2}TFILTER: \{/m.test(st) && !/^let TFILTER/m.test(views));
+  t('FOCUS_REF في المتجر لا `_focusRef` في main.js',
+    /^ {2}FOCUS_REF: null,/m.test(st) && !/_focusRef/.test(main));
+  // ولا رابطة قفل باقية في main.js — يُقرأ بالدالة.
+  t('main.js يقرأ القفل بالدالة لا بالرابطة',
+    /isHashLocked\(\)/.test(main) && !/_hashLock/.test(main));
+}
+
 console.log('\n▸ الوصل في التطبيق');
 {
   const main = fs.readFileSync('src/app/main.js', 'utf8');
   const views = fs.readFileSync('src/views.js', 'utf8');
   const pf = fs.readFileSync('src/app/portfolio.js', 'utf8');
+  // انتقلت الدوال الأربع من app/main.js إلى هذه الوحدة في W2: كانت المرمِّزات هنا
+  // ومُستعمِلوها هناك، أي طبقةٌ واحدة مقسومة بين ملفّين. القدرة هي هي، والتأكيد
+  // يتبع الكود — بل صار أدقّ، إذ يفحص الطبقة في موضعها الواحد.
+  const us = fs.readFileSync('src/urlstate.js', 'utf8');
 
-  t('رابط المحفظة يحمل تصفيتها', /joinHash\('#\/',encodePortfolio/.test(main));
-  t('ورابط المشروع يحمل تصفية الجدول', /VIEW==='table'\?encodeTable\(TFILTER\)/.test(main));
-  t('وتصفية الجدول لا تُكتب في تبويب آخر', /VIEW==='table'\?/.test(main));
-  t('parseHash يفصل الاستعلام أولًا', /const \{path\}=splitHash/.test(main));
+  t('رابط المحفظة يحمل تصفيتها', /joinHash\('#\/',encodePortfolio/.test(us));
+  t('ورابط المشروع يحمل تصفية الجدول', /getState\('VIEW'\)==='table'\?encodeTable\(getState\('TFILTER'\)\)/.test(us));
+  t('وتصفية الجدول لا تُكتب في تبويب آخر', /getState\('VIEW'\)==='table'\?/.test(us));
+  t('parseHash يفصل الاستعلام أولًا', /const \{path\}=splitHash/.test(us));
+  // وما جعل النقل ممكنًا: لم يبقَ لهذه الدوال مُدخَلٌ خارج المتجر والمرمِّزات.
+  t('ولا مُدخَل لها خارج المتجر والمرمِّزات',
+    [...us.matchAll(/from '([^']+)'/g)].map(m => m[1]).join() === './app/state.js');
 
   // القاعدة ٢: الرابط يفوز، ويُطبَّق قبل أي تصيير.
-  t('applyHashFilters موجودة', /function applyHashFilters\(\)/.test(main));
+  t('applyHashFilters موجودة', /^export function applyHashFilters\(\)/m.test(us));
   const iApply = main.indexOf('applyHashFilters();');
   const iRender = main.indexOf("SCREEN='project';CID=CLIENTS[0].id");
   t('وتُستدعى قبل أول تصيير', iApply > 0 && iApply < iRender);
