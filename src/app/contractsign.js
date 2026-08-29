@@ -2,8 +2,21 @@
 // مبدأ الأمان: الجداول مغلقة تمامًا عن anon على مستوى RLS؛ كل تفاعل عام يمرّ حصرًا عبر
 // دوال SECURITY DEFINER محكومة بالرمز العشوائي في الرابط — لا وصول مباشر للجداول أبدًا.
 
-// ===== لوحة توقيع بسيطة: رسم باللمس/الفأرة + خيار كتابة الاسم بدلًا من الرسم =====
-function mountSignaturePad(container){
+// ===== لوحة توقيع بسيطة: رسم باللمس/الفأرة + خيار كتابة الاسم بدلًا من الرسم =====//
+// ═══ وحدة ESM (الموجة W2) ═══
+// تبعيتها الأخيرة كانت `buildContractDoc` — تحوّلت في الدفعة قبل السابقة،
+// و`renderContractsHub` صارت `showScreen('contractshub')`. فبلغت الصفر.
+
+import { computeContractHash, fetchContractsForProject, fetchPublicContract, fetchUnlinkedClientContracts, linkContractToProject, requestSigningOTP, signContractAsStaff, signContractPublic, unlinkContractFromProject, voidContract } from '../api.js';
+import { esc } from '../format.js';
+import { showScreen } from '../screens.js';
+import { skeleton } from '../skeleton.js';
+import { toast } from '../toast.js';
+import { mergeContract, renderCustomContractHTML, renderMergedContractHTML } from './contracttemplate.js';
+import { confirmDialog } from './dialogs.js';
+import { buildContractDoc } from './exportcontract.js';
+import { getState } from './state.js';
+export function mountSignaturePad(container){
   container.innerHTML=`
     <div class="sig-tabs">
       <button type="button" class="sig-tab active" data-sigmode="draw">ارسم توقيعك</button>
@@ -48,7 +61,7 @@ function mountSignaturePad(container){
 }
 
 // ===== المسار العام: بلا تسجيل دخول =====
-async function renderPublicSign(token){
+export async function renderPublicSign(token){
   document.getElementById('login').classList.add('hidden');
   document.getElementById('app').classList.add('hidden');
   const root=document.getElementById('publicSign');
@@ -208,9 +221,9 @@ function pubSignError(msg,withLogin){
 }
 
 // ===== لوحة التحكم الداخلية: من داخل المشروع (موظف) — تُعاد استخدام نافذة taskOverlay =====
-async function openContractPanel(){
-  if(!PROJECT){toast('افتح المشروع أولًا','warn');return;}
-  if(!PROJECT.baselines||!PROJECT.baselines.length){toast('لا توجد لقطة (Baseline) بعد — ثبّت أساسًا أولًا','warn');return;}
+export async function openContractPanel(){
+  if(!getState('PROJECT')){toast('افتح المشروع أولًا','warn');return;}
+  if(!getState('PROJECT').baselines||!getState('PROJECT').baselines.length){toast('لا توجد لقطة (Baseline) بعد — ثبّت أساسًا أولًا','warn');return;}
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='عقود المشروع والتوقيع';
   document.getElementById('tkTabs').innerHTML='';
@@ -219,16 +232,16 @@ async function openContractPanel(){
 }
 async function refreshContractPanel(){
   let list;
-  try{ list=await fetchContractsForProject(PROJECT._dbId); }
+  try{ list=await fetchContractsForProject(getState('PROJECT')._dbId); }
   catch(e){ document.getElementById('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
   const STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع الشريك',signed:'موقَّع بالكامل ✅',void:'ملغى'};
   const rows=list.map(c=>{
     const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
     const link=location.origin+location.pathname+'#/sign/'+c.token;
-    const cEmail=(CLIENTS.find(x=>x.id===CID)||{}).contact_email||'';
-    const subject=encodeURIComponent('عقد '+PROJECT.name+' — علامة');
+    const cEmail=(getState('CLIENTS').find(x=>x.id===getState('CID'))||{}).contact_email||'';
+    const subject=encodeURIComponent('عقد '+getState('PROJECT').name+' — علامة');
     const body=encodeURIComponent(
-      `تحية طيبة،\n\nنرفق رابط خاص بكم حصرًا لتوقيع عقد مشروع «${PROJECT.name}» إلكترونيًا (لا يُستخدم لغير هذا الغرض):\n${link}\n\nيمكنكم فتح الرابط والاطّلاع على نص العقد كاملًا ثم التوقيع مباشرة، بلا حاجة لإنشاء حساب.\n\nشكرًا لكم،\nفريق علامة`);
+      `تحية طيبة،\n\nنرفق رابط خاص بكم حصرًا لتوقيع عقد مشروع «${getState('PROJECT').name}» إلكترونيًا (لا يُستخدم لغير هذا الغرض):\n${link}\n\nيمكنكم فتح الرابط والاطّلاع على نص العقد كاملًا ثم التوقيع مباشرة، بلا حاجة لإنشاء حساب.\n\nشكرًا لكم،\nفريق علامة`);
     const mailHref=`mailto:${encodeURIComponent(cEmail)}?subject=${subject}&body=${body}`;
     return `<div style="padding:14px 0;border-bottom:1px solid var(--line)">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -237,7 +250,7 @@ async function refreshContractPanel(){
       <div class="sa-hint" style="margin:6px 0">علامة: ${al?esc(al.name)+' — '+new Date(al.signed_at).toLocaleDateString('ar'):'لم توقّع بعد'}
         · الشريك: ${cl?esc(cl.name)+' — '+new Date(cl.signed_at).toLocaleDateString('ar'):'لم يوقّع بعد'}
         · ${c.includes_ad_spend?'يشمل إنفاقًا إعلانيًا':'بلا إنفاق إعلاني'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}</div>
-      <div class="ctr-link-badge">🔒 الرابط والرمز أدناه خاصّان بـ<b>${esc((CLIENTS.find(x=>x.id===CID)||{}).name||'هذا الشريك')}</b> حصرًا — لتوقيع هذا العقد تحديدًا، لا يصلح لغيره</div>
+      <div class="ctr-link-badge">🔒 الرابط والرمز أدناه خاصّان بـ<b>${esc((getState('CLIENTS').find(x=>x.id===getState('CID'))||{}).name||'هذا الشريك')}</b> حصرًا — لتوقيع هذا العقد تحديدًا، لا يصلح لغيره</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input readonly value="${link}" style="flex:1;min-width:220px;font-size:.75rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2)">
         <button class="reqbtn" data-copylink="${link}">نسخ الرابط</button>
@@ -252,7 +265,7 @@ async function refreshContractPanel(){
     </div>`;
   }).join('')||'<p class="empty">لا عقود بعد.</p>';
 
-  const clientC=CLIENTS.find(x=>x.id===CID)||{};
+  const clientC=getState('CLIENTS').find(x=>x.id===getState('CID'))||{};
   document.getElementById('tkBody').innerHTML=`
     <div class="sa-section mb-14">
       <h4>عقود هذا المشروع <span class="sa-hint">العقد كيان مستقل في محفظة العقود — اربط عقدًا قائمًا بدل إنشاء واحد جديد في كل مرة</span></h4>
@@ -273,7 +286,7 @@ async function refreshContractPanel(){
     if(!show)return;
     picker.innerHTML=skeleton('list',1);
     let unlinked;
-    try{ unlinked=await fetchUnlinkedClientContracts(CID); }
+    try{ unlinked=await fetchUnlinkedClientContracts(getState('CID')); }
     catch(e){ picker.innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
     if(!unlinked.length){
       picker.innerHTML='<p class="sa-hint">لا عقود غير مرتبطة لهذا الشريك حاليًا. أنشئ عقدًا جديدًا بنطاق «الشريك كاملًا» من إدارة العقود، ثم اربطه هنا لاحقًا.</p>';
@@ -286,10 +299,10 @@ async function refreshContractPanel(){
         <button class="reqbtn" data-linkbl="${u.id}">ربط بهذا المشروع</button>
       </div>`).join('');
     document.querySelectorAll('[data-linkbl]').forEach(b=>b.onclick=async()=>{
-      const blSel=PROJECT.baselines[PROJECT.baselines.length-1];
+      const blSel=getState('PROJECT').baselines[getState('PROJECT').baselines.length-1];
       if(!blSel){toast('لا توجد لقطة (Baseline) لهذا المشروع','warn');return;}
       try{
-        const r=await linkContractToProject(b.dataset.linkbl,PROJECT._dbId,blSel.id);
+        const r=await linkContractToProject(b.dataset.linkbl,getState('PROJECT')._dbId,blSel.id);
         if(r&&r.ok){toast('رُبط العقد بهذا المشروع','ok');await refreshContractPanel();}
         else toast((r&&r.error)||'تعذّر الربط','err');
       }catch(e){toast('تعذّر الربط: '+e.message,'err');}
@@ -364,4 +377,3 @@ async function refreshContractPanel(){
   });
 }
 
-window.openContractPanel=openContractPanel;

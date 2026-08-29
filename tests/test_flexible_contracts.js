@@ -10,6 +10,16 @@ const run=c=>{const s=w.document.createElement('script');s.textContent=c;w.docum
 const nodeCrypto=require('crypto');
 // jsdom 26 لا يوفّر TextEncoder (jsdom 30 يوفّره) — نقص في بيئة الاختبار لا في الكود
 if(typeof w.TextEncoder==='undefined')w.TextEncoder=require('util').TextEncoder;
+// وjsdom لا يُنفّذ canvas إطلاقًا بلا حزمة canvas الأصلية — نقصٌ في البيئة كذلك.
+// كان الاختبار يلتفّ عليه بتثبيت mountSignaturePad على النطاق العام؛ وقد صارت
+// contractsign.js وحدة ESM فاختفى ذلك المَنفَذ. فيُسَدّ **نقص البيئة** في موضعه
+// بسياق ثنائي الأبعاد صوريّ، ويُشغَّل قلم التوقيع الحقيقي كما هو.
+w.HTMLCanvasElement.prototype.getContext=function(){
+  const noop=()=>{};
+  return {strokeStyle:'',lineWidth:0,lineCap:'',lineJoin:'',
+    beginPath:noop,moveTo:noop,lineTo:noop,stroke:noop,clearRect:noop};
+};
+w.HTMLCanvasElement.prototype.toDataURL=()=>'data:image/png;base64,';
 w.__nodeSha256=(bytesArray)=>Array.from(nodeCrypto.createHash('sha256').update(Buffer.from(bytesArray)).digest());
 
 run(`
@@ -28,7 +38,6 @@ run(`
 window.__R=[];
 const t=(n,c,x)=>window.__R.push([n,!!c,x||'']);
 toast=()=>{};ROLE='pmo';IS_OWNER=false;CID='cid1';CLIENTS=[{id:'cid1',name:'ثبات'}];
-mountSignaturePad=()=>({getData:()=>({ok:false})}); // لا حاجة لقلم توقيع حقيقي هنا — خارج نطاق هذا الاختبار
 
 // ===== 1) عارض العقد المخصَّص: نص حرّ يُعرَض بنفس الهوية البصرية للعقد القياسي =====
 const customHtml=renderCustomContractHTML({title:'اتفاقية سرّية',body:'هذا نص تجريبي\\n\\nفقرة ثانية',clientName:'ثبات',clientCr:'123'});
@@ -74,10 +83,13 @@ window.__RPCHandler=(name,args)=>{
   t('اعتماد بلا صلاحية كافية: رسالة واضحة توضّح الفئة المخوَّلة',threw&&threw.includes('مالك/مدير المنصة'));
 
   // ===== 4) صفحة التوقيع العامة: رفض صريح قبل الاعتماد الداخلي، لكل من العقد القياسي والمخصَّص =====
-  window.fetchPublicContract=async()=>({
-    ok:true,status:'pending_alamaa',client_name:'ثبات',project_name:null,internal_approved:false,
-    archived:false,signatures:[],contract_type:'custom'
-  });
+  // يُثبَّت على sb.rpc لا على الاسم العام: contractsign.js صارت وحدة ESM تستورد
+  // fetchPublicContract مباشرةً، فلا يصلها تثبيتٌ على window. والطبقة الأدنى أصدق
+  // على كل حال — تُشغَّل الدالة الحقيقية بدل تخطّيها.
+  window.__RPCHandler=(name)=>name==='pmo_contract_public_view'
+    ? Promise.resolve({data:{ok:true,status:'pending_alamaa',client_name:'ثبات',project_name:null,
+        internal_approved:false,archived:false,signatures:[],contract_type:'custom'},error:null})
+    : Promise.resolve({data:{ok:true},error:null});
   await renderPublicSign('tok-not-approved');
   await new Promise(r=>setTimeout(r,20));
   t('عقد غير معتمد داخليًا: صفحة التوقيع ترفض بوضوح، لا تعرض نموذج توقيع',
@@ -85,10 +97,11 @@ window.__RPCHandler=(name,args)=>{
     !document.getElementById('publicSign').innerHTML.includes('اكتب اسمك'));
 
   // ===== 5) بعد الاعتماد: العقد المخصَّص يُعرَض بنصه الحر الصحيح لا القالب القياسي خطأً =====
-  window.fetchPublicContract=async()=>({
-    ok:true,status:'pending_alamaa',client_name:'ثبات',project_name:null,internal_approved:true,
-    archived:false,signatures:[],contract_type:'custom',custom_title:'اتفاقية خاصة',custom_body:'نص فريد لهذا العقد تحديدًا'
-  });
+  window.__RPCHandler=(name)=>name==='pmo_contract_public_view'
+    ? Promise.resolve({data:{ok:true,status:'pending_alamaa',client_name:'ثبات',project_name:null,
+        internal_approved:true,archived:false,signatures:[],contract_type:'custom',
+        custom_title:'اتفاقية خاصة',custom_body:'نص فريد لهذا العقد تحديدًا'},error:null})
+    : Promise.resolve({data:{ok:true},error:null});
   await renderPublicSign('tok-custom-approved');
   await new Promise(r=>setTimeout(r,20));
   t('عقد مخصَّص معتمَد: يظهر نصه الحر الفعلي في صفحة التوقيع',

@@ -6,17 +6,17 @@ const t=(n,c,x)=>{if(c){ok++;console.log('  ✓ '+n);}else{fail++;console.log(' 
 if(!fs.existsSync('DESIGN.md')){console.log('  ✗ DESIGN.md مفقود');console.log('\nنجح 0 · فشل 1');process.exit(1);}
 const d=fs.readFileSync('DESIGN.md','utf8');
 const hub=fs.readFileSync('src/app/contractshub.js','utf8');
-const v=fs.readFileSync('src/views.js','utf8');
 const pf=fs.readFileSync('src/app/portfolio.js','utf8');
 const exp=fs.readFileSync('src/app/exportcontract.js','utf8');
 const wl=fs.readFileSync('src/app/workload.js','utf8');
+const es=fs.readFileSync('src/emptystate.js','utf8');   // انتقل المكوّن من views.js في W2
 
 // كل نمط موثَّق له أثر في الكود
 const patterns=[
  ['الإجراء الأساسي الواحد','STAGE={primary:null',hub],
  ['شريط المرحلة الواحد','chub-stage-notes',hub],
  ['صف يجيب ثلاثة أسئلة','function rowStage(c)',hub],
- ['الحالة الفارغة الموجّهة','function emptyState(o)',v],
+ ['الحالة الفارغة الموجّهة','function emptyState(o)',es],
  ['التبويبات تفصل القراءة عن التحرير','data-pane="overview"',hub],
  ['القوائم الطويلة تُجمَّع','tools-grp-h',pf],
  ['الأتمتة معطَّلة افتراضيًا','تفعيل الإرسال التلقائي',pf],

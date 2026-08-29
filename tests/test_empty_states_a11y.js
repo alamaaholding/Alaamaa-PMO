@@ -30,8 +30,15 @@ t('يعمل بلا أي معطيات',typeof emptyState()==='string'&&emptyState
 setTimeout(()=>{
  const v=fs.readFileSync('src/views.js','utf8');
  const ch=fs.readFileSync('src/app/clienthome.js','utf8');
+ // انتقل المكوّن من views.js إلى src/emptystate.js في W2 — القدرة هي هي، والتأكيد
+ // يتبع الكود ولا يُعطَّل. وثماني أسطر كانت تربط workload و clienthome بجدول
+ // المشروع كله (٧٢ KB)، فخروجها أنهى تلك التبعية.
+ const es=fs.readFileSync('src/emptystate.js','utf8');
+ const wl=fs.readFileSync('src/app/workload.js','utf8');
  const extra=[
-  ['مكوّن مشترك للحالة الفارغة',/function emptyState\(o\)/.test(v)],
+  ['مكوّن مشترك للحالة الفارغة',/^export function emptyState\(o\)/m.test(es)],
+  ['وهو وحدة مستقلة لا ساكنٌ في views.js',!/function emptyState\(/.test(v)&&/from '\.\.\/emptystate\.js'/.test(wl)],
+  ['ولا يعتمد إلا على esc',[...es.matchAll(/from '([^']+)'/g)].map(m=>m[1]).join()==='./format.js'],
   ['حالات لوحة القيادة موجّهة',['لا مهام مجدولة اليوم','لا مهام هذا الأسبوع','لا متطلبات معلّقة','لا تنبيهات','لا معالم قادمة'].every(x=>v.includes(x))],
   ['كل حالة تشرح السبب لا الحالة فقط',v.includes('المشروع على المسار')&&v.includes('لا شيء يعطّل التنفيذ')],
   ['شاشة الشريك: حالة فارغة موجّهة بدل «لا خطط بعد»',ch.includes('لا خطط لهذا الشريك بعد')&&!ch.includes('لا خطط بعد.')],

@@ -108,6 +108,16 @@ export const AUDIT_ACTIONS={
 export const AUDIT_ENTITIES={contract:'عقد',task:'بند',change_request:'طلب تعديل خطة',requirement:'متطلب',
   comment:'تعليق',client_request:'طلب خدمة',project:'مشروع',client:'شريك'};
 
+/**
+ * نبرة فعل السجلّ: مرفوض · معتمد · معلَّق. ثالثة AUDIT_ACTIONS و AUDIT_ENTITIES،
+ * وكانت وحدها في views.js — فكان `taskpanel.js` يرتبط بملف الجدول كله من أجلها.
+ */
+export function auditTone(action){
+  if(/purge|_delete$|^request_deletion|^request_project_deletion|cr_rejected/.test(action))return 'rejected';
+  if(/cr_approved|^restore_|comment_resolve/.test(action))return 'approved';
+  return 'pending';
+}
+
 // ===== نطاق صلاحيات الفريق =====
 // المبدأ: لا تغيير في سلوك أي موظف قائم إطلاقًا حتى يمنحه مالك النظام صلاحية محددة صراحة.
 // موظف بلا أي سجل في MY_ACCESS = يرى كل شيء كما كان دائمًا (سلوك ما قبل هذا النظام).
