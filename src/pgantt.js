@@ -28,7 +28,7 @@ async function pganttOpen(clientId,mount){
     $('#hProject').innerHTML='<span class="ctx-dot" style="background:var(--blue)"></span>الخط الزمني الشامل — '+(clientId?'هذا الشريك':'كل المشاريع');
     $('#barClient').style.display='none';hideChrome();
     $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ '+(clientId?'ملف الشريك':'المحفظة')+'</button><span class="ms-auto">رؤية شاملة لكل المشاريع النشطة. اضغط أي مشروع للدخول إليه.</span></div><div id="pgWrap">'+skeleton('panel',3)+'</div>';
-    $('#backP').onclick=clientId?(()=>renderClientHome(clientId)):renderPortfolio;
+    $('#backP').onclick=clientId?(()=>showScreen('clienthome', clientId)):()=>showScreen('portfolio');
   }
   const mountId=embedded?mount:'pgWrap';
   if(embedded)document.getElementById(mountId).innerHTML=skeleton('panel',2);
@@ -143,6 +143,6 @@ function PG_RENDER(rows,minD,maxD,mountId){
     const row=rows.find(x=>x.pid===pid);
     if(!row)return;
     CID=row.clientId; PID=pid;
-    await openProject();
+    await showScreen('project');
   });
 }

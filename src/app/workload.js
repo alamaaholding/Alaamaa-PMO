@@ -91,7 +91,7 @@ async function renderWorkload(){
     <div class="hintbar"><button class="reqbtn" id="wlBack">↩ المحفظة</button>
       <span class="ms-auto">توزيع البنود النشطة على الأيام عبر كل المشاريع — لضبط الحمل قبل أن يقع التعارض.</span></div>
     <div id="wlBody">${skeleton('cards',1)}</div>`;
-  $('#wlBack').onclick=renderPortfolio;
+  $('#wlBack').onclick=()=>showScreen('portfolio');
   try{ WL_DATA=await fetchPortfolioWorkload(); }
   catch(e){ $('#wlBody').innerHTML='<p class="pempty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
   renderWorkloadBody();
@@ -241,3 +241,7 @@ function wlShowDay(key,cal){
 }
 
 window.renderWorkload=renderWorkload;
+
+// ===== تسجيل الشاشة في السجلّ (src/screens.js) =====
+// المفتاح هو ما يناديه بقية التطبيق، فلا ملف شاشةٍ يعرف اسم دالة شاشةٍ أخرى.
+registerScreen('workload', renderWorkload);

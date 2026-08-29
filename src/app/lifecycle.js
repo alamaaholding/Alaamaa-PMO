@@ -29,7 +29,7 @@ async function newProjectDialog(clientId){
   try{
     const proj=await insertProjectForClient(clientId,p.name,p.date||todayISO());
     toast('أُنشئ المشروع — جاهز لبناء الخطة أو الاستيراد','ok');
-    CID=clientId;PID=proj.id;await openProject();
+    CID=clientId;PID=proj.id;await showScreen('project');
   }catch(err){toast('تعذّر الإنشاء: '+err.message,'err');}
 }
 
@@ -115,7 +115,7 @@ async function runProjectMenuAction(action,projectId,projectName){
     if(!e||!e.name)return;
     try{await renameProject(projectId,e.name);
       if(PROJECT&&PROJECT._dbId===projectId){PROJECT.name=e.name;render();}
-      toast('أُعيدت التسمية','ok');if(SCREEN==='portfolio')renderPortfolio();
+      toast('أُعيدت التسمية','ok');if(SCREEN==='portfolio')showScreen('portfolio');
     }catch(err){toast('تعذّر: '+err.message,'err');}
   }else if(action==='editSlug'){
     const cur=(PROJECT&&PROJECT._dbId===projectId)?(PROJECT.slug||''):await fetchProjectSlug(projectId);
@@ -163,7 +163,7 @@ async function runProjectMenuAction(action,projectId,projectName){
       if(data&&data.ok){
         toast('أُوقف المشروع مؤقتًا','ok');
         if(PROJECT&&PROJECT._dbId===projectId){PROJECT.lifecycleState='paused';render();}
-        if(SCREEN==='portfolio')renderPortfolio();
+        if(SCREEN==='portfolio')showScreen('portfolio');
       }else toast((data&&data.error)||'تعذّر الإيقاف','err');
     }catch(e){toast('تعذّر الإيقاف: '+e.message,'err');}
   }else if(action==='resume'){
@@ -173,7 +173,7 @@ async function runProjectMenuAction(action,projectId,projectName){
       if(data&&data.ok){
         toast('استُؤنف المشروع','ok');
         if(PROJECT&&PROJECT._dbId===projectId){PROJECT.lifecycleState='active';render();}
-        if(SCREEN==='portfolio')renderPortfolio();
+        if(SCREEN==='portfolio')showScreen('portfolio');
       }else toast((data&&data.error)||'تعذّر الاستئناف','err');
     }catch(e){toast('تعذّر الاستئناف: '+e.message,'err');}
   }else if(action==='archive'){
@@ -182,7 +182,7 @@ async function runProjectMenuAction(action,projectId,projectName){
       message:'أرشفة «'+(projectName||'')+'»؟ يختفي من المحفظة والخط الزمني، ويُسترجع من المؤرشفة.',
       rpc:()=>rpcArchiveProject(projectId),
       successMsg:'أُرشف المشروع',
-      onSuccess:()=>{SCREEN='portfolio';renderPortfolio();}
+      onSuccess:()=>{SCREEN='portfolio';showScreen('portfolio');}
     });
   }else if(action==='delete'){
     await runLifecycleAction({
@@ -191,7 +191,7 @@ async function runProjectMenuAction(action,projectId,projectName){
       danger:true,confirmText:'حذف',
       rpc:()=>rpcRequestProjectDeletion(projectId),
       successMsg:'بدأت مهلة حذف المشروع (30 يومًا)',successTone:'warn',
-      onSuccess:()=>{SCREEN='portfolio';renderPortfolio();}
+      onSuccess:()=>{SCREEN='portfolio';showScreen('portfolio');}
     });
   }
 }
@@ -341,7 +341,7 @@ async function addNewClient(){
     await insertClient(r.name,r.color);
     await loadClients();
     toast('أُنشئ الشريك «'+r.name+'» — أضف مشروعه الأول من ⋮','ok');
-    renderPortfolio();
+    showScreen('portfolio');
   }catch(err){toast('تعذّر الإنشاء: '+err.message,'err');}
 }
 
@@ -367,7 +367,7 @@ async function openClientMenu(clientId){
     try{
       await updateClientInfo(clientId,{name:e.name,color:e.color});
       c.name=e.name;c.color=e.color;
-      toast('حُدّثت بيانات الشريك','ok');renderPortfolio();
+      toast('حُدّثت بيانات الشريك','ok');showScreen('portfolio');
     }catch(err){toast('تعذّر التحديث: '+err.message,'err');}
   }else if(r.action==='newproject'){
     const p=await dialog({title:'مشروع جديد — '+c.name,
@@ -380,10 +380,10 @@ async function openClientMenu(clientId){
     try{
       const proj=await insertProjectForClient(clientId,p.name,p.date||todayISO());
       toast('أُنشئ المشروع — جاهز لبناء الخطة أو الاستيراد','ok');
-      CID=clientId;PID=proj.id;await openProject();
+      CID=clientId;PID=proj.id;await showScreen('project');
     }catch(err){toast('تعذّر الإنشاء: '+err.message,'err');}
   }else if(r.action==='access'){
-    CID=clientId;PID=null;await openProject();
+    CID=clientId;PID=null;await showScreen('project');
     if(typeof openAccess==='function')openAccess();
   }else if(r.action==='archive'){
     await runLifecycleAction({
@@ -391,7 +391,7 @@ async function openClientMenu(clientId){
       message:'أرشفة «'+c.name+'»؟ سيُخفى من المحفظة النشطة ويمكن استرجاعه لاحقًا.',
       rpc:()=>rpcArchiveClient(clientId),
       successMsg:'تمت الأرشفة',failMsg:'تعذّرت الأرشفة',
-      onSuccess:()=>{CLIENTS=CLIENTS.filter(x=>x.id!==clientId);renderPortfolio();}
+      onSuccess:()=>{CLIENTS=CLIENTS.filter(x=>x.id!==clientId);showScreen('portfolio');}
     });
   }else if(r.action==='delete'){
     await runLifecycleAction({
@@ -400,7 +400,7 @@ async function openClientMenu(clientId){
       danger:true,confirmText:'حذف',
       rpc:()=>rpcRequestDeletion(clientId),
       successMsg:'بدأت مهلة الحذف (30 يومًا)',successTone:'warn',failMsg:'تعذّر الطلب',
-      onSuccess:()=>{CLIENTS=CLIENTS.filter(x=>x.id!==clientId);renderPortfolio();}
+      onSuccess:()=>{CLIENTS=CLIENTS.filter(x=>x.id!==clientId);showScreen('portfolio');}
     });
   }
 }
@@ -409,7 +409,7 @@ async function openClientMenu(clientId){
 async function renderArchived(){
   SCREEN='archived';$('#hProject').textContent='الشركاء المؤرشفون';hideChrome();
   $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span class="ms-auto">الشركاء المؤرشفون والمجدولون للحذف. الاسترجاع متاح طوال مهلة الـ30 يومًا.</span></div><div id="archList">'+skeleton('list',2)+'</div>';
-  $('#backP').onclick=renderPortfolio;
+  $('#backP').onclick=()=>showScreen('portfolio');
   const isOwner=await checkIsOwner();
   const arch=await fetchClientsByState('archived');
   const pend=await fetchClientsByState('pending_deletion');
@@ -528,3 +528,7 @@ async function openHolidaysManager(){
   };
   paint();
 }
+
+// ===== تسجيل الشاشة في السجلّ (src/screens.js) =====
+// المفتاح هو ما يناديه بقية التطبيق، فلا ملف شاشةٍ يعرف اسم دالة شاشةٍ أخرى.
+registerScreen('archived', renderArchived);

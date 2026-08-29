@@ -13,7 +13,7 @@ async function renderStaffAccess(){
     <span class="ms-auto">🔐 <b>صلاحيات الفريق:</b> من يرى/يعدّل ماذا — على مستوى الشركة، القسم، أو مشروع واحد.
     موظف بلا أي صلاحية مخصَّصة هنا يبقى كما كان دائمًا (يرى كل شيء).</span></div>
     <div id="saBody">${skeleton('cards',2)}</div>`;
-  $('#backSA').onclick=renderPortfolio;
+  $('#backSA').onclick=()=>showScreen('portfolio');
   try{
     [SA_MEMBERS,SA_GRANTS,SA_PROJECTS,SA_OWNER_EMAILS]=await Promise.all([
       fetchTeamMembers(),
@@ -144,3 +144,7 @@ function renderSABody(){
 }
 
 window.renderStaffAccess=renderStaffAccess;
+
+// ===== تسجيل الشاشة في السجلّ (src/screens.js) =====
+// المفتاح هو ما يناديه بقية التطبيق، فلا ملف شاشةٍ يعرف اسم دالة شاشةٍ أخرى.
+registerScreen('staffaccess', renderStaffAccess);

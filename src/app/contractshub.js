@@ -17,7 +17,7 @@ async function renderContractsHub(){
     <div id="chubBody">${skeleton('list',1)}
       ${skeleton('chart',1)}</div>
     <div id="chubPanel"></div>`;
-  $('#chubBack').onclick=renderPortfolio;
+  $('#chubBack').onclick=()=>showScreen('portfolio');
 
   // تسجيل إصدار كل نموذج ببصمة نصه — يُرصد أي تعديل على القالب تلقائيًا بلا خطوة يدوية
   syncTemplateRegistry().catch(()=>{});
@@ -1271,3 +1271,7 @@ async function openNewContractPanel(){
 }
 
 window.renderContractsHub=renderContractsHub;
+
+// ===== تسجيل الشاشة في السجلّ (src/screens.js) =====
+// المفتاح هو ما يناديه بقية التطبيق، فلا ملف شاشةٍ يعرف اسم دالة شاشةٍ أخرى.
+registerScreen('contractshub', renderContractsHub);
