@@ -11,7 +11,7 @@ def write(p,c): open(os.path.join(ROOT,p),'w',encoding='utf-8').write(c)
 
 CORE=['src/views.js','src/taskpanel.js',
       'src/app/session.js','src/app/lifecycle.js',
-      'src/app/portfolio.js','src/app/staffaccess.js','src/app/clienthome.js','src/app/exportcontract.js','src/app/contractsign.js','src/app/contractshub.js','src/app/workload.js','src/app/main.js']
+      'src/app/portfolio.js','src/app/staffaccess.js','src/app/clienthome.js','src/app/contractsign.js','src/app/contractshub.js','src/app/workload.js','src/app/main.js']
 LAZY=['src/dol.js','src/importer.js','src/pgantt.js','src/timeline.js','src/trello.js','src/qrgen.js']
 
 # ===== حزمة ESM: الوحدات المُحوَّلة تُحزَم بـesbuild وتُوضع أولًا =====
@@ -50,7 +50,15 @@ html=read('src/index.html')
 v=hashlib.sha1((core_js+css+''.join(lazy_js.values())+html).encode()).hexdigest()[:8]
 
 # حقن البصمة كثابت في أول الحزمة (تستخدمه مغلّفات التحميل الكسول)
-core_js="const BUILD_V='"+v+"';\n"+core_js
+# `globalThis.BUILD_V=` لا `const BUILD_V=` — والفرق ليس أسلوبيًا:
+# الإعلان بـconst في نص برمجي كلاسيكي يُنشئ رابطة في **البيئة المعجمية** العامة،
+# لا خاصيةً على globalThis. فالكود القديم المدموج نصيًا يراها باسمها المجرَّد،
+# لكن قطعة ESM المحزومة (التي تقرأ `globalThis.BUILD_V` صراحةً لأنها لا تشارك
+# النطاق) كانت تحصل على undefined — فتُطلَب كل وحدة كسولة بـ`?v=undefined`.
+# أي أن كاسر التخزين المؤقت للوحدات الكسولة كان **ميتًا**: رابط ثابت لا يتغيّر
+# بين النشرات، فتُخدَم نسخة قديمة من dol/importer/pgantt/timeline/trello مع
+# نواة جديدة. الإسناد على globalThis يُرضي الوصولين معًا.
+core_js="globalThis.BUILD_V='"+v+"';\n"+core_js
 
 write('app.bundle.js',core_js)
 for name,content in lazy_js.items(): write(name,content)

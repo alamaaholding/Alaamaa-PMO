@@ -3,26 +3,42 @@
 // فيبقى صالحًا كمرجع ثابت عند أي مراجعة أو خلاف لاحق. رمز QR يُولَّد محليًا بمكتبة مستضافة
 // على نفس نطاقك (qrgen.js) — لا اعتماد على أي CDN خارجي، فلا يتعطّل أبدًا لأسباب شبكية
 // أو حجب إعلانات أو جدار حماية مؤسسي.
+//
+// ═══ وحدة ESM (الموجة W2) ═══
+// أوّل ملف في طبقة التطبيق يتحوّل بلا فكّ عقدة قبله: قياس الرسم البياني أعطاه **صفر
+// تبعية غير مُحوَّلة**. كل ما يناديه كان قد تحوّل في موجات سابقة (api · toast ·
+// dialogs · contracttemplate · config · format)، فتحويله سطرُ استيراد لا إعادة بناء.
+//
+// وأثره أبعد من نفسه: contractsign.js كانت تعتمد عليه، فنزلت تبعياتها إلى واحدة.
 
-async function ensureQR(){
+import { loadScript, fetchBaselineById } from '../api.js';
+import { toast } from '../toast.js';
+import { dialog } from './dialogs.js';
+import { renderCustomContractHTML, renderMergedContractHTML, mergeContract } from './contracttemplate.js';
+import { projTrackList, TYPES } from '../config.js';
+import { fmt, esc } from '../format.js';
+import { getState } from './state.js';
+
+export async function ensureQR(){
   if(window.qrcode)return;
-  await loadScript('qrgen.js?v='+BUILD_V);
+  await loadScript('qrgen.js?v='+globalThis.BUILD_V);
   if(!window.qrcode)throw new Error('تعذّر تحميل مولّد QR المستضاف ذاتيًا');
 }
-function generateQRDataURL(text){
+export function generateQRDataURL(text){
   const qr=window.qrcode(0,'M'); // 0 = اكتشاف الحجم تلقائيًا، M = تصحيح خطأ متوسط
   qr.addData(text);
   qr.make();
   return qr.createDataURL(6,8); // حجم الخلية 6px، هامش 8 خلايا
 }
 
-async function openContractExport(){
-  if(!PROJECT||!PROJECT.baselines||!PROJECT.baselines.length){
+export async function openContractExport(){
+  const P=getState('PROJECT');
+  if(!P||!P.baselines||!P.baselines.length){
     toast('لا توجد لقطة (Baseline) بعد لهذا المشروع — ثبّت أساسًا أولًا','warn');return;
   }
   const r=await dialog({title:'تصدير للعقد',
-    fields:[{key:'bl',label:'اللقطة (Baseline) المُصدَّرة',type:'select',value:PROJECT.baselines[PROJECT.baselines.length-1].id,
-      options:PROJECT.baselines.slice().reverse().map(b=>({v:b.id,t:b.label+' — '+new Date(b.approved_at).toLocaleDateString('ar')}))}],
+    fields:[{key:'bl',label:'اللقطة (Baseline) المُصدَّرة',type:'select',value:P.baselines[P.baselines.length-1].id,
+      options:P.baselines.slice().reverse().map(b=>({v:b.id,t:b.label+' — '+new Date(b.approved_at).toLocaleDateString('ar')}))}],
     confirmText:'تصدير'});
   if(!r)return;
   await buildContractDoc(r.bl); // بلا عقد بعد — ملحق الخطة وحده (مستند مؤقت قبل إنشاء أي عقد فعلي)
@@ -38,7 +54,7 @@ async function openContractExport(){
 // يعرف أن عليه اختيار «حفظ بصيغة PDF». والأخطر: الاستعادة كانت معلَّقة على afterprint
 // وحده — فإن لم يُطلقه المتصفح (يحدث في بعض الحالات) يبقى التطبيق عالقًا في وضع الطباعة
 // ويبدو معطّلًا. الآن: استعادة مضمونة بثلاثة مسارات مستقلة.
-function runPrintSafely(){
+export function runPrintSafely(){
   document.body.classList.add('printing-contract');
   let done=false;
   const restore=()=>{
@@ -53,15 +69,17 @@ function runPrintSafely(){
   const guard=setTimeout(restore,60000);             // شبكة أمان أخيرة
   setTimeout(()=>{try{window.print();}catch(e){restore();}},120);
 }
-window.runPrintSafely=runPrintSafely;
 
-async function buildContractDoc(baselineId,contract,attachments){
-  const clientName=(contract&&contract.client_name)||((CLIENTS.find(c=>c.id===CID)||{}).name)||'';
+export async function buildContractDoc(baselineId,contract,attachments){
+  // تُقرأ الحالة عند كل موضع لا مرة واحدة: بين القراءات هنا انتظاران
+  // (fetchBaselineById و ensureQR)، وقبل التحويل كان الاسم العام يُقرأ حيًّا في
+  // كل مرة. التقاطها في const يغيّر السلوك بصمت لو تبدّل المشروع أثناء الانتظار.
+  const clientName=(contract&&contract.client_name)||((getState('CLIENTS').find(c=>c.id===getState('CID'))||{}).name)||'';
 
   // اللقطة: من المشروع المحمَّل إن وُجدت، وإلا تُجلَب من القاعدة مباشرة بمعرّفها
   let bl=null;
   if(baselineId){
-    bl=(typeof PROJECT!=='undefined'&&PROJECT&&PROJECT.baselines||[]).find(b=>b.id===baselineId)||null;
+    bl=(getState('PROJECT')&&getState('PROJECT').baselines||[]).find(b=>b.id===baselineId)||null;
     if(!bl){
       try{
         const fetched=await fetchBaselineById(baselineId);
@@ -106,8 +124,8 @@ async function buildContractDoc(baselineId,contract,attachments){
   let annexHtml='';
   if(bl){
     const snap=bl.snapshot||{};
-    const usingLive=(typeof PROJECT!=='undefined'&&PROJECT&&PROJECT.baselines||[]).some(b=>b.id===baselineId);
-    const tasks=usingLive?PROJECT.tasks.filter(t=>t.type!=='package').map(t=>({
+    const usingLive=(getState('PROJECT')&&getState('PROJECT').baselines||[]).some(b=>b.id===baselineId);
+    const tasks=usingLive?getState('PROJECT').tasks.filter(t=>t.type!=='package').map(t=>({
         id:t.id,name:t.name,type:t.type,duration:t.duration,track:t.track}))
       :(bl.tasks||[]).map(t=>({id:t.ref,name:t.name,type:t.type,duration:t.duration,track:t.track}));
     const phases=usingLive?projTrackList()
@@ -169,5 +187,3 @@ async function buildContractDoc(baselineId,contract,attachments){
   await Promise.race([imgReady,new Promise(res=>setTimeout(res,500))]);
   runPrintSafely();
 }
-
-window.openContractExport=openContractExport;

@@ -35,7 +35,7 @@ const VENDORED = new Set(['qrgen.js']);
 // دفعة حتى تشمل الجميع، وعندها يُحذف استخراج الـglobals أدناه ويصير no-undef
 // دقيقًا لكل ملف على حدة بلا أي تنازل.
 const ESM_FILES = new Set(['engine.js', 'format.js', 'config.js', 'toast.js', 'api.js', 'notifications.js', 'undo.js', 'urlstate.js', 'skeleton.js', 'theme.js', 'dialogs.js',
-  'contracttemplate.js', 'state.js', 'bundle-entry.js']);
+  'contracttemplate.js', 'state.js', 'bundle-entry.js', 'chrome.js', 'exportcontract.js']);
 const isESM = f => ESM_FILES.has(f);
 // المسارات الفعلية: بعض الوحدات في src/ وبعضها في src/app/، والقائمة أعلاه بالاسم
 // المجرّد كي يستخدمها الاستخراج أدناه (الذي يقرأ الأسماء لا المسارات). الفحص التالي
@@ -114,7 +114,7 @@ const ESM_BRIDGED = collectBridgedExports();
 // تحديث هنا يُوقف ESLint برسالة تسمّي الفرق — بدل أن يمرّ كـno-undef زائف، أو
 // (وهو الأسوأ) كاسم مقبول بلا أساس.
 const STATE_KEYS = ['USER', 'ROLE', 'IS_OWNER', 'CLIENTS', 'CID', 'PID', 'PROJECT',
-  'SCHED', 'TRACK', 'DATA_DATE', 'PX', 'VIEW', 'CRS', 'PFILTER', 'PSEARCH',
+  'SCHED', 'TRACK', 'DATA_DATE', 'PX', 'VIEW', 'SCREEN', 'CRS', 'PFILTER', 'PSEARCH',
   'PEXPANDED', 'PALERTS', 'PSORT', 'MY_ACCESS', 'PROJ_DEPTS', 'PROJECT_ACCESS_DENIED'];
 {
   const src = readFileSync('src/app/state.js', 'utf8');

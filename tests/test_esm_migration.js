@@ -200,7 +200,13 @@ console.log('\n▸ api.js — أكبر ملف، والتصغير صار ممكن
     t('لا قراءة ضمنية واحدة باقية', bare === 0, bare + ' موضعًا بلا بادئة');
     t('وستة مواضع صريحة — كل تحميل كسول', (code.match(/globalThis\.BUILD_V/g) || []).length === 6);
   }
-  t('وbuild.py هي من تحقنها في أول الحزمة', /const BUILD_V=/.test(buildPy));
+  // كان التأكيد هنا `/const BUILD_V=/` — وهذا **إملاء الوصول لا نتيجته**، فمرّ
+  // العطل كاملًا: الإعلان بـconst في نص كلاسيكي يُنشئ رابطة معجمية لا خاصية على
+  // globalThis، فكانت كل قراءة `globalThis.BUILD_V` تعطي undefined، وتُطلَب كل
+  // وحدة كسولة بـ`?v=undefined` — كاسر تخزين مؤقت ميت منذ تحويل api.js.
+  // فصار التأكيد على **القيمة الواصلة** لا على شكل السطر الذي يُفترض أن ينتجها.
+  t('وbuild.py تحقنها خاصيةً على globalThis لا رابطةً معجمية',
+    /globalThis\.BUILD_V=/.test(buildPy) && !/^core_js="const BUILD_V=/m.test(buildPy));
 
   // الوحدات الكسولة ربط متأخّر متعمَّد: الملف غير موجود أصلًا وقت تحميل الحزمة.
   ['dolOpen', 'importerOpen', 'pganttOpen', 'timelineRender', 'timelinePortfolio', 'trelloMenu']
@@ -221,6 +227,35 @@ console.log('\n▸ التصغير: مساحة بلا فقد إمكانية ال�
   t('فالأسماء تبقى مقروءة في الحزمة',
     bundle.includes('scheduleTasks') && bundle.includes('loadProject') && bundle.includes('computeTracking'));
   t('والقرار موثَّق بسببه', /تتبّع خطأ|خرائط مصدر/.test(buildPy));
+}
+
+// ═══ كاسر التخزين المؤقت يصل فعلًا إلى قطعة ESM ═══
+//
+// هذا هو التأكيد الذي كان **غائبًا** فمرّ العطل. كل ما سبقه يفحص المصدر: أن
+// api.js تكتب `globalThis.BUILD_V`، وأن build.py تحقن سطرًا. وكلاهما كان صحيحًا
+// والقيمة لا تصل — لأن `const` في نص كلاسيكي رابطة معجمية لا خاصية.
+//
+// فالفحص هنا يُحمّل الحزمة كما يُحمّلها المتصفح ويسأل عن **القيمة**:
+{
+  const dom = new JSDOM('<body></body>', { runScripts: 'dangerously' });
+  const w = dom.window;
+  w.eval(`window.supabase={createClient:()=>({rpc:()=>Promise.resolve({data:[],error:null}),
+    from:()=>({select:()=>({order:()=>Promise.resolve({data:[],error:null})})}),
+    auth:{getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},
+    channel:()=>({on(){return this},subscribe(){return this}}),removeChannel:()=>{}})}`);
+  const sc = w.document.createElement('script');
+  sc.textContent = bundle;
+  w.document.body.appendChild(sc);   // أخطاء ربط DOM متوقَّعة: لا هيكل
+
+  const viaProperty = w.eval('globalThis.BUILD_V');
+  const viaBare = w.eval('BUILD_V');
+  t('قطعة ESM تقرأ بصمةً حقيقية لا undefined',
+    /^[0-9a-f]{8}$/.test(String(viaProperty)), 'جاء ' + String(viaProperty));
+  t('والكود القديم يقرأ الاسم المجرَّد كما كان', viaBare === viaProperty,
+    String(viaBare) + ' مقابل ' + String(viaProperty));
+  // والقيمة نفسها التي تُحقن في index.html — وإلا خُدمت نواة ووحدات كسولة من نشرتين.
+  const inHtml = (fs.readFileSync('index.html', 'utf8').match(/v=([0-9a-f]{8})/) || [])[1];
+  t('وهي بصمة index.html نفسها', inHtml === viaProperty, inHtml + ' مقابل ' + viaProperty);
 }
 
 console.log('\n▸ الجسر مؤقّت بطبيعته — موثَّق لا منسيّ');

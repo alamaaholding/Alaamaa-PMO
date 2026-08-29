@@ -1,6 +1,6 @@
 // ===== app/main.js — جزء من طبقة التطبيق (مقسّم من app.js) =====
 function savePFilters(){try{localStorage.setItem('pmo_pfilters',JSON.stringify({PFILTER,PSORT,PALERTS:[...PALERTS]}));}catch(e){}}
-let SCREEN='portfolio'; // portfolio | project — للطاقم؛ الشريك دائمًا project
+// SCREEN انتقلت إلى app/state.js — حالة يقرؤها عشرة ملفات، لا حالة ملف واحد.
 
 // ===== الإشعارات (Toast) =====
 
@@ -127,9 +127,7 @@ async function startApp(){
   }
 }
 
-function hideChrome(){ $('#barClient').style.display='none'; $('#kpisRow').style.display='none'; $('#tabs').style.display='none'; $('#lifeBadge').style.display='none'; const e=$('#exportReport');if(e)e.style.display='none'; }
-
-function showChrome(){ $('#kpisRow').style.display=''; $('#tabs').style.display=''; $('#lifeBadge').style.display=''; const e=$('#exportReport');if(e)e.style.display=''; }
+// hideChrome / showChrome انتقلتا إلى src/chrome.js — كانتا تربطان تسعة ملفات بهذا الملف.
 
 
 // ===== شاشة المحفظة (للطاقم) =====

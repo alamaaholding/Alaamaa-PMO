@@ -59,6 +59,10 @@ const state = {
   DATA_DATE: todayISO(),
   PX: 20,
   VIEW: 'dashboard',
+  // الشاشة المعروضة. كانت `let SCREEN` في app/main.js — أي أن **حالةً** يقرؤها
+  // عشرة ملفات كانت تسكن ملفًا واحدًا، فصار كل ملف يقرؤها مرتبطًا بـmain.js.
+  // وهي حالة لا سلوك، فمكانها هنا. (portfolio | project | workload | …)
+  SCREEN: 'portfolio',
   CRS: [],
   PFILTER: 'all',
   PSEARCH: '',
