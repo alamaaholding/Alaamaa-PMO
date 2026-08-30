@@ -185,7 +185,9 @@ console.log('\n▸ api.js — أكبر ملف، والتصغير صار ممكن
 {
   const api = fs.readFileSync('src/api.js', 'utf8');
   const exported = (api.match(/^export (async function|function|const|let|class)/gm) || []).length;
-  t('١٦٢ اسمًا مُصدَّرًا', exported === 162, exported + ' تصريحًا مُصدَّرًا');
+  // ١٦٤ بعد أن انتقلت ذاكرة أعضاء الفريق إلى جوار جالبها (+ensureMembersCache
+  // +cachedTeamMembers): كانت رابطةً خاصّة في app/clienthome.js يقرؤها contractshub.
+  t('١٦٤ اسمًا مُصدَّرًا', exported === 164, exported + ' تصريحًا مُصدَّرًا');
   ['fetchProjectCounts', 'ensureXLSX', '_planPayload', 'refreshClientContracts', 'fetchRolesFlat']
     .forEach(n => t(`${n} تبقى خاصّة`, !new RegExp(`^export (async )?function ${n}\\b`, 'm').test(api)));
   t('خرجت من الدمج النصي', !/CORE=\[[^\]]*'src\/api\.js'/.test(buildPy));

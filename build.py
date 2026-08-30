@@ -11,7 +11,7 @@ def write(p,c): open(os.path.join(ROOT,p),'w',encoding='utf-8').write(c)
 
 CORE=['src/views.js','src/taskpanel.js',
       'src/app/session.js','src/app/lifecycle.js',
-      'src/app/portfolio.js','src/app/clienthome.js','src/app/contractshub.js','src/app/main.js']
+      'src/app/portfolio.js','src/app/clienthome.js','src/app/main.js']
 LAZY=['src/dol.js','src/importer.js','src/pgantt.js','src/timeline.js','src/trello.js','src/qrgen.js']
 
 # ===== حزمة ESM: الوحدات المُحوَّلة تُحزَم بـesbuild وتُوضع أولًا =====

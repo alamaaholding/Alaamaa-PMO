@@ -2,12 +2,39 @@
 // يدعم نطاقَين (مشروع محدَّد / الشريك كاملًا) ونوعَين (قياسي بالقالب الرسمي / مخصَّص بنص حر)،
 // مع بوابة اعتماد داخلي صريحة قبل أن يصبح أي عقد قابلًا للإرسال والتوقيع فعليًا.
 // مصدر البيانات: pmo_all_contracts_view — يحترم رؤية كل عقد بحسب نطاقه (مشروع أو شريك).
+//
+// ═══ وحدة ESM (الموجة W2) ═══
+// أكبر ملف بقي في الدمج النصي (٧٣ KB). وما أخّره تبعيةٌ واحدة: كان يقرأ
+// `SA_MEMBERS_CACHE` — رابطةً **خاصّة بـapp/clienthome.js** — أي أنه يعتمد على أن
+// شاشةً أخرى مُلئت قبله. انتقلت الذاكرة إلى جوار جالبها في api.js، فبلغ الصفر.
+
+import { ORG_PROFILE, addContractAttachment, approveContractInternal, archiveContract, assignContractToClient, cachedTeamMembers, checkEmailReady, computeContractHash, contractFileURL, createAmendment, createContractV2, deleteContractAttachment, deleteContractFile, duplicateContract, fetchAllContracts, fetchContractAttachments, fetchContractAudit, fetchContractFunnel, fetchContractInstances, fetchContractsNeedingReminder, fetchExpiringContracts, fetchSignatureCertificate, refreshContractParties, saveClientEmail, sealContract, sendContractEmail, signContractAsStaff, syncTemplateRegistry, unlinkContractFromProject, updateContract, uploadContractFile, voidContract } from '../api.js';
+import { hideChrome } from '../chrome.js';
+import { $, $$, AUDIT_ACTIONS, sb } from '../config.js';
+import { esc } from '../format.js';
+import { registerScreen, showScreen } from '../screens.js';
+import { skeleton } from '../skeleton.js';
+import { toast } from '../toast.js';
+import { mountSignaturePad } from './contractsign.js';
+import { CONTRACT_TEMPLATES, mergeContract, renderCustomContractHTML, renderMergedContractHTML } from './contracttemplate.js';
+import { confirmDialog, dialog } from './dialogs.js';
+import { buildContractDoc, ensureQR, generateQRDataURL, runPrintSafely } from './exportcontract.js';
+import { getState, setState } from './state.js';
 
 let CH_CONTRACTS=[],CH_FILTER={status:'all',q:'',client:'',link:'',type:'',sort:'newest'};
+
+/**
+ * إعادة تحميل قائمة العقود من المصدر.
+ *
+ * كان السطر `CH_CONTRACTS=await fetchAllContracts()` مكرَّرًا في سبعة مواضع —
+ * وكلٌّ منها يفترض أن الآخرين يفعلون الشيء نفسه. صار موضعًا واحدًا، وصار للوحدة
+ * **مدخل تحميل** يمكن للاختبار أن ينادَيه بدل أن يكتب في رابطة داخلية.
+ */
+export async function reloadContracts(){ CH_CONTRACTS=await fetchAllContracts(); return CH_CONTRACTS; }
 const CH_STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع الشريك',signed:'موقَّع بالكامل ✅',void:'ملغى'};
 
 async function renderContractsHub(){
-  SCREEN='contractshub';
+  setState('SCREEN', 'contractshub');
   $('#hProject').textContent='إدارة العقود';
   $('#barClient').style.display='none';hideChrome();
   try{history.replaceState(null,'','#/contracts');}catch(e){}
@@ -22,7 +49,7 @@ async function renderContractsHub(){
   // تسجيل إصدار كل نموذج ببصمة نصه — يُرصد أي تعديل على القالب تلقائيًا بلا خطوة يدوية
   syncTemplateRegistry().catch(()=>{});
   try{
-    CH_CONTRACTS=await fetchAllContracts();
+    await reloadContracts();
   }catch(e){
     $('#chubBody').innerHTML='<p class="pempty">تعذّر تحميل العقود: '+esc(e.message)+'</p>';return;
   }
@@ -319,7 +346,7 @@ function chubRenderClauseEditor(boxId,onChange){
 }
 
 // ===== لوحة تفصيلية موحّدة: تعرض/تعدّل عقدًا قائمًا (قياسيًا أو مخصَّصًا) =====
-async function openContractDetailPanel(contractId,KEEP_TAB){
+export async function openContractDetailPanel(contractId,KEEP_TAB){
   let c=CH_CONTRACTS.find(x=>x.id===contractId);
   if(!c)return;
   // العقد غير الموقَّع: بيانات الطرفين تُنعَش من الملفات الحيّة قبل العرض، فأي تعديل على
@@ -348,7 +375,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
   const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
   const anySigned=!!(al||cl);
   const editable=!anySigned&&c.status!=='void';
-  const canApprove=(IS_OWNER||ROLE==='pmo')&&!c.internal_approved&&!anySigned&&c.status!=='void';
+  const canApprove=(getState('IS_OWNER')||getState('ROLE')==='pmo')&&!c.internal_approved&&!anySigned&&c.status!=='void';
   const link=location.origin+location.pathname+'#/sign/'+c.token;
   const client={name:c.client_name,cr_number:c.client_cr,national_address_short:c.client_address,
     rep_name:c.client_rep_name,rep_title:c.client_rep_title,contact_email:c.client_contact_email,contact_phone:c.client_contact_phone};
@@ -616,7 +643,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
     try{ rows=await fetchContractAudit(contractId); }
     catch(e){ box.innerHTML='<p class="sa-hint">تعذّر تحميل السجل</p>'; return; }
     if(!rows.length){ box.innerHTML='<p class="sa-hint">لا إجراءات مسجَّلة بعد.</p>'; return; }
-    const who=id=>{const m=(SA_MEMBERS_CACHE||[]).find(x=>x.id===id);return m?(m.full_name||m.email):'—';};
+    const who=id=>{const m=cachedTeamMembers().find(x=>x.id===id);return m?(m.full_name||m.email):'—';};
     const detail=v=>{
       if(!v)return '';
       const parts=[];
@@ -787,7 +814,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
          try{ await saveClientEmail(c.client_id,to); }catch(e){}
        }
        toast('أُرسل العقد إلى '+to,'ok');
-       CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
+       await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
      }catch(e){toast(e.message,'err');sendBtn.disabled=false;sendBtn.textContent=old;}
    };}
 
@@ -930,20 +957,20 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
      try{
        const d=await createAmendment(contractId,r.reason);
        toast('أُنشئ الملحق '+d.number,'ok');
-       CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(d.id);
+       await reloadContracts();renderContractsHubBody();openContractDetailPanel(d.id);
      }catch(e){toast(e.message,'err');}
    };}
   {const ar=document.getElementById('chdArchive');
    if(ar)ar.onclick=async()=>{
      if(!await confirmDialog('أرشفة العقد','يختفي من القائمة الرئيسية ويبقى قابلًا للاسترجاع.',false,'أرشفة'))return;
      try{ await archiveContract(contractId,false);toast('أُرشف العقد','ok');
-       CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();panel.innerHTML='';
+       await reloadContracts();renderContractsHubBody();panel.innerHTML='';
      }catch(e){toast(e.message,'err');}
    };}
   {const ua=document.getElementById('chdUnarchive');
    if(ua)ua.onclick=async()=>{
      try{ await archiveContract(contractId,true);toast('استُرجع العقد','ok');
-       CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
+       await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
      }catch(e){toast(e.message,'err');}
    };}
   {const sb2=document.getElementById('chdSignNow');
@@ -970,7 +997,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
          const r=await signContractAsStaff(contractId,name,sig.data||('نصي: '+sig.typed));
          if(r&&r.ok){
            toast('وُقِّع العقد من علامة — أرسل الرابط للشريك الآن','ok');
-           CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
+           await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
          }else toast((r&&r.error==='not_approved')?'العقد غير معتمَد داخليًا بعد':'تعذّر التوقيع','err');
        }catch(e){toast('تعذّر التوقيع: '+e.message,'err');btn.disabled=false;}
      };
@@ -1006,7 +1033,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
         try{
           const r=await assignContractToClient(contractId,cid);
           toast('أُنشئت نسخة خاصة بالشريك ('+r.number+') — الأصل بقي كما هو','ok');
-          CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();
+          await reloadContracts();renderContractsHubBody();
           openContractDetailPanel(r.id);
         }catch(e){toast(e.message,'err');}
       };
@@ -1020,7 +1047,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
       if(!await confirmDialog('فك الارتباط','سيبقى العقد موجودًا في محفظة العقود، لكنه لن يظهر بعد الآن كمرتبط بهذا المشروع.',false,'فك الارتباط'))return;
       try{
         const r=await unlinkContractFromProject(contractId);
-        if(r&&r.ok){toast('فُكّ الارتباط','ok');CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();panel.innerHTML='';}
+        if(r&&r.ok){toast('فُكّ الارتباط','ok');await reloadContracts();renderContractsHubBody();panel.innerHTML='';}
         else toast((r&&r.error)||'تعذّر فك الارتباط','err');
       }catch(e){toast('تعذّر فك الارتباط: '+e.message,'err');}
     };
@@ -1056,7 +1083,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
     try{
       const d=await duplicateContract(contractId,r.name);
       toast('تم التكرار ('+d.number+')','ok');
-      CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(d.id);
+      await reloadContracts();renderContractsHubBody();openContractDetailPanel(d.id);
     }catch(e){toast(e.message,'err');}
   };
   if(canApprove){
@@ -1066,7 +1093,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
         {const fr=(await fetchAllContracts()).find(x=>x.id===contractId);
          if(fr){try{await sealContract(fr);}catch(e){}}}
         toast('اعتُمد العقد داخليًا وخُتم نصه — أصبح قابلًا للإرسال والتوقيع','ok');
-        CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
+        await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
       };
       try{
         await approveContractInternal(contractId);
@@ -1115,11 +1142,11 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
         }else{
           await updateContract(contractId,Object.assign(chubReadStandardFields('chd',client),nameNum));
         }
-        CH_CONTRACTS=await fetchAllContracts();
+        await reloadContracts();
         const fresh=CH_CONTRACTS.find(x=>x.id===contractId);
         if(fresh){try{await sealContract(fresh);}catch(e){}}
         toast('حُفظت التعديلات وثُبِّتت','ok');
-        CH_CONTRACTS=await fetchAllContracts();
+        await reloadContracts();
         renderContractsHubBody();
         openContractDetailPanel(contractId,true);
       }catch(e){toast(e.message,'err');btn.disabled=false;}
@@ -1128,7 +1155,7 @@ async function openContractDetailPanel(contractId,KEEP_TAB){
       if(!await confirmDialog('إلغاء العقد','سيصبح هذا العقد ملغى ولا يمكن توقيعه بعد الآن.',true,'إلغاء العقد'))return;
       try{
         const r=await voidContract(contractId);
-        if(r&&r.ok){toast('أُلغي العقد','ok');panel.innerHTML='';CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();}
+        if(r&&r.ok){toast('أُلغي العقد','ok');panel.innerHTML='';await reloadContracts();renderContractsHubBody();}
         else toast('تعذّر الإلغاء','err');
       }catch(e){toast('تعذّر الإلغاء: '+e.message,'err');}
     };
@@ -1263,14 +1290,13 @@ async function openNewContractPanel(){
             templateKey:CHD_TEMPLATE, clauseOverrides:CHD_OVERRIDES}); }catch(e){}
         }
         toast('أُنشئ العقد في المحفظة — اربطه بمشروع لاحقًا عند الحاجة','ok');panel.innerHTML='';
-        CH_CONTRACTS=await fetchAllContracts();renderContractsHubBody();
+        await reloadContracts();renderContractsHubBody();
         openContractDetailPanel(r.id);
       }else toast('تعذّر الإنشاء','err');
     }catch(e){toast('تعذّر الإنشاء: '+e.message,'err');btn.disabled=false;}
   };
 }
 
-window.renderContractsHub=renderContractsHub;
 
 // ===== تسجيل الشاشة في السجلّ (src/screens.js) =====
 // المفتاح هو ما يناديه بقية التطبيق، فلا ملف شاشةٍ يعرف اسم دالة شاشةٍ أخرى.

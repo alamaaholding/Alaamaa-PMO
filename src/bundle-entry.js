@@ -37,9 +37,10 @@ import * as exportContract from './app/exportcontract.js';
 import * as staffAccess from './app/staffaccess.js';
 import * as workload from './app/workload.js';
 import * as contractSign from './app/contractsign.js';
+import * as contractsHub from './app/contractshub.js';
 import { STATE_KEYS, getState, setState, savePFilters } from './app/state.js';
 
-Object.assign(globalThis, theme, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate, exportContract, chrome, screens, emptyStateMod, staffAccess, workload, contractSign);
+Object.assign(globalThis, theme, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate, exportContract, chrome, screens, emptyStateMod, staffAccess, workload, contractSign, contractsHub);
 
 // state.js **لا تُمرَّر كفضاء أسماء** — حالتها تصل بواصفات لا بنسخ (أدناه). لكن
 // `savePFilters` دالةٌ لا حالة، ومكانها هناك لأن القراءة المقابلة لها هناك. فتُجسَّر

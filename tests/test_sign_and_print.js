@@ -11,11 +11,24 @@ window.supabase={createClient:()=>({
   from:()=>({select:()=>({order:()=>Promise.resolve({data:[],error:null}),eq:()=>({maybeSingle:async()=>({data:null,error:null})})})}),
   auth:{getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},
   channel:()=>({on(){return this;},subscribe(){return this;}}),removeChannel:()=>{}})};`);
+// jsdom لا يُنفّذ canvas بلا الحزمة الأصلية — نقصٌ في البيئة، يُسَدّ في موضعه.
+// (كان الاختبار يلتفّ عليه بتثبيت mountSignaturePad على النطاق العام، وقد اختفى
+//  المَنفَذ بتحويل contractsign.js إلى وحدة.)
+w.HTMLCanvasElement.prototype.getContext=function(){
+  const noop=()=>{};
+  return {strokeStyle:'',lineWidth:0,lineCap:'',lineJoin:'',
+    beginPath:noop,moveTo:noop,lineTo:noop,stroke:noop,clearRect:noop};
+};
+w.HTMLCanvasElement.prototype.toDataURL=()=>'data:image/png;base64,SIG';
 run(fs.readFileSync('app.bundle.js','utf8'));
 run(`
+// contractshub.js صارت وحدة ESM في W2، فلم تعد CH_CONTRACTS رابطةً عامة يُكتَب فيها.
+// فيملك الاختبار مصدره (__FIX) ويحمّله عبر reloadContracts() — أي أن
+// fetchAllContracts الحقيقية تعمل بدل تخطّيها.
+window.__FIX=[];
+window.__H=(n)=>Promise.resolve({data:n==='pmo_all_contracts_view'?window.__FIX:{ok:true},error:null});
 window.__R=[];const t=(n,c,x)=>window.__R.push([n,!!c,x||'']);
 toast=()=>{};ROLE='pmo';IS_OWNER=true;
-mountSignaturePad=(el)=>{el.innerHTML='<canvas></canvas>';return {getData:()=>({ok:true,data:'data:image/png;base64,SIG'})};};
 window.qrcode=()=>({addData(){},make(){},createDataURL:()=>'data:image/gif;base64,Q=='});
 window.loadScript=async()=>{};
 
@@ -30,7 +43,7 @@ const base={id:'c1',token:'t1',contract_type:'standard',contract_name:'عقد س
   document.body.innerHTML+='<div id="chubPanel"></div><div id="chubBody"></div>';
 
   // معتمَد داخليًا وبلا توقيع علامة → يجب أن يظهر زر التوقيع بارزًا
-  CH_CONTRACTS=[Object.assign({},base,{internal_approved:true,status:'pending_alamaa',signatures:[]})];
+  window.__FIX=[Object.assign({},base,{internal_approved:true,status:'pending_alamaa',signatures:[]})]; await reloadContracts();
   await openContractDetailPanel('c1');
   await new Promise(r=>setTimeout(r,50));
   t('زر «توقيع علامة الآن» يظهر بعد الاعتماد الداخلي',!!document.getElementById('chdSignNow'));
@@ -48,9 +61,13 @@ const base={id:'c1',token:'t1',contract_type:'standard',contract_name:'عقد س
   await new Promise(r=>setTimeout(r,30));
   t('رفض التوقيع بلا اسم الموقِّع',!window.__RPC.some(c=>c.name==='pmo_sign_contract_staff'));
 
-  // التوقيع الصحيح
+  // التوقيع الصحيح — بقلم التوقيع **الحقيقي** لا ببديلٍ يُرجع ok دائمًا.
+  // وهذا ما كشفه التحويل: البديل كان يُخفي أن الرفض بلا توقيع سلوكٌ حقيقي في
+  // القلم نفسه. فيُسلَك مسار «اكتب اسمك بدل الرسم» — وهو مسار مستخدِمٍ فعليّ.
   document.getElementById('chdSignName').value='صهيب بن فرج';
-  window.__H=(n)=>Promise.resolve({data:n==='pmo_all_contracts_view'?[]:{ok:true},error:null});
+  document.querySelector('[data-sigmode="type"]').click();
+  document.getElementById('sigTypeName').value='صهيب بن فرج';
+  window.__H=(n)=>Promise.resolve({data:n==='pmo_all_contracts_view'?window.__FIX:{ok:true},error:null});
   document.getElementById('chdSignConfirm').click();
   await new Promise(r=>setTimeout(r,60));
   const sc=window.__RPC.find(c=>c.name==='pmo_sign_contract_staff');
@@ -58,14 +75,14 @@ const base={id:'c1',token:'t1',contract_type:'standard',contract_name:'عقد س
     sc&&sc.args.p_contract_id==='c1'&&sc.args.p_name==='صهيب بن فرج'&&!!sc.args.p_signature_data);
 
   // غير معتمَد داخليًا → لا زر توقيع إطلاقًا
-  CH_CONTRACTS=[Object.assign({},base,{internal_approved:false,status:'pending_alamaa',signatures:[]})];
+  window.__FIX=[Object.assign({},base,{internal_approved:false,status:'pending_alamaa',signatures:[]})]; await reloadContracts();
   await openContractDetailPanel('c1');
   await new Promise(r=>setTimeout(r,50));
   t('عقد غير معتمَد: لا زر توقيع (الاعتماد أولًا)',!document.getElementById('chdSignNow'));
 
   // بعد توقيع علامة → إشعار بانتظار الشريك، لا زر توقيع مكرر
-  CH_CONTRACTS=[Object.assign({},base,{internal_approved:true,status:'pending_client',
-    signatures:[{party:'alamaa',name:'صهيب',signed_at:'2026-08-02'}]})];
+  window.__FIX=[Object.assign({},base,{internal_approved:true,status:'pending_client',
+    signatures:[{party:'alamaa',name:'صهيب',signed_at:'2026-08-02'}]})]; await reloadContracts();
   await openContractDetailPanel('c1');
   await new Promise(r=>setTimeout(r,50));
   t('بعد توقيع علامة: لا زر توقيع مكرر',!document.getElementById('chdSignNow'));

@@ -516,6 +516,19 @@ export async function delHolidayRow(id){const {error}=await sb.from('pmo_holiday
 // ===== الفريق والإسناد (داخلي — لا يراه الشريك) =====
 export async function fetchTeamMembers(){const {data}=await sb.from('team_members').select('id,full_name,email,role').eq('is_active',true).order('full_name');return data||[];}
 
+// ═══ ذاكرة أعضاء الفريق ═══
+// كانت `SA_MEMBERS_CACHE` رابطةً خاصّة في app/clienthome.js — و`contractshub.js`
+// **يقرؤها مباشرةً**، أي أنه يعتمد على أن شاشةً أخرى مُلئت قبله. فإن فُتحت محفظة
+// العقود دون المرور بشاشة الشريك، ظهر كل اسم «—» بلا خطأ واحد.
+//
+// فانتقلت إلى جوار جالبها. والقراءة الباردة تُعيد `[]` كما كانت تمامًا — لم يُغيَّر
+// السلوك هنا، بل صار **مرئيًّا**: `cachedTeamMembers()` تقول بصراحة إنها قد تكون
+// باردة، بخلاف رابطةٍ يبدو أنها مملوءة دائمًا.
+let MEMBERS_CACHE = null;
+export async function ensureMembersCache(){ if(!MEMBERS_CACHE)MEMBERS_CACHE=await fetchTeamMembers(); return MEMBERS_CACHE; }
+/** الأعضاء المُحمَّلون، أو `[]` إن لم يُملأ بعد. لا تجلب — للقراءة المتزامنة فقط. */
+export function cachedTeamMembers(){ return MEMBERS_CACHE || []; }
+
 // ===== صلاحيات الفريق (شركة/قسم/مشروع × عرض/تعديل) — مالك النظام فقط يديرها =====
 export const DEPTS={marketing:'علامة ماركتنج',tech:'علامة تقني',consulting:'علامة استشارات'};
 export async function fetchAllStaffAccess(){
