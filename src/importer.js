@@ -243,7 +243,7 @@ function importerOpen(){
       <small>المسمّيات بالعربي أو الإنجليزي والتنويعات اللطيفة مقبولة. التواريخ تُحسب آليًا من التبعيات — لا حاجة لإدخالها.</small>
     </div>
     <label class="imp-drop">
-      <input type="file" id="impFile" accept=".xlsx,.xls" style="display:none">
+      <input type="file" id="impFile" accept=".xlsx,.xls" class="hidden">
       <span class="imp-drop-txt">📄 اختر ملف Excel (.xlsx) للرفع</span>
     </label>
     <div id="impResult"></div>`;
