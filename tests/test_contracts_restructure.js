@@ -16,7 +16,12 @@ w.__nodeSha256=(bytesArray)=>Array.from(nodeCrypto.createHash('sha256').update(B
 run(`
 window.__RPC=[];
 window.supabase={createClient:()=>({
-  rpc:(name,args)=>{window.__RPC.push({name,args});return window.__RPCHandler?window.__RPCHandler(name,args):Promise.resolve({data:{ok:true},error:null});},
+  rpc:(name,args)=>{window.__RPC.push({name,args});
+    if(window.__RPCHandler)return window.__RPCHandler(name,args);
+    // قائمة العقود تُخدَم من مصدر الاختبار افتراضيًا — وإلا أعاد الشِيم {ok:true}
+    // فصار CH_CONTRACTS كائنًا لا مصفوفة، وهو ما لم يكن ظاهرًا قبل التحويل.
+    if(name==='pmo_all_contracts_view')return Promise.resolve({data:window.__FIX||[],error:null});
+    return Promise.resolve({data:{ok:true},error:null});},
   from:(tbl)=>({
     select:()=>({
       eq:()=>({
@@ -48,7 +53,10 @@ t('الشارة تحوي نقطة صغيرة (span بصنف pstatus-dot)',badge.
 t('لون النقطة مطابق للون الحالة نفسه',badge.includes('background:'+statusByKey.active.color));
 t('التسمية النصية لا تزال تظهر بوضوح',badge.includes('نشط وعلى المسار'));
 
-CH_CONTRACTS=[{
+// contractshub.js صارت وحدة ESM في W2، فلم تعد CH_CONTRACTS رابطةً عامة يُكتَب
+// فيها. فيملك الاختبار مصدره ويحمّله عبر reloadContracts() — وهو ما كان يفعله
+// نصفَ فعلٍ أصلًا: مُوزِّع الـRPC أدناه كان يخدم القائمة نفسها.
+window.__FIX=[{
   id:'c1',token:'tok1',status:'pending_alamaa',baseline_id:'bl1',baseline_label:'الأساس 1',created_at:'2026-01-01',
   includes_ad_spend:false,effective_date:'2026-01-01',contract_value:50000,late_payment_cap:1500,special_terms:null,
   client_cr:'123',client_vat:null,client_address:null,client_rep_name:'محمد',client_rep_title:null,
@@ -60,6 +68,7 @@ CH_CONTRACTS=[{
   document.body.innerHTML+='<div id="chubPanel"></div><div id="hProject"></div><div id="barClient"></div><div id="host"></div>';
 
   // ===== 2) فتح اللوحة التفصيلية لعقد غير موقَّع =====
+  await reloadContracts();
   await openContractDetailPanel('c1');
   t('اللوحة التفصيلية تُبنى فعليًا في DOM',!!document.querySelector('.chub-detail'));
   t('حقول التعديل تظهر (لا توقيع بعد)',!!document.getElementById('chdValue')&&document.getElementById('chdValue').type==='number');
@@ -81,7 +90,7 @@ CH_CONTRACTS=[{
   // ===== 4) الحفظ: يستدعي updateContract الحقيقية بالقيم المُحدَّثة =====
   window.__RPCHandler=(name,args)=>{
     if(name==='pmo_update_contract')return Promise.resolve({data:{ok:true},error:null});
-    if(name==='pmo_all_contracts_view')return Promise.resolve({data:CH_CONTRACTS,error:null});
+    if(name==='pmo_all_contracts_view')return Promise.resolve({data:window.__FIX,error:null});
     return Promise.resolve({data:{ok:true},error:null});
   };
   document.getElementById('chdSpecial').value='شرط خاص جديد';
@@ -92,7 +101,8 @@ CH_CONTRACTS=[{
   t('الحفظ يمرّر الشروط الإضافية المُدخَلة',saveCall&&saveCall.args.p_special_terms==='شرط خاص جديد');
 
   // ===== 5) عقد موقَّع: لا حقول تعديل، رسالة قفل واضحة =====
-  CH_CONTRACTS[0].signatures=[{party:'alamaa',name:'أحمد',signed_at:'2026-01-02'}];
+  window.__FIX[0].signatures=[{party:'alamaa',name:'أحمد',signed_at:'2026-01-02'}];
+  await reloadContracts();
   await openContractDetailPanel('c1');
   t('عقد عليه توقيع: زر الحفظ لا يظهر إطلاقًا',!document.getElementById('chdSave'));
   t('رسالة قفل واضحة تشرح السبب وتقترح البديل',document.body.innerHTML.includes('🔒')&&document.body.innerHTML.includes('ألغِ هذا العقد وأنشئ عقدًا جديدًا'));
@@ -107,7 +117,7 @@ const wait=setInterval(()=>{
   const hub=fs.readFileSync('src/app/contractshub.js','utf8');
   const extra=[
     ['اللوحة الموحّدة تُستخدَم لكل من العرض والتعديل (لا نماذج منفصلة متكررة)',
-      hub.includes('async function openContractDetailPanel')&&hub.includes('chubReadStandardFields')],
+      hub.includes('export async function openContractDetailPanel')&&hub.includes('chubReadStandardFields')],
     ['الإنشاء الجديد يستخدم نفس منطق المعاينة الحيّة (دالة مشتركة)',
       hub.includes('async function openNewContractPanel')&&hub.includes('chnPreview')],
     ['QR يُولَّد فوريًا عند فتح اللوحة لا عند تصدير PDF فقط',hub.includes('chubRenderQR(')],

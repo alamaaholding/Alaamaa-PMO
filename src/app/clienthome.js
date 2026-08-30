@@ -3,8 +3,7 @@
 // مصدر البيانات: نفس fetchPortfolio() المستخدم في شبكة المحفظة، ونفس aggregateClientRows()
 // المستخدمة هناك — لا حساب مكرّر، ولا احتمال انحراف بين الصفحتين.
 
-let SA_MEMBERS_CACHE=null;
-async function ensureMembersCache(){if(!SA_MEMBERS_CACHE)SA_MEMBERS_CACHE=await fetchTeamMembers();return SA_MEMBERS_CACHE;}
+// ذاكرة الأعضاء انتقلت إلى api.js — كان contractshub.js يقرأ هذه الرابطة مباشرةً.
 
 async function renderClientHome(clientId){
   const c=CLIENTS.find(x=>x.id===clientId);
@@ -81,10 +80,10 @@ function renderCHBody(stats,access){
       </button>`;
     }).join('');
 
-  const memberOpts=(SA_MEMBERS_CACHE||[]).map(m=>`<option value="${m.id}">${esc(m.full_name||m.email)}</option>`).join('');
+  const memberOpts=cachedTeamMembers().map(m=>`<option value="${m.id}">${esc(m.full_name||m.email)}</option>`).join('');
   const projOpts=stats.list.map(r=>`<option value="${r.project_id}">${esc(r.project_name)}</option>`).join('');
   const accessRows=access.map(a=>{
-    const m=(SA_MEMBERS_CACHE||[]).find(x=>x.id===a.member_id);
+    const m=cachedTeamMembers().find(x=>x.id===a.member_id);
     const scopeLbl=a.scope_type==='client'?'كل مشاريع هذا الشريك':
       (stats.list.find(r=>r.project_id===a.scope_value)||{}).project_name||'مشروع';
     return `<span class="sa-chip sa-${a.access_level}">${esc(m?(m.full_name||m.email):'—')} — ${esc(scopeLbl)} · ${a.access_level==='edit'?'تعديل':'عرض'}

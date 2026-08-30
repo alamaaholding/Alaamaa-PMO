@@ -133,7 +133,11 @@ const wait=setInterval(()=>{
       hub.includes("}else if(!c.internal_approved&&!anySigned){")],
     ['حفظ التعديل يشمل اسم العقد ورقمه في كلا النوعين',hub.includes('const nameNum={contractName:')],
     ['اللوحة الجديدة تعرض خيارَي النوع (قياسي/مخصَّص) صراحة',hub.includes('name="chnType"')&&hub.includes('value="custom"')],
-    ['زر الاعتماد الداخلي يظهر فقط قبل أي توقيع ولمن يملك الصلاحية',hub.includes('canApprove=(IS_OWNER||ROLE===')],
+    // صيغتان بحكم الهجرة والمعنى واحد: الملف غير المُحوَّل يقرأ الاسم مجرَّدًا،
+    // والوحدة تقرأ getState. يُفحَص المعنى لا الإملاء — وإلا سقط الحارس على كل
+    // ملف يتحوّل، وهو أسوأ ما يفعله حارس.
+    ['زر الاعتماد الداخلي يظهر فقط قبل أي توقيع ولمن يملك الصلاحية',
+      /canApprove=\((IS_OWNER\|\|ROLE===|getState\('IS_OWNER'\)\|\|getState\('ROLE'\)===)/.test(hub)],
     ['createContractV2 معرّفة',api.includes('async function createContractV2')],
     ['approveContractInternal معرّفة',api.includes('async function approveContractInternal')],
   ];

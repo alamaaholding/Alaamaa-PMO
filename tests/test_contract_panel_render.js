@@ -5,13 +5,17 @@ const html=fs.readFileSync('index.html','utf8').replace(/<script[^>]*src=[^>]*><
 const dom=new JSDOM(html,{runScripts:'dangerously',url:'https://pmo.alaamaa.com/'});
 const w=dom.window;
 const run=c=>{const s=w.document.createElement('script');s.textContent=c;w.document.body.appendChild(s);};
-run(`window.supabase={createClient:()=>({rpc:()=>Promise.resolve({data:[],error:null}),
+run(`window.__CONTRACTS=[];
+window.supabase={createClient:()=>({rpc:(n)=>Promise.resolve({data:n==='pmo_all_contracts_view'?window.__CONTRACTS:[],error:null}),
  from:()=>({select:()=>({order:()=>Promise.resolve({data:[],error:null}),eq:()=>({maybeSingle:async()=>({data:null,error:null})})})}),
  storage:{from:()=>({createSignedUrl:async()=>({data:{},error:null})})},
  auth:{getSession:async()=>({data:{session:null}}),getUser:async()=>({data:{user:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},
  channel:()=>({on(){return this;},subscribe(){return this;}}),removeChannel:()=>{}})};`);
 run(fs.readFileSync('app.bundle.js','utf8'));
 run(`
+// contractshub.js صارت وحدة ESM في W2، فلم تعد CH_CONTRACTS رابطةً عامة يُكتَب
+// فيها. والتثبيت الصحيح صار طبقةً أدنى: على sb.rpc('pmo_all_contracts_view') ثم
+// reloadContracts() — أي أن fetchAllContracts الحقيقية تعمل بدل تخطّيها.
 toast=()=>{};ROLE='pmo';IS_OWNER=true;
 window.qrcode=()=>({addData(){},make(){},createDataURL:()=>'data:image/gif;base64,Q=='});
 window.loadScript=async()=>{};
@@ -34,7 +38,7 @@ document.body.innerHTML+='<div id="chubPanel"></div><div id="chubBody"></div>';
  ];
  window.__R=[];
  for(const [name,c,expTab,expTitle,expBtn] of cases){
-   CH_CONTRACTS=[c];
+   window.__CONTRACTS=[c]; await reloadContracts();
    await openContractDetailPanel('c1');
    await new Promise(r=>setTimeout(r,40));
    const panes=[...document.querySelectorAll('.chub-pane')].length;
