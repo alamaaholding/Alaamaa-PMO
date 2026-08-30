@@ -6,7 +6,9 @@ let ok=0,fail=0;
 const t=(n,c,x)=>{if(c){ok++;console.log('  ✓ '+n);}else{fail++;console.log('  ✗ '+n+(x?' → '+x:''));}};
 const exp=fs.readFileSync('src/app/exportcontract.js','utf8');
 const hub=fs.readFileSync('src/app/contractshub.js','utf8');
-const main=fs.readFileSync('src/app/main.js','utf8');
+// كل ما يفحصه هذا الملف انتقل من app/main.js إلى app/projectactions.js في W2 —
+// حتى لم يبقَ لـmain.js ذكرٌ هنا. القدرة هي هي، والتأكيد يتبع الكود.
+const pact=fs.readFileSync('src/app/projectactions.js','utf8');
 
 // استعادة مضمونة بثلاثة مسارات مستقلة
 t('مُشغِّل طباعة آمن مشترك',/function runPrintSafely\(\)/.test(exp));
@@ -20,8 +22,8 @@ t('فشل الطباعة نفسه يستعيد الحالة',exp.includes('catch
 t('تصدير العقد يستخدم المُشغِّل الآمن',exp.includes('runPrintSafely();'));
 t('شهادة التوقيع تستخدمه',hub.includes('runPrintSafely();'));
 t('لا استدعاء مباشر متبقٍّ في العقود',!/window\.print\(\);/.test(hub));
-t('طباعة الجانت محمية أيضًا',main.includes('window.addEventListener(\'focus\',restore)')&&main.includes('clearTimeout(guard)'));
-t('الجانت يستعيد مستوى التكبير الأصلي',main.includes('PX=prevPX;render();'));
+t('طباعة الجانت محمية أيضًا',pact.includes('window.addEventListener(\'focus\',restore)')&&pact.includes('clearTimeout(guard)'));
+t('الجانت يستعيد مستوى التكبير الأصلي',pact.includes('PX=prevPX;render();'));
 
 // حوار تمهيدي بدل مفاجأة حوار المتصفح
 t('حوار يشرح ما سيُنتَج قبل التصدير',hub.includes('سيتضمّن المستند'));

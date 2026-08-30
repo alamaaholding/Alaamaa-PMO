@@ -121,15 +121,16 @@ function run5() {
 function surface() {
   console.log('\n▸ التعميم: النمط خرج من موضعه الواحد');
   const views = fs.readFileSync('src/views.js', 'utf8');
-  const main = fs.readFileSync('src/app/main.js', 'utf8');
+  // ما كان يُفحَص في app/main.js انتقل كلّه إلى app/projectactions.js في W2.
+  const pact = fs.readFileSync('src/app/projectactions.js', 'utf8');
   const life = fs.readFileSync('src/app/lifecycle.js', 'utf8');
   t('حذف التعليق صار قابلًا للتراجع', /label:'حُذف التعليق'/.test(views));
   t('حذف الطلب كذلك', /label:'حُذف الطلب'/.test(views));
-  t('حذف المتطلب كذلك', /label:'حُذف المتطلب'/.test(main));
+  t('حذف المتطلب كذلك', /label:'حُذف المتطلب'/.test(pact));
   t('حذف المرحلة كذلك', /label:'حُذفت المرحلة/.test(life));
   // الوعد المكسور الذي صار صحيحًا
   t('حوار التعليق لم يعد يقول «لا يمكن التراجع»', !views.includes('حذف هذا التعليق؟ لا يمكن التراجع'));
-  t('وحذف البند يبقى على نمطه الناضج', /toastUndo\('حُذف «'/.test(main));
+  t('وحذف البند يبقى على نمطه الناضج', /toastUndo\('حُذف «'/.test(pact));
 
   console.log('\n▸ الحدود مُعلَنة لا مسكوت عنها');
   const src = fs.readFileSync('src/undo.js', 'utf8');
