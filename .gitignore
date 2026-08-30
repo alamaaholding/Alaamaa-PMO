@@ -13,3 +13,6 @@ coverage/
 /timeline.js
 /trello.js
 /qrgen.js
+# مستضافة ذاتيًا: تُنسَخ من node_modules وقت البناء، والإصدار مثبَّت في package-lock.json
+/supabase.js
+/xlsx.js

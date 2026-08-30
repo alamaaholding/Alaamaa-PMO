@@ -410,7 +410,11 @@ export function loadScript(src){
 }
 async function ensureXLSX(){
   if(window.XLSX)return;
-  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  // مستضافة ذاتيًا كـsupabase-js (AUDIT §د-٢): كانت من cdnjs — وإصدارها مثبَّت
+  // هناك، لكن **المضيف** خارجي بلا integrity. ولا يكفي تثبيت الإصدار: اختراق
+  // الـCDN يُنفّذ كودًا عشوائيًا في سياقٍ يملك الجلسة. وبزوال آخر مضيف سكربت
+  // خارجي صارت `script-src 'self'` ممكنة (AUDIT §د-١).
+  await loadScript('xlsx.js?v='+globalThis.BUILD_V);
 }
 // مغلّفات: تُحمّل الوحدة عند أول استخدام فقط ثم تنفّذ
 export async function openDOL(){
