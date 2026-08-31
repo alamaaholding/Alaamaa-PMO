@@ -191,3 +191,7 @@ function bindTaskPanel(){
 }
 
 window.openTaskPanel=openTaskPanel;
+
+// ===== تسجيل المعالِجات في السجلّ (src/actions.js) =====
+// المفتاح هو ما يناديه العرض، فلا يعرف ملفُّ العرض اسم دالةٍ هنا.
+registerAction('openTaskPanel', openTaskPanel);

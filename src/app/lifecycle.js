@@ -532,3 +532,7 @@ async function openHolidaysManager(){
 // ===== تسجيل الشاشة في السجلّ (src/screens.js) =====
 // المفتاح هو ما يناديه بقية التطبيق، فلا ملف شاشةٍ يعرف اسم دالة شاشةٍ أخرى.
 registerScreen('archived', renderArchived);
+
+// ===== تسجيل المعالِجات في السجلّ (src/actions.js) =====
+// المفتاح هو ما يناديه العرض، فلا يعرف ملفُّ العرض اسم دالةٍ هنا.
+registerAction('openTracksManager', openTracksManager);
