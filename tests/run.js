@@ -93,7 +93,7 @@ console.log(`  ${GREEN}✓${OFF} ${new Set(expected).size} ملفًا مُعلَ
 //   هذا مؤشّر **استهداف مقصود** لا تنفيذ فعلي — أضعف من التغطية، لكنه حقيقي وقابل
 //   للقياس اليوم، ويخدم مباشرةً ما رصده AUDIT.md §هـ-١. السقف ينقص ولا يزيد أبدًا.
 console.log(`${BOLD}▸ حارس اتّساع الاختبار...${OFF}`);
-const UNTESTED_CAP = 6;   // W0=10 · W2: format+dialogs=9 · state=8 · W5: lifecycle=7 · W2: screens=6. ينقص ولا يزيد.
+const UNTESTED_CAP = 5;   // W0=10 · W2: format+dialogs=9 · state=8 · W5: lifecycle=7 · W2: screens=6 · W7: taskpanel=5. ينقص ولا يزيد.
 const testSources = fs.readdirSync(__dirname)
   .filter(f => f.startsWith('test_') && f.endsWith('.js'))
   .map(f => fs.readFileSync(path.join(__dirname, f), 'utf8')).join('\n');
@@ -199,7 +199,7 @@ const DEAD_CAP = 0;   // W2: حُذف الأحد عشر الموجودة. أي �
 // الترحيل تدريجي بطبيعته (AUDIT §ب-١ · ROADMAP §W4)، فالحارس هو ما يجعله تدريجيًا
 // **لا متراجعًا**: يُسمح بالنقصان دائمًا، ويُمنع النموّ دائمًا.
 console.log(`${BOLD}▸ حارسا نظام التصميم...${OFF}`);
-const INLINE_STYLE_CAP = 203;   // W0=372 · W5=322 (الهياكل) · W4=203 (طبقة الأدوات)
+const INLINE_STYLE_CAP = 198;   // W0=372 · W5=322 · W4=203 (طبقة الأدوات) · W6=198 (.hidden)
 const RAW_COLOR_CAP    = 12;    // W0=91 · W4=12 (الباقي: ١١ داخل @media print — الورق أبيض دائمًا — وخلفية رمز QR)
 
 // الأنماط الديناميكية (التي تحمل قيمة محسوبة: عرض شريط، لون مسار) استعمال مشروع

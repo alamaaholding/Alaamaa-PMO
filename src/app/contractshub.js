@@ -507,7 +507,7 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
             <button class="hbtn gold" id="chdSave">📌 حفظ وتثبيت التعديلات</button>
           </div>`:`
           <input id="chdTitle" type="hidden" value="${esc(c.custom_title||'')}">
-          <textarea id="chdBody" style="display:none">${esc(c.custom_body||'')}</textarea>
+          <textarea id="chdBody" class="hidden">${esc(c.custom_body||'')}</textarea>
           <p class="sa-hint">🔒 عقد ${anySigned?'وقّع عليه طرف على الأقل':'ملغى'} — لم يعد قابلًا للتعديل. لتغييره، ألغِ هذا العقد وأنشئ عقدًا جديدًا.</p>`}
         `:`
         ${editable?`
@@ -525,9 +525,9 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
         </div>`:`
         <input id="chdValue" type="hidden" value="${c.contract_value||''}"><input id="chdDate" type="hidden" value="${c.effective_date||''}">
         <input id="chdDuration" type="hidden" value="${c.duration_months||''}"><input id="chdEnd" type="hidden" value="${c.end_date||''}">
-        <input id="chdRenew" type="checkbox" ${c.auto_renew?'checked':''} style="display:none">
-        <input id="chdAdSpend" type="checkbox" ${c.includes_ad_spend?'checked':''} style="display:none">
-        <textarea id="chdSpecial" style="display:none">${esc(c.special_terms||'')}</textarea>
+        <input id="chdRenew" type="checkbox" ${c.auto_renew?'checked':''} class="hidden">
+        <input id="chdAdSpend" type="checkbox" ${c.includes_ad_spend?'checked':''} class="hidden">
+        <textarea id="chdSpecial" class="hidden">${esc(c.special_terms||'')}</textarea>
         <p class="sa-hint">🔒 عقد ${anySigned?'وقّع عليه طرف على الأقل':'ملغى'} — لم يعد قابلًا للتعديل. لتغييره، ألغِ هذا العقد وأنشئ عقدًا جديدًا.</p>`}
         `}
       </div>
