@@ -36,7 +36,7 @@ function renderNow(){
   $('#kStart').textContent=fmt(sd)+'/'+sd.getFullYear();
   const canEditStart=(ROLE==='pmo'&&PROJECT.status!=='baselined');
   const esBtn=$('#editStart');
-  if(esBtn){ esBtn.style.display=canEditStart?'':'none'; esBtn.onclick=canEditStart?editStartDate:null; }
+  if(esBtn){ esBtn.style.display=canEditStart?'':'none'; esBtn.onclick=canEditStart?()=>runAction('editStartDate'):null; }
   $('#kCrit').textContent=tasks.filter(t=>SCHED.R[t.id].critical).length;
   $('#kBlk').textContent=tasks.filter(t=>TRACK[t.id].blocked).length;
   $('#kCl').textContent=tasks.filter(t=>TRACK[t.id].delay==='client').length;
@@ -51,7 +51,7 @@ function renderNow(){
   $('#tabs').setAttribute('role','tablist');
   $('#tabs').innerHTML=views.map(v=>`<button class="tab ${v===VIEW?'active':''} ${VIEW_TONE[v]?'tab-'+VIEW_TONE[v]:''}" role="tab" id="tab-${v}" aria-controls="host" aria-selected="${v===VIEW}" tabindex="${v===VIEW?0:-1}" data-v="${v}">${VIEW_ICONS[v]||''}<span>${VIEW_LABELS[v]}</span>${badge(v)}</button>`).join('');
   const _hp=$('#host');if(_hp){_hp.setAttribute('role','tabpanel');_hp.setAttribute('aria-labelledby','tab-'+VIEW);}
-  $$('#tabs .tab').forEach(b=>b.onclick=()=>setView(b.dataset.v));
+  $$('#tabs .tab').forEach(b=>b.onclick=()=>runAction('setView', b.dataset.v));
   // تنقّل الأسهم وفق WAI-ARIA (بمراعاة RTL: اليسار = التالي) + Home/End
   $('#tabs').onkeydown=e=>{
     const i=views.indexOf(VIEW);let j=null;
@@ -59,7 +59,7 @@ function renderNow(){
     else if(e.key==='ArrowRight')j=(i-1+views.length)%views.length;
     else if(e.key==='Home')j=0;else if(e.key==='End')j=views.length-1;
     if(j===null)return;
-    e.preventDefault();setView(views[j]);
+    e.preventDefault();runAction('setView', views[j]);
     const nb=document.querySelector('#tabs .tab[data-v="'+views[j]+'"]');if(nb)nb.focus();
   };
   const host=$('#host');
@@ -69,15 +69,15 @@ function renderNow(){
     host.innerHTML=`<div class="empty-cta"><div class="ico">${I.clipboard}</div><h3>لا توجد خطة بعد لهذا المشروع</h3>
       <p>${canBuild?'ابدأ ببناء خطة المشروع بإضافة أول بند، ثم عرّف المسارات والتبعيات.':'لم تُبنَ خطة هذا المشروع بعد. سيظهر المحتوى فور إعدادها من فريق إدارة المشاريع.'}</p>
       ${canBuild?`<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px"><button id="emptyImport" class="hbtn blue">${I.upload} استيراد خطة من Excel</button><button id="emptyAdd" class="hbtn ok">+ إضافة أول بند</button></div>`:''}</div>`;
-    const ea=$('#emptyAdd');if(ea)ea.onclick=()=>{VIEW='table';handleAddTask();};
+    const ea=$('#emptyAdd');if(ea)ea.onclick=()=>{VIEW='table';runAction('addTask');};
     const ei=$('#emptyImport');if(ei)ei.onclick=openImporter;
     return;
   }
   if(VIEW==='dashboard'){host.innerHTML=(ROLE==='client')?vClientDash():vDashboard();
-    $$('#host [data-tkopen]').forEach(b=>b.onclick=()=>openTaskPanel(b.dataset.tkopen));}
+    $$('#host [data-tkopen]').forEach(b=>b.onclick=()=>runAction('openTaskPanel', b.dataset.tkopen));}
   else if(VIEW==='table'){host.innerHTML='<div class="hintbar">تحديث الحالة والتقدّم يُحفظ مباشرة في القاعدة. المسار الحرج مظلّل.</div>'+vTable();bindTable();}
   else if(VIEW==='gantt'){host.innerHTML=gToolbar()+vGantt();bindProjFilterBar();$('#zin').onclick=()=>{PX=Math.min(40,PX+4);render();};$('#zout').onclick=()=>{PX=Math.max(2,PX-4);render();};
-    const pgb=$('#printGanttBtn');if(pgb)pgb.onclick=()=>printProject('gantt');
+    const pgb=$('#printGanttBtn');if(pgb)pgb.onclick=()=>runAction('printProject', 'gantt');
     const gt=$('#glToggle');if(gt){gt.classList.toggle('on',GLINKS_ON);gt.onclick=()=>{GLINKS_ON=!GLINKS_ON;try{localStorage.setItem('pmo_glinks',GLINKS_ON?'1':'0');}catch(_e){}render();};}
     {const gc=$('#gcritToggle');
      if(gc){
@@ -98,8 +98,8 @@ function renderNow(){
     document.querySelectorAll('[data-scale]').forEach(b=>{const on=b.dataset.scale===GSCALE;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false');
       b.onclick=()=>{GSCALE=b.dataset.scale;try{localStorage.setItem('pmo_gscale',GSCALE);}catch(_e){}PX=GSCALE_PX[GSCALE]||16;render();};});
     $$('#host .glbl[data-tkopen]').forEach(el=>{
-      el.onclick=()=>openTaskPanel(el.dataset.tkopen);
-      el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openTaskPanel(el.dataset.tkopen);}};});
+      el.onclick=()=>runAction('openTaskPanel', el.dataset.tkopen);
+      el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();runAction('openTaskPanel', el.dataset.tkopen);}};});
     bindGanttHover();drawGanttLinks();}
   else if(VIEW==='deliv')host.innerHTML=vDeliv();
   else if(VIEW==='timeline'){
@@ -441,12 +441,12 @@ function bindTable(){
       });
     });
   });
-  $$('#tbl [data-reqs]').forEach(b=>b.onclick=()=>openReqs(b.dataset.reqs));
-  $$('#host [data-tkopen]').forEach(b=>b.onclick=()=>openTaskPanel(b.dataset.tkopen));
+  $$('#tbl [data-reqs]').forEach(b=>b.onclick=()=>runAction('openReqs', b.dataset.reqs));
+  $$('#host [data-tkopen]').forEach(b=>b.onclick=()=>runAction('openTaskPanel', b.dataset.tkopen));
   if(editStruct){
-    $$('#tbl [data-del]').forEach(b=>b.onclick=()=>handleDeleteTask(b.dataset.del));
-    $$('#tbl [data-deps]').forEach(b=>b.onclick=()=>openDeps(b.dataset.deps));
-    const ab=$('#addTaskBtn');if(ab)ab.onclick=handleAddTask;
+    $$('#tbl [data-del]').forEach(b=>b.onclick=()=>runAction('deleteTask', b.dataset.del));
+    $$('#tbl [data-deps]').forEach(b=>b.onclick=()=>runAction('openDeps', b.dataset.deps));
+    const ab=$('#addTaskBtn');if(ab)ab.onclick=()=>runAction('addTask');
     {const gc=$('#goCRTab');if(gc)gc.onclick=()=>{VIEW='cr';writeHash();render();};}
     bindTaskDragDrop();
     $$('[data-dissolve]').forEach(b=>b.onclick=async()=>{
@@ -465,18 +465,20 @@ function bindTable(){
         await loadProject(CID,PID);render();
       }catch(e){toast(e.message,'err');}
     });
-    const tb=$('#tracksBtn');if(tb)tb.onclick=openTracksManager;
+    const tb=$('#tracksBtn');if(tb)tb.onclick=()=>runAction('openTracksManager');
     const ib=$('#importXlsxBtn');if(ib)ib.onclick=openImporter;
   }
   $$('#tbl [data-pkgtoggle]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();
     const id=b.dataset.pkgtoggle;PKG_COLLAPSED.has(id)?PKG_COLLAPSED.delete(id):PKG_COLLAPSED.add(id);render();});
   $$('#tbl [data-grpedit]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();inlineTrackEdit(b.dataset.grpedit,b.closest('td')||b.closest('.tc-grp'));});
-  const ptb=$('#printTableBtn');if(ptb)ptb.onclick=()=>printProject('table');
+  const ptb=$('#printTableBtn');if(ptb)ptb.onclick=()=>runAction('printProject', 'table');
 }
 // تعديل المرحلة مباشرة من عنوانها في الجدول (اسم + لون، حفظ فوري)
 function inlineTrackEdit(key,td){
   const tr=(PROJECT.tracks||[]).find(x=>x.key===key);
-  if(!tr){if(typeof openTracksManager==='function')openTracksManager();return;}
+  // كان الحارس `typeof openTracksManager==='function'` — حراسةٌ من زمن النطاق
+  // المشترك حيث الترتيب النصّي هو كل شيء. ومقابله في السجلّ سؤالٌ صريح.
+  if(!tr){if(hasAction('openTracksManager'))runAction('openTracksManager');return;}
   td.innerHTML=`<span class="grp-inline">
     <input type="color" class="gie-c" value="${tr.color}" aria-label="لون المرحلة">
     <input class="gie-n" value="${esc(tr.name)}" aria-label="اسم المرحلة">
@@ -796,7 +798,7 @@ function vDiscuss(rows){
   return composer+'<div class="crlist">'+thread+'</div>';
 }
 function bindDiscuss(){
-  document.querySelectorAll('[data-gotask]').forEach(b=>b.onclick=()=>gotoTask(b.dataset.gotask));
+  document.querySelectorAll('[data-gotask]').forEach(b=>b.onclick=()=>runAction('gotoTask', b.dataset.gotask));
   const send=document.getElementById('dcSend');
   if(send)send.onclick=async()=>{
     const body=document.getElementById('dcBody').value.trim();if(!body){toast('اكتب رسالة','warn');return;}
@@ -997,3 +999,139 @@ function vClientDash(){
     </div>
   </div>`;
 }
+
+// ═══ تبويب طلبات تعديل الخطة ═══
+// عاشت هذه في app/main.js ثم في app/projectactions.js، وموضعها هنا: `vCR`
+// عاشرة أخواتها (vDashboard · vTable · vCards · vGantt · vDeliv · vAudit ·
+// vDiscuss · vRequests · vClientDash)، و`bindCR` ربطُها كما تُربَط كل واحدة.
+
+// أنواع طلبات تعديل الخطة — و«وضع التطبيق»: هل يطبّقه النظام آليًا عند الموافقة أم يحتاج تنفيذًا يدويًا؟
+const CR_KIND={
+  duration:{t:'تغيير المدة',auto:true},
+  deps:{t:'تغيير التبعيات',auto:false},
+  add:{t:'إضافة بند',auto:false},
+  remove:{t:'حذف بند',auto:false},
+  other:{t:'أخرى',auto:false}
+};
+
+function vCR(){
+  const canApprove=PERMS[ROLE].crAction==='approve';
+  const canRequest=!!PERMS[ROLE].crAction;
+  const taskOpts=PROJECT.tasks.filter(t=>t.type!=='milestone').map(t=>`<option value="${esc(t.id)}">${esc(t.id)} — ${esc(t.name)}</option>`).join('');
+  const kindOpts=Object.keys(CR_KIND).map(k=>`<option value="${k}">${CR_KIND[k].t}</option>`).join('');
+  const form=canRequest?`<div class="crform">
+    <h4>رفع طلب تعديل على الخطة</h4>
+    <select id="crTask">${taskOpts}</select>
+    <select id="crKind">${kindOpts}</select>
+    <div id="crModeHint" class="cr-modehint">${crAutoNote}</div>
+    <input id="crVal" placeholder="القيمة المقترحة (مثل: 12)">
+    <textarea id="crReason" placeholder="المبرر..."></textarea>
+    <button class="hbtn gold wide" id="crSubmit">إرسال الطلب</button>
+  </div>`:'';
+  const list=CRS.length?CRS.map(c=>{
+    const t=PROJECT.tasks.find(x=>x.id===c.task_ref);
+    const stcls=c.status==='pending'?'pending':c.status==='approved'?'approved':'rejected';
+    const sttxt=c.status==='pending'?'معلّق':c.status==='approved'?'موافق عليه':'مرفوض';
+    const kd=CR_KIND[c.kind]||{t:c.kind,auto:false};
+    // زر الموافقة يقول بصدق ما سيفعله النظام فعلًا
+    const apText=kd.auto?'موافقة وتطبيق':'موافقة (تنفيذ يدوي)';
+    const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn ok" data-ap="${c.id}">${apText}</button><button class="hbtn" data-rj="${c.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc">رفض</button></div>`:'';
+    // تنبيه تنفيذ معلّق: وافق عليه ولم يُطبَّق آليًا ⇒ الخطة لم تتغيّر بعد
+    const awaitingExec=(c.status==='approved'&&!kd.auto&&!c.executed_at);
+    const pendingExec=awaitingExec?`<div class="cr-pendexec">⚠ معتمد — الخطة لم تتغيّر تلقائيًا. أدوات بناء الخطة مفتوحة الآن في تبويب «الجدول» لتنفيذه.</div>
+      <div class="cr-exec-box">
+        <button class="reqbtn ok" data-goplan="1">↗ افتح الجدول لتنفيذه</button>
+        <button class="reqbtn" data-execcr="${c.id}">✅ نُفِّذ — علّمه منفَّذًا</button>
+      </div>`:'';
+    const doneExec=(c.status==='approved'&&c.executed_at)?
+      `<div class="cr-mode auto">✅ نُفِّذ في ${new Date(c.executed_at).toLocaleDateString('ar')}${c.baseline_after?' · ثُبِّت أساس جديد بعده':''}</div>`:'';
+    const goto=(c.task_ref&&t)?`<button class="lnk" data-gotask="${esc(c.task_ref)}">↗ الذهاب إلى البند في الخطة</button>`:'';
+    return `<div class="crcard cr-plan">
+      <div class="crhd"><span class="crid">${esc(c.id.slice(0,12))}</span><span class="crstate ${stcls}">${sttxt}</span></div>
+      <div class="crbody"><b>البند:</b> ${esc(c.task_ref||'—')}${t?' — '+esc(t.name):''} · <b>النوع:</b> ${kd.t}${c.new_value?' · <b>القيمة:</b> '+esc(c.new_value):''}<br><b>المبرر:</b> ${esc(c.reason||'—')}<br><small>${new Date(c.created_at).toLocaleDateString('ar')}</small>${c.decision_note?'<br><small>القرار: '+esc(c.decision_note)+'</small>':''}${goto?'<br>'+goto:''}</div>
+      <div class="cr-modewrap">${kd.auto?crAutoNote:crManualNote}</div>${pendingExec}${doneExec}${actions}</div>`;
+  }).join(''):'<p class="empty" style="color:var(--muted);font-style:italic">لا طلبات تغيير.</p>';
+  return `<div class="crwrap">${form}<div class="crlist">${list}</div></div>`;
+}
+
+function bindCR(){
+  $$('[data-gotask]').forEach(b=>b.onclick=()=>runAction('gotoTask', b.dataset.gotask));
+  // تلميح حيّ: يوضّح قبل الإرسال هل سيُطبَّق الطلب آليًا أم يدويًا
+  const kindSel=$('#crKind'),modeHint=$('#crModeHint');
+  if(kindSel&&modeHint){
+    const paint=()=>{const kd=CR_KIND[kindSel.value]||{auto:false};modeHint.innerHTML=kd.auto?crAutoNote:crManualNote;};
+    kindSel.onchange=paint;paint();
+  }
+  const sub=$('#crSubmit');
+  if(sub)sub.onclick=async()=>{
+    const reason=$('#crReason').value.trim();if(!reason){toast('اكتب المبرر','warn');return;}
+    const {error}=await insertCR({project_id:PROJECT._dbId,task_ref:$('#crTask').value,kind:$('#crKind').value,new_value:$('#crVal').value,reason});
+    if(error){toast('تعذّر الإرسال: '+error.message,'err');return;}
+    CRS=await fetchCRs(PROJECT._dbId);
+    await refreshProjectCounts();
+    render();
+  };
+  $$('[data-ap]').forEach(b=>b.onclick=async()=>{
+    const c=CRS.find(x=>x.id===b.dataset.ap);
+    const kd=CR_KIND[c.kind]||{t:c.kind,auto:false};
+    let applied=false;
+    // تطبيق آلي لتغيير المدة فقط — بقية الأنواع تحتاج تنفيذًا يدويًا
+    if(kd.auto&&c.kind==='duration'&&c.task_ref){
+      const t=PROJECT.tasks.find(x=>x.id===c.task_ref);
+      const nv=parseInt(c.new_value,10);
+      if(t&&t._dbId&&!isNaN(nv)){await updateTaskFields(t._dbId,{duration:nv});applied=true;}
+    }
+    // ملاحظة القرار تسجّل ما حدث فعلًا — لا «طُبّق» في كل الحالات
+    const note=applied?'معتمد وطُبّق آليًا على الجدول'
+      :(kd.auto?'معتمد — تعذّر التطبيق الآلي (قيمة غير صالحة)، يتطلب تنفيذًا يدويًا'
+               :'معتمد — يتطلب تنفيذًا يدويًا في الجدول');
+    await decideCR(c.id,{status:'approved',decision_note:note,decided_at:new Date().toISOString()});
+    await loadProject(CID,PID);render();
+    toast(applied?'اعتُمد الطلب وطُبّق على الجدول':'اعتُمد الطلب — نفّذ التعديل يدويًا في تبويب «الجدول»',applied?'ok':'warn');
+  });
+  $$('[data-goplan]').forEach(b=>b.onclick=()=>{VIEW='table';writeHash();render();});
+  $$('[data-execcr]').forEach(b=>b.onclick=async()=>{
+    // يعرض ما تغيّر فعليًا مقابل آخر خط أساس، ثم يعرض تثبيت أساس جديد يوثّق التغيير
+    let d={};
+    try{ d=await fetchBaselineDiff(PROJECT._dbId); }catch(e){}
+    const nA=(d.added||[]).length,nR=(d.removed||[]).length,nC=(d.changed||[]).length;
+    const diffHtml=d.has_baseline?`
+      <div class="cr-diff">
+        <b>ما تغيّر مقابل ${esc(d.baseline_label||'آخر أساس')}:</b>
+        ${nA?`<div class="cr-diff-add">➕ أُضيف ${nA} بند: ${(d.added||[]).slice(0,6).map(x=>esc(x.ref)).join('، ')}${nA>6?'…':''}</div>`:''}
+        ${nR?`<div class="cr-diff-rm">➖ حُذف ${nR} بند: ${(d.removed||[]).slice(0,6).map(x=>esc(x)).join('، ')}${nR>6?'…':''}</div>`:''}
+        ${nC?`<div class="cr-diff-ch">✏️ تغيّرت مدة ${nC} بند: ${(d.changed||[]).slice(0,6).map(x=>esc(x.ref)+' ('+x.old+'→'+x.new+')').join('، ')}${nC>6?'…':''}</div>`:''}
+        ${(!nA&&!nR&&!nC)?'<div class="sa-hint">⚠ لا فرق مرصود عن خط الأساس — تأكد أنك نفّذت التعديل فعلًا في الجدول.</div>':''}
+      </div>`:'<p class="sa-hint">لا خط أساس سابق للمقارنة.</p>';
+
+    const ok=await dialog({title:'تأكيد تنفيذ طلب التعديل',
+      message:'سيُعلَّم هذا الطلب منفَّذًا، وتُغلق نافذة التعديل البنيوي المؤقتة.',
+      html:diffHtml,
+      fields:[{key:'bl',label:'تثبيت أساس جديد يوثّق هذا التغيير؟',type:'select',value:'yes',
+        options:[{v:'yes',t:'نعم — ثبّت أساسًا جديدًا (الأنسب لحوكمة سليمة)'},
+                 {v:'no',t:'لا — أكتفي بتعليمه منفَّذًا الآن'}]}],
+      confirmText:'تأكيد'});
+    if(!ok)return;
+    try{
+      let blId=null;
+      if(ok.bl==='yes'){
+        const nb=await saveNewBaseline(PROJECT._dbId);
+        blId=nb&&nb.id?nb.id:null;
+      }
+      await markCRExecuted(b.dataset.execcr,blId);
+      CRS=await fetchCRs(PROJECT._dbId);
+      await loadProject(CID,PID);render();
+      toast(blId?'عُلِّم منفَّذًا وثُبِّت أساس جديد':'عُلِّم منفَّذًا','ok');
+    }catch(e){toast(e.message,'err');}
+  });
+  $$('[data-rj]').forEach(b=>b.onclick=async()=>{
+    await decideCR(b.dataset.rj,{status:'rejected',decided_at:new Date().toISOString()});
+    CRS=await fetchCRs(PROJECT._dbId);
+    await refreshProjectCounts();
+    render();
+  });
+}
+
+const crAutoNote='<span class="cr-mode auto">⚡ يُطبَّق على الجدول تلقائيًا عند الموافقة</span>';
+
+const crManualNote='<span class="cr-mode manual">✋ يتطلب تنفيذًا يدويًا في تبويب «الجدول» بعد الموافقة</span>';

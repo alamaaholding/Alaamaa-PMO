@@ -24,21 +24,29 @@ const views = fs.readFileSync('src/views.js', 'utf8');
 const buildPy = fs.readFileSync('build.py', 'utf8');
 const bundle = fs.readFileSync('app.bundle.js', 'utf8');
 
+// كانت `vCR` و`bindCR` و`CR_KIND` هنا، ثم صُحّح الحدّ: `vCR` تُعيد HTML تبويب
+// طلبات التعديل، و`views.js` فيه تسع نظائر لها بالاسم نفسه (vTable · vGantt …).
+// فهي عاشرتهنّ لا مُعالِج. والاصطلاح القائم هو ما حسم، لا تقديري.
 const MOVED = ['setView', 'focusTask', 'gotoTask', 'openReqs', 'renderReqs', 'openDeps',
   'renderDeps', 'editStartDate', 'printProject', 'handleAddTask', 'handleDeleteTask',
-  'vCR', 'bindCR', 'openAccess', 'renderAccessList'];
-const STATE = ['CR_KIND', 'DEP_TASK', 'REQ_TASK'];
+  'openAccess', 'renderAccessList'];
+const STATE = ['DEP_TASK', 'REQ_TASK'];
 
 console.log('\n▸ العنقود انتقل كاملًا — ولم يبقَ منه شيء');
 {
   const notMoved = MOVED.filter(n => !new RegExp(`^(async )?function ${n}\\(`, 'm').test(pa));
-  t('الخمس عشرة دالة كلها هنا', notMoved.length === 0, notMoved.join(' '));
+  t('الثلاث عشرة دالة كلها هنا', notMoved.length === 0, notMoved.join(' '));
   const leftBehind = MOVED.filter(n => new RegExp(`^(async )?function ${n}\\(`, 'm').test(main));
   t('ولا واحدة بقيت في main.js', leftBehind.length === 0, leftBehind.join(' '));
   const noState = STATE.filter(n => !new RegExp(`^(let|const) ${n}\\b`, 'm').test(pa));
-  t('وحالة الحوارات الثلاث معها', noState.length === 0, noState.join(' '));
-  // CR_KIND كائن متعدّد الأسطر — النقل السطري ينقل أوّله وحده ويترك الباقي.
-  t('و CR_KIND انتقل كاملًا لا سطره الأول', /^const CR_KIND=\{[\s\S]*?\n\};?$/m.test(pa) || pa.split('const CR_KIND=')[1].includes('};'));
+  t('وحالة الحوارَين معها', noState.length === 0, noState.join(' '));
+  // وتبويب طلبات التعديل انتقل بكامله إلى views.js: الدالتان وثوابتهما الثلاثة.
+  const v = fs.readFileSync('src/views.js', 'utf8');
+  t('تبويب طلبات التعديل كلّه في views.js',
+    /^function vCR\(/m.test(v) && /^function bindCR\(/m.test(v)
+    && /^const CR_KIND=/m.test(v) && /^const crAutoNote=/m.test(v) && /^const crManualNote=/m.test(v));
+  t('ولا بقيّة منه في المُتحكِّم',
+    !/vCR|bindCR|CR_KIND|crAutoNote/.test(pa.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n')));
 }
 
 console.log('\n▸ الحدّ — والاتجاه الذي يهمّ');
@@ -63,12 +71,17 @@ console.log('\n▸ الحدّ — والاتجاه الذي يهمّ');
     .concat([...code(main).matchAll(/^(?:let|const) ([\w$]+)/gm)].map(m => m[1]));
   const leaking = mainOwn.filter(n => new RegExp(`(?<![\\w.$])${n}(?![\\w$])`).test(code(pa)));
   t('والمُتحكِّم لا يحتاج من main.js شيئًا', leaking.length === 0, leaking.join(' '));
-  // و views.js يحتاجها كلها تقريبًا — وهذا هو سبب النقل.
-  const wanted = MOVED.filter(n => new RegExp(`(?<![\\w.$])${n}(?![\\w$])`).test(code(views)));
-  t('و views.js هو المستفيد الأول', wanted.length >= 9, wanted.length + ' اسمًا');
-  // والحوارات الثلاثة انتقلت **بنصفيها**: الفتح والتصيير والربط معًا.
-  ['accAdd', 'reqAdd', 'depSave'].forEach(id =>
-    t(`ربط #${id} مع نصفه الآخر`, pa.includes(`$('#${id}')`) && !main.includes(`$('#${id}')`)));
+  // كان هنا: «views.js هو المستفيد الأول» — يذكر تسعةً منها على الأقل. وقد
+  // انقلب القيد بسجلّ المعالِجات: صار views ينادي بالمفاتيح لا بالأسماء، فلا
+  // يذكر **واحدًا** منها. وهذا هو ما كسر الدورة، فيُثبَّت بصيغته الجديدة.
+  //
+  // وتُسقَط السلاسل النصّية قبل الفحص: `runAction('openDeps')` ليست ذكرًا للاسم،
+  // وعدُّها كذلك يجعل الحارس يرى الدورة قائمةً بعد كسرها بالضبط.
+  const vcode = code(views).replace(/'(?:[^'\\]|\\.)*'/g, "''");
+  const named = MOVED.filter(n => new RegExp(`(?<![\\w.$])${n}(?![\\w$])`).test(vcode));
+  t('و views.js لا يذكر اسم أيٍّ منها — ينادي بالمفاتيح', named.length === 0, named.join(' '));
+  t('بل يناديها عبر السجلّ', (views.match(/runAction\('/g) || []).length >= 15);
+
   t('ويُبنى قبل main.js في الدمج', /'src\/app\/projectactions\.js','src\/app\/main\.js'/.test(buildPy));
 }
 

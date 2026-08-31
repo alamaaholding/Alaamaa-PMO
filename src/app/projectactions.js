@@ -8,8 +8,11 @@
 //      التبويب والتركيز : setView · focusTask · gotoTask
 //      البنود           : handleAddTask · handleDeleteTask · editStartDate · openDeps
 //      المتطلبات        : openReqs · renderReqs
-//      طلبات التعديل    : vCR · bindCR
 //      الوصول والطباعة  : openAccess · renderAccessList · printProject
+//
+//  و`vCR`/`bindCR` **ليستا هنا**، وقد وُضعتا هنا في دفعة النقل: `vCR` تُعيد HTML
+//  تبويب طلبات التعديل، و`views.js` فيه تسعة نظائر لها بالاسم نفسه (vTable ·
+//  vGantt · vCards …). فكان ذلك خطأً في رسم الحدّ صحّحه الاصطلاح القائم.
 //
 //  والقياس هو ما حدّد الحدّ: هذه الخمس عشرة دالة **مغلقة على نفسها** — لا تحتاج
 //  من app/main.js إلا ثلاثة متغيّرات حالةٍ للحوارات انتقلت معها، ولا يحتاج منها
@@ -88,132 +91,6 @@ async function renderAccessList(){
   });
 }
 
-// أنواع طلبات تعديل الخطة — و«وضع التطبيق»: هل يطبّقه النظام آليًا عند الموافقة أم يحتاج تنفيذًا يدويًا؟
-const CR_KIND={
-  duration:{t:'تغيير المدة',auto:true},
-  deps:{t:'تغيير التبعيات',auto:false},
-  add:{t:'إضافة بند',auto:false},
-  remove:{t:'حذف بند',auto:false},
-  other:{t:'أخرى',auto:false}
-};
-
-function vCR(){
-  const canApprove=PERMS[ROLE].crAction==='approve';
-  const canRequest=!!PERMS[ROLE].crAction;
-  const taskOpts=PROJECT.tasks.filter(t=>t.type!=='milestone').map(t=>`<option value="${esc(t.id)}">${esc(t.id)} — ${esc(t.name)}</option>`).join('');
-  const kindOpts=Object.keys(CR_KIND).map(k=>`<option value="${k}">${CR_KIND[k].t}</option>`).join('');
-  const form=canRequest?`<div class="crform">
-    <h4>رفع طلب تعديل على الخطة</h4>
-    <select id="crTask">${taskOpts}</select>
-    <select id="crKind">${kindOpts}</select>
-    <div id="crModeHint" class="cr-modehint">${crAutoNote}</div>
-    <input id="crVal" placeholder="القيمة المقترحة (مثل: 12)">
-    <textarea id="crReason" placeholder="المبرر..."></textarea>
-    <button class="hbtn gold wide" id="crSubmit">إرسال الطلب</button>
-  </div>`:'';
-  const list=CRS.length?CRS.map(c=>{
-    const t=PROJECT.tasks.find(x=>x.id===c.task_ref);
-    const stcls=c.status==='pending'?'pending':c.status==='approved'?'approved':'rejected';
-    const sttxt=c.status==='pending'?'معلّق':c.status==='approved'?'موافق عليه':'مرفوض';
-    const kd=CR_KIND[c.kind]||{t:c.kind,auto:false};
-    // زر الموافقة يقول بصدق ما سيفعله النظام فعلًا
-    const apText=kd.auto?'موافقة وتطبيق':'موافقة (تنفيذ يدوي)';
-    const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn ok" data-ap="${c.id}">${apText}</button><button class="hbtn" data-rj="${c.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc">رفض</button></div>`:'';
-    // تنبيه تنفيذ معلّق: وافق عليه ولم يُطبَّق آليًا ⇒ الخطة لم تتغيّر بعد
-    const awaitingExec=(c.status==='approved'&&!kd.auto&&!c.executed_at);
-    const pendingExec=awaitingExec?`<div class="cr-pendexec">⚠ معتمد — الخطة لم تتغيّر تلقائيًا. أدوات بناء الخطة مفتوحة الآن في تبويب «الجدول» لتنفيذه.</div>
-      <div class="cr-exec-box">
-        <button class="reqbtn ok" data-goplan="1">↗ افتح الجدول لتنفيذه</button>
-        <button class="reqbtn" data-execcr="${c.id}">✅ نُفِّذ — علّمه منفَّذًا</button>
-      </div>`:'';
-    const doneExec=(c.status==='approved'&&c.executed_at)?
-      `<div class="cr-mode auto">✅ نُفِّذ في ${new Date(c.executed_at).toLocaleDateString('ar')}${c.baseline_after?' · ثُبِّت أساس جديد بعده':''}</div>`:'';
-    const goto=(c.task_ref&&t)?`<button class="lnk" data-gotask="${esc(c.task_ref)}">↗ الذهاب إلى البند في الخطة</button>`:'';
-    return `<div class="crcard cr-plan">
-      <div class="crhd"><span class="crid">${esc(c.id.slice(0,12))}</span><span class="crstate ${stcls}">${sttxt}</span></div>
-      <div class="crbody"><b>البند:</b> ${esc(c.task_ref||'—')}${t?' — '+esc(t.name):''} · <b>النوع:</b> ${kd.t}${c.new_value?' · <b>القيمة:</b> '+esc(c.new_value):''}<br><b>المبرر:</b> ${esc(c.reason||'—')}<br><small>${new Date(c.created_at).toLocaleDateString('ar')}</small>${c.decision_note?'<br><small>القرار: '+esc(c.decision_note)+'</small>':''}${goto?'<br>'+goto:''}</div>
-      <div class="cr-modewrap">${kd.auto?crAutoNote:crManualNote}</div>${pendingExec}${doneExec}${actions}</div>`;
-  }).join(''):'<p class="empty" style="color:var(--muted);font-style:italic">لا طلبات تغيير.</p>';
-  return `<div class="crwrap">${form}<div class="crlist">${list}</div></div>`;
-}
-
-function bindCR(){
-  $$('[data-gotask]').forEach(b=>b.onclick=()=>gotoTask(b.dataset.gotask));
-  // تلميح حيّ: يوضّح قبل الإرسال هل سيُطبَّق الطلب آليًا أم يدويًا
-  const kindSel=$('#crKind'),modeHint=$('#crModeHint');
-  if(kindSel&&modeHint){
-    const paint=()=>{const kd=CR_KIND[kindSel.value]||{auto:false};modeHint.innerHTML=kd.auto?crAutoNote:crManualNote;};
-    kindSel.onchange=paint;paint();
-  }
-  const sub=$('#crSubmit');
-  if(sub)sub.onclick=async()=>{
-    const reason=$('#crReason').value.trim();if(!reason){toast('اكتب المبرر','warn');return;}
-    const {error}=await insertCR({project_id:PROJECT._dbId,task_ref:$('#crTask').value,kind:$('#crKind').value,new_value:$('#crVal').value,reason});
-    if(error){toast('تعذّر الإرسال: '+error.message,'err');return;}
-    CRS=await fetchCRs(PROJECT._dbId);
-    await refreshProjectCounts();
-    render();
-  };
-  $$('[data-ap]').forEach(b=>b.onclick=async()=>{
-    const c=CRS.find(x=>x.id===b.dataset.ap);
-    const kd=CR_KIND[c.kind]||{t:c.kind,auto:false};
-    let applied=false;
-    // تطبيق آلي لتغيير المدة فقط — بقية الأنواع تحتاج تنفيذًا يدويًا
-    if(kd.auto&&c.kind==='duration'&&c.task_ref){
-      const t=PROJECT.tasks.find(x=>x.id===c.task_ref);
-      const nv=parseInt(c.new_value,10);
-      if(t&&t._dbId&&!isNaN(nv)){await updateTaskFields(t._dbId,{duration:nv});applied=true;}
-    }
-    // ملاحظة القرار تسجّل ما حدث فعلًا — لا «طُبّق» في كل الحالات
-    const note=applied?'معتمد وطُبّق آليًا على الجدول'
-      :(kd.auto?'معتمد — تعذّر التطبيق الآلي (قيمة غير صالحة)، يتطلب تنفيذًا يدويًا'
-               :'معتمد — يتطلب تنفيذًا يدويًا في الجدول');
-    await decideCR(c.id,{status:'approved',decision_note:note,decided_at:new Date().toISOString()});
-    await loadProject(CID,PID);render();
-    toast(applied?'اعتُمد الطلب وطُبّق على الجدول':'اعتُمد الطلب — نفّذ التعديل يدويًا في تبويب «الجدول»',applied?'ok':'warn');
-  });
-  $$('[data-goplan]').forEach(b=>b.onclick=()=>{VIEW='table';writeHash();render();});
-  $$('[data-execcr]').forEach(b=>b.onclick=async()=>{
-    // يعرض ما تغيّر فعليًا مقابل آخر خط أساس، ثم يعرض تثبيت أساس جديد يوثّق التغيير
-    let d={};
-    try{ d=await fetchBaselineDiff(PROJECT._dbId); }catch(e){}
-    const nA=(d.added||[]).length,nR=(d.removed||[]).length,nC=(d.changed||[]).length;
-    const diffHtml=d.has_baseline?`
-      <div class="cr-diff">
-        <b>ما تغيّر مقابل ${esc(d.baseline_label||'آخر أساس')}:</b>
-        ${nA?`<div class="cr-diff-add">➕ أُضيف ${nA} بند: ${(d.added||[]).slice(0,6).map(x=>esc(x.ref)).join('، ')}${nA>6?'…':''}</div>`:''}
-        ${nR?`<div class="cr-diff-rm">➖ حُذف ${nR} بند: ${(d.removed||[]).slice(0,6).map(x=>esc(x)).join('، ')}${nR>6?'…':''}</div>`:''}
-        ${nC?`<div class="cr-diff-ch">✏️ تغيّرت مدة ${nC} بند: ${(d.changed||[]).slice(0,6).map(x=>esc(x.ref)+' ('+x.old+'→'+x.new+')').join('، ')}${nC>6?'…':''}</div>`:''}
-        ${(!nA&&!nR&&!nC)?'<div class="sa-hint">⚠ لا فرق مرصود عن خط الأساس — تأكد أنك نفّذت التعديل فعلًا في الجدول.</div>':''}
-      </div>`:'<p class="sa-hint">لا خط أساس سابق للمقارنة.</p>';
-
-    const ok=await dialog({title:'تأكيد تنفيذ طلب التعديل',
-      message:'سيُعلَّم هذا الطلب منفَّذًا، وتُغلق نافذة التعديل البنيوي المؤقتة.',
-      html:diffHtml,
-      fields:[{key:'bl',label:'تثبيت أساس جديد يوثّق هذا التغيير؟',type:'select',value:'yes',
-        options:[{v:'yes',t:'نعم — ثبّت أساسًا جديدًا (الأنسب لحوكمة سليمة)'},
-                 {v:'no',t:'لا — أكتفي بتعليمه منفَّذًا الآن'}]}],
-      confirmText:'تأكيد'});
-    if(!ok)return;
-    try{
-      let blId=null;
-      if(ok.bl==='yes'){
-        const nb=await saveNewBaseline(PROJECT._dbId);
-        blId=nb&&nb.id?nb.id:null;
-      }
-      await markCRExecuted(b.dataset.execcr,blId);
-      CRS=await fetchCRs(PROJECT._dbId);
-      await loadProject(CID,PID);render();
-      toast(blId?'عُلِّم منفَّذًا وثُبِّت أساس جديد':'عُلِّم منفَّذًا','ok');
-    }catch(e){toast(e.message,'err');}
-  });
-  $$('[data-rj]').forEach(b=>b.onclick=async()=>{
-    await decideCR(b.dataset.rj,{status:'rejected',decided_at:new Date().toISOString()});
-    CRS=await fetchCRs(PROJECT._dbId);
-    await refreshProjectCounts();
-    render();
-  });
-}
 
 // ===== نافذة المتطلبات =====
 let REQ_TASK=null;
@@ -419,8 +296,6 @@ $('#accAdd').onclick=async()=>{
 $('#accClose').onclick=()=>{$('#accessOverlay').style.display='none';};
 $('#accessOverlay').onclick=e=>{if(e.target.id==='accessOverlay')$('#accessOverlay').style.display='none';};
 $('#manageAccess').onclick=openAccess;
-const crAutoNote='<span class="cr-mode auto">⚡ يُطبَّق على الجدول تلقائيًا عند الموافقة</span>';
-const crManualNote='<span class="cr-mode manual">✋ يتطلب تنفيذًا يدويًا في تبويب «الجدول» بعد الموافقة</span>';
 $('#reqAdd').onclick=async()=>{
   const {data,error}=await insertRequirement({task_id:REQ_TASK._dbId,description:'متطلب جديد',owner:'client',sla_days:2,blocking:true});
   if(error){toast('تعذّر الإضافة: '+error.message,'err');return;}
@@ -446,3 +321,15 @@ $('#depSave').onclick=async()=>{
 };
 $('#depClose').onclick=()=>{$('#depOverlay').style.display='none';};
 $('#depOverlay').onclick=e=>{if(e.target.id==='depOverlay')$('#depOverlay').style.display='none';};
+
+// ===== تسجيل المعالِجات في السجلّ (src/actions.js) =====
+// المفتاح هو ما يناديه العرض، فلا يعرف ملفُّ العرض اسم دالةٍ هنا.
+registerAction('setView', setView);
+registerAction('gotoTask', gotoTask);
+registerAction('editStartDate', editStartDate);
+registerAction('openDeps', openDeps);
+registerAction('openReqs', openReqs);
+registerAction('addTask', handleAddTask);
+registerAction('deleteTask', handleDeleteTask);
+registerAction('printProject', printProject);
+registerAction('openAccess', openAccess);
