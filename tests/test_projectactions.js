@@ -95,7 +95,17 @@ console.log('\n▸ برهان التكافؤ: النقل لا يغيّر حرف�
     if (s.type === 'FunctionDeclaration' && s.id) names.add(s.id.name);
     if (s.type === 'VariableDeclaration') for (const d of s.declarations) if (d.id.type === 'Identifier') names.add(d.id.name);
   }
-  eq('١٢٧ تصريحًا عُلويًّا في الحزمة', names.size, 127);
+  // كان هنا رقمٌ مثبَّت: ١٢٧ تصريحًا — وقد أثبت تكافؤ **دفعة النقل** حين كُتب،
+  // إذ لا يجوز لنقلٍ أن يُضيف اسمًا أو يُسقطه. لكنه رقم لحظته لا قاعدة: كل ملف
+  // يتحوّل إلى وحدة يسحب أسماءه من النطاق العام، فالعدد **ينقص بحكم التقدّم**.
+  // (تحويل views.js وحده أنزله ١٢٧ ← ٧٩.)
+  //
+  // فصار سقفًا ينقص ولا يزيد — يحرس ما يحرسه فعلًا: ألّا يعود اسمٌ إلى النطاق
+  // العام بعد أن غادره.
+  const TOP_LEVEL_CAP = 79;   // W2: 127 (قبل تحويل views) ← 79. ينقص ولا يزيد.
+  t(`تصريحات النطاق العام ${names.size} ≤ ${TOP_LEVEL_CAP}`, names.size <= TOP_LEVEL_CAP,
+    names.size + ' تصريحًا — إن نقص فأنزِل السقف');
+
   const missing = [...MOVED, ...STATE].filter(n => !names.has(n));
   t('وكل ما انتقل لا يزال معلَنًا', missing.length === 0, missing.join(' '));
 }

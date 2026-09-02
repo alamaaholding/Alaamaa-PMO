@@ -18,9 +18,10 @@ const views  = fs.readFileSync('src/views.js', 'utf8');
 const config = fs.readFileSync('src/config.js', 'utf8');
 
 console.log('\n▸ البنية: المسار الافتراضي هو الصحيح');
+// صارت `export function render()` بتحويل views.js إلى وحدة — الشكل هو هو.
 t('render() غلاف لا يبني بنفسه', /function render\(\)\{\s*preserveFocus\(renderNow\);\s*\}/.test(views));
 t('البناء الفعلي انتقل إلى renderNow()', /function renderNow\(\)\{/.test(views));
-t('لا تعريف ثانٍ لـrender', (views.match(/^function render\(\)/gm) || []).length === 1);
+t('لا تعريف ثانٍ لـrender', (views.match(/^(export )?function render\(\)/gm) || []).length === 1);
 t('لا يبقى تغليف يدوي مكرَّر داخل views', !views.includes('preserveFocus(render)'));
 
 // جوهر الإصلاح: كل موضع استدعاء ينال السلوك بلا أن يتذكّره كاتبه.

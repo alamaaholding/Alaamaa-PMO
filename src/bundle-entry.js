@@ -25,6 +25,7 @@ import * as config from './config.js';
 import * as chrome from './chrome.js';
 import * as screens from './screens.js';
 import * as actions from './actions.js';
+import * as views from './views.js';
 import * as emptyStateMod from './emptystate.js';
 import * as api from './api.js';
 import * as toastMod from './toast.js';
@@ -41,7 +42,7 @@ import * as contractSign from './app/contractsign.js';
 import * as contractsHub from './app/contractshub.js';
 import { STATE_KEYS, getState, setState, savePFilters } from './app/state.js';
 
-Object.assign(globalThis, theme, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate, exportContract, chrome, screens, actions, emptyStateMod, staffAccess, workload, contractSign, contractsHub);
+Object.assign(globalThis, theme, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate, exportContract, chrome, screens, actions, views, emptyStateMod, staffAccess, workload, contractSign, contractsHub);
 
 // state.js **لا تُمرَّر كفضاء أسماء** — حالتها تصل بواصفات لا بنسخ (أدناه). لكن
 // `savePFilters` دالةٌ لا حالة، ومكانها هناك لأن القراءة المقابلة لها هناك. فتُجسَّر
