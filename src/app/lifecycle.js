@@ -2,7 +2,26 @@
 
 // منفّذ موحّد لإجراءات دورة الحياة (أرشفة/حذف/استرجاع/حذف نهائي).
 // كان النمط نفسه مكررًا 12 مرة: تأكيد → استدعاء RPC → قراءة data.ok → toast → تحديث.
-// التوحيد يضمن أيضًا التقاط الأخطاء الشبكية التي كانت تمرّ صامتة في النسخ السابقة.
+// التوحيد يضمن أيضًا التقاط الأخطاء الشبكية التي كانت تمرّ صامتة في النسخ السابقة.//
+// ═══ وحدة ESM (الموجة W2) ═══
+// كانت تنتظر openAccess من projectactions — وهو اسمٌ واحد أخّر ٢٩ KB.
+import { registerAction } from '../actions.js';
+import { addHolidayRow, addTrack, checkIsOwner, delHolidayRow, deleteTrack, fetchArchivedProjects, fetchClientsByState, fetchHolidays, fetchLatestSnapshot, fetchProjectSlug, fetchProjectStaff, fetchTeamMembers, fetchTracks, insertClient, insertProjectForClient, loadClients, loadProject, openTrello, renameProject, reorderTracks, restorePlanSnapshot, rpcArchiveClient, rpcArchiveProject, rpcPauseProject, rpcPurgeClient, rpcPurgeProject, rpcRequestDeletion, rpcRequestProjectDeletion, rpcRestoreClient, rpcRestoreProject, rpcResumeProject, saveNewBaseline, savePlanSnapshot, saveProjectStaff, updateClientInfo, updateProjectSlug, updateTrack } from '../api.js';
+import { hideChrome } from '../chrome.js';
+import { $, $$, I, projTrackList, sb } from '../config.js';
+import { esc, todayISO } from '../format.js';
+import { registerScreen, showScreen } from '../screens.js';
+import { skeleton } from '../skeleton.js';
+import { toast } from '../toast.js';
+import { undoable } from '../undo.js';
+import { writeHash } from '../urlstate.js';
+import { render } from '../views.js';
+import { openContractPanel } from './contractsign.js';
+import { confirmDialog, dialog } from './dialogs.js';
+import { openContractExport } from './exportcontract.js';
+import { openAccess } from './projectactions.js';
+import { getState, setState } from './state.js';
+
 async function runLifecycleAction(o){
   if(o.title&&!await confirmDialog(o.title,o.message,!!o.danger,o.confirmText))return false;
   let data;
@@ -17,8 +36,8 @@ async function runLifecycleAction(o){
   return false;
 }
 
-async function newProjectDialog(clientId){
-  const c=CLIENTS.find(x=>x.id===clientId)||{name:''};
+export async function newProjectDialog(clientId){
+  const c=getState('CLIENTS').find(x=>x.id===clientId)||{name:''};
   const p=await dialog({title:'مشروع جديد — '+c.name,
     message:'يُنشأ المشروع كمسوّدة بمراحله الافتراضية الأربع (قابلة للتعديل من إدارة المراحل).',
     fields:[
@@ -29,7 +48,7 @@ async function newProjectDialog(clientId){
   try{
     const proj=await insertProjectForClient(clientId,p.name,p.date||todayISO());
     toast('أُنشئ المشروع — جاهز لبناء الخطة أو الاستيراد','ok');
-    CID=clientId;PID=proj.id;await showScreen('project');
+    setState('CID', clientId);setState('PID', proj.id);await showScreen('project');
   }catch(err){toast('تعذّر الإنشاء: '+err.message,'err');}
 }
 
@@ -38,18 +57,18 @@ async function newProjectDialog(clientId){
 // قائمة إجراءات المشروع (PMO فقط) — مُصنَّفة بفئات واضحة: أساسية، حوكمة وعقود، فريق وتنفيذ،
 // ومنطقة خطر مميَّزة بصريًا لا تختلط بصريًا بالإجراءات الروتينية.
 // تنسيق احترافي: اليوم + التاريخ + الوقت — لا رقم مجرَّد
-function fmtSyncTime(iso){
+export function fmtSyncTime(iso){
   if(!iso)return null;
   return new Date(iso).toLocaleDateString('ar-SA',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+
     ' — الساعة '+new Date(iso).toLocaleTimeString('ar-SA',{hour:'numeric',minute:'2-digit'});
 }
 function projectMenuGroups(projectId,freshTrelloSync,freshLifecycleState){
-  const blN=((PROJECT&&PROJECT.baselines)||[]).length+1;
+  const blN=((getState('PROJECT')&&getState('PROJECT').baselines)||[]).length+1;
   const syncVal=freshTrelloSync!==undefined?freshTrelloSync:
-    (PROJECT&&PROJECT._dbId===projectId?PROJECT.trelloLastSync:null);
+    (getState('PROJECT')&&getState('PROJECT')._dbId===projectId?getState('PROJECT').trelloLastSync:null);
   const syncTxt=syncVal?'آخر سحب فعلي: '+fmtSyncTime(syncVal):'⚠ لم يُسحَب أي تحديث من Trello بعد إطلاقًا';
   const lifecycleState=freshLifecycleState!==undefined?freshLifecycleState:
-    (PROJECT&&PROJECT._dbId===projectId?(PROJECT.lifecycleState||'active'):'active');
+    (getState('PROJECT')&&getState('PROJECT')._dbId===projectId?(getState('PROJECT').lifecycleState||'active'):'active');
   const isPaused=lifecycleState==='paused';
   return [
     {title:'إدارة أساسية',items:[
@@ -75,7 +94,7 @@ function projectMenuGroups(projectId,freshTrelloSync,freshLifecycleState){
     ]}
   ];
 }
-async function openProjectMenu(projectId, projectName){
+export async function openProjectMenu(projectId, projectName){
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='إجراءات المشروع: '+(projectName||'');
   document.getElementById('tkTabs').innerHTML='';
@@ -103,38 +122,38 @@ async function openProjectMenu(projectId, projectName){
 }
 async function runProjectMenuAction(action,projectId,projectName){
   if(action==='exportContract'){
-    if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
+    if(!getState('PROJECT')||getState('PROJECT')._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
     return openContractExport();
   }
   if(action==='contracts'){
-    if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
+    if(!getState('PROJECT')||getState('PROJECT')._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
     return openContractPanel();
   }
   if(action==='rename'){
     const e=await dialog({title:'إعادة التسمية',fields:[{key:'name',label:'الاسم الجديد',value:projectName||''}],confirmText:'حفظ'});
     if(!e||!e.name)return;
     try{await renameProject(projectId,e.name);
-      if(PROJECT&&PROJECT._dbId===projectId){PROJECT.name=e.name;render();}
-      toast('أُعيدت التسمية','ok');if(SCREEN==='portfolio')showScreen('portfolio');
+      if(getState('PROJECT')&&getState('PROJECT')._dbId===projectId){getState('PROJECT').name=e.name;render();}
+      toast('أُعيدت التسمية','ok');if(getState('SCREEN')==='portfolio')showScreen('portfolio');
     }catch(err){toast('تعذّر: '+err.message,'err');}
   }else if(action==='editSlug'){
-    const cur=(PROJECT&&PROJECT._dbId===projectId)?(PROJECT.slug||''):await fetchProjectSlug(projectId);
+    const cur=(getState('PROJECT')&&getState('PROJECT')._dbId===projectId)?(getState('PROJECT').slug||''):await fetchProjectSlug(projectId);
     const e=await dialog({title:'الرابط الدائم للمشروع',
       fields:[{key:'slug',label:'المعرّف (حروف لاتينية وأرقام وشرطات)',value:cur}],confirmText:'حفظ'});
     if(!e||!e.slug)return;
     try{
       const clean=await updateProjectSlug(projectId,e.slug);
-      if(PROJECT&&PROJECT._dbId===projectId){PROJECT.slug=clean;writeHash();}
+      if(getState('PROJECT')&&getState('PROJECT')._dbId===projectId){getState('PROJECT').slug=clean;writeHash();}
       toast('حُفظ الرابط: '+clean,'ok');
     }catch(err){toast(err.message,'err');}
   }else if(action==='trello'){
-    if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
+    if(!getState('PROJECT')||getState('PROJECT')._dbId!==projectId){toast('افتح المشروع أولًا','warn');return;}
     openTrello();
   }else if(action==='assign'){
     openAssignPanel(projectId,projectName);
   }else if(action==='newbl'){
-    if(!PROJECT||PROJECT._dbId!==projectId){toast('افتح المشروع أولًا لحفظ أساس من جدولته الحالية','warn');return;}
-    if(!await confirmDialog('حفظ أساس جديد','سيُحفظ الوضع المجدول الحالي كأساس مرجعي جديد (v'+(((PROJECT.baselines)||[]).length+1)+') للمقارنة في الجانت. يُستخدم عادة بعد اعتماد طلب تعديل خطة.',false))return;
+    if(!getState('PROJECT')||getState('PROJECT')._dbId!==projectId){toast('افتح المشروع أولًا لحفظ أساس من جدولته الحالية','warn');return;}
+    if(!await confirmDialog('حفظ أساس جديد','سيُحفظ الوضع المجدول الحالي كأساس مرجعي جديد (v'+(((getState('PROJECT').baselines)||[]).length+1)+') للمقارنة في الجانت. يُستخدم عادة بعد اعتماد طلب تعديل خطة.',false))return;
     try{const b=await saveNewBaseline(projectId);toast('حُفظ '+b.label,'ok');render();}
     catch(e){toast('تعذّر: '+e.message,'err');}
   }else if(action==='restore_snap'){
@@ -147,11 +166,11 @@ async function runProjectMenuAction(action,projectId,projectName){
     if(!await confirmDialog('استرجاع نسخة أمان',
       'سيُستبدل الوضع الحالي للخطة كاملًا بنسخة:\n'+when+' — '+(snap.reason||'لقطة')+'\n\nسيُحفظ الوضع الحالي كلقطة أيضًا قبل الاسترجاع.',true,'استرجاع'))return;
     try{
-      if(PROJECT&&PROJECT._dbId===projectId&&PROJECT.tasks.length)
+      if(getState('PROJECT')&&getState('PROJECT')._dbId===projectId&&getState('PROJECT').tasks.length)
         await savePlanSnapshot(projectId,'الوضع قبل استرجاع لقطة سابقة');
       await restorePlanSnapshot(projectId,snap);
       toast('استُرجعت الخطة من نسخة الأمان','ok');
-      if(PROJECT&&PROJECT._dbId===projectId){await loadProject(CID,PID);render();}
+      if(getState('PROJECT')&&getState('PROJECT')._dbId===projectId){await loadProject(getState('CID'),getState('PID'));render();}
     }catch(e){toast('تعذّر الاسترجاع: '+e.message,'err');}
   }else if(action==='pause'){
     const r=await dialog({title:'إيقاف مؤقت',
@@ -162,8 +181,8 @@ async function runProjectMenuAction(action,projectId,projectName){
       const {data}=await rpcPauseProject(projectId,r.reason);
       if(data&&data.ok){
         toast('أُوقف المشروع مؤقتًا','ok');
-        if(PROJECT&&PROJECT._dbId===projectId){PROJECT.lifecycleState='paused';render();}
-        if(SCREEN==='portfolio')showScreen('portfolio');
+        if(getState('PROJECT')&&getState('PROJECT')._dbId===projectId){getState('PROJECT').lifecycleState='paused';render();}
+        if(getState('SCREEN')==='portfolio')showScreen('portfolio');
       }else toast((data&&data.error)||'تعذّر الإيقاف','err');
     }catch(e){toast('تعذّر الإيقاف: '+e.message,'err');}
   }else if(action==='resume'){
@@ -172,8 +191,8 @@ async function runProjectMenuAction(action,projectId,projectName){
       const {data}=await rpcResumeProject(projectId);
       if(data&&data.ok){
         toast('استُؤنف المشروع','ok');
-        if(PROJECT&&PROJECT._dbId===projectId){PROJECT.lifecycleState='active';render();}
-        if(SCREEN==='portfolio')showScreen('portfolio');
+        if(getState('PROJECT')&&getState('PROJECT')._dbId===projectId){getState('PROJECT').lifecycleState='active';render();}
+        if(getState('SCREEN')==='portfolio')showScreen('portfolio');
       }else toast((data&&data.error)||'تعذّر الاستئناف','err');
     }catch(e){toast('تعذّر الاستئناف: '+e.message,'err');}
   }else if(action==='archive'){
@@ -182,7 +201,7 @@ async function runProjectMenuAction(action,projectId,projectName){
       message:'أرشفة «'+(projectName||'')+'»؟ يختفي من المحفظة والخط الزمني، ويُسترجع من المؤرشفة.',
       rpc:()=>rpcArchiveProject(projectId),
       successMsg:'أُرشف المشروع',
-      onSuccess:()=>{SCREEN='portfolio';showScreen('portfolio');}
+      onSuccess:()=>{setState('SCREEN', 'portfolio');showScreen('portfolio');}
     });
   }else if(action==='delete'){
     await runLifecycleAction({
@@ -191,27 +210,27 @@ async function runProjectMenuAction(action,projectId,projectName){
       danger:true,confirmText:'حذف',
       rpc:()=>rpcRequestProjectDeletion(projectId),
       successMsg:'بدأت مهلة حذف المشروع (30 يومًا)',successTone:'warn',
-      onSuccess:()=>{SCREEN='portfolio';showScreen('portfolio');}
+      onSuccess:()=>{setState('SCREEN', 'portfolio');showScreen('portfolio');}
     });
   }
 }
 
 // مدير المراحل: لوحة تعديل مباشر (اسم + لون في مكانهما)
 
-function openTracksManager(){
-  if(!PROJECT)return;
+export function openTracksManager(){
+  if(!getState('PROJECT'))return;
   $('#trkOverlay').style.display='flex';
   renderTrkPanel();
 }
 
 function renderTrkPanel(){
-  const list=(PROJECT.tracks||[]).slice().sort((a,b)=>a.sort-b.sort);
-  // نبني على نفس مصدر الحقيقة المستخدم في الفلترة والجانت — projTrackList()، لا PROJECT.tracks وحده،
+  const list=(getState('PROJECT').tracks||[]).slice().sort((a,b)=>a.sort-b.sort);
+  // نبني على نفس مصدر الحقيقة المستخدم في الفلترة والجانت — projTrackList()، لا getState('PROJECT').tracks وحده،
   // فما تراه هنا مطابق حرفيًا لما تراه في الجدول والجانت وشريط الفلاتر.
   const live=projTrackList();
   const doneCountOf=k=>{
-    const items=(PROJECT.tasks||[]).filter(t=>t.track===k&&t.type!=='package');
-    const n=items.length,done=items.filter(t=>(TRACK&&TRACK[t.id]&&TRACK[t.id].effStatus)==='done').length;
+    const items=(getState('PROJECT').tasks||[]).filter(t=>t.track===k&&t.type!=='package');
+    const n=items.length,done=items.filter(t=>(getState('TRACK')&&getState('TRACK')[t.id]&&getState('TRACK')[t.id].effStatus)==='done').length;
     return {n,done,pct:n?Math.round(done/n*100):0};
   };
   $('#trkBody').innerHTML=`
@@ -266,18 +285,18 @@ function renderTrkPanel(){
 }
 
 async function moveTrack(id,dir){
-  const list=(PROJECT.tracks||[]).slice().sort((a,b)=>a.sort-b.sort);
+  const list=(getState('PROJECT').tracks||[]).slice().sort((a,b)=>a.sort-b.sort);
   const i=list.findIndex(t=>t.id===id),j=i+dir;
   if(i<0||j<0||j>=list.length)return;
   const a=list[i],b=list[j];
   try{
     await reorderTracks([{id:a.id,sort:b.sort},{id:b.id,sort:a.sort}]);
-    PROJECT.tracks=await fetchTracks(PROJECT._dbId);
+    getState('PROJECT').tracks=await fetchTracks(getState('PROJECT')._dbId);
     renderTrkPanel();
   }catch(e){toast('تعذّر الترتيب: '+e.message,'err');}
 }
 async function deleteTrackRow(id,n){
-  const t=(PROJECT.tracks||[]).find(x=>x.id===id);if(!t)return;
+  const t=(getState('PROJECT').tracks||[]).find(x=>x.id===id);if(!t)return;
   const msg=n>0
     ? `المرحلة «${t.name}» فيها ${n} بندًا. حذفها لا يحذف البنود، لكنها ستُعرض بلا مرحلة معروفة حتى تُنقل. هل تريد المتابعة؟`
     : `حذف المرحلة «${t.name}»؟`;
@@ -288,18 +307,18 @@ async function deleteTrackRow(id,n){
       label:'حُذفت المرحلة «'+t.name+'»',
       remove:()=>deleteTrack(id),
       refresh:async()=>{
-        PROJECT.tracks=await fetchTracks(PROJECT._dbId);
+        getState('PROJECT').tracks=await fetchTracks(getState('PROJECT')._dbId);
         renderTrkPanel();
-        if(SCREEN==='project')render();
+        if(getState('SCREEN')==='project')render();
       },
-      restore:()=>addTrack(PROJECT._dbId,snap.key,snap.name,snap.color,snap.sort),
+      restore:()=>addTrack(getState('PROJECT')._dbId,snap.key,snap.name,snap.color,snap.sort),
       doneMsg:'استُعيدت المرحلة'
     });
   }catch(e){toast('تعذّر الحذف: '+e.message,'err');}
 }
 
 async function saveTracks(){
-  const list=PROJECT.tracks||[];let changed=0;
+  const list=getState('PROJECT').tracks||[];let changed=0;
   const btn=$('#trkSave');if(btn)btn.disabled=true;
   try{
     for(const card of document.querySelectorAll('#trkBody .trk-card[data-key]')){
@@ -314,14 +333,14 @@ async function saveTracks(){
       }else if(key&&color.toLowerCase()!==(colorInput.defaultValue||'').toLowerCase()){
         // مرحلة مشتقة تلقائيًا من WBS بلا سجل تخصيص — إنشاء سجل عند أول تخصيص للون
         const name=card.querySelector('.trk-name').value.trim()||key;
-        await addTrack(PROJECT._dbId,key,name,color,(PROJECT.tracks||[]).length+1);changed++;
+        await addTrack(getState('PROJECT')._dbId,key,name,color,(getState('PROJECT').tracks||[]).length+1);changed++;
       }
     }
     const nk=($('#trkNewKey').value||'').trim();
     const nn=($('#trkNewName').value||'').trim();
-    if(nk&&nn){await addTrack(PROJECT._dbId,nk,nn,$('#trkNewColor').value,list.length);changed++;}
+    if(nk&&nn){await addTrack(getState('PROJECT')._dbId,nk,nn,$('#trkNewColor').value,list.length);changed++;}
     else if(nn&&!nk){toast('أدخل رمزًا للمرحلة الجديدة (حرف أو رقم)','warn');if(btn)btn.disabled=false;return;}
-    PROJECT.tracks=await fetchTracks(PROJECT._dbId);
+    getState('PROJECT').tracks=await fetchTracks(getState('PROJECT')._dbId);
     toast(changed?('حُفظت المراحل ('+changed+' تغيير)'):'لا تغييرات','ok');
     $('#trkOverlay').style.display='none';render();
   }catch(e){toast('تعذّر الحفظ (الرمز مكرر؟): '+e.message,'err');if(btn)btn.disabled=false;}
@@ -329,7 +348,7 @@ async function saveTracks(){
 
 // إنشاء شريك جديد مباشرة (سدّ فجوة الرحلة الأولى)
 
-async function addNewClient(){
+export async function addNewClient(){
   const r=await dialog({title:'شريك جديد',
     message:'يُنشأ الشريك نشطًا. يمكنك بعدها إضافة مشروعه الأول من قائمة ⋮ على بطاقته.',
     fields:[
@@ -346,8 +365,8 @@ async function addNewClient(){
 }
 
 
-async function openClientMenu(clientId){
-  const c=CLIENTS.find(x=>x.id===clientId); if(!c)return;
+export async function openClientMenu(clientId){
+  const c=getState('CLIENTS').find(x=>x.id===clientId); if(!c)return;
   const r=await dialog({title:'إجراءات: '+c.name,
     fields:[{key:'action',label:'الإجراء',type:'select',value:'edit',options:[
       {v:'edit',t:'تعديل بيانات الشريك (الاسم واللون)'},
@@ -380,10 +399,10 @@ async function openClientMenu(clientId){
     try{
       const proj=await insertProjectForClient(clientId,p.name,p.date||todayISO());
       toast('أُنشئ المشروع — جاهز لبناء الخطة أو الاستيراد','ok');
-      CID=clientId;PID=proj.id;await showScreen('project');
+      setState('CID', clientId);setState('PID', proj.id);await showScreen('project');
     }catch(err){toast('تعذّر الإنشاء: '+err.message,'err');}
   }else if(r.action==='access'){
-    CID=clientId;PID=null;await showScreen('project');
+    setState('CID', clientId);setState('PID', null);await showScreen('project');
     if(typeof openAccess==='function')openAccess();
   }else if(r.action==='archive'){
     await runLifecycleAction({
@@ -391,7 +410,7 @@ async function openClientMenu(clientId){
       message:'أرشفة «'+c.name+'»؟ سيُخفى من المحفظة النشطة ويمكن استرجاعه لاحقًا.',
       rpc:()=>rpcArchiveClient(clientId),
       successMsg:'تمت الأرشفة',failMsg:'تعذّرت الأرشفة',
-      onSuccess:()=>{CLIENTS=CLIENTS.filter(x=>x.id!==clientId);showScreen('portfolio');}
+      onSuccess:()=>{setState('CLIENTS', getState('CLIENTS').filter(x=>x.id!==clientId));showScreen('portfolio');}
     });
   }else if(r.action==='delete'){
     await runLifecycleAction({
@@ -400,14 +419,14 @@ async function openClientMenu(clientId){
       danger:true,confirmText:'حذف',
       rpc:()=>rpcRequestDeletion(clientId),
       successMsg:'بدأت مهلة الحذف (30 يومًا)',successTone:'warn',failMsg:'تعذّر الطلب',
-      onSuccess:()=>{CLIENTS=CLIENTS.filter(x=>x.id!==clientId);showScreen('portfolio');}
+      onSuccess:()=>{setState('CLIENTS', getState('CLIENTS').filter(x=>x.id!==clientId));showScreen('portfolio');}
     });
   }
 }
 
 
-async function renderArchived(){
-  SCREEN='archived';$('#hProject').textContent='الشركاء المؤرشفون';hideChrome();
+export async function renderArchived(){
+  setState('SCREEN', 'archived');$('#hProject').textContent='الشركاء المؤرشفون';hideChrome();
   $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span class="ms-auto">الشركاء المؤرشفون والمجدولون للحذف. الاسترجاع متاح طوال مهلة الـ30 يومًا.</span></div><div id="archList">'+skeleton('list',2)+'</div>';
   $('#backP').onclick=()=>showScreen('portfolio');
   const isOwner=await checkIsOwner();
@@ -432,7 +451,7 @@ async function renderArchived(){
     });
   }
   if(aprojs.length){
-    const cname=id=>{const c=CLIENTS.find(x=>x.id===id);return c?c.name:'';};
+    const cname=id=>{const c=getState('CLIENTS').find(x=>x.id===id);return c?c.name:'';};
     const ppend=aprojs.filter(p=>p.lifecycle_state==='pending_deletion');
     const parch=aprojs.filter(p=>p.lifecycle_state==='archived');
     if(ppend.length){
@@ -465,7 +484,7 @@ async function renderArchived(){
   list.querySelectorAll('[data-restore]').forEach(b=>b.onclick=()=>runLifecycleAction({
     rpc:()=>rpcRestoreClient(b.dataset.restore),
     successMsg:'تم الاسترجاع',
-    onSuccess:async()=>{CLIENTS=await fetchClientsByState('active');renderArchived();}}));
+    onSuccess:async()=>{setState('CLIENTS', await fetchClientsByState('active'));renderArchived();}}));
   list.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>runLifecycleAction({
     title:'طلب حذف',message:'بدء مهلة 30 يومًا لحذف هذا الشريك؟',danger:true,confirmText:'حذف',
     rpc:()=>rpcRequestDeletion(b.dataset.del),
@@ -505,7 +524,7 @@ async function openAssignPanel(projectId,projectName){
   }catch(e){body.innerHTML='<p class="pempty">تعذّر التحميل</p>';}
 }
 // ===== مدير العطلات الرسمية =====
-async function openHolidaysManager(){
+export async function openHolidaysManager(){
   $('#holOverlay').style.display='flex';
   const body=$('#holBody');body.innerHTML=skeleton('cards',1);
   const paint=async()=>{

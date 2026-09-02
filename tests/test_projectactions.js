@@ -6,12 +6,14 @@
 // شاشات، **وأفعال جدول المشروع**. والأخيرة كانت تُشكّل عشرًا من ثلاث عشرة حافةً
 // بين `views.js` و`main.js`، أي أن جدول المشروع كان يعتمد على ملف المصادقة.
 //
-// وهذه الدفعة **نقلٌ لا تحويل**: الملف يبقى في الدمج النصي بنفس النطاق المشترك.
-// وهذا ما يجعل برهان التكافؤ ممكنًا بصرامة: مجموعة التصريحات في الحزمة المبنيّة
-// يجب أن تبقى **هي هي حرفيًّا** — لا اسم يُضاف ولا اسم يسقط.
+// كُتب هذا الملف لدفعة **نقلٍ لا تحويل**، فكانت أصرم تأكيداته أن مجموعة
+// التصريحات في الحزمة لا تتغيّر حرفيًّا. ثم تحوّل الملف إلى وحدة ESM، فانقلب
+// المعنى: **الأسماء تغادر النطاق العام عمدًا** — وهذا هو المكسب لا الخسارة.
+//
+// فتُعاد صياغة التأكيدات على ما صار صحيحًا: العنقود كامل في موضعه، وسطحه
+// المكشوف هو الصادرات والمعالِجات المُسجَّلة **وحدها**، وما عداه خاصٌّ بالوحدة.
 
 const fs = require('fs');
-const { parse } = require('espree');
 const { JSDOM } = require('jsdom');
 
 let ok = 0, fail = 0;
@@ -34,7 +36,7 @@ const STATE = ['DEP_TASK', 'REQ_TASK'];
 
 console.log('\n▸ العنقود انتقل كاملًا — ولم يبقَ منه شيء');
 {
-  const notMoved = MOVED.filter(n => !new RegExp(`^(async )?function ${n}\\(`, 'm').test(pa));
+  const notMoved = MOVED.filter(n => !new RegExp(`^(export )?(async )?function ${n}\\(`, 'm').test(pa));
   t('الثلاث عشرة دالة كلها هنا', notMoved.length === 0, notMoved.join(' '));
   const leftBehind = MOVED.filter(n => new RegExp(`^(async )?function ${n}\\(`, 'm').test(main));
   t('ولا واحدة بقيت في main.js', leftBehind.length === 0, leftBehind.join(' '));
@@ -82,32 +84,23 @@ console.log('\n▸ الحدّ — والاتجاه الذي يهمّ');
   t('و views.js لا يذكر اسم أيٍّ منها — ينادي بالمفاتيح', named.length === 0, named.join(' '));
   t('بل يناديها عبر السجلّ', (views.match(/runAction\('/g) || []).length >= 15);
 
-  t('ويُبنى قبل main.js في الدمج', /'src\/app\/projectactions\.js','src\/app\/main\.js'/.test(buildPy));
+  t('خرج من الدمج النصي', !/CORE=\[[\s\S]*?'src\/app\/projectactions\.js'/.test(buildPy));
+  t('ودخل الجسر', /import \* as projectActions from '\.\/app\/projectactions\.js';/.test(
+    fs.readFileSync('src/bundle-entry.js', 'utf8')));
 }
 
-console.log('\n▸ برهان التكافؤ: النقل لا يغيّر حرفًا في سطح الحزمة');
+console.log('\n▸ السطح المكشوف — الصادرات والمعالِجات وحدها');
 {
-  // القيد الأصرم في دفعة نقل: مجموعة التصريحات العليا في الحزمة المبنيّة لا
-  // تتغيّر إطلاقًا. أي اسم يُضاف أو يسقط يعني أن النقل لم يكن نقلًا.
-  const ast = parse(bundle, { ecmaVersion: 'latest' });
-  const names = new Set();
-  for (const s of ast.body) {
-    if (s.type === 'FunctionDeclaration' && s.id) names.add(s.id.name);
-    if (s.type === 'VariableDeclaration') for (const d of s.declarations) if (d.id.type === 'Identifier') names.add(d.id.name);
-  }
-  // كان هنا رقمٌ مثبَّت: ١٢٧ تصريحًا — وقد أثبت تكافؤ **دفعة النقل** حين كُتب،
-  // إذ لا يجوز لنقلٍ أن يُضيف اسمًا أو يُسقطه. لكنه رقم لحظته لا قاعدة: كل ملف
-  // يتحوّل إلى وحدة يسحب أسماءه من النطاق العام، فالعدد **ينقص بحكم التقدّم**.
-  // (تحويل views.js وحده أنزله ١٢٧ ← ٧٩.)
-  //
-  // فصار سقفًا ينقص ولا يزيد — يحرس ما يحرسه فعلًا: ألّا يعود اسمٌ إلى النطاق
-  // العام بعد أن غادره.
-  const TOP_LEVEL_CAP = 79;   // W2: 127 (قبل تحويل views) ← 79. ينقص ولا يزيد.
-  t(`تصريحات النطاق العام ${names.size} ≤ ${TOP_LEVEL_CAP}`, names.size <= TOP_LEVEL_CAP,
-    names.size + ' تصريحًا — إن نقص فأنزِل السقف');
-
-  const missing = [...MOVED, ...STATE].filter(n => !names.has(n));
-  t('وكل ما انتقل لا يزال معلَنًا', missing.length === 0, missing.join(' '));
+  // هذا ما حلّ محلّ «١٢٧ تصريحًا»: بعد التحويل لم يعد السؤال «هل بقيت الأسماء
+  // في النطاق العام» بل عكسه — **أيّها غادره**. والمكشوف يجب أن يقتصر على ما
+  // يحتاجه غيره فعلًا: أربع صادرات وتسعة معالِجات مُسجَّلة.
+  const exported = [...pa.matchAll(/^export (?:async )?function ([\w$]+)\(/gm)].map(m => m[1]);
+  const actions = [...pa.matchAll(/registerAction\('([^']+)'/g)].map(m => m[1]);
+  eq('أربع صادرات', exported.length, 4);
+  eq('وتسعة معالِجات مُسجَّلة', actions.length, 9);
+  // والباقي خاصٌّ بالوحدة — وهذا هو المكسب: ما لا يحتاجه أحد لا يراه أحد.
+  const priv = MOVED.filter(n => !exported.includes(n));
+  t('وما عداها خاصٌّ بالوحدة', priv.length === MOVED.length - 4, priv.join(' '));
 }
 
 console.log('\n▸ وتعمل كما كانت');
@@ -124,15 +117,20 @@ console.log('\n▸ وتعمل كما كانت');
   sc.textContent = bundle;
   w.document.body.appendChild(sc);
 
-  const unreachable = MOVED.filter(n => typeof w[n] !== 'function');
-  t('الخمس عشرة كلها قابلة للنداء من النطاق المشترك', unreachable.length === 0, unreachable.join(' '));
+  const exported = ['focusTask', 'gotoTask', 'openAccess', 'openReqs'];
+  const unreachable = exported.filter(n => typeof w[n] !== 'function');
+  t('الصادرات الأربع تصل عبر الجسر', unreachable.length === 0, unreachable.join(' '));
+  // وما لم يُصدَّر **لا يصل** — وهذا مقصود لا نقص.
+  const leaked = MOVED.filter(n => !exported.includes(n) && typeof w[n] === 'function');
+  t('وما لم يُصدَّر لا يتسرّب إلى النطاق العام', leaked.length === 0, leaked.join(' '));
 
   // وسلوكٌ حقيقي لا وجود فقط: setView تحرس الصلاحية قبل أي تبديل.
   w.eval("ROLE='client'; VIEW='dashboard';");
-  w.eval("try{setView('audit');}catch(e){}");
+  w.eval("try{runAction('setView','audit');}catch(e){}");
+  // ولم تعد تُنادى بالاسم: صارت مُعالِجًا مُسجَّلًا يناديه العرض بمفتاحه.
   eq('setView لا تسمح بتبويب خارج صلاحية الدور', w.eval('VIEW'), 'dashboard');
   w.eval("ROLE='pmo';");
-  w.eval("try{setView('table');}catch(e){}");
+  w.eval("try{runAction('setView','table');}catch(e){}");
   eq('وتسمح بتبويب داخلها', w.eval('VIEW'), 'table');
 }
 

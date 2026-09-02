@@ -23,7 +23,8 @@ t('تصدير العقد يستخدم المُشغِّل الآمن',exp.include
 t('شهادة التوقيع تستخدمه',hub.includes('runPrintSafely();'));
 t('لا استدعاء مباشر متبقٍّ في العقود',!/window\.print\(\);/.test(hub));
 t('طباعة الجانت محمية أيضًا',pact.includes('window.addEventListener(\'focus\',restore)')&&pact.includes('clearTimeout(guard)'));
-t('الجانت يستعيد مستوى التكبير الأصلي',pact.includes('PX=prevPX;render();'));
+// صارت الكتابة عبر المتجر بتحويل الملف إلى وحدة — المعنى هو هو.
+t('الجانت يستعيد مستوى التكبير الأصلي',pact.includes("setState('PX', prevPX);render();"));
 
 // حوار تمهيدي بدل مفاجأة حوار المتصفح
 t('حوار يشرح ما سيُنتَج قبل التصدير',hub.includes('سيتضمّن المستند'));

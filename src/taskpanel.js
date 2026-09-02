@@ -1,7 +1,17 @@
 // ===== لوحة البند =====
 // كل ما يخص بندًا واحدًا في مكان واحد: تفاصيل · تبعيات · متطلبات · نقاش · سجل.
 // تعالج شكوى «التبويبات غير مترابطة»: بدل التنقل بين أربعة تبويبات لتكوين صورة عن بند،
-// تُفتح اللوحة من صف البند مباشرة.
+// تُفتح اللوحة من صف البند مباشرة.//
+// ═══ وحدة ESM (الموجة W2) ═══
+// تحوّلت بعد projectactions مباشرةً: كانت تنتظر منها gotoTask و openReqs.
+import { registerAction } from './actions.js';
+import { addComment, loadTaskThread, refreshProjectCounts } from './api.js';
+import { gotoTask, openReqs } from './app/projectactions.js';
+import { $, $$, AUDIT_ACTIONS, STATUS, auditTone, can, trackMeta } from './config.js';
+import { esc, fmt } from './format.js';
+import { toast } from './toast.js';
+import { render } from './views.js';
+import { getState } from './app/state.js';
 
 let TK_TASK=null,TK_VIEW='info',TK_THREAD=null,TK_LOADING=false,TK_PREVFOCUS=null;
 
@@ -13,8 +23,8 @@ const TK_TABS=[
   {k:'log', t:'سجل'}
 ];
 
-async function openTaskPanel(refId,view){
-  TK_TASK=PROJECT.tasks.find(t=>t.id===refId);
+export async function openTaskPanel(refId,view){
+  TK_TASK=getState('PROJECT').tasks.find(t=>t.id===refId);
   if(!TK_TASK){toast('البند غير موجود','warn');return;}
   TK_VIEW=view||'info';TK_THREAD=null;
   $('#tkTitle').textContent=TK_TASK.id+' — '+TK_TASK.name;
@@ -25,7 +35,7 @@ async function openTaskPanel(refId,view){
   if(ft)setTimeout(()=>ft.focus(),40);
   loadTaskPanelThread();
 }
-function closeTaskPanel(){
+export function closeTaskPanel(){
   $('#taskOverlay').style.display='none';
   TK_TASK=null;TK_THREAD=null;
   if(TK_PREVFOCUS&&TK_PREVFOCUS.focus)try{TK_PREVFOCUS.focus();}catch(e){}
@@ -34,13 +44,17 @@ function closeTaskPanel(){
 async function loadTaskPanelThread(){
   if(!TK_TASK||!TK_TASK._dbId)return;
   TK_LOADING=true;
-  try{ TK_THREAD=await loadTaskThread(PROJECT._dbId,TK_TASK._dbId); }
+  try{ TK_THREAD=await loadTaskThread(getState('PROJECT')._dbId,TK_TASK._dbId); }
   catch(e){ TK_THREAD={comments:[],audit:[],error:e.message}; }
   TK_LOADING=false;
   if(TK_TASK)renderTaskPanel();
 }
 
-function tkCount(k){
+/**
+ * عدّاد التبويب. النواة الحسابية الوحيدة هنا، وهي ما يستحقّ الاختبار — فتُصدَّر
+ * صراحةً بدل أن تُبلَغ عبر النطاق المشترك كما كانت قبل التحويل.
+ */
+export function tkCount(k){
   if(!TK_TASK)return 0;
   if(k==='deps')return (TK_TASK.depsX||[]).length;
   if(k==='reqs')return (TK_TASK.requirements||[]).length;
@@ -74,7 +88,7 @@ function renderTaskPanel(){
 
 // ---------- تفاصيل ----------
 function tkInfo(){
-  const t=TK_TASK,r=SCHED.R[t.id],k=(TRACK&&TRACK[t.id])||{};
+  const t=TK_TASK,r=getState('SCHED').R[t.id],k=(getState('TRACK')&&getState('TRACK')[t.id])||{};
   const row=(l,v)=>`<tr><th>${l}</th><td>${v}</td></tr>`;
   const meta=trackMeta(t.track);
   return `<table class="tkinfo">
@@ -101,7 +115,7 @@ function tkDeps(){
   const TY={FS:'ينتهي ← يبدأ',SS:'يبدآن معًا',FF:'ينتهيان معًا'};
   if(!d.length)return '<p class="empty">لا تبعيات — هذا البند يبدأ بلا انتظار بند آخر.</p>';
   const rows=d.map(x=>{
-    const p=PROJECT.tasks.find(t=>t.id===x.ref);
+    const p=getState('PROJECT').tasks.find(t=>t.id===x.ref);
     return `<tr><td><b>${esc(x.ref)}</b></td><td>${esc(p?p.name:'—')}</td>
       <td>${TY[x.type]||x.type}</td><td>${x.lag?(x.lag+' يوم'):'—'}</td>
       <td><button class="lnk" data-tkgo="${esc(x.ref)}">فتح</button></td></tr>`;
@@ -181,16 +195,15 @@ function bindTaskPanel(){
     const body=$('#tkBodyIn').value.trim();
     if(!body){toast('اكتب رسالة','warn');return;}
     try{
-      await addComment(PROJECT._dbId,$('#tkKind').value,body,null,TK_TASK._dbId);
+      await addComment(getState('PROJECT')._dbId,$('#tkKind').value,body,null,TK_TASK._dbId);
       toast('أُرسلت','ok');
       await loadTaskPanelThread();
       await refreshProjectCounts();
-      if(typeof render==='function'&&SCREEN==='project')render();
+      if(typeof render==='function'&&getState('SCREEN')==='project')render();
     }catch(e){ toast('تعذّر الإرسال: '+e.message,'err'); }
   };
 }
 
-window.openTaskPanel=openTaskPanel;
 
 // ===== تسجيل المعالِجات في السجلّ (src/actions.js) =====
 // المفتاح هو ما يناديه العرض، فلا يعرف ملفُّ العرض اسم دالةٍ هنا.

@@ -29,16 +29,36 @@
 // localStorage افتراضٌ حين لا يقول الرابط شيئًا؛ فإن قال، فهي نيّة صريحة من
 // المُرسِل. والعكس يعني أن رابطًا مشتركًا يُعرَض بتفضيلات المُستقبِل — وهو
 // بالضبط العطل الذي تعالجه هذه الدفعة.
-// تبديل التبويب — نقطة الدخول الوحيدة (تحدّث الرابط أيضًا)
+// تبديل التبويب — نقطة الدخول الوحيدة (تحدّث الرابط أيضًا)//
+//  ═══ وحدة ESM (الموجة W2) ═══
+//  أوّل ما تحوّل بعد views.js، وهو المفتاح: أربعة ملفات كانت تنتظره.
+//
+// ═══ ربط DOM في المستوى الأعلى — محروسٌ بعد التحويل ═══
+// كانت هذه الأسطر تعمل في القسم المدموج نصيًا، أي **بعد** الجسر. فعنصرٌ مفقود
+// كان يُسقِط بقيّة الملف وحده. وبتحويل الملف صارت تعمل في قطعة ESM التي تُوضَع
+// **أولًا** — فأيّ استثناء فيها يقتل الحزمة كلها، والجسر معها، فلا يعمل شيء.
+// (أمسك ذلك تحميلُ الحزمة في جسمٍ ناقص، وهو ما يفعله الاختبار.)
+
+import { registerAction } from '../actions.js';
+import { addClientAccess, addTask, compute, deleteRequirement, deleteTask, fetchClientAccess, insertRequirement, loadProject, removeClientAccess, setDependencies, updateProjectStart, updateRequirement } from '../api.js';
+import { $, PERMS, TYPES, can, preserveFocus, projTrackList, sb, trackMeta } from '../config.js';
+import { esc } from '../format.js';
+import { toast, toastUndo } from '../toast.js';
+import { undoable } from '../undo.js';
+import { writeHash } from '../urlstate.js';
+import { render } from '../views.js';
+import { confirmDialog, dialog } from './dialogs.js';
+import { getState, setState } from './state.js';
+
 function setView(v,ref){
-  if(!PERMS[ROLE]||PERMS[ROLE].views.indexOf(v)===-1)return;
-  VIEW=v;FOCUS_REF=ref||null;
+  if(!PERMS[getState('ROLE')]||PERMS[getState('ROLE')].views.indexOf(v)===-1)return;
+  setState('VIEW', v);setState('FOCUS_REF', ref||null);
   render();writeHash();
-  if(FOCUS_REF)focusTask(FOCUS_REF);
+  if(getState('FOCUS_REF'))focusTask(getState('FOCUS_REF'));
 }
 
 // إبراز بند بعينه بعد الانتقال إليه
-function focusTask(ref){
+export function focusTask(ref){
   setTimeout(()=>{
     const sel='[data-id="'+(window.CSS&&CSS.escape?CSS.escape(ref):ref)+'"]';
     const el=document.querySelector('#host '+sel)||document.querySelector('#host [data-grow="'+ref+'"]');
@@ -50,28 +70,28 @@ function focusTask(ref){
 }
 
 // الانتقال من أي مكان إلى بند داخل الجدول
-function gotoTask(ref){
-  TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};
-  setView(can('editStruct')||ROLE!=='client'?'table':'gantt',ref);
+export function gotoTask(ref){
+  setState('TFILTER', {phases:new Set(),statuses:new Set(),smart:new Set(),q:''});
+  setView(can('editStruct')||getState('ROLE')!=='client'?'table':'gantt',ref);
 }
 
 async function editStartDate(){
-  if(PROJECT.status==='baselined'){ toast('الخطة مثبّتة — تعديل التاريخ يتطلب طلب تعديل خطة معتمدًا','warn'); return; }
-  const cur=PROJECT.start||'';
+  if(getState('PROJECT').status==='baselined'){ toast('الخطة مثبّتة — تعديل التاريخ يتطلب طلب تعديل خطة معتمدًا','warn'); return; }
+  const cur=getState('PROJECT').start||'';
   const r=await dialog({title:'تعديل تاريخ بدء المشروع',
     message:'هذا التاريخ هو الأساس الذي تُحسب منه كل تواريخ المهام تلقائيًا (CPM). تغييره يعيد جدولة المشروع بالكامل.',
     fields:[{key:'date',label:'تاريخ البدء',type:'date',value:cur}],confirmText:'تحديث وإعادة الجدولة'});
   if(!r||!r.date)return;
   try{
-    await updateProjectStart(PROJECT._dbId, r.date);
-    PROJECT.start=r.date;
+    await updateProjectStart(getState('PROJECT')._dbId, r.date);
+    getState('PROJECT').start=r.date;
     toast('حُدّث تاريخ البدء — أُعيد حساب الجدول','ok');
-    await loadProject(CID,PID); render();
+    await loadProject(getState('CID'),getState('PID')); render();
   }catch(e){ toast('تعذّر التحديث: '+e.message,'err'); }
 }
 
-async function openAccess(){
-  const c=CLIENTS.find(x=>x.id===CID);
+export async function openAccess(){
+  const c=getState('CLIENTS').find(x=>x.id===getState('CID'));
   $('#accTitle').textContent='إدارة وصول: '+c.name;
   $('#accEmail').value='';
   await renderAccessList();
@@ -79,7 +99,7 @@ async function openAccess(){
 }
 
 async function renderAccessList(){
-  const {data,error}=await fetchClientAccess(CID);
+  const {data,error}=await fetchClientAccess(getState('CID'));
   const list=$('#accList');
   if(error){list.innerHTML='<p style="color:var(--crit);font-size:.82rem">تعذّر التحميل: '+esc(error.message)+'</p>';return;}
   if(!data||!data.length){list.innerHTML='<p class="empty" style="color:var(--muted);font-style:italic;font-size:.85rem">لا إيميلات مضافة بعد.</p>';return;}
@@ -95,15 +115,15 @@ async function renderAccessList(){
 // ===== نافذة المتطلبات =====
 let REQ_TASK=null;
 
-async function openReqs(refId){
-  REQ_TASK=PROJECT.tasks.find(t=>t.id===refId);if(!REQ_TASK)return;
+export async function openReqs(refId){
+  REQ_TASK=getState('PROJECT').tasks.find(t=>t.id===refId);if(!REQ_TASK)return;
   $('#reqTitle').textContent='متطلبات البند: '+REQ_TASK.name;
   renderReqs();
   $('#reqOverlay').style.display='flex';
 }
 
 function renderReqs(){
-  const canEdit=PERMS[ROLE].editReqs;
+  const canEdit=PERMS[getState('ROLE')].editReqs;
   const reqs=REQ_TASK.requirements||[];
   const ST={received:'مُستلم',pending:'بانتظار',overdue:'متأخر',notrequested:'لم يُطلب',latejust:'مُستلم متأخرًا'};
   const OWN={client:'الشريك',alamah:'علامة'};
@@ -165,29 +185,29 @@ async function handleAddTask(){
       {key:'type',label:'النوع',type:'select',value:'task',options:Object.keys(TYPES).map(k=>({v:k,t:TYPES[k]}))},
       {key:'duration',label:'المدة (أيام عمل)',type:'number',value:'1'},
       {key:'parent',label:'ضمن حزمة (اختياري)',type:'select',value:'',
-        options:[{v:'',t:'— بدون حزمة —'}].concat(PROJECT.tasks.filter(t=>t.type==='package').map(p=>({v:p.id,t:p.id+' — '+p.name})))}
+        options:[{v:'',t:'— بدون حزمة —'}].concat(getState('PROJECT').tasks.filter(t=>t.type==='package').map(p=>({v:p.id,t:p.id+' — '+p.name})))}
     ],confirmText:'إضافة'});
   if(!r)return;
   if(!r.ref){toast('المعرّف مطلوب','warn');return;}
-  if(PROJECT.tasks.some(t=>t.id===r.ref)){toast('المعرّف مستخدم بالفعل','warn');return;}
+  if(getState('PROJECT').tasks.some(t=>t.id===r.ref)){toast('المعرّف مستخدم بالفعل','warn');return;}
   const _d=parseInt(r.duration||'1',10);
   if(r.type==='task'&&(!_d||_d<1)){toast('مدة المهمة لا تقل عن يوم واحد — للأحداث اللحظية استخدم نوع «معلم»','warn');return;}
   if(r.type==='package'&&r.parent){toast('حزمة العمل لا تكون داخل حزمة أخرى (مستويان: حزمة ← مهام)','warn');return;}
   let _parentDb=null;
-  if(r.parent){const pk=PROJECT.tasks.find(t=>t.id===r.parent&&t.type==='package');
+  if(r.parent){const pk=getState('PROJECT').tasks.find(t=>t.id===r.parent&&t.type==='package');
     if(!pk){toast('الحزمة المحددة غير موجودة','warn');return;}
     r.track=pk.track; _parentDb=pk._dbId;}
   try{
-    await addTask(PROJECT._dbId,{ref:r.ref,name:r.name||'بند جديد',track:r.track,type:r.type,duration:r.type==='package'?0:parseInt(r.duration||'1',10),parent_id:_parentDb});
-    await loadProject(CID,PID);
+    await addTask(getState('PROJECT')._dbId,{ref:r.ref,name:r.name||'بند جديد',track:r.track,type:r.type,duration:r.type==='package'?0:parseInt(r.duration||'1',10),parent_id:_parentDb});
+    await loadProject(getState('CID'),getState('PID'));
     toast('أُضيف البند بنجاح','ok');
     render();
   }catch(e){toast('تعذّر الإضافة: '+(e.message.includes('duplicate')?'المعرّف مستخدم':e.message),'err');}
 }
 
 async function handleDeleteTask(refId){
-  const t=PROJECT.tasks.find(x=>x.id===refId);if(!t)return;
-  const dependents=PROJECT.tasks.filter(x=>(x.deps||[]).includes(refId)).map(x=>x.id);
+  const t=getState('PROJECT').tasks.find(x=>x.id===refId);if(!t)return;
+  const dependents=getState('PROJECT').tasks.filter(x=>(x.deps||[]).includes(refId)).map(x=>x.id);
   let msg='حذف البند «'+t.name+'» ('+refId+')؟';
   if(dependents.length)msg+='\n\nتنبيه: تعتمد عليه البنود: '+dependents.join('، ')+' — ستُزال هذه الروابط.';
   if(!await confirmDialog('تأكيد الحذف',msg,true,'حذف'))return;
@@ -200,24 +220,24 @@ async function handleDeleteTask(refId){
       blocking:q.blocking,requested_at:q.requested||null,received_at:q.received||null}))};
   try{
     await deleteTask(t._dbId);
-    await loadProject(CID,PID);
+    await loadProject(getState('CID'),getState('PID'));
     render();
     toastUndo('حُذف «'+snap.ref+' — '+snap.name+'»',async()=>{
-      const parentDb=snap.parent?((PROJECT.tasks.find(x=>x.id===snap.parent)||{})._dbId||null):null;
-      const row={project_id:PROJECT._dbId,ref:snap.ref,name:snap.name,track:snap.track,type:snap.type,
+      const parentDb=snap.parent?((getState('PROJECT').tasks.find(x=>x.id===snap.parent)||{})._dbId||null):null;
+      const row={project_id:getState('PROJECT')._dbId,ref:snap.ref,name:snap.name,track:snap.track,type:snap.type,
         duration:snap.duration,deliverable:snap.deliverable,owner:snap.owner,
         status:snap.status,progress:snap.progress,sort_order:snap.sort};
       if(parentDb)row.parent_id=parentDb;
       const {data,error}=await sb.from('pmo_tasks').insert(row).select().single();
       if(error)throw error;
-      const refDb={};PROJECT.tasks.forEach(x=>refDb[x.id]=x._dbId);refDb[snap.ref]=data.id;
+      const refDb={};getState('PROJECT').tasks.forEach(x=>refDb[x.id]=x._dbId);refDb[snap.ref]=data.id;
       const depRows=[];
-      snap.deps.forEach(d=>{if(refDb[d])depRows.push({project_id:PROJECT._dbId,task_id:data.id,depends_on_id:refDb[d]});});
-      snap.dependents.forEach(d=>{if(refDb[d])depRows.push({project_id:PROJECT._dbId,task_id:refDb[d],depends_on_id:data.id});});
+      snap.deps.forEach(d=>{if(refDb[d])depRows.push({project_id:getState('PROJECT')._dbId,task_id:data.id,depends_on_id:refDb[d]});});
+      snap.dependents.forEach(d=>{if(refDb[d])depRows.push({project_id:getState('PROJECT')._dbId,task_id:refDb[d],depends_on_id:data.id});});
       if(depRows.length)await sb.from('pmo_dependencies').insert(depRows);
       if(snap.requirements.length)
         await sb.from('pmo_requirements').insert(snap.requirements.map(q=>Object.assign({task_id:data.id},q)));
-      await loadProject(CID,PID);render();
+      await loadProject(getState('CID'),getState('PID'));render();
       toast('استُعيد البند بكامل روابطه ومتطلباته','ok');
     });
   }catch(e){toast('تعذّر الحذف: '+e.message,'err');}
@@ -226,7 +246,7 @@ async function handleDeleteTask(refId){
 let DEP_TASK=null;
 
 function openDeps(refId){
-  DEP_TASK=PROJECT.tasks.find(t=>t.id===refId);if(!DEP_TASK)return;
+  DEP_TASK=getState('PROJECT').tasks.find(t=>t.id===refId);if(!DEP_TASK)return;
   $('#depTitle').textContent='تبعيات: '+DEP_TASK.name+' ('+DEP_TASK.id+')';
   renderDeps();
   $('#depOverlay').style.display='flex';
@@ -237,9 +257,9 @@ function renderDeps(){
   // البنود المتاحة كاعتماد = كل البنود عدا نفسه (ومنع الدوائر المباشرة: لا نعرض من يعتمد عليه)
   const dependents=new Set();
   // إيجاد كل من يعتمد على DEP_TASK (مباشرة أو غير مباشرة) لمنع الدورات
-  function collectDependents(ref){PROJECT.tasks.forEach(t=>{if((t.deps||[]).includes(ref)&&!dependents.has(t.id)){dependents.add(t.id);collectDependents(t.id);}});}
+  function collectDependents(ref){getState('PROJECT').tasks.forEach(t=>{if((t.deps||[]).includes(ref)&&!dependents.has(t.id)){dependents.add(t.id);collectDependents(t.id);}});}
   collectDependents(DEP_TASK.id);
-  const opts=PROJECT.tasks.filter(t=>t.id!==DEP_TASK.id&&!dependents.has(t.id));
+  const opts=getState('PROJECT').tasks.filter(t=>t.id!==DEP_TASK.id&&!dependents.has(t.id));
   const xmap={};(DEP_TASK.depsX||[]).forEach(x=>{xmap[x.ref]=x;});
   $('#depList').innerHTML=opts.map(t=>{const on=current.has(t.id),x=xmap[t.id]||{type:'FS',lag:0};
     return `<div class="dep-row" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;font-size:.84rem">
@@ -262,11 +282,11 @@ function printProject(mode){
   if(mode==='gantt'){
     // الجانت يُصغَّر للطباعة ثم يُستعاد. الاستعادة كانت معلَّقة على afterprint وحده — فإن
     // لم يُطلقه المتصفح يبقى المخطط مصغَّرًا بعد إغلاق الحوار ويبدو أن العرض تعطّل.
-    const prevPX=PX; PX=6; render();
+    const prevPX=getState('PX'); setState('PX', 6); render();
     let done=false;
     const restore=()=>{
       if(done)return;done=true;
-      PX=prevPX;render();
+      setState('PX', prevPX);render();
       window.removeEventListener('afterprint',restore);
       window.removeEventListener('focus',restore);
       clearTimeout(guard);
@@ -286,41 +306,41 @@ function printProject(mode){
 // نصفها الآخر (openAccess · openReqs · openDeps ونظيراتها في التصيير) انتقل هنا
 // — أي أن حوارًا واحدًا كان **مقسومًا بين ملفّين**. وهو نفس النمط الذي تكرّر في
 // طبقة الرابط وفي مفتاح pmo_pfilters: النصف هنا والنصف هناك.
-$('#accAdd').onclick=async()=>{
+{const _el=$('#accAdd'); if(_el)_el.onclick=async()=>{
   const email=$('#accEmail').value.trim().toLowerCase();
   if(!email||!email.includes('@')){toast('أدخل إيميلًا صحيحًا','warn');return;}
-  const {error}=await addClientAccess(CID,email);
+  const {error}=await addClientAccess(getState('CID'),email);
   if(error){toast(error.message.includes('duplicate')?'هذا الإيميل مُضاف مسبقًا':('تعذّر الإضافة: '+error.message),'err');return;}
   $('#accEmail').value='';await renderAccessList();
-};
-$('#accClose').onclick=()=>{$('#accessOverlay').style.display='none';};
-$('#accessOverlay').onclick=e=>{if(e.target.id==='accessOverlay')$('#accessOverlay').style.display='none';};
-$('#manageAccess').onclick=openAccess;
-$('#reqAdd').onclick=async()=>{
+};}
+{const _el=$('#accClose'); if(_el)_el.onclick=()=>{$('#accessOverlay').style.display='none';};}
+{const _el=$('#accessOverlay'); if(_el)_el.onclick=e=>{if(e.target.id==='accessOverlay')$('#accessOverlay').style.display='none';};}
+{const _el=$('#manageAccess'); if(_el)_el.onclick=openAccess;}
+{const _el=$('#reqAdd'); if(_el)_el.onclick=async()=>{
   const {data,error}=await insertRequirement({task_id:REQ_TASK._dbId,description:'متطلب جديد',owner:'client',sla_days:2,blocking:true});
   if(error){toast('تعذّر الإضافة: '+error.message,'err');return;}
   REQ_TASK.requirements.push({_id:data.id,desc:'متطلب جديد',owner:'client',sla:2,blocking:true,requested:'',received:''});
   compute();renderReqs();
-};
-$('#reqClose').onclick=()=>{$('#reqOverlay').style.display='none';render();};
-$('#reqOverlay').onclick=e=>{if(e.target.id==='reqOverlay'){$('#reqOverlay').style.display='none';render();}};
-$('#depSave').onclick=async()=>{
+};}
+{const _el=$('#reqClose'); if(_el)_el.onclick=()=>{$('#reqOverlay').style.display='none';render();};}
+{const _el=$('#reqOverlay'); if(_el)_el.onclick=e=>{if(e.target.id==='reqOverlay'){$('#reqOverlay').style.display='none';render();}};}
+{const _el=$('#depSave'); if(_el)_el.onclick=async()=>{
   const links=[...document.querySelectorAll('#depList [data-dep]:checked')].map(c=>{
-    const ref=c.dataset.dep;const t=PROJECT.tasks.find(x=>x.id===ref);if(!t)return null;
+    const ref=c.dataset.dep;const t=getState('PROJECT').tasks.find(x=>x.id===ref);if(!t)return null;
     const s=document.querySelector(`[data-deptype="${ref}"]`),l=document.querySelector(`[data-deplag="${ref}"]`);
     return {db:t._dbId,type:(s&&s.value)||'FS',lag:parseInt((l&&l.value)||'0',10)||0};
   }).filter(Boolean);
   const dbIds=links;
   try{
-    await setDependencies(PROJECT._dbId,DEP_TASK._dbId,dbIds);
-    await loadProject(CID,PID);
+    await setDependencies(getState('PROJECT')._dbId,DEP_TASK._dbId,dbIds);
+    await loadProject(getState('CID'),getState('PID'));
     $('#depOverlay').style.display='none';
     toast('حُدّثت التبعيات','ok');
     render();
   }catch(e){toast('تعذّر الحفظ: '+e.message,'err');}
-};
-$('#depClose').onclick=()=>{$('#depOverlay').style.display='none';};
-$('#depOverlay').onclick=e=>{if(e.target.id==='depOverlay')$('#depOverlay').style.display='none';};
+};}
+{const _el=$('#depClose'); if(_el)_el.onclick=()=>{$('#depOverlay').style.display='none';};}
+{const _el=$('#depOverlay'); if(_el)_el.onclick=e=>{if(e.target.id==='depOverlay')$('#depOverlay').style.display='none';};}
 
 // ===== تسجيل المعالِجات في السجلّ (src/actions.js) =====
 // المفتاح هو ما يناديه العرض، فلا يعرف ملفُّ العرض اسم دالةٍ هنا.
