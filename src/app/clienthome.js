@@ -4,11 +4,27 @@
 // المستخدمة هناك — لا حساب مكرّر، ولا احتمال انحراف بين الصفحتين.
 
 // ذاكرة الأعضاء انتقلت إلى api.js — كان contractshub.js يقرأ هذه الرابطة مباشرةً.
+// ═══ وحدة ESM ═══
+// صفحة الشريك: تُسجَّل في سجلّ الشاشات كسابقتها. وصادرها الوحيد
+// `resolveClientIdentifier` — يحتاجه محلّل الرابط في main.js وحده.
+
+import { cachedTeamMembers, ensureMembersCache, fetchAllStaffAccess, fetchPortfolio, grantStaffAccess, renderPortfolioGantt, revokeStaffAccess, updateClientProfile, updateClientSlug } from '../api.js';
+import { hideChrome } from '../chrome.js';
+import { $, $$, I, aggregateClientRows, computeProjectStatus, renderStatusBadge } from '../config.js';
+import { emptyState } from '../emptystate.js';
+import { esc } from '../format.js';
+import { registerScreen, showScreen } from '../screens.js';
+import { skeleton } from '../skeleton.js';
+import { toast } from '../toast.js';
+import { writeClientHash } from '../urlstate.js';
+import { confirmDialog } from './dialogs.js';
+import { newProjectDialog, openClientMenu } from './lifecycle.js';
+import { getState, setState } from './state.js';
 
 async function renderClientHome(clientId){
-  const c=CLIENTS.find(x=>x.id===clientId);
+  const c=getState('CLIENTS').find(x=>x.id===clientId);
   if(!c){toast('شريك غير موجود','err');await showScreen('portfolio');return;}
-  SCREEN='clienthome';CID=clientId;PID=null;
+  setState('SCREEN', 'clienthome');setState('CID', clientId);setState('PID', null);
   $('#hProject').textContent=c.name;
   $('#barClient').style.display='none';hideChrome();
   writeClientHash(clientId);
@@ -43,16 +59,10 @@ async function renderClientHome(clientId){
   if(stats.list.length)renderPortfolioGantt(clientId,'chGanttWrap');
 }
 
-function writeClientHash(clientId){
-  const c=CLIENTS.find(x=>x.id===clientId);
-  const h='#/c/'+((c&&c.slug)||clientId);
-  if(location.hash===h)return;
-  try{history.replaceState(null,'',h);}catch(e){location.hash=h;}
-}
 // يحلّ أي معرّف شريك وارد من الرابط (نظيف أو خام) إلى المعرّف الحقيقي — يضمن أن كل رابط
 // سبق مشاركته يبقى يعمل للأبد، بصرف النظر عن أي تغيير لاحق في معرّف الشريك النظيف.
-function resolveClientIdentifier(idOrSlug){
-  const c=(CLIENTS||[]).find(x=>x.slug===idOrSlug)||(CLIENTS||[]).find(x=>x.id===idOrSlug);
+export function resolveClientIdentifier(idOrSlug){
+  const c=(getState('CLIENTS')||[]).find(x=>x.slug===idOrSlug)||(getState('CLIENTS')||[]).find(x=>x.id===idOrSlug);
   return c?c.id:null;
 }
 
@@ -118,7 +128,7 @@ function renderCHBody(stats,access){
       <div class="sa-grants">${accessRows}</div>
     </div>`;
 
-  $$('#chBody [data-openp]').forEach(b=>b.onclick=async()=>{CID=stats.cid;PID=b.dataset.openp;await showScreen('project');});
+  $$('#chBody [data-openp]').forEach(b=>b.onclick=async()=>{setState('CID', stats.cid);setState('PID', b.dataset.openp);await showScreen('project');});
   const nb=$('#chNewProj');if(nb)nb.onclick=()=>newProjectDialog(stats.cid);
   const scopeSel=$('#chScope'),projSel=$('#chProj');
   if(scopeSel)scopeSel.onchange=()=>{projSel.style.display=(scopeSel.value==='project')?'':'none';};
@@ -147,7 +157,6 @@ function renderCHBody(stats,access){
   });
 }
 
-window.renderClientHome=renderClientHome;
 
 // ===== لوحة إعدادات الشريك — الرابط الدائم والملف التعاقدي، خلف زر مخصَّص لا ظاهرين دائمًا =====
 function openClientSettings(stats,access){
@@ -210,7 +219,6 @@ function openClientSettings(stats,access){
     }catch(e){toast('تعذّر الحفظ: '+e.message,'err');btn.disabled=false;}
   };
 }
-window.openClientSettings=openClientSettings;
 
 // ===== تسجيل الشاشة في السجلّ (src/screens.js) =====
 // المفتاح هو ما يناديه بقية التطبيق، فلا ملف شاشةٍ يعرف اسم دالة شاشةٍ أخرى.

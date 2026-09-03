@@ -24,7 +24,9 @@ toast=()=>{};CLIENTS=[];
 (async()=>{
   const toolsOf=async(role,owner)=>{
     ROLE=role;IS_OWNER=owner;
-    await renderPortfolio();
+    // عبر سجلّ الشاشات لا بالاسم: renderPortfolio صارت داخل وحدة ESM فلم تعد
+    // على النطاق العام. والمسار هنا هو مسار التطبيق الحقيقي، لا بديلًا عنه.
+    await showScreen('portfolio');
     return [...document.querySelectorAll('#toolsPop button')].map(b=>b.id);
   };
 
@@ -49,7 +51,7 @@ toast=()=>{};CLIENTS=[];
 
   // ===== الأداة موصولة بمعالجها فعليًا (لا زر ميت) =====
   ROLE='pmo';IS_OWNER=false;
-  await renderPortfolio();
+  await showScreen('portfolio');
   const btn=document.getElementById('showOrgProfile');
   t('زر الأداة موصول بمعالج فعلي لا زر ميت',!!(btn&&typeof btn.onclick==='function'));
 
@@ -62,7 +64,7 @@ const wait=setInterval(()=>{
   const pf=fs.readFileSync('src/app/portfolio.js','utf8');
   const extra=[
     ['بوابة الواجهة تطابق سياسة القاعدة (مالك أو مدير)',
-      pf.includes("if(IS_OWNER||ROLE==='pmo'){toolItems.push({g:'إعدادات',id:'showCapacity'")],
+      pf.includes("if(getState('IS_OWNER')||getState('ROLE')==='pmo'){toolItems.push({g:'إعدادات',id:'showCapacity'")],
     ['openOrgProfile معرَّفة',/async function openOrgProfile/.test(pf)],
   ];
   let ok=0,fail=0;

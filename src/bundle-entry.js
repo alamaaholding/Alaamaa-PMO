@@ -43,9 +43,14 @@ import * as staffAccess from './app/staffaccess.js';
 import * as workload from './app/workload.js';
 import * as contractSign from './app/contractsign.js';
 import * as contractsHub from './app/contractshub.js';
+// شاشتان تُسجَّلان في سجلّ الشاشات ولا تُصدّران شيئًا يحتاجه القديم — عدا
+// `resolveClientIdentifier` (يستدعيها محلّل الرابط في main.js). فالمحفظة تُستورَد
+// لأثرها وحده، وصفحة الشريك تُمرَّر إلى الجسر لاسمها الواحد.
+import './app/portfolio.js';
+import * as clientHome from './app/clienthome.js';
 import { STATE_KEYS, getState, setState, savePFilters } from './app/state.js';
 
-Object.assign(globalThis, theme, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate, exportContract, chrome, screens, actions, views, projectActions, taskPanel, lifecycle, emptyStateMod, staffAccess, workload, contractSign, contractsHub);
+Object.assign(globalThis, theme, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate, exportContract, chrome, screens, actions, views, projectActions, taskPanel, lifecycle, emptyStateMod, staffAccess, workload, contractSign, contractsHub, clientHome);
 
 // state.js **لا تُمرَّر كفضاء أسماء** — حالتها تصل بواصفات لا بنسخ (أدناه). لكن
 // `savePFilters` دالةٌ لا حالة، ومكانها هناك لأن القراءة المقابلة لها هناك. فتُجسَّر

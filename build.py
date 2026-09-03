@@ -9,8 +9,7 @@ ROOT=os.path.dirname(os.path.abspath(__file__))
 def read(p): return open(os.path.join(ROOT,p),encoding='utf-8').read()
 def write(p,c): open(os.path.join(ROOT,p),'w',encoding='utf-8').write(c)
 
-CORE=[            'src/app/session.js',
-      'src/app/portfolio.js','src/app/clienthome.js','src/app/main.js']
+CORE=['src/app/session.js','src/app/main.js']
 LAZY=['src/dol.js','src/importer.js','src/pgantt.js','src/timeline.js','src/trello.js','src/qrgen.js']
 
 # ===== حزمة ESM: الوحدات المُحوَّلة تُحزَم بـesbuild وتُوضع أولًا =====

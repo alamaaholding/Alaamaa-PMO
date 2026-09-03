@@ -286,9 +286,40 @@ console.log('\n▸ التصغير: مساحة بلا فقد إمكانية ال�
 
   // وسقف الحجم — ينقص ولا يزيد. غيابُه هو ما سمح بمئة كيلوبايت من النموّ الصامت.
   const KB = Math.round(bundle.length / 1024);
-  const CORE_KB_CAP = 420;   // W2: 621 (ascii) ← 414 (utf8). الهدف < 250 (W6).
+  const CORE_KB_CAP = 410;   // W2: 621 (ascii) ← 414 (utf8) ← 409 (شاشتان). الهدف < 250 (W6).
   t(`النواة ${KB} KB ≤ ${CORE_KB_CAP}`, KB <= CORE_KB_CAP,
     KB + ' KB — إن نقصت فأنزِل السقف');
+}
+
+console.log('\n▸ الشاشتان الأوليان — والمتبقّي من الدمج النصي ملفّان');
+{
+  const pf = fs.readFileSync('src/app/portfolio.js', 'utf8');
+  const ch = fs.readFileSync('src/app/clienthome.js', 'utf8');
+
+  t('portfolio.js خرج من الدمج النصي', !/CORE=\[[^\]]*portfolio/.test(buildPy));
+  t('clienthome.js خرج من الدمج النصي', !/CORE=\[[^\]]*clienthome/.test(buildPy));
+
+  // الحالة عبر المتجر لا عبر النطاق: لا إسناد مجرَّد بقي لأي مفتاح حالة في الملفّين.
+  const KEYS = ['ROLE', 'IS_OWNER', 'CLIENTS', 'CID', 'PID', 'SCREEN',
+    'PFILTER', 'PSEARCH', 'PEXPANDED', 'PALERTS', 'PSORT'];
+  for (const [n, src] of [['portfolio', pf], ['clienthome', ch]]) {
+    const bare = KEYS.filter(k => new RegExp(`(?<![\\w.$'])${k}(?![\\w$'])`).test(src));
+    t(`${n}.js لا يمسّ الحالة إلا عبر المتجر`, bare.length === 0, bare.join(' '));
+  }
+
+  // الشاشتان تُسجَّلان ولا تُصدّران أسماء تُنادى بها — الاسم الوحيد المُصدَّر
+  // من صفحة الشريك يحتاجه محلّل الرابط، وسيسقط هو الآخر يوم يتحوّل main.js.
+  t('المحفظة لا تُصدّر شيئًا', !/^export /m.test(pf));
+  t('صفحة الشريك تُصدّر resolveClientIdentifier وحدها',
+    (ch.match(/^export /gm) || []).length === 1 && /^export function resolveClientIdentifier/m.test(ch));
+  t('كلتاهما تُسجَّل في سجلّ الشاشات',
+    /registerScreen\('portfolio'/.test(pf) && /registerScreen\('clienthome'/.test(ch));
+  t('ولا إسناد إلى window بقي', !/^window\./m.test(pf) && !/^window\./m.test(ch));
+
+  // العدّاد الحقيقي للموجة: ما بقي في الدمج النصي. اثنان، وهما دورةٌ تُحوَّل معًا.
+  const core = (buildPy.match(/CORE=\[([^\]]*)\]/) || ['', ''])[1];
+  const left = (core.match(/'/g) || []).length / 2;
+  t('بقي ملفّان في الدمج النصي: session و main', left === 2, left + ' ملفًا: ' + core);
 }
 
 console.log('\n▸ الجسر مؤقّت بطبيعته — موثَّق لا منسيّ');

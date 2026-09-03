@@ -145,6 +145,15 @@ export function writePortfolioHash(){
   writeLocked(h);
 }
 
+// كاتبةٌ ثالثة كانت خارج القفل: عاشت في app/clienthome.js بنسخةٍ يدوية من
+// `history.replaceState` لا تمسّ `hashLock`. فكانت كل نقلةٍ إلى صفحة شريك تُطلق
+// hashchange يراه المُعالِج كتنقّلٍ من المستخدم فيُعيد التصيير — وهو بالضبط
+// العطل الذي وُضع القفل لأجله. فانتقلت إلى جوار أختيها وصارت تكتب بـwriteLocked.
+export function writeClientHash(clientId){
+  const c=(getState('CLIENTS')||[]).find(x=>x.id===clientId);
+  writeLocked('#/c/'+((c&&c.slug)||clientId));
+}
+
 export function writeHash(){
   // سقطت حراسة `typeof SCREEN==='undefined'`: كانت من زمن النطاق المشترك حيث
   // الترتيب النصّي هو كل شيء. و getState تُرجع قيمةً دائمًا لمفتاح معروف.
