@@ -12,6 +12,22 @@
 // الافتراضية لم تنفذ من اتصالنا. فبدل الاعتماد على منع لا يمكن التحقق من نفاذه، نكشف
 // التسرّب متى حدث ونصلحه بضغطة. يفحص أيضًا تعدّد توقيعات الدوال — النمط الذي سبّب سابقًا
 // ثغرة تجاوز تحقق الهوية (نسخة قديمة بلا فحص رمز بقيت حيّة).
+// ═══ وحدة ESM ═══
+// شاشة المحفظة: نقطة الدخول البصرية للمكتب. تُسجَّل في سجلّ الشاشات لا تُنادى
+// بالاسم، فلا يعرف عنها أحدٌ شيئًا سوى مفتاحها.
+
+import { deleteJobRole, fetchAutomationSettings, fetchCapacityTree, fetchContractsNeedingReminder, fetchOrgProfile, fetchPortfolio, openDOL, openTrello, renderPortfolioGantt, runSecurityAudit, saveDepartment, saveJobRole, updateAutomationSettings, updateOrgProfile } from '../api.js';
+import { hideChrome } from '../chrome.js';
+import { $, I, PROJECT_STATUS_DEFS, aggregateClientRows, renderStatusBadge, worstProjectStatus } from '../config.js';
+import { esc } from '../format.js';
+import { registerScreen, showScreen } from '../screens.js';
+import { skeleton } from '../skeleton.js';
+import { toast } from '../toast.js';
+import { writePortfolioHash } from '../urlstate.js';
+import { confirmDialog } from './dialogs.js';
+import { addNewClient, newProjectDialog, openClientMenu, openHolidaysManager, openProjectMenu } from './lifecycle.js';
+import { getState, savePFilters, setState } from './state.js';
+
 async function openSecurityAudit(){
   document.getElementById('taskOverlay').style.display='flex';
   document.getElementById('tkTitle').textContent='فحص أمني';
@@ -262,13 +278,13 @@ function legendDescOf(key){
   }[key]||'';
 }
 async function renderPortfolio(){
-  SCREEN='portfolio';
+  setState('SCREEN', 'portfolio');
   writePortfolioHash();
   $('#hProject').textContent='محفظة المشاريع';
   $('#barClient').style.display='none';hideChrome();
-  const isStaff=(ROLE==='pmo'||ROLE==='delivery');
+  const isStaff=(getState('ROLE')==='pmo'||getState('ROLE')==='delivery');
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
-  const skel=CLIENTS.map(()=>'<div class="pcard">'+skeleton('panel',3)+'</div>').join('');
+  const skel=getState('CLIENTS').map(()=>'<div class="pcard">'+skeleton('panel',3)+'</div>').join('');
   const toolItems=[];
   if(isStaff){
     toolItems.push({g:'عروض شاملة',id:'showPGantt',t:'الخط الزمني الشامل',i:'📅'});
@@ -278,7 +294,7 @@ async function renderPortfolio(){
     toolItems.push({g:'عروض شاملة',id:'showWorkload',t:'حِمل العمل',i:'📊'});
   toolItems.push({g:'إدارة',id:'showContractsHub',t:'إدارة العقود',i:'✍️'});
   }
-  if(ROLE==='pmo'){
+  if(getState('ROLE')==='pmo'){
     toolItems.push({g:'إعدادات',id:'showHolidays',t:'العطلات الرسمية',i:'🗓'});
     toolItems.push({g:'إدارة',id:'showArchived',t:'المؤرشفة',i:'🗄'});
     toolItems.push({g:'إدارة',id:'showLeads',t:'الشركاء المحتملون',i:'👥'});
@@ -286,11 +302,11 @@ async function renderPortfolio(){
   // الملف التعاقدي لعلامة: متاح لمالك المنصة ومديرها معًا — مطابقًا لسياسة القاعدة
   // (pmo_update_org_profile تسمح لكليهما). كان محصورًا بالمالك في الواجهة فقط، فاختفى
   // عن مدير المنصة بعد نقل الملكية رغم امتلاكه الصلاحية فعليًا.
-  if(IS_OWNER||ROLE==='pmo'){toolItems.push({g:'إعدادات',id:'showCapacity',t:'الأقسام والمسمّيات',i:'👥'});
+  if(getState('IS_OWNER')||getState('ROLE')==='pmo'){toolItems.push({g:'إعدادات',id:'showCapacity',t:'الأقسام والمسمّيات',i:'👥'});
     toolItems.push({g:'إعدادات',id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});
     toolItems.push({g:'إعدادات',id:'showAutomation',t:'أتمتة العقود',i:'⚡'});
     toolItems.push({g:'إعدادات',id:'showSecAudit',t:'فحص أمني',i:'🛡'});}
-  if(IS_OWNER){toolItems.push({g:'إعدادات',id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
+  if(getState('IS_OWNER')){toolItems.push({g:'إعدادات',id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
     toolItems.push({g:'إعدادات',id:'showStaffAccess',t:'صلاحيات الفريق',i:'🔐'});}
   const toolsMenu=toolItems.length?`<div class="tools-wrap">
     <button class="hbtn tools-btn" id="toolsBtn" aria-expanded="false" aria-haspopup="true">⚙ أدوات المكتب <span class="tools-caret">▾</span></button>
@@ -304,11 +320,11 @@ async function renderPortfolio(){
           +`</div>`;
       }).join('')}</div>
   </div>`:'';
-  const primaryBtn=(ROLE==='pmo')?'<button class="hbtn primary-cta" id="addClientBtn">+ شريك جديد</button>':'';
+  const primaryBtn=(getState('ROLE')==='pmo')?'<button class="hbtn primary-cta" id="addClientBtn">+ شريك جديد</button>':'';
   const legendBtn=isStaff?'<button class="hbtn" id="statusLegendBtn" title="دليل حالات المشاريع">ⓘ دليل الحالات</button>':'';
   const toolbar=isStaff?`<div class="portfolio-tools">${primaryBtn}${legendBtn}${toolsMenu}</div>`:'';
   $('#host').innerHTML='<div class="hintbar">اختر شريكًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
-  if(ROLE==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=()=>showScreen('leads');
+  if(getState('ROLE')==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=()=>showScreen('leads');
     const ac=$('#addClientBtn');if(ac)ac.onclick=addNewClient;}
   {const db=$('#showDOL');if(db)db.onclick=openDOL;}
   {const ab=$('#showAudit');if(ab)ab.onclick=()=>showScreen('audit');}
@@ -356,14 +372,14 @@ async function renderPortfolio(){
     blocked:companies.filter(x=>x.blocked>0).length,
     reqs:companies.filter(x=>x.reqs>0).length,
     comments:companies.filter(x=>x.comments>0).length};
-  const fbtn=(k,lbl)=>`<button class="pfilter ${PFILTER===k?'active':''}" data-filter="${k}">${lbl} <span class="pfilter-n">${counts[k]}</span></button>`;
-  const abtn=(k,lbl,cls)=>`<button class="pfilter chip-${cls} ${PALERTS.has(k)?'active':''}" data-alertfilter="${k}">${lbl} <span class="pfilter-n">${counts[k]}</span></button>`;
-  const searchBox=`<input id="pSearch" class="psearch" placeholder="🔍 بحث باسم الشركة أو المشروع…" value="${esc(PSEARCH)}">`;
+  const fbtn=(k,lbl)=>`<button class="pfilter ${getState('PFILTER')===k?'active':''}" data-filter="${k}">${lbl} <span class="pfilter-n">${counts[k]}</span></button>`;
+  const abtn=(k,lbl,cls)=>`<button class="pfilter chip-${cls} ${getState('PALERTS').has(k)?'active':''}" data-alertfilter="${k}">${lbl} <span class="pfilter-n">${counts[k]}</span></button>`;
+  const searchBox=`<input id="pSearch" class="psearch" placeholder="🔍 بحث باسم الشركة أو المشروع…" value="${esc(getState('PSEARCH'))}">`;
   const sortSel=`<select id="pSort" class="psort" aria-label="ترتيب">
-    <option value="alerts" ${PSORT==='alerts'?'selected':''}>ترتيب: التنبيهات أولًا</option>
-    <option value="name" ${PSORT==='name'?'selected':''}>ترتيب: الاسم</option>
-    <option value="progress" ${PSORT==='progress'?'selected':''}>ترتيب: الأعلى تقدّمًا</option>
-    <option value="projects" ${PSORT==='projects'?'selected':''}>ترتيب: عدد المشاريع</option>
+    <option value="alerts" ${getState('PSORT')==='alerts'?'selected':''}>ترتيب: التنبيهات أولًا</option>
+    <option value="name" ${getState('PSORT')==='name'?'selected':''}>ترتيب: الاسم</option>
+    <option value="progress" ${getState('PSORT')==='progress'?'selected':''}>ترتيب: الأعلى تقدّمًا</option>
+    <option value="projects" ${getState('PSORT')==='projects'?'selected':''}>ترتيب: عدد المشاريع</option>
   </select>`;
   const filterBar=`<div class="pfilters-wrap">
     <div class="pfilters">
@@ -375,13 +391,13 @@ async function renderPortfolio(){
 
   // تطبيق الفلاتر (تُدمج: حالة + تنبيهات متعددة + بحث)
   let shown=companies.filter(x=>{
-    if(PFILTER==='active'&&!x.isActive)return false;
-    if(PFILTER==='draft'&&!x.isDraft)return false;
-    if(PALERTS.has('blocked')&&!(x.blocked>0))return false;
-    if(PALERTS.has('reqs')&&!(x.reqs>0))return false;
-    if(PALERTS.has('comments')&&!(x.comments>0))return false;
-    if(PSEARCH){
-      const q=PSEARCH.trim();
+    if(getState('PFILTER')==='active'&&!x.isActive)return false;
+    if(getState('PFILTER')==='draft'&&!x.isDraft)return false;
+    if(getState('PALERTS').has('blocked')&&!(x.blocked>0))return false;
+    if(getState('PALERTS').has('reqs')&&!(x.reqs>0))return false;
+    if(getState('PALERTS').has('comments')&&!(x.comments>0))return false;
+    if(getState('PSEARCH')){
+      const q=getState('PSEARCH').trim();
       const inName=x.c.name.includes(q);
       const inProj=x.list.some(r=>(r.project_name||'').includes(q));
       if(!inName&&!inProj)return false;
@@ -395,35 +411,35 @@ async function renderPortfolio(){
     progress:(a,b)=>b.pct-a.pct,
     projects:(a,b)=>b.list.length-a.list.length
   };
-  shown.sort(sorters[PSORT]||sorters.alerts);
+  shown.sort(sorters[getState('PSORT')]||sorters.alerts);
 
   // شرائح الفلاتر النشطة (قابلة للإزالة)
   const activeChips=[];
-  if(PFILTER!=='all')activeChips.push({k:'status',label:(PFILTER==='active'?'نشطة':'مسوّدة')});
-  if(PALERTS.has('blocked'))activeChips.push({k:'alert:blocked',label:'متوقفة'});
-  if(PALERTS.has('reqs'))activeChips.push({k:'alert:reqs',label:'متطلبات'});
-  if(PALERTS.has('comments'))activeChips.push({k:'alert:comments',label:'نقاش'});
-  if(PSEARCH)activeChips.push({k:'search',label:'بحث: '+PSEARCH});
+  if(getState('PFILTER')!=='all')activeChips.push({k:'status',label:(getState('PFILTER')==='active'?'نشطة':'مسوّدة')});
+  if(getState('PALERTS').has('blocked'))activeChips.push({k:'alert:blocked',label:'متوقفة'});
+  if(getState('PALERTS').has('reqs'))activeChips.push({k:'alert:reqs',label:'متطلبات'});
+  if(getState('PALERTS').has('comments'))activeChips.push({k:'alert:comments',label:'نقاش'});
+  if(getState('PSEARCH'))activeChips.push({k:'search',label:'بحث: '+getState('PSEARCH')});
   const chipsBar=activeChips.length?`<div class="pchips"><span class="pchips-lbl">مُفعّل:</span>${activeChips.map(c=>`<span class="pchip">${esc(c.label)}<button data-rmchip="${c.k}" aria-label="إزالة الفلتر">✕</button></span>`).join('')}<button class="pchips-clear" id="pClearAll">مسح الكل</button></div>`:'';
 
   $('#host').querySelector('.hintbar').insertAdjacentHTML('afterend',filterBar+chipsBar);
-  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{PFILTER=b.dataset.filter;savePFilters();writePortfolioHash();renderPortfolio();});
+  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{setState('PFILTER', b.dataset.filter);savePFilters();writePortfolioHash();renderPortfolio();});
   document.querySelectorAll('[data-alertfilter]').forEach(b=>b.onclick=()=>{
-    const k=b.dataset.alertfilter; if(PALERTS.has(k))PALERTS.delete(k);else PALERTS.add(k);
+    const k=b.dataset.alertfilter; if(getState('PALERTS').has(k))getState('PALERTS').delete(k);else getState('PALERTS').add(k);
     savePFilters();writePortfolioHash();renderPortfolio();});
-  const pSortEl=$('#pSort'); if(pSortEl)pSortEl.onchange=()=>{PSORT=pSortEl.value;savePFilters();writePortfolioHash();renderPortfolio();};
+  const pSortEl=$('#pSort'); if(pSortEl)pSortEl.onchange=()=>{setState('PSORT', pSortEl.value);savePFilters();writePortfolioHash();renderPortfolio();};
   document.querySelectorAll('[data-rmchip]').forEach(b=>b.onclick=()=>{
     const k=b.dataset.rmchip;
-    if(k==='status')PFILTER='all'; else if(k==='search')PSEARCH=''; else if(k.startsWith('alert:'))PALERTS.delete(k.split(':')[1]);
+    if(k==='status')setState('PFILTER', 'all'); else if(k==='search')setState('PSEARCH', ''); else if(k.startsWith('alert:'))getState('PALERTS').delete(k.split(':')[1]);
     savePFilters();writePortfolioHash();renderPortfolio();});
-  const pClearBtn=$('#pClearAll'); if(pClearBtn)pClearBtn.onclick=()=>{PFILTER='all';PSEARCH='';PALERTS.clear();savePFilters();writePortfolioHash();renderPortfolio();};
+  const pClearBtn=$('#pClearAll'); if(pClearBtn)pClearBtn.onclick=()=>{setState('PFILTER', 'all');setState('PSEARCH', '');getState('PALERTS').clear();savePFilters();writePortfolioHash();renderPortfolio();};
   const sIn=$('#pSearch');
-  if(sIn){ sIn.oninput=()=>{PSEARCH=sIn.value; clearTimeout(sIn._t); sIn._t=setTimeout(()=>{writePortfolioHash();renderPortfolio();},300);};
+  if(sIn){ sIn.oninput=()=>{setState('PSEARCH', sIn.value); clearTimeout(sIn._t); sIn._t=setTimeout(()=>{writePortfolioHash();renderPortfolio();},300);};
     // إبقاء التركيز بعد إعادة العرض
-    if(PSEARCH){ setTimeout(()=>{const el=$('#pSearch');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}},0); } }
+    if(getState('PSEARCH')){ setTimeout(()=>{const el=$('#pSearch');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}},0); } }
 
   if(!shown.length){grid.innerHTML='<div class="empty-cta"><div class="ico">🔍</div><h3>لا نتائج مطابقة</h3><p>جرّب تعديل الفلاتر أو مسحها.</p><button class="hbtn gold" id="pEmptyClear">مسح الفلاتر</button></div>';
-    const pec=$('#pEmptyClear');if(pec)pec.onclick=()=>{PFILTER='all';PSEARCH='';PALERTS.clear();savePFilters();writePortfolioHash();renderPortfolio();};
+    const pec=$('#pEmptyClear');if(pec)pec.onclick=()=>{setState('PFILTER', 'all');setState('PSEARCH', '');getState('PALERTS').clear();savePFilters();writePortfolioHash();renderPortfolio();};
     return;}
   grid.className='pcompany-grid';
 
@@ -433,7 +449,7 @@ async function renderPortfolio(){
     if(x.blocked>0)alertBadges.push(`<span class="palert red">${x.blocked} متوقف</span>`);
     if(x.reqs>0)alertBadges.push(`<span class="palert amber">${x.reqs} متطلب</span>`);
     if(x.comments>0)alertBadges.push(`<span class="palert blue">${x.comments} نقاش</span>`);
-    const actBtn=(ROLE==='pmo')?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات" aria-label="إجراءات الشريك">${I.dots}</button>`:'';
+    const actBtn=(getState('ROLE')==='pmo')?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات" aria-label="إجراءات الشريك">${I.dots}</button>`:'';
     const card=document.createElement('div');
     card.className='pcompany'+(x.hasAlerts?' has-alerts':'');
     card.style.cssText=`--cc:${x.c.color}`;
@@ -456,7 +472,7 @@ async function renderPortfolio(){
   // قسم مطوي للشركاء بلا مشاريع (لا يزاحم النشط)
   if(empty.length){
     const sec=document.createElement('div');sec.className='empty-sec';
-    const open=PEXPANDED.has('__empty');
+    const open=getState('PEXPANDED').has('__empty');
     sec.innerHTML=`<button class="empty-sec-hd" data-emptytoggle="1" aria-expanded="${open}">
         <span class="es-chev">${open?'▴':'▾'}</span> شركاء بلا مشاريع <span class="es-n">${empty.length}</span>
         <span class="es-hint">جاهزون لإضافة أول مشروع</span></button>
@@ -466,7 +482,7 @@ async function renderPortfolio(){
       </div>`;
     grid.appendChild(sec);
     const hd=sec.querySelector('[data-emptytoggle]');
-    hd.onclick=()=>{PEXPANDED.has('__empty')?PEXPANDED.delete('__empty'):PEXPANDED.add('__empty');renderPortfolio();};
+    hd.onclick=()=>{getState('PEXPANDED').has('__empty')?getState('PEXPANDED').delete('__empty'):getState('PEXPANDED').add('__empty');renderPortfolio();};
     sec.querySelectorAll('[data-newproj]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();newProjectDialog(b.dataset.newproj);});
   }
 
@@ -479,7 +495,7 @@ async function renderPortfolio(){
   // نقرة على مشروع داخل التوسيع
   document.querySelectorAll('[data-openproj]').forEach(el=>el.onclick=async(e)=>{
     e.stopPropagation();
-    CID=el.dataset.cid; PID=el.dataset.openproj; await showScreen('project');
+    setState('CID', el.dataset.cid); setState('PID', el.dataset.openproj); await showScreen('project');
   });
   document.querySelectorAll('[data-cmenu]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openClientMenu(b.dataset.cmenu);});
   document.querySelectorAll('[data-pmenu]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openProjectMenu(b.dataset.pmenu,b.dataset.pname);});
