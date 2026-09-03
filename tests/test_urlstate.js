@@ -127,6 +127,50 @@ console.log('\n▸ قفل الكتابة — الحارس الذي انتقل م
   t('وكتابة نفس الرابط لا تتكرّر', hist.length === 1, hist.length + ' كتابة');
 }
 
+console.log('\n▸ الكاتبة الثالثة — كانت تكتب خارج القفل');
+{
+  // عطلٌ حقيقي لا تنظيم: `writeClientHash` عاشت في app/clienthome.js بنسخةٍ
+  // يدوية من replaceState لا تمسّ القفل. فكل نقلةٍ إلى صفحة شريك كانت تُطلق
+  // hashchange يراه المُعالِج تنقّلًا من المستخدم فيُعيد التصيير بلا سبب.
+  const hist = [];
+  const c = {
+    console, setTimeout, clearTimeout,
+    localStorage: { getItem: () => null, setItem() {} },
+    location: { hash: '' },
+    history: { replaceState: (a, b, h) => { hist.push(h); c.location.hash = h; } }
+  };
+  c.globalThis = c;
+  // حزمةٌ ثانية تُصدّر `setState` معها: `writeClientHash` تقرأ CLIENTS من المتجر،
+  // والمتجر ليس من صادرات urlstate.js — فيُوصَل هنا بمُدخَلٍ صريح لا بمنفذ خلفي.
+  const withStore = execFileSync('node_modules/.bin/esbuild',
+    ['--bundle', '--format=iife', '--global-name=__u', '--loader=js'],
+    { encoding: 'utf8',
+      input: "export * from './src/urlstate.js';\nexport { setState } from './src/app/state.js';\n" });
+  vm.createContext(c); vm.runInContext(withStore, c);
+  const M = c.__u;
+  M.setState('CLIENTS', [{ id: 'c-1', slug: 'alfa' }, { id: 'c-2' }]);
+
+  t('writeClientHash مُصدَّرة من طبقة الرابط', typeof M.writeClientHash === 'function');
+  M.writeClientHash('c-1');
+  eq('تُفضّل المعرّف النظيف', hist[hist.length - 1], '#/c/alfa');
+  t('وتُنزِل القفل — وهذا هو الإصلاح', M.isHashLocked() === true);
+
+  M.writeClientHash('c-2');
+  eq('وتقع على المعرّف الخام حين لا سبيكة', hist[hist.length - 1], '#/c/c-2');
+
+  M.writeClientHash('c-2');
+  t('ولا تكتب نفس الرابط مرّتين', hist.length === 2, hist.join(' '));
+
+  // شريك مجهول: لا يجوز أن ترمي — الرابط يُكتب بالمعرّف كما جاء.
+  M.writeClientHash('لا-أحد');
+  eq('ومعرّف مجهول يُكتب كما هو لا يرمي', hist[hist.length - 1], '#/c/لا-أحد');
+
+  // وأن النسخة اليدوية لم تبقَ: قارئ واحد للرابط لا اثنان.
+  const ch = fs.readFileSync('src/app/clienthome.js', 'utf8');
+  t('ولا نسخة يدوية بقيت في clienthome.js',
+    !/history\.replaceState/.test(ch) && /import \{ writeClientHash \} from '\.\.\/urlstate\.js'/.test(ch));
+}
+
 console.log('\n▸ الحالتان اللتان جعلتا النقل ممكنًا');
 {
   const st = fs.readFileSync('src/app/state.js', 'utf8');
@@ -226,5 +270,35 @@ console.log('\n▸ ذهابًا وإيابًا على الحزمة الحقيق�
   t('رابط مبتور لا يُسقط الإقلاع', !broke);
 }
 
-console.log(`\nنجح ${ok} · فشل ${fail}`);
-process.exit(fail ? 1 : 0);
+console.log('\n▸ مسار الاحتياط — حيث كان القفل يهمّ فعلًا');
+// كتلةٌ غير متزامنة وحدها في هذا الملف: التصيير ينتظر الجلب. والتقرير النهائي
+// داخلها كي لا يُطبَع قبل أن تُحسَب تأكيداتها.
+(async () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const bundle = fs.readFileSync('app.bundle.js', 'utf8');
+  // `history.replaceState` **لا يُطلق** hashchange، فالمسار المعتاد كان سليمًا
+  // بلا قفل. أما مسار الاحتياط — حين يرمي replaceState فيُكتب `location.hash`
+  // مباشرةً — فيُطلقه، ومُعالِج hashchange في main.js يرى `#/c/<slug>` فيُعيد
+  // فتح صفحة الشريك: تصييرٌ مزدوج وجلبُ بياناتٍ مكرَّر. القفل هو ما يمنعه،
+  // وهذا التأكيد يقيس **النتيجة** (عدد النداءات) لا وجود القفل.
+  const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'https://pmo.example/' });
+  const w = dom.window;
+  w.eval(`window.__rpc=[];window.supabase={createClient:()=>({
+    rpc:(n)=>{window.__rpc.push(n);return Promise.resolve({data:[],error:null});},
+    from:()=>({select:()=>({order:()=>Promise.resolve({data:[],error:null}),eq:()=>({maybeSingle:async()=>({data:null,error:null})})})}),
+    auth:{getSession:async()=>({data:{session:null}}),getUser:async()=>({data:{user:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},
+    channel:()=>({on(){return this},subscribe(){return this}}),removeChannel:()=>{}})};
+    history.replaceState=()=>{throw new Error('محجوب');};`);
+  const sc = w.document.createElement('script'); sc.textContent = bundle;
+  w.document.body.appendChild(sc);
+
+  w.eval("ROLE='pmo';CLIENTS=[{id:'c-1',slug:'alfa',name:'ألفا'}];window.__rpc.length=0;");
+  await w.eval("showScreen('clienthome','c-1')");
+  await new Promise(r => setTimeout(r, 400));
+  const calls = w.eval("window.__rpc.filter(n=>n==='pmo_portfolio').length");
+  eq('نقلةٌ واحدة تُنتج جلبًا واحدًا لا اثنين', calls, 1);
+  eq('والرابط كُتب بالمعرّف النظيف', w.location.hash, '#/c/alfa');
+
+  console.log(`\nنجح ${ok} · فشل ${fail}`);
+  process.exit(fail ? 1 : 0);
+})();

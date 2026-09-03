@@ -16,6 +16,7 @@ import { esc } from '../format.js';
 import { registerScreen, showScreen } from '../screens.js';
 import { skeleton } from '../skeleton.js';
 import { toast } from '../toast.js';
+import { writeClientHash } from '../urlstate.js';
 import { confirmDialog } from './dialogs.js';
 import { newProjectDialog, openClientMenu } from './lifecycle.js';
 import { getState, setState } from './state.js';
@@ -58,12 +59,6 @@ async function renderClientHome(clientId){
   if(stats.list.length)renderPortfolioGantt(clientId,'chGanttWrap');
 }
 
-function writeClientHash(clientId){
-  const c=getState('CLIENTS').find(x=>x.id===clientId);
-  const h='#/c/'+((c&&c.slug)||clientId);
-  if(location.hash===h)return;
-  try{history.replaceState(null,'',h);}catch(e){location.hash=h;}
-}
 // يحلّ أي معرّف شريك وارد من الرابط (نظيف أو خام) إلى المعرّف الحقيقي — يضمن أن كل رابط
 // سبق مشاركته يبقى يعمل للأبد، بصرف النظر عن أي تغيير لاحق في معرّف الشريك النظيف.
 export function resolveClientIdentifier(idOrSlug){
