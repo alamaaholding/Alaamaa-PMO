@@ -412,24 +412,7 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
     catch(e){ box.innerHTML='<p class="sa-hint">تعذّر تحميل السجل</p>'; return; }
     if(!rows.length){ box.innerHTML='<p class="sa-hint">لا إجراءات مسجَّلة بعد.</p>'; return; }
     const who=id=>{const m=cachedTeamMembers().find(x=>x.id===id);return m?(m.full_name||m.email):'—';};
-    const detail=v=>{
-      if(!v)return '';
-      const parts=[];
-      Object.keys(v).forEach(k=>{
-        if(k==='number')return;
-        const x=v[k];
-        if(x&&typeof x==='object'&&('من' in x))parts.push(k+': '+(x['من']==null?'—':x['من'])+' ← '+(x['إلى']==null?'—':x['إلى']));
-        else parts.push(k+': '+x);
-      });
-      return parts.join(' · ');
-    };
-    box.innerHTML=rows.map(r=>`
-      <div class="chd-att-row">
-        <span><b>${esc(AUDIT_ACTIONS[r.action]||r.action)}</b>
-          ${r.new_value?`<span class="sa-hint"> · ${esc(detail(r.new_value))}</span>`:''}</span>
-        <span class="sa-hint" style="white-space:nowrap">${esc(who(r.user_id))} · ${
-          new Date(r.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'})}</span>
-      </div>`).join('');
+    box.innerHTML=contractAuditHTML(rows,who);
   })();
 
   // ===== المرفقات =====
@@ -439,33 +422,7 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
     let atts=[];
     try{ atts=await fetchContractAttachments(contractId); }
     catch(e){ box.innerHTML='<p class="sa-hint">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
-    const planAtt=c.baseline_id?`<div class="chd-att-row"><span>📋 <b>ملحق (١) — الخطة المعتمدة</b>
-        <span class="sa-hint">${esc(c.baseline_label||'')} · يُدرَج تلقائيًا في تصدير PDF</span></span>
-        <span class="chub-type-tag">تلقائي</span></div>`:'';
-    box.innerHTML=planAtt+(atts.length?atts.map(a=>`
-      <div class="chd-att-row">
-        <span>${a.kind==='file'?'📎':'🔗'} <b>${esc(a.label)}</b>
-          ${a.file_size?`<span class="sa-hint"> · ${(a.file_size/1024).toFixed(0)} ك.ب</span>`:''}
-          ${a.storage_path?` <button class="reqbtn" data-openfile="${esc(a.storage_path)}" style="padding:2px 8px;font-size:.7rem">فتح الملف</button>`
-            :(a.url?` <a href="${esc(a.url)}" target="_blank" rel="noopener" class="sa-hint" style="text-decoration:underline">فتح الرابط</a>`:'')}</span>
-        ${editable?`<button class="reqbtn txt-crit" data-delatt="${a.id}" data-delpath="${esc(a.storage_path||'')}">حذف</button>`:''}
-      </div>`).join(''):(planAtt?'':'<p class="sa-hint">لا مرفقات إضافية بعد.</p>'))
-      +(editable?`
-      <div class="sa-form mt-12 fx-wrap">
-        <input id="chdAttLabel" placeholder="اسم المستند (مثال: كشف الأسعار)" class="grow-160">
-        <input id="chdAttFile" type="file" style="flex:1;min-width:180px;font-size:.78rem">
-        <button class="reqbtn ok" id="chdAttUpload">⬆ رفع الملف</button>
-      </div>
-      <p class="sa-hint mt-6">الملف يُحفَظ في مساحة علامة الخاصة ويُقفَل مع العقد عند التوقيع — لا ينكسر ولا يتغيّر بعده. الحد 25 م.ب.</p>
-      <details class="mt-8"><summary class="sa-hint" style="cursor:pointer">أو أضف رابطًا خارجيًا بدل الرفع</summary>
-        <div class="sa-form" style="margin-top:8px;flex-wrap:wrap">
-          <input id="chdAttUrl" placeholder="https://..." style="flex:1;min-width:200px" dir="ltr">
-          <button class="reqbtn" id="chdAttAdd">إضافة رابط</button>
-        </div>
-        <p class="sa-hint" style="margin-top:4px">⚠ الرابط الخارجي قد ينكسر أو يتغيّر بعد التوقيع — الرفع أأمن.</p>
-      </details>`
-      :'<p class="sa-hint mt-8">🔒 لا يمكن تعديل مرفقات عقد وقّع عليه طرف.</p>');
-
+    box.innerHTML=contractAttachmentsHTML(c,atts,editable);
     if(editable){
       document.getElementById('chdAttAdd').onclick=async()=>{
         const label=document.getElementById('chdAttLabel').value.trim();
@@ -572,7 +529,7 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
   {const sendBtn=document.getElementById('chdSendBtn');
    if(sendBtn)sendBtn.onclick=async()=>{
      const to=document.getElementById('chdSendTo').value.trim();
-     if(!to||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)){toast('أدخل بريدًا صحيحًا','warn');return;}
+     if(!isSendableEmail(to)){toast('أدخل بريدًا صحيحًا','warn');return;}
      sendBtn.disabled=true;const old=sendBtn.textContent;sendBtn.textContent='جارٍ الإرسال...';
      try{
        await sendContractEmail(c,to,c.send_count>0?'reminder':'invite');
@@ -1348,4 +1305,78 @@ export function contractFunnelHTML(f,steps,lastDone,fmt){
         📧 ${esc(f.to_email||'')} · ${f.total_sends} إرسال${f.failed_sends?` · ${f.failed_sends} فاشل`:''}
         ${!f.tracking_active&&f.sent_at?'<br>ℹ️ تتبّع الوصول والفتح يتطلب ربط Webhook في Resend':''}
       </p>`;
+}
+
+
+/**
+ * ترميز قائمة المرفقات — بانٍ خالص.
+ *
+ * ويحمل ثلاث قواعد يراها المستخدم ولم تكن محروسة: أن **الخطة المعتمدة** تُدرَج
+ * كملحقٍ تلقائيّ لا يُحذف، وأن حدّ الرفع **٢٥ م.ب**، وأن عقدًا وقّع عليه طرفٌ
+ * تُقفَل مرفقاته — فلا يُعرض عليه نموذج رفعٍ أصلًا، لا أن يُعرض ثم يُرفَض.
+ */
+export function contractAttachmentsHTML(c,atts,editable){
+  const planAtt=c.baseline_id?`<div class="chd-att-row"><span>📋 <b>ملحق (١) — الخطة المعتمدة</b>
+      <span class="sa-hint">${esc(c.baseline_label||'')} · يُدرَج تلقائيًا في تصدير PDF</span></span>
+      <span class="chub-type-tag">تلقائي</span></div>`:'';
+  return planAtt+(atts.length?atts.map(a=>`
+    <div class="chd-att-row">
+      <span>${a.kind==='file'?'📎':'🔗'} <b>${esc(a.label)}</b>
+        ${a.file_size?`<span class="sa-hint"> · ${(a.file_size/1024).toFixed(0)} ك.ب</span>`:''}
+        ${a.storage_path?` <button class="reqbtn" data-openfile="${esc(a.storage_path)}" style="padding:2px 8px;font-size:.7rem">فتح الملف</button>`
+          :(a.url?` <a href="${esc(a.url)}" target="_blank" rel="noopener" class="sa-hint" style="text-decoration:underline">فتح الرابط</a>`:'')}</span>
+      ${editable?`<button class="reqbtn txt-crit" data-delatt="${a.id}" data-delpath="${esc(a.storage_path||'')}">حذف</button>`:''}
+    </div>`).join(''):(planAtt?'':'<p class="sa-hint">لا مرفقات إضافية بعد.</p>'))
+    +(editable?`
+    <div class="sa-form mt-12 fx-wrap">
+      <input id="chdAttLabel" placeholder="اسم المستند (مثال: كشف الأسعار)" class="grow-160">
+      <input id="chdAttFile" type="file" style="flex:1;min-width:180px;font-size:.78rem">
+      <button class="reqbtn ok" id="chdAttUpload">⬆ رفع الملف</button>
+    </div>
+    <p class="sa-hint mt-6">الملف يُحفَظ في مساحة علامة الخاصة ويُقفَل مع العقد عند التوقيع — لا ينكسر ولا يتغيّر بعده. الحد 25 م.ب.</p>
+    <details class="mt-8"><summary class="sa-hint" style="cursor:pointer">أو أضف رابطًا خارجيًا بدل الرفع</summary>
+      <div class="sa-form" style="margin-top:8px;flex-wrap:wrap">
+        <input id="chdAttUrl" placeholder="https://..." style="flex:1;min-width:200px" dir="ltr">
+        <button class="reqbtn" id="chdAttAdd">إضافة رابط</button>
+      </div>
+      <p class="sa-hint" style="margin-top:4px">⚠ الرابط الخارجي قد ينكسر أو يتغيّر بعد التوقيع — الرفع أأمن.</p>
+    </details>`
+    :'<p class="sa-hint mt-8">🔒 لا يمكن تعديل مرفقات عقد وقّع عليه طرف.</p>');
+}
+
+
+/**
+ * تلخيص تغييرٍ في سجل التدقيق: `{الحقل:{من,إلى}}` ⇦ «الحقل: قديم ← جديد».
+ * و`number` يُستثنى لأنه رقم العقد ويظهر في رأس الصف أصلًا.
+ * والقيمة الفارغة تُعرَض «—» لا فراغًا، كي يبقى **أن الحقل أُفرغ** مقروءًا.
+ */
+export function auditChangeSummary(v){
+  if(!v)return '';
+  const parts=[];
+  Object.keys(v).forEach(k=>{
+    if(k==='number')return;
+    const x=v[k];
+    if(x&&typeof x==='object'&&('من' in x))parts.push(k+': '+(x['من']==null?'—':x['من'])+' ← '+(x['إلى']==null?'—':x['إلى']));
+    else parts.push(k+': '+x);
+  });
+  return parts.join(' · ');
+}
+
+/** ترميز سجل التدقيق. `who` يُمرَّر لأن اسم المنفِّذ يأتي من ذاكرة الأعضاء. */
+export function contractAuditHTML(rows,who){
+  return rows.map(r=>`
+      <div class="chd-att-row">
+        <span><b>${esc(AUDIT_ACTIONS[r.action]||r.action)}</b>
+          ${r.new_value?`<span class="sa-hint"> · ${esc(auditChangeSummary(r.new_value))}</span>`:''}</span>
+        <span class="sa-hint" style="white-space:nowrap">${esc(who(r.user_id))} · ${
+          new Date(r.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'})}</span>
+      </div>`).join('');
+}
+
+/**
+ * بريدٌ صالح للإرسال. فحصٌ متعمَّد التساهل: الغرض منع الخطأ المطبعيّ الواضح
+ * (فراغ · بلا @ · بلا نطاق)، لا تطبيق RFC — فالمرفوض خطأً هنا عقدٌ لا يُرسَل.
+ */
+export function isSendableEmail(s){
+  return !!s && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
 }

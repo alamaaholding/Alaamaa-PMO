@@ -34,7 +34,9 @@ w.eval(`window.supabase={createClient:()=>({rpc:()=>Promise.resolve({data:[],err
 
 const { contractStage, defaultContractTab, contractPanelHTML,
         contractFunnelSteps, contractLinkValidity,
-        contractFunnelHTML, signatureCertificateHTML } = w;
+        contractFunnelHTML, signatureCertificateHTML,
+        contractAttachmentsHTML, auditChangeSummary, contractAuditHTML,
+        isSendableEmail } = w;
 
 // عقدٌ في أبسط حالاته الصالحة: معتمَد، مُسنَد لشريك، بلا توقيع.
 const base = (over = {}) => Object.assign({
@@ -311,6 +313,80 @@ console.log('\n▸ شهادة التوقيع — أثقل مخرَجات الم�
   t('وسطرُ سجلٍّ يظهر بمنفِّذه', withAudit.includes('ج'));
   t('و`audit` غائبةً تمامًا لا ترمي',
     typeof signatureCertificateHTML(cert({ audit: undefined })) === 'string');
+}
+
+console.log('\n▸ المرفقات — ثلاث قواعد يراها المستخدم');
+{
+  const A = (atts, editable = true, over = {}) => contractAttachmentsHTML(base(over), atts, editable);
+
+  // القاعدة الأولى: الخطة المعتمدة ملحقٌ تلقائيّ لا يُحذف ولا يُرفَع.
+  const withPlan = A([], true, { baseline_id: 'b1', baseline_label: 'خط الأساس ١' });
+  t('الخطة المعتمدة تظهر كملحق تلقائي', withPlan.includes('ملحق (١)') && withPlan.includes('تلقائي'));
+  t('وعنوانها يُعرَض', withPlan.includes('خط الأساس ١'));
+  t('ولا زرّ حذفٍ لها', !/data-delatt[^>]*>حذف<\/button>[\s\S]{0,40}ملحق \(١\)/.test(withPlan));
+  t('وبلا خط أساس لا تظهر', !A([]).includes('ملحق (١)'));
+
+  // القاعدة الثانية: حدّ الرفع ٢٥ م.ب، معلنًا قبل المحاولة لا بعد الرفض.
+  t('حدّ الرفع معلَن مسبقًا', A([]).includes('25 م.ب'));
+
+  // القاعدة الثالثة: عقدٌ وُقّع تُقفَل مرفقاته — فلا يُعرَض نموذج الرفع أصلًا.
+  const locked = A([{ id: 'a1', kind: 'file', label: 'كشف', storage_path: 'p/1' }], false);
+  t('الموقَّع: لا نموذج رفع', !locked.includes('chdAttUpload') && !locked.includes('chdAttAdd'));
+  t('ولا زرّ حذف', !locked.includes('data-delatt'));
+  t('ويُشرَح السبب لا يُترَك فراغًا', locked.includes('لا يمكن تعديل مرفقات عقد وقّع عليه طرف'));
+  t('لكنّ المرفق القائم يبقى مفتوحًا للاطّلاع', locked.includes('data-openfile'));
+
+  // فرق الملف المرفوع عن الرابط الخارجي — وهو فرقٌ في المتانة لا في الشكل.
+  const file = A([{ id: 'a1', kind: 'file', label: 'كشف', storage_path: 'p/1', file_size: 2048 }]);
+  const link = A([{ id: 'a2', kind: 'link', label: 'مرجع', url: 'https://x.test/d' }]);
+  t('الملف المرفوع يُفتح عبر التخزين', file.includes('data-openfile'));
+  t('وحجمه يُعرَض', file.includes('2 ك.ب'));
+  t('والرابط الخارجي يُفتح مباشرةً بـnoopener',
+    link.includes('rel="noopener"') && link.includes('https://x.test/d'));
+  t('والتحذير من انكسار الرابط قائم', A([]).includes('قد ينكسر أو يتغيّر بعد التوقيع'));
+
+  t('حالة فارغة مفهومة', A([]).includes('لا مرفقات إضافية بعد'));
+  // ولا «فارغة» حين توجد الخطة وحدها — فهي مرفقٌ فعليّ.
+  t('ولا تُعرَض والخطة قائمة',
+    !A([], true, { baseline_id: 'b1' }).includes('لا مرفقات إضافية بعد'));
+
+  t('اسم المرفق مُهرَّب', !A([{ id: 'a', kind: 'link', label: '<b>x</b>' }]).includes('<b>x</b>'));
+  t('ومسار الملف مُهرَّب', !A([{ id: 'a', kind: 'file', label: 'م', storage_path: '"><i>' }]).includes('"><i>'));
+}
+
+console.log('\n▸ سجل التدقيق — تلخيص التغيير');
+{
+  eq('لا قيمة → فراغ', auditChangeSummary(null), '');
+  eq('حقلٌ بسيط', auditChangeSummary({ 'القيمة': 100 }), 'القيمة: 100');
+  eq('تغييرٌ من/إلى', auditChangeSummary({ 'القيمة': { 'من': 100, 'إلى': 200 } }), 'القيمة: 100 ← 200');
+  // إفراغ حقلٍ حدثٌ حوكميّ: يجب أن يُقرأ «كان ثم لم يعد»، لا أن يختفي.
+  eq('الإفراغ يُقرأ لا يختفي', auditChangeSummary({ 'ملاحظة': { 'من': 'س', 'إلى': null } }), 'ملاحظة: س ← —');
+  eq('والملء من عدم', auditChangeSummary({ 'ملاحظة': { 'من': null, 'إلى': 'س' } }), 'ملاحظة: — ← س');
+  // رقم العقد يظهر في رأس الصف، فتكراره في التفصيل ضجيج.
+  eq('رقم العقد مُستثنى', auditChangeSummary({ number: 'ALM-1', 'القيمة': 5 }), 'القيمة: 5');
+  eq('ولو كان وحده', auditChangeSummary({ number: 'ALM-1' }), '');
+  eq('حقلان يُفصلان بنقطة', auditChangeSummary({ 'أ': 1, 'ب': 2 }), 'أ: 1 · ب: 2');
+
+  const rows = [{ action: 'x', new_value: { 'القيمة': { 'من': 1, 'إلى': 2 } },
+                  user_id: 'u1', created_at: '2026-03-01T00:00:00Z' }];
+  const h = contractAuditHTML(rows, () => 'أحمد');
+  t('الصف يحمل المنفِّذ', h.includes('أحمد'));
+  t('والتفصيل', h.includes('1 ← 2'));
+  // الصف يلفّ اسم الإجراء بـ<b> من قالبه، فاختيار نصٍّ خبيثٍ يشبهه يُنتج
+  // إخفاقًا زائفًا. نصٌّ مميَّز، والدعوى أن يخرج **مُهرَّبًا** لا أن يختفي.
+  const evilWho = contractAuditHTML(rows, () => '<img src=q onerror=z>');
+  t('واسم المنفِّذ مُهرَّب', !evilWho.includes('<img src=q'), evilWho);
+  t('ويظهر مُهرَّبًا لا يُحذف', evilWho.includes('&lt;img src=q'));
+  eq('سجلٌّ فارغ يعطي نصًّا فارغًا', contractAuditHTML([], () => '—'), '');
+}
+
+console.log('\n▸ بريد الإرسال — منع الخطأ المطبعيّ لا تطبيق RFC');
+{
+  ['a@b.co', 'اسم@نطاق.السعودية', 'x.y+z@sub.domain.tld'].forEach(v =>
+    t('يُقبل: ' + v, isSendableEmail(v)));
+  ['', '   ', 'ليس بريدًا', 'a@b', 'a b@c.d', '@b.co', 'a@.co'].forEach(v =>
+    t('يُرفض: ' + JSON.stringify(v), !isSendableEmail(v)));
+  t('و undefined لا يرمي', !isSendableEmail(undefined));
 }
 
 console.log(`\nنجح ${ok} · فشل ${fail}`);
