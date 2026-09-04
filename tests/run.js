@@ -209,6 +209,46 @@ const DEAD_CAP = 0;   // W2: حُذف الأحد عشر الموجودة. أي �
     (dead.length < DEAD_CAP ? ` — ${BOLD}أنزِل DEAD_CAP إلى ${dead.length}.${OFF}` : ' — نظيف'));
 }
 
+// ===== ٥ب) سقف طول الدالة — الموجة W3 =====
+//
+// «أطول دالة ٨٢٠ سطرًا» بقي رقمًا في لوحة المؤشرات طوال الموجات السابقة: يُقاس
+// يدويًا حين يُسأل عنه، ولا شيء يمنع نموّه بينها. فصار سقفًا.
+//
+// والقياس بمطابقة الأقواس لا بتقدير: من سطر التصريح حتى القوس الذي يُغلقه.
+// والسقف واحد للأطول لا حدٌّ لكل دالة — لأن الحدّ العامّ (١٢٠) اليوم يُنتج
+// ستّ بلاغات دفعةً واحدة فيُغري بتعطيله، والسقف المتحرّك ينزل مع كل تفكيك.
+const LONGEST_FN_CAP = 716;   // W3: 815 (قبل) ← 774 (حذف الميت) ← 716 (خروج القرارين). الهدف ≤ 120.
+{
+  const files = [
+    ...fs.readdirSync('src').filter(f => f.endsWith('.js') && f !== 'qrgen.js').map(f => `src/${f}`),
+    ...fs.readdirSync('src/app').filter(f => f.endsWith('.js')).map(f => `src/app/${f}`)
+  ];
+  const longest = [];
+  for (const f of files) {
+    const lines = fs.readFileSync(f, 'utf8').split('\n');
+    const re = /^(?:export )?(?:async )?function ([\w$]+)\s*\(/;
+    for (let i = 0; i < lines.length; i++) {
+      const m = re.exec(lines[i]);
+      if (!m) continue;
+      let depth = 0, started = false, j = i;
+      for (; j < lines.length; j++) {
+        for (const ch of lines[j]) { if (ch === '{') { depth++; started = true; } else if (ch === '}') depth--; }
+        if (started && depth <= 0) break;
+      }
+      longest.push([j - i + 1, m[1], f, i + 1]);
+    }
+  }
+  longest.sort((a, b) => b[0] - a[0]);
+  const [n, name, file, line] = longest[0];
+  if (n > LONGEST_FN_CAP) {
+    console.error(`  ${RED}✗ أطول دالة ${n} سطرًا — السقف ${LONGEST_FN_CAP}. السقف ينقص ولا يزيد.${OFF}`);
+    longest.slice(0, 3).forEach(([c, nm, fl, ln]) => console.error(`     ${c} سطرًا  ${nm}  ${fl}:${ln}`));
+    process.exit(1);
+  }
+  console.log(`  ${GREEN}✓${OFF} أطول دالة ${n} سطرًا (${name} · ${file}:${line}) ≤ ${LONGEST_FN_CAP}` +
+    (n < LONGEST_FN_CAP ? ` — ${BOLD}أنزِل LONGEST_FN_CAP إلى ${n}.${OFF}` : ''));
+}
+
 // ===== ٦) حارسا نظام التصميم: سقفان يَنقصان ولا يزيدان =====
 //
 // سبب النشأة: نظام التصميم في styles.css قويّ (756 رمزًا)، لكن نصف القرارات البصرية

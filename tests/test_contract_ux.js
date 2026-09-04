@@ -48,9 +48,10 @@ t('الإجراء الأساسي بارز بصريًا',css.includes('.chub-prim
 // ===== المرحلة ٣+٤: التبويبات وترتيب الاستخدام =====
 ['overview','terms','attach','send','log'].forEach(k=>
   t('تبويب معرَّف: '+k, hub.includes("data-pane=\""+k+"\"")));
-t('التبويب الافتراضي يتبع المرحلة لا ترتيبًا ثابتًا',
-  hub.includes("CHD_TAB = (!c.internal_approved&&!anySigned&&editable) ? 'terms'"));
-t('عقد بانتظار التوقيع يفتح على تبويب الإرسال مباشرة',hub.includes("? 'send'"));
+// القرار خرج إلى `defaultContractTab` — ويُختبَر سلوكًا لا نصًّا في
+// tests/test_contract_stage.js. ويبقى هنا تأكيدٌ واحد: أن اللوحة تستشيره.
+t('اللوحة تستشير قرار التبويب لا تُعيد كتابته',
+  hub.includes('CHD_TAB=defaultContractTab(c,'));
 t('التبديل بلا إعادة بناء — يحفظ حالة الحقول والمعاينة',
   hub.includes("panel.querySelectorAll('.chub-pane').forEach")&&!hub.includes('CHD_TAB=b.dataset.chdtab;renderContract'));
 t('الحفظ يُعيد الفتح على نفس التبويب لا يقفز للبداية',hub.includes('openContractDetailPanel(contractId,true)'));
