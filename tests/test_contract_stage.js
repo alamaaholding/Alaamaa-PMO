@@ -32,7 +32,8 @@ w.eval(`window.supabase={createClient:()=>({rpc:()=>Promise.resolve({data:[],err
 { const s = w.document.createElement('script'); s.textContent = fs.readFileSync('app.bundle.js', 'utf8');
   w.document.body.appendChild(s); }
 
-const { contractStage, defaultContractTab } = w;
+const { contractStage, defaultContractTab, contractPanelHTML,
+        contractFunnelSteps, contractLinkValidity } = w;
 
 // عقدٌ في أبسط حالاته الصالحة: معتمَد، مُسنَد لشريك، بلا توقيع.
 const base = (over = {}) => Object.assign({
@@ -144,6 +145,96 @@ console.log('\n▸ التبويب الافتراضي يتبع المرحلة');
   eq('موقَّع بالكامل → نظرة عامة',
     tab(base({ signatures: [{ party: 'alamaa', name: 'أ' }, { party: 'client', name: 'ب' }] })), 'overview');
   eq('ملغى → نظرة عامة لا الإرسال', tab(base({ status: 'void' })), 'overview');
+}
+
+console.log('\n▸ صلاحية رابط التوقيع — قاعدةٌ يراها الشريك ولم تكن محروسة');
+{
+  const DAY = 86400000;
+  const sent = '2026-03-01T00:00:00Z';
+  const at = d => +new Date(sent) + d * DAY;
+
+  // الافتراضي ثلاثون يومًا حين لا ينصّ العقد.
+  eq('المدة الافتراضية ٣٠ يومًا', contractLinkValidity(base(), sent, at(0)).days, 30);
+  eq('والعقد ينصّ عليها فتُتَّبع', contractLinkValidity(base({ link_valid_days: 7 }), sent, at(0)).days, 7);
+  eq('و`0` ليست صفرًا بل غيابُ نصّ — فتعود للافتراضي',
+    contractLinkValidity(base({ link_valid_days: 0 }), sent, at(0)).days, 30);
+
+  eq('يوم الإرسال: ٣٠ يومًا متبقّية', contractLinkValidity(base(), sent, at(0)).daysLeft, 30);
+  eq('بعد ٢٩ يومًا: يومٌ واحد', contractLinkValidity(base(), sent, at(29)).daysLeft, 1);
+  // الحدّ بالضبط: لحظةُ الانتهاء نفسها منتهية لا صالحة — وهذا ما يراه الشريك.
+  eq('عند الانتهاء تمامًا: صفر', contractLinkValidity(base(), sent, at(30)).daysLeft, 0);
+  t('وتُعدّ منتهية', contractLinkValidity(base(), sent, at(30)).expired);
+  t('وقبلها بلحظة لا تكون منتهية', !contractLinkValidity(base(), sent, at(30) - 1).expired);
+  eq('وبعدها بيوم: سالب', contractLinkValidity(base(), sent, at(31)).daysLeft, -1);
+
+  // القاعدة التي تشرحها الواجهة: أي تذكير يجدّد المدة — لأن الحساب من آخر إرسال.
+  const late = contractLinkValidity(base(), '2026-03-20T00:00:00Z', at(30));
+  // إرسالٌ في ٢٠ مارس ينتهي في ١٩ أبريل؛ والآن ٣١ مارس ⇒ ١٩ يومًا.
+  eq('التذكير يجدّد: إرسالٌ أحدث يعيد العدّاد', late.daysLeft, 19);
+}
+
+console.log('\n▸ مسار الرسالة — أين وصلت، وما التالي');
+{
+  const F = o => contractFunnelSteps(o);
+  eq('خمس خطوات دائمًا', F({}).steps.length, 5);
+  eq('بلا إرسال: لا خطوة محقَّقة', F({}).lastDone, -1);
+  eq('أُرسلت فقط', F({ sent_at: 'x' }).lastDone, 0);
+  eq('وصلت', F({ sent_at: 'x', delivered_at: 'y' }).lastDone, 1);
+  eq('وُقِّع — آخر الخطوات',
+    F({ sent_at: 'a', delivered_at: 'b', opened_at: 'c', clicked_at: 'd', signed_at: 'e' }).lastDone, 4);
+  // القاعدة الدقيقة: الفهرس هو **آخر** خطوة لها طابع زمني، فثغرةٌ في الوسط
+  // (بريدٌ وصل بلا إشعار فتح) لا تُسقط ما بعدها ولا توقف المسار عندها.
+  eq('ثغرة في الوسط لا توقف المسار',
+    F({ sent_at: 'a', delivered_at: 'b', clicked_at: 'd' }).lastDone, 3);
+  eq('ولا حتى توقيعٌ بلا ما قبله', F({ signed_at: 'e' }).lastDone, 4);
+  t('وترتيب الخطوات هو ترتيب الحياة الواقعي',
+    F({}).steps.map(s => s.k).join('|') === 'أُرسلت|وصلت|فُتحت|نُقر الرابط|وُقِّع');
+}
+
+console.log('\n▸ ترميز اللوحة — بانٍ خالص، يُقارَن نصًّا');
+{
+  const html = (c, over = {}) => contractPanelHTML(c, Object.assign({
+    STAGE: contractStage(c, facts(c)), cl: facts(c).cl,
+    anySigned: facts(c).anySigned, editable: facts(c).editable,
+    isCustom: c.contract_type === 'custom',
+    link: 'https://pmo.example/#/sign/tok', tab: 'overview'
+  }, over));
+
+  const h = html(base());
+  t('التبويبات الخمسة موجودة',
+    ['overview', 'terms', 'attach', 'send', 'log'].every(k => h.includes(`data-pane="${k}"`)));
+  // التبويب المفتوح هو المُمرَّر لا حالةُ الوحدة — وهذا ما يجعل الدالة خالصة.
+  t('المفتوح هو المُمرَّر وحده',
+    /data-pane="overview" >/.test(h) || h.includes('data-pane="overview" \n'), 'overview');
+  t('وبقيّتها مخفيّة', (h.match(/data-pane="[a-z]+" hidden/g) || []).length === 4);
+  const h2 = html(base(), { tab: 'send' });
+  t('وتمرير تبويبٍ آخر ينقل الفتح إليه',
+    (h2.match(/data-pane="[a-z]+" hidden/g) || []).length === 4 && !/data-pane="send" hidden/.test(h2));
+
+  t('الإجراء الأساسي يظهر بمعرّفه', html(base()).includes('id="chdSignNow"'));
+  t('والثانويّات في قائمة ⋯', h.includes('id="chdMoreMenu"') && h.includes('id="chdExport"'));
+
+  // نفس المُدخَل يُنتج نفس المُخرَج.
+  eq('نداءان متطابقان', html(base()), html(base()));
+
+  // ...لكن هذا **لا يُثبت الخلوص**: نداءان يقرآن حالةَ الوحدة نفسها يتطابقان
+  // أيضًا. جرّبتُ كسرَها بإعادة قراءة `CHD_TAB` داخل الباني فمرّ التأكيد أعلاه.
+  // وحالةُ الوحدة ليست مُصدَّرة فلا سبيل لتبديلها من هنا — فيُفحَص المصدر: أن
+  // جسم الباني لا يذكر رابطةً من رواب��� الوحدة أصلًا. تأكيدٌ نصّي عن قصد، لأن
+  // الدعوى نفسها بنيوية: «لا مُدخَل لهذه الدالة خارج وسائطها».
+  {
+    const src = fs.readFileSync('src/app/contractshub.js', 'utf8');
+    const at = src.indexOf('export function contractPanelHTML');
+    const body = src.slice(at, src.indexOf('\n}', at));
+    const leaks = ['CHD_TAB', 'CHD_ORG', 'CHD_TEMPLATE', 'CHD_OVERRIDES', 'CH_CONTRACTS']
+      .filter(n => new RegExp(`(?<![\\w$])${n}(?![\\w$])`).test(body));
+    t('ولا مُدخَل لها خارج وسائطها', leaks.length === 0, leaks.join(' '));
+  }
+
+  // التهريب: اسم العقد يأتي من المستخدم، ولا يجوز أن يخرج خامًا في الترميز.
+  const evil = html(base({ contract_name: '<img src=x onerror=alert(1)>' }));
+  t('اسم العقد مُهرَّب', !evil.includes('<img src=x'), evil.slice(0, 200));
+  t('ورقمه كذلك', !html(base({ contract_number: '<b>x</b>' })).includes('<b>x</b>'));
 }
 
 console.log(`\nنجح ${ok} · فشل ${fail}`);

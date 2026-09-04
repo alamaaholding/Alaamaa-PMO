@@ -386,140 +386,7 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
   if(!KEEP_TAB)CHD_TAB=defaultContractTab(c,{anySigned,editable,cl});
 
   const panel=document.getElementById('chubPanel');
-  panel.innerHTML=`<div class="chub-detail">
-    <div class="chub-detail-hd">
-      <h3>${esc(c.contract_name||'عقد بلا اسم')} <span class="chub-num">${esc(c.contract_number||'—')}</span></h3>
-      <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
-      <div class="chub-hd-actions">
-        ${STAGE.primary?`<button class="hbtn chub-primary" id="${STAGE.primary.id}"
-           style="background:${STAGE.primary.color};border-color:${STAGE.primary.color};color:#fff">${STAGE.primary.label}</button>`:''}
-        <div class="chub-more">
-          <button class="reqbtn" id="chdMore" aria-haspopup="true" aria-expanded="false" aria-label="إجراءات أخرى" title="إجراءات أخرى">⋯</button>
-          <div class="chub-more-menu" id="chdMoreMenu" hidden>
-            ${STAGE.secondary.map(a=>`<button class="chub-more-item" id="${a.id}">${a.label}</button>`).join('')}
-          </div>
-        </div>
-        <button class="reqbtn" id="chdClose" aria-label="إغلاق لوحة العقد" title="إغلاق">✕</button>
-      </div>
-    </div>
-
-    <div class="chub-stage ${STAGE.tone}">
-      <div class="chub-stage-main">
-        <b>${STAGE.title}</b>
-        <span class="sa-hint">${STAGE.hint}</span>
-      </div>
-      ${STAGE.notes.length?`<div class="chub-stage-notes">${STAGE.notes.map(n=>
-        `<span class="chub-note ${n.tone||''}">${n.text}</span>`).join('')}</div>`:''}
-    </div>
-    <div id="chdSignArea"></div>
-    ${(!c.client_id&&!c.source_contract_id)?'<div id="chdInstances"></div>':''}
-
-    <div class="chub-tabs" role="tablist" aria-label="أقسام العقد">
-      ${[['overview','نظرة عامة'],['terms','الشروط والبنود'],['attach','الملاحق'],
-         ['send','الإرسال والتوقيع'],['log','السجل']].map(([k,t2])=>
-        `<button class="chub-tab ${CHD_TAB===k?'active':''}" role="tab" data-chdtab="${k}">${t2}</button>`).join('')}
-    </div>
-
-    <div class="chub-pane" data-pane="overview" ${CHD_TAB==='overview'?'':'hidden'}>
-      <details class="pubsign-fulltext" open>
-        <summary>📄 نص العقد كما سيراه الشريك ${editable?'(يتحدّث فورًا مع أي تعديل)':''}</summary>
-        <div id="chdPreview"></div>
-      </details>
-      <div id="chdIntegrity"></div>
-    </div>
-
-    <div class="chub-pane" data-pane="terms" ${CHD_TAB==='terms'?'':'hidden'}>
-      <div class="chub-fields-box">
-        ${editable?`
-        <div class="sa-form" style="flex-wrap:wrap;margin-bottom:12px">
-          <input id="chdName" placeholder="اسم العقد" value="${esc(c.contract_name||'')}" style="flex:1;min-width:180px;font-weight:700">
-          <input id="chdNumber" placeholder="رقم العقد" value="${esc(c.contract_number||'')}" style="width:150px;font-family:monospace" dir="ltr">
-        </div>`:`
-        <input id="chdName" type="hidden" value="${esc(c.contract_name||'')}">
-        <input id="chdNumber" type="hidden" value="${esc(c.contract_number||'')}">`}
-        ${isCustom?`
-          ${editable?`
-          <input id="chdTitle" placeholder="عنوان العقد" value="${esc(c.custom_title||'')}" style="width:100%;margin-bottom:10px;font-weight:700;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
-          <textarea id="chdBody" placeholder="نص العقد الكامل..." style="width:100%;min-height:220px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px;line-height:1.7">${esc(c.custom_body||'')}</textarea>
-          <div class="row-8 mt-10">
-            <button class="hbtn gold" id="chdSave">📌 حفظ وتثبيت التعديلات</button>
-          </div>`:`
-          <input id="chdTitle" type="hidden" value="${esc(c.custom_title||'')}">
-          <textarea id="chdBody" class="hidden">${esc(c.custom_body||'')}</textarea>
-          <p class="sa-hint">🔒 عقد ${anySigned?'وقّع عليه طرف على الأقل':'ملغى'} — لم يعد قابلًا للتعديل. لتغييره، ألغِ هذا العقد وأنشئ عقدًا جديدًا.</p>`}
-        `:`
-        ${editable?`
-        <div class="sa-form fx-wrap">
-          <input id="chdValue" type="number" placeholder="قيمة العقد (ر.س)" value="${c.contract_value||''}" style="width:150px">
-          <input id="chdDate" type="date" title="تاريخ السريان" value="${c.effective_date||''}">
-          <input id="chdDuration" type="number" min="1" placeholder="المدة (أشهر)" value="${c.duration_months||''}" class="w-130">
-          <input id="chdEnd" type="date" title="تاريخ الانتهاء" value="${c.end_date||''}">
-          <label class="row-6 fs-85"><input type="checkbox" id="chdRenew" ${c.auto_renew?'checked':''}> تجديد تلقائي</label>
-          <label class="row-6 fs-85"><input type="checkbox" id="chdAdSpend" ${c.includes_ad_spend?'checked':''}> يشمل إدارة إنفاق إعلاني</label>
-        </div>
-        <textarea id="chdSpecial" placeholder="شروط إضافية خاصة بهذا العقد (اختياري)" style="width:100%;min-height:70px;margin-top:10px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px">${esc(c.special_terms||'')}</textarea>
-        <div class="row-8 mt-10">
-          <button class="hbtn gold" id="chdSave">📌 حفظ وتثبيت التعديلات</button>
-        </div>`:`
-        <input id="chdValue" type="hidden" value="${c.contract_value||''}"><input id="chdDate" type="hidden" value="${c.effective_date||''}">
-        <input id="chdDuration" type="hidden" value="${c.duration_months||''}"><input id="chdEnd" type="hidden" value="${c.end_date||''}">
-        <input id="chdRenew" type="checkbox" ${c.auto_renew?'checked':''} class="hidden">
-        <input id="chdAdSpend" type="checkbox" ${c.includes_ad_spend?'checked':''} class="hidden">
-        <textarea id="chdSpecial" class="hidden">${esc(c.special_terms||'')}</textarea>
-        <p class="sa-hint">🔒 عقد ${anySigned?'وقّع عليه طرف على الأقل':'ملغى'} — لم يعد قابلًا للتعديل. لتغييره، ألغِ هذا العقد وأنشئ عقدًا جديدًا.</p>`}
-        `}
-      </div>
-    </div>
-
-    ${(!isCustom&&editable)?`
-    <div class="sa-section mt-14">
-      <h4>📋 نموذج العقد وبنوده <span class="sa-hint">اختر النموذج، واستبعد أو أضف بنودًا لهذا العقد تحديدًا</span></h4>
-      <div class="sa-form" style="margin-bottom:12px">
-        <select id="chdTemplate">${Object.values(CONTRACT_TEMPLATES).map(t=>
-          `<option value="${t.key}" ${(c.template_key||'alamaa_v1')===t.key?'selected':''}>${esc(t.label)}</option>`).join('')}</select>
-      </div>
-      <div id="chdClauses"></div>
-    </div>`:''}
-    </div>
-
-    <div class="chub-pane" data-pane="attach" ${CHD_TAB==='attach'?'':'hidden'}>
-      <div class="sa-section">
-        <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للشريك في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
-        <div id="chdAttachments">${skeleton('panel',1)}</div>
-      </div>
-    </div>
-
-    <div class="chub-pane" data-pane="send" ${CHD_TAB==='send'?'':'hidden'}>
-    <div class="chub-detail-grid">
-      <div class="chub-qr-box">
-        <div id="chdQrImg" class="chub-qr-loading">⏳ يُولَّد رمز QR...</div>
-        <p class="sa-hint">رمز خاص بعقد ${esc(c.client_name)} — يحيل حصرًا لصفحة توقيع هذا العقد</p>
-        <input readonly value="${link}" style="width:100%;font-size:.72rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2);margin-top:6px">
-        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-          <button class="reqbtn" data-chdcopy="${link}">نسخ الرابط</button>
-        </div>
-        ${(c.internal_approved&&c.status!=='void')?`
-        <div class="chd-send-box">
-          <div id="chdFunnel"><p class="sa-hint">جارٍ تحميل حالة الإرسال...</p></div>
-        <div id="chdLinkState"></div>
-          ${!cl?`
-          <input id="chdSendTo" type="email" placeholder="بريد الشريك" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin:8px 0 6px">
-          ${!c.client_contact_email&&c.client_id?'<label class="sa-hint" style="display:flex;gap:5px;align-items:center;margin-bottom:6px"><input type="checkbox" id="chdSaveEmail" checked> احفظه في ملف الشريك (فلا يُعاد إدخاله)</label>':''}
-          <button class="hbtn gold wide" id="chdSendBtn">
-            ${c.send_count>0?'🔔 إرسال تذكير':'📧 إرسال للشريك'}</button>`:''}
-          <button class="reqbtn" id="chdMailCheck" style="width:100%;margin-top:6px;font-size:.72rem">🔍 فحص جاهزية الإرسال</button>
-          <div id="chdMailStatus"></div>
-        </div>`:''}
-      </div>
-    </div>
-
-    <div class="chub-pane" data-pane="log" ${CHD_TAB==='log'?'':'hidden'}>
-      <div class="sa-section">
-        <h4>📜 سجل العقد <span class="sa-hint">كل إجراء موثَّق: من فعله ومتى</span></h4>
-        <div id="chdAudit">${skeleton('panel',1)}</div>
-      </div>
-    </div>
-  </div>`;
+  panel.innerHTML=contractPanelHTML(c,{STAGE,cl,anySigned,editable,isCustom,link,tab:CHD_TAB});
 
   // ===== نموذج العقد ومحرر البنود =====
   CHD_ORG=c.org||null;
@@ -732,23 +599,13 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
       return;
     }
     const fmt=d=>d?new Date(d).toLocaleString('ar',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):null;
-    // الخطوة تُعدّ محقَّقة إن تحقّقت هي أو أي خطوة بعدها (البريد قد يصل بلا إشعار فتح مثلًا)
-    const steps=[
-      {k:'أُرسلت',      at:f.sent_at,      icon:'📤'},
-      {k:'وصلت',        at:f.delivered_at, icon:'📬'},
-      {k:'فُتحت',       at:f.opened_at,    icon:'👁'},
-      {k:'نُقر الرابط', at:f.clicked_at,   icon:'🖱'},
-      {k:'وُقِّع',       at:f.signed_at,    icon:'✍️'}
-    ];
-    const lastDone=steps.reduce((acc,s,i)=>s.at?i:acc,-1);
+    const {steps,lastDone}=contractFunnelSteps(f);
     // حالة صلاحية الرابط — تظهر للمستخدم بدل أن يكتشفها من شكوى الشريك
     const ls=document.getElementById('chdLinkState');
     if(ls&&f.sent_at&&!f.signed_at){
-      const days=Number(c.link_valid_days||30);
-      const exp=new Date(new Date(f.sent_at).getTime()+days*86400000);
-      const left=Math.ceil((exp-Date.now())/86400000);
-      ls.innerHTML=left>0
-        ?`<p class="sa-hint mt-6">🔗 الرابط صالح ${left} يومًا (حتى ${exp.toLocaleDateString('ar')}) — أي تذكير يجدّد المدة</p>`
+      const v=contractLinkValidity(c,f.sent_at);
+      ls.innerHTML=v.daysLeft>0
+        ?`<p class="sa-hint mt-6">🔗 الرابط صالح ${v.daysLeft} يومًا (حتى ${v.expiresAt.toLocaleDateString('ar')}) — أي تذكير يجدّد المدة</p>`
         :`<div class="ctr-integrity warn mt-6 fs-75">⚠ انتهت صلاحية الرابط — أرسل تذكيرًا ليعمل مجددًا</div>`;
     }
     box.innerHTML=`
@@ -1288,4 +1145,182 @@ export function defaultContractTab(c,{anySigned,editable,cl}){
   return (!c.internal_approved&&!anySigned&&editable) ? 'terms'
        : (c.internal_approved&&c.status!=='void'&&!cl) ? 'send'
        : 'overview';
+}
+
+
+/**
+ * ترميز لوحة العقد كاملًا — بانٍ خالص: مُدخَلٌ بيانات، ومُخرَجٌ نصّ.
+ *
+ * كان ١٣٤ سطرًا داخل `openContractDetailPanel`، ولا سبيل لفحصه إلا بتصيير
+ * اللوحة كلها بـDOM وشبكة. وبخروجه صار نصًّا يُقارَن: أيُّ تبويب مفتوح، وأيُّ
+ * حقل مُعطَّل، وهل خرج نصٌّ من المستخدم بلا تهريب.
+ *
+ * و`tab` يُمرَّر ولا يُقرأ من `CHD_TAB` مباشرةً — وهو ما يجعلها خالصة: نفس
+ * المُدخَل يُنتج نفس المُخرَج بلا اعتمادٍ على حالة الوحدة.
+ */
+export function contractPanelHTML(c,{STAGE,cl,anySigned,editable,isCustom,link,tab}){
+  return `<div class="chub-detail">
+    <div class="chub-detail-hd">
+      <h3>${esc(c.contract_name||'عقد بلا اسم')} <span class="chub-num">${esc(c.contract_number||'—')}</span></h3>
+      <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
+      <div class="chub-hd-actions">
+        ${STAGE.primary?`<button class="hbtn chub-primary" id="${STAGE.primary.id}"
+           style="background:${STAGE.primary.color};border-color:${STAGE.primary.color};color:#fff">${STAGE.primary.label}</button>`:''}
+        <div class="chub-more">
+          <button class="reqbtn" id="chdMore" aria-haspopup="true" aria-expanded="false" aria-label="إجراءات أخرى" title="إجراءات أخرى">⋯</button>
+          <div class="chub-more-menu" id="chdMoreMenu" hidden>
+            ${STAGE.secondary.map(a=>`<button class="chub-more-item" id="${a.id}">${a.label}</button>`).join('')}
+          </div>
+        </div>
+        <button class="reqbtn" id="chdClose" aria-label="إغلاق لوحة العقد" title="إغلاق">✕</button>
+      </div>
+    </div>
+
+    <div class="chub-stage ${STAGE.tone}">
+      <div class="chub-stage-main">
+        <b>${STAGE.title}</b>
+        <span class="sa-hint">${STAGE.hint}</span>
+      </div>
+      ${STAGE.notes.length?`<div class="chub-stage-notes">${STAGE.notes.map(n=>
+        `<span class="chub-note ${n.tone||''}">${n.text}</span>`).join('')}</div>`:''}
+    </div>
+    <div id="chdSignArea"></div>
+    ${(!c.client_id&&!c.source_contract_id)?'<div id="chdInstances"></div>':''}
+
+    <div class="chub-tabs" role="tablist" aria-label="أقسام العقد">
+      ${[['overview','نظرة عامة'],['terms','الشروط والبنود'],['attach','الملاحق'],
+         ['send','الإرسال والتوقيع'],['log','السجل']].map(([k,t2])=>
+        `<button class="chub-tab ${tab===k?'active':''}" role="tab" data-chdtab="${k}">${t2}</button>`).join('')}
+    </div>
+
+    <div class="chub-pane" data-pane="overview" ${tab==='overview'?'':'hidden'}>
+      <details class="pubsign-fulltext" open>
+        <summary>📄 نص العقد كما سيراه الشريك ${editable?'(يتحدّث فورًا مع أي تعديل)':''}</summary>
+        <div id="chdPreview"></div>
+      </details>
+      <div id="chdIntegrity"></div>
+    </div>
+
+    <div class="chub-pane" data-pane="terms" ${tab==='terms'?'':'hidden'}>
+      <div class="chub-fields-box">
+        ${editable?`
+        <div class="sa-form" style="flex-wrap:wrap;margin-bottom:12px">
+          <input id="chdName" placeholder="اسم العقد" value="${esc(c.contract_name||'')}" style="flex:1;min-width:180px;font-weight:700">
+          <input id="chdNumber" placeholder="رقم العقد" value="${esc(c.contract_number||'')}" style="width:150px;font-family:monospace" dir="ltr">
+        </div>`:`
+        <input id="chdName" type="hidden" value="${esc(c.contract_name||'')}">
+        <input id="chdNumber" type="hidden" value="${esc(c.contract_number||'')}">`}
+        ${isCustom?`
+          ${editable?`
+          <input id="chdTitle" placeholder="عنوان العقد" value="${esc(c.custom_title||'')}" style="width:100%;margin-bottom:10px;font-weight:700;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
+          <textarea id="chdBody" placeholder="نص العقد الكامل..." style="width:100%;min-height:220px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px;line-height:1.7">${esc(c.custom_body||'')}</textarea>
+          <div class="row-8 mt-10">
+            <button class="hbtn gold" id="chdSave">📌 حفظ وتثبيت التعديلات</button>
+          </div>`:`
+          <input id="chdTitle" type="hidden" value="${esc(c.custom_title||'')}">
+          <textarea id="chdBody" class="hidden">${esc(c.custom_body||'')}</textarea>
+          <p class="sa-hint">🔒 عقد ${anySigned?'وقّع عليه طرف على الأقل':'ملغى'} — لم يعد قابلًا للتعديل. لتغييره، ألغِ هذا العقد وأنشئ عقدًا جديدًا.</p>`}
+        `:`
+        ${editable?`
+        <div class="sa-form fx-wrap">
+          <input id="chdValue" type="number" placeholder="قيمة العقد (ر.س)" value="${c.contract_value||''}" style="width:150px">
+          <input id="chdDate" type="date" title="تاريخ السريان" value="${c.effective_date||''}">
+          <input id="chdDuration" type="number" min="1" placeholder="المدة (أشهر)" value="${c.duration_months||''}" class="w-130">
+          <input id="chdEnd" type="date" title="تاريخ الانتهاء" value="${c.end_date||''}">
+          <label class="row-6 fs-85"><input type="checkbox" id="chdRenew" ${c.auto_renew?'checked':''}> تجديد تلقائي</label>
+          <label class="row-6 fs-85"><input type="checkbox" id="chdAdSpend" ${c.includes_ad_spend?'checked':''}> يشمل إدارة إنفاق إعلاني</label>
+        </div>
+        <textarea id="chdSpecial" placeholder="شروط إضافية خاصة بهذا العقد (اختياري)" style="width:100%;min-height:70px;margin-top:10px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px">${esc(c.special_terms||'')}</textarea>
+        <div class="row-8 mt-10">
+          <button class="hbtn gold" id="chdSave">📌 حفظ وتثبيت التعديلات</button>
+        </div>`:`
+        <input id="chdValue" type="hidden" value="${c.contract_value||''}"><input id="chdDate" type="hidden" value="${c.effective_date||''}">
+        <input id="chdDuration" type="hidden" value="${c.duration_months||''}"><input id="chdEnd" type="hidden" value="${c.end_date||''}">
+        <input id="chdRenew" type="checkbox" ${c.auto_renew?'checked':''} class="hidden">
+        <input id="chdAdSpend" type="checkbox" ${c.includes_ad_spend?'checked':''} class="hidden">
+        <textarea id="chdSpecial" class="hidden">${esc(c.special_terms||'')}</textarea>
+        <p class="sa-hint">🔒 عقد ${anySigned?'وقّع عليه طرف على الأقل':'ملغى'} — لم يعد قابلًا للتعديل. لتغييره، ألغِ هذا العقد وأنشئ عقدًا جديدًا.</p>`}
+        `}
+      </div>
+    </div>
+
+    ${(!isCustom&&editable)?`
+    <div class="sa-section mt-14">
+      <h4>📋 نموذج العقد وبنوده <span class="sa-hint">اختر النموذج، واستبعد أو أضف بنودًا لهذا العقد تحديدًا</span></h4>
+      <div class="sa-form" style="margin-bottom:12px">
+        <select id="chdTemplate">${Object.values(CONTRACT_TEMPLATES).map(t=>
+          `<option value="${t.key}" ${(c.template_key||'alamaa_v1')===t.key?'selected':''}>${esc(t.label)}</option>`).join('')}</select>
+      </div>
+      <div id="chdClauses"></div>
+    </div>`:''}
+    </div>
+
+    <div class="chub-pane" data-pane="attach" ${tab==='attach'?'':'hidden'}>
+      <div class="sa-section">
+        <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للشريك في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
+        <div id="chdAttachments">${skeleton('panel',1)}</div>
+      </div>
+    </div>
+
+    <div class="chub-pane" data-pane="send" ${tab==='send'?'':'hidden'}>
+    <div class="chub-detail-grid">
+      <div class="chub-qr-box">
+        <div id="chdQrImg" class="chub-qr-loading">⏳ يُولَّد رمز QR...</div>
+        <p class="sa-hint">رمز خاص بعقد ${esc(c.client_name)} — يحيل حصرًا لصفحة توقيع هذا العقد</p>
+        <input readonly value="${link}" style="width:100%;font-size:.72rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2);margin-top:6px">
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button class="reqbtn" data-chdcopy="${link}">نسخ الرابط</button>
+        </div>
+        ${(c.internal_approved&&c.status!=='void')?`
+        <div class="chd-send-box">
+          <div id="chdFunnel"><p class="sa-hint">جارٍ تحميل حالة الإرسال...</p></div>
+        <div id="chdLinkState"></div>
+          ${!cl?`
+          <input id="chdSendTo" type="email" placeholder="بريد الشريك" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin:8px 0 6px">
+          ${!c.client_contact_email&&c.client_id?'<label class="sa-hint" style="display:flex;gap:5px;align-items:center;margin-bottom:6px"><input type="checkbox" id="chdSaveEmail" checked> احفظه في ملف الشريك (فلا يُعاد إدخاله)</label>':''}
+          <button class="hbtn gold wide" id="chdSendBtn">
+            ${c.send_count>0?'🔔 إرسال تذكير':'📧 إرسال للشريك'}</button>`:''}
+          <button class="reqbtn" id="chdMailCheck" style="width:100%;margin-top:6px;font-size:.72rem">🔍 فحص جاهزية الإرسال</button>
+          <div id="chdMailStatus"></div>
+        </div>`:''}
+      </div>
+    </div>
+
+    <div class="chub-pane" data-pane="log" ${tab==='log'?'':'hidden'}>
+      <div class="sa-section">
+        <h4>📜 سجل العقد <span class="sa-hint">كل إجراء موثَّق: من فعله ومتى</span></h4>
+        <div id="chdAudit">${skeleton('panel',1)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+
+/**
+ * مسار الرسالة: أُرسلت ← وصلت ← فُتحت ← نُقر ← وُقِّع.
+ * `lastDone` فهرس آخر خطوة محقَّقة (-1 إن لم تتحقّق واحدة)، وما بعدها بخطوة
+ * هي «التالية». والقاعدة الدقيقة أن الخطوة تُقرأ من طابعها الزمني وحده — فبريدٌ
+ * يصل بلا إشعار فتحٍ يترك «فُتحت» فارغة ولا يُسقط ما بعدها.
+ */
+export function contractFunnelSteps(f){
+  const steps=[
+    {k:'أُرسلت',      at:f.sent_at,      icon:'📤'},
+    {k:'وصلت',        at:f.delivered_at, icon:'📬'},
+    {k:'فُتحت',       at:f.opened_at,    icon:'👁'},
+    {k:'نُقر الرابط', at:f.clicked_at,   icon:'🖱'},
+    {k:'وُقِّع',       at:f.signed_at,    icon:'✍️'}
+  ];
+  return {steps,lastDone:steps.reduce((acc,s,i)=>s.at?i:acc,-1)};
+}
+
+/**
+ * صلاحية رابط التوقيع: تُحسب من تاريخ **آخر إرسال** لا من إنشاء العقد — فأي
+ * تذكير يجدّد المدة. والمدة الافتراضية ثلاثون يومًا حين لا ينصّ العقد عليها.
+ * @param {Date|number} [now] لحقن الزمن في الاختبار؛ وإلا فاللحظة الحالية.
+ */
+export function contractLinkValidity(c,sentAt,now){
+  const days=Number(c.link_valid_days||30);
+  const expiresAt=new Date(new Date(sentAt).getTime()+days*86400000);
+  const daysLeft=Math.ceil((expiresAt-(now===undefined?Date.now():+now))/86400000);
+  return {days,expiresAt,daysLeft,expired:daysLeft<=0};
 }
