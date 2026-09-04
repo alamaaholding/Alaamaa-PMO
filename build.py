@@ -9,7 +9,10 @@ ROOT=os.path.dirname(os.path.abspath(__file__))
 def read(p): return open(os.path.join(ROOT,p),encoding='utf-8').read()
 def write(p,c): open(os.path.join(ROOT,p),'w',encoding='utf-8').write(c)
 
-CORE=['src/app/session.js','src/app/main.js']
+# فارغة — لم يبقَ ملفٌ واحد في الدمج النصي. تُبقى القائمة (لا تُحذف) لأن
+# حارسًا في tests/test_esm_migration.js يعدّ ما فيها: صفرٌ يعني اكتمال W2،
+# وأي عودةٍ إلى الدمج النصي تُوقف الاختبار.
+CORE=[]
 LAZY=['src/dol.js','src/importer.js','src/pgantt.js','src/timeline.js','src/trello.js','src/qrgen.js']
 
 # ===== حزمة ESM: الوحدات المُحوَّلة تُحزَم بـesbuild وتُوضع أولًا =====

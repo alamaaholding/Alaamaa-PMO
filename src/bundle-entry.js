@@ -48,9 +48,11 @@ import * as contractsHub from './app/contractshub.js';
 // لأثرها وحده، وصفحة الشريك تُمرَّر إلى الجسر لاسمها الواحد.
 import './app/portfolio.js';
 import * as clientHome from './app/clienthome.js';
+import * as main from './app/main.js';
+import * as session from './app/session.js';
 import { STATE_KEYS, getState, setState, savePFilters } from './app/state.js';
 
-Object.assign(globalThis, theme, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate, exportContract, chrome, screens, actions, views, projectActions, taskPanel, lifecycle, emptyStateMod, staffAccess, workload, contractSign, contractsHub, clientHome);
+Object.assign(globalThis, theme, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate, exportContract, chrome, screens, actions, views, projectActions, taskPanel, lifecycle, emptyStateMod, staffAccess, workload, contractSign, contractsHub, clientHome, main, session);
 
 // state.js **لا تُمرَّر كفضاء أسماء** — حالتها تصل بواصفات لا بنسخ (أدناه). لكن
 // `savePFilters` دالةٌ لا حالة، ومكانها هناك لأن القراءة المقابلة لها هناك. فتُجسَّر
@@ -77,3 +79,14 @@ for (const key of STATE_KEYS) {
     set: value => { setState(key, value); }
   });
 }
+
+// ═══ الانطلاق — آخر سطرٍ تنفيذيّ في الحزمة ═══
+// كان `boot()` آخر سطر في app/main.js، وموضعه هناك من زمن الدمج النصي حيث
+// الترتيب النصّي هو كل شيء. وقد كان يسلَم بمصادفةٍ لا بضمان: يُنفَّذ **قبل**
+// `registerScreen` في أسفل الملف نفسه، ولا يعطب إلا لأنه غير متزامن فيعود من
+// أول `await` قبل أن يحتاج السجلّ.
+//
+// وموضعه الصحيح هنا: نقطة الدخول تُهيّئ كل وحدة أولًا ثم تنطلق. والمكسب الثاني
+// أنه **حلّ الدورة الأخيرة**: كانت session تنادي `startApp` وmain تنادي `boot`
+// — حافتان في اتجاهين. فبانتقال النداء بقيت حافةٌ واحدة، ولم تبقَ دورة.
+session.boot();

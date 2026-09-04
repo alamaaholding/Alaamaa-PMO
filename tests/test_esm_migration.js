@@ -14,6 +14,7 @@
 //    لو انقطع الجسر، لا يظهر العطل وقت البناء بل عند أول مستخدم يفتح مشروعًا.
 
 const fs = require('fs');
+const path = require('path');
 const { JSDOM } = require('jsdom');
 
 let ok = 0, fail = 0;
@@ -54,16 +55,18 @@ t('لا import في المستوى الأعلى للحزمة', !/^import[\s{'"]/
 t('البناء يفرض صيغة IIFE صراحةً', buildPy.includes('--format=iife'));
 t('قطعة ESM موسومة في الناتج', bundle.includes('/* ===== وحدات ESM (esbuild) ===== */'));
 {
-  // القاعدة الحاكمة السادسة: القدرة المفحوصة لم تتغيّر، موضعها تغيّر. كان التأكيد
-  // مثبَّتًا على `config.js` بصفتها أول ملف في الدمج النصي — ثم تحوّلت هي نفسها،
-  // فاختفى المرساة وسقط التأكيد. العلاج ليس تثبيته على الملف التالي (فيسقط مجددًا
-  // مع كل تحويل)، بل أن يقرأ المرساة من build.py: **أوّل ملف قديم أيًّا كان**.
-  const first = (buildPy.match(/CORE=\[\s*'src\/(?:app\/)?([\w.-]+)'/) || [])[1];
-  t('build.py ما زالت تُعلن ملفات دمج نصي', !!first, 'تعذّرت قراءة أول عنصر في CORE');
-  t('القطعة توضع **أولًا** — قبل الكود القديم الذي يقرأ منها',
-    bundle.includes(`===== ${first} =====`) &&
-    bundle.indexOf('وحدات ESM (esbuild)') < bundle.indexOf(`===== ${first} =====`),
-    `أول ملف قديم: ${first}`);
+  // هذا التأكيد وُلد يحرس **ترتيبًا**: القطعة أولًا، ثم الكود القديم الذي يقرأ
+  // صادراتها من globalThis. وقد تنقّل مرساته مع كل تحويل (config.js أولًا، ثم
+  // «أوّل ملف في CORE أيًّا كان»)، حتى فرغت CORE فلم يبقَ ترتيبٌ يُحرَس.
+  //
+  // ولأن الدعوى صارت صحيحةً بلا مضمون، حلّت محلّها الدعوى **الأقوى** التي كان
+  // الترتيبُ وسيلةً إليها: لا كود قديم في الحزمة أصلًا. وأي عودةٍ إلى الدمج
+  // النصي تُعيد وسم `===== <ملف> =====` إلى الناتج فيسقط هذا فورًا.
+  const legacy = [...bundle.matchAll(/\/\* ===== ([\w.-]+\.js) ===== \*\//g)].map(m => m[1]);
+  t('لا كتلة كود قديم في الحزمة', legacy.length === 0, legacy.join(' '));
+  t('وقطعة ESM هي أوّل ما فيها بعد البصمة',
+    /^globalThis\.BUILD_V='[0-9a-f]{8}';\n\/\* ===== وحدات ESM \(esbuild\) ===== \*\//.test(bundle),
+    bundle.slice(0, 80));
 }
 t('engine.js خرجت من قائمة الدمج النصي (تُحزَم لا تُلصَق)',
   !/CORE=\[[^\]]*'src\/engine\.js'/.test(buildPy));
@@ -286,7 +289,7 @@ console.log('\n▸ التصغير: مساحة بلا فقد إمكانية ال�
 
   // وسقف الحجم — ينقص ولا يزيد. غيابُه هو ما سمح بمئة كيلوبايت من النموّ الصامت.
   const KB = Math.round(bundle.length / 1024);
-  const CORE_KB_CAP = 410;   // W2: 621 (ascii) ← 414 (utf8) ← 409 (شاشتان). الهدف < 250 (W6).
+  const CORE_KB_CAP = 405;   // W2: 621 ← 414 (utf8) ← 409 ← 404 (اكتمال W2). الهدف < 250 (W6).
   t(`النواة ${KB} KB ≤ ${CORE_KB_CAP}`, KB <= CORE_KB_CAP,
     KB + ' KB — إن نقصت فأنزِل السقف');
 }
@@ -319,7 +322,51 @@ console.log('\n▸ الشاشتان الأوليان — والمتبقّي من
   // العدّاد الحقيقي للموجة: ما بقي في الدمج النصي. اثنان، وهما دورةٌ تُحوَّل معًا.
   const core = (buildPy.match(/CORE=\[([^\]]*)\]/) || ['', ''])[1];
   const left = (core.match(/'/g) || []).length / 2;
-  t('بقي ملفّان في الدمج النصي: session و main', left === 2, left + ' ملفًا: ' + core);
+  t('لم يبقَ ملفٌ واحد في الدمج النصي — اكتملت W2', left === 0, left + ' ملفًا: ' + core);
+}
+
+console.log('\n▸ الرسم البياني للاستيراد — بلا دورة واحدة');
+{
+  // هذا هو مكسب W2 الحقيقي، وقد ظلّ بلا حارس طوال الموجة: كانت الدورات تُقاس
+  // يدويًا بأداةٍ خارج المستودع، فلا شيء يمنع عودتها مع أوّل `import` متبادل.
+  //
+  // ودورة الاستيراد ليست خطأ صياغة — esbuild يقبلها ويُخرج حزمةً تعمل غالبًا.
+  // ثمنها يظهر لاحقًا: ترتيب التهيئة يصير غير محدَّد، ورابطةٌ في المستوى الأعلى
+  // تُقرأ قبل إسنادها فتكون undefined بلا خطأ واحد. لذلك تُمنع بالبناء لا بالمراجعة.
+  const dirs = ['src', 'src/app'];
+  const list = dirs.flatMap(d => fs.readdirSync(d).filter(f => f.endsWith('.js')).map(f => `${d}/${f}`));
+  const graph = new Map();
+  for (const f of list) {
+    const src = fs.readFileSync(f, 'utf8');
+    const out = new Set();
+    for (const m of src.matchAll(/(?:^|\n)\s*(?:import\s[^'"]*from\s*|import\s*)['"]([^'"]+)['"]/g)) {
+      const rel = path.relative(process.cwd(), path.resolve(path.dirname(f), m[1]));
+      if (fs.existsSync(rel)) out.add(rel);
+    }
+    graph.set(f, [...out]);
+  }
+
+  // Tarjan: كل مركّبة قوية أكبر من عقدة واحدة هي دورة.
+  let idx = 0; const ord = new Map(), low = new Map(), on = new Set(), stack = [], cycles = [];
+  const strong = v => {
+    ord.set(v, idx); low.set(v, idx); idx++; stack.push(v); on.add(v);
+    for (const w of graph.get(v) || []) {
+      if (!ord.has(w)) { strong(w); low.set(v, Math.min(low.get(v), low.get(w))); }
+      else if (on.has(w)) low.set(v, Math.min(low.get(v), ord.get(w)));
+    }
+    if (low.get(v) === ord.get(v)) {
+      const c = []; let w; do { w = stack.pop(); on.delete(w); c.push(w); } while (w !== v);
+      if (c.length > 1) cycles.push(c);
+    }
+  };
+  for (const f of list) if (!ord.has(f)) strong(f);
+
+  const edges = [...graph.values()].reduce((n, a) => n + a.length, 0);
+  t('كل ملفات المصدر وحدات — لا استثناء', list.length === graph.size);
+  t('ولا دورة استيراد واحدة', cycles.length === 0,
+    cycles.map(c => c.map(f => f.replace(/^src\//, '')).join('+')).join(' · '));
+  // ورقمٌ يُقرأ لا يُفحَص: حجم الرسم البياني، ليُرى نموّه في المراجعات.
+  console.log(`    (${list.length} وحدة · ${edges} حافة)`);
 }
 
 console.log('\n▸ الجسر مؤقّت بطبيعته — موثَّق لا منسيّ');

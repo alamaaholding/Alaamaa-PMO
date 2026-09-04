@@ -208,9 +208,23 @@ console.log('\n▸ الوصل في التطبيق');
 
   // القاعدة ٢: الرابط يفوز، ويُطبَّق قبل أي تصيير.
   t('applyHashFilters موجودة', /^export function applyHashFilters\(\)/m.test(us));
-  const iApply = main.indexOf('applyHashFilters();');
-  const iRender = main.indexOf("SCREEN='project';CID=CLIENTS[0].id");
-  t('وتُستدعى قبل أول تصيير', iApply > 0 && iApply < iRender);
+  // الدعوى تُقاس داخل جسم startApp وحده، وبعلامتين لا تتعلّقان بإملاء الحالة:
+  // نداء applyHashFilters ثم أوّل render(). وكانت العلامة الثانية نصًّا حرفيًّا
+  // (`SCREEN='project';CID=CLIENTS[0].id`) فسقطت لحظة تحوّل main.js إلى وحدة —
+  // ولو لم يكن `iApply > 0` لمرّت بصمت مع -1 على الطرفين.
+  const sa = main.slice(main.indexOf('function startApp('));
+  const body = sa.slice(0, sa.indexOf('\n}'));
+  const iApply = body.indexOf('applyHashFilters();');
+  // والعلامة الثانية هي **توزيع الشاشات** لا أوّل `render()` نصّيًا: أوّل render
+  // في جسم الدالة يقع داخل مُعالِج `onchange` — نداءٌ مؤجَّل لا يُصيَّر عند
+  // الإقلاع، فاتّخاذه علامةً يقيس ترتيب النصّ لا ترتيب التنفيذ. أما
+  // `tryOpenProjectFromHash` و`loadProject` فكلٌّ منهما مرّة واحدة، وكلاهما
+  // داخل سلسلة التوزيع التي تنتهي بأوّل تصييرٍ فعليّ.
+  const iDispatch = body.indexOf('tryOpenProjectFromHash()');
+  const iLoad = body.indexOf('loadProject(');
+  t('applyHashFilters داخل startApp', iApply > 0, 'لم تُوجَد');
+  t('وتوزيع الشاشات بعدها', iDispatch > 0 && iApply < iDispatch, `${iApply} مقابل ${iDispatch}`);
+  t('وتحميل المشروع بعدها', iLoad > 0 && iApply < iLoad, `${iApply} مقابل ${iLoad}`);
 
   // كل مغيّر للتصفية يكتب الرابط — وإلا صار الرابط يكذب على المستخدم.
   const pfWrites = (pf.match(/writePortfolioHash\(\)/g) || []).length;
