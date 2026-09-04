@@ -591,47 +591,10 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
   if(!Array.isArray(CHD_OVERRIDES.added))CHD_OVERRIDES.added=[];
 
   const renderClauses=()=>chubRenderClauseEditor('chdClauses',refreshPreview);
-  const _unusedClauses=()=>{
-    const box=document.getElementById('chdClauses');
-    if(!box)return;
-    const tpl=(CONTRACT_TEMPLATES[CHD_TEMPLATE]||CONTRACT_TEMPLATES.alamaa_v1).tpl;
-    box.innerHTML=`
-      <p class="sa-hint mb-8">إلغاء تحديد بند يجعله «غير منطبق» في هذا العقد — <b>يبقى برقمه</b> ولا تُزاح أرقام بقية البنود، حفاظًا على سلامة الإحالات بينها.</p>
-      <div class="chd-clause-grid">
-        ${tpl.sections.map(sec=>`
-          <label class="chd-clause ${CHD_OVERRIDES.excluded.includes(sec.num)?'chd-clause-off':''}">
-            <input type="checkbox" data-clause="${sec.num}" ${CHD_OVERRIDES.excluded.includes(sec.num)?'':'checked'}>
-            <span>${esc(sec.num)}. ${esc(sec.title)}</span>
-          </label>`).join('')}
-      </div>
-      ${CHD_OVERRIDES.added.length?`<div class="mt-12"><b style="font-size:.85rem">بنود مضافة:</b>
-        ${CHD_OVERRIDES.added.map((a,i)=>`<div class="chd-att-row"><span>${esc(a.num||'')} ${esc(a.title)}</span>
-          <button class="reqbtn txt-crit" data-delclause="${i}">حذف</button></div>`).join('')}</div>`:''}
-      <div class="sa-form mt-12 fx-wrap">
-        <input id="chdNewClauseNum" placeholder="الرقم (مثال: ١٦.٧)" class="w-130">
-        <input id="chdNewClauseTitle" placeholder="عنوان البند الجديد" class="grow-160">
-        <button class="reqbtn" id="chdAddClause">إضافة بند</button>
-      </div>
-      <textarea id="chdNewClauseBody" placeholder="نص البند الجديد..." style="width:100%;min-height:60px;margin-top:8px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px"></textarea>`;
-
-    box.querySelectorAll('[data-clause]').forEach(cb=>cb.onchange=()=>{
-      const num=cb.dataset.clause;
-      if(cb.checked)CHD_OVERRIDES.excluded=CHD_OVERRIDES.excluded.filter(x=>x!==num);
-      else if(!CHD_OVERRIDES.excluded.includes(num))CHD_OVERRIDES.excluded.push(num);
-      renderClauses();refreshPreview();
-    });
-    box.querySelectorAll('[data-delclause]').forEach(b=>b.onclick=()=>{
-      CHD_OVERRIDES.added.splice(Number(b.dataset.delclause),1);renderClauses();refreshPreview();
-    });
-    document.getElementById('chdAddClause').onclick=()=>{
-      const title=document.getElementById('chdNewClauseTitle').value.trim();
-      if(!title){toast('أدخل عنوان البند','warn');return;}
-      CHD_OVERRIDES.added.push({
-        num:document.getElementById('chdNewClauseNum').value.trim()||null,
-        title,body:document.getElementById('chdNewClauseBody').value});
-      renderClauses();refreshPreview();
-    };
-  };
+  // كان هنا `_unusedClauses` — ٤١ سطرًا لمحرر بنودٍ سابق حلّ محلّه
+  // `chubRenderClauseEditor` أعلاه. بقي معرَّفًا بلا مستدعٍ واحد، ومستترًا:
+  // حارس الأسماء الميتة كان يمسح **المستوى الأعلى** وحده فلا يرى ما يُصرَّح
+  // داخل دالة. وقد امتدّ الحارس ليشمل التعشيش، فلن يتكرّر.
   {const ts=document.getElementById('chdTemplate');
    if(ts)ts.onchange=()=>{CHD_TEMPLATE=ts.value;CHD_OVERRIDES.excluded=[];renderClauses();refreshPreview();};}
 

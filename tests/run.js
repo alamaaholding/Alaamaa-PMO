@@ -166,6 +166,26 @@ const DEAD_CAP = 0;   // W2: حُذف الأحد عشر الموجودة. أي �
       else if (decl.type === 'VariableDeclaration') decl.declarations.forEach(d => bound(d.id, names));
       for (const n of names) defs.set(n, f);
     }
+
+    // ═══ والمُعشَّش أيضًا — النقطة العمياء التي كشفتها W3 ═══
+    // كان المسح يقف عند `ast.body`، فدالةٌ مُصرَّحة **داخل** دالة لا يراها الحارس
+    // إطلاقًا. وقد استترت خلف ذلك ٤١ سطرًا ميتة في openContractDetailPanel
+    // (`_unusedClauses`، محرر بنودٍ حلّ محلّه غيره) — ولم تكن استثناءً بحكم اسمها:
+    // بادئة `_` تُسكِت ESLint وحدها، أما هذا الحارس فلم يكن يصل إليها أصلًا.
+    //
+    // والقياس قبل التوسيع: ٧٨ دالة مُعشَّشة في المشروع، واحدة منها بلا مستدعٍ.
+    // أي أن التوسيع يُغلق الثغرة بلا ضجيج، لا أنه يفتح بابًا من البلاغات.
+    (function nested(node, inFn) {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) { node.forEach(x => nested(x, inFn)); return; }
+      if (inFn) {
+        if (node.type === 'FunctionDeclaration' && node.id) defs.set(node.id.name, f);
+        else if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier'
+                 && node.init && /Function/.test(node.init.type || '')) defs.set(node.id.name, f);
+      }
+      const deeper = inFn || /Function/.test(node.type || '');
+      for (const k in node) { if (k === 'loc' || k === 'range') continue; nested(node[k], deeper); }
+    })(ast, false);
   }
   const corpus = [
     ...srcAll.map(f => fs.readFileSync(f, 'utf8')),
