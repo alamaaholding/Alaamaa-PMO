@@ -608,30 +608,13 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
         ?`<p class="sa-hint mt-6">🔗 الرابط صالح ${v.daysLeft} يومًا (حتى ${v.expiresAt.toLocaleDateString('ar')}) — أي تذكير يجدّد المدة</p>`
         :`<div class="ctr-integrity warn mt-6 fs-75">⚠ انتهت صلاحية الرابط — أرسل تذكيرًا ليعمل مجددًا</div>`;
     }
-    box.innerHTML=`
-      <div class="chd-funnel">
-        ${f.bounced_at?`<div class="ctr-integrity warn" style="font-size:.74rem;margin-bottom:8px">
-          ⚠ ارتدّت الرسالة${f.bounce_reason?' — '+esc(f.bounce_reason):''} — تحقّق من صحة البريد</div>`:''}
-        ${steps.map((s,i)=>{
-          const done=!!s.at, current=(i===lastDone+1&&!done);
-          return `<div class="chd-step ${done?'done':(current?'next':'pending')}">
-            <span class="chd-step-icon">${done?s.icon:'○'}</span>
-            <span class="chd-step-label">${s.k}</span>
-            <span class="chd-step-time">${done?fmt(s.at):(current?'بانتظاره':'—')}</span>
-          </div>`;}).join('')}
-      </div>
-      <p class="sa-hint mt-6">
-        📧 ${esc(f.to_email||'')} · ${f.total_sends} إرسال${f.failed_sends?` · ${f.failed_sends} فاشل`:''}
-        ${!f.tracking_active&&f.sent_at?'<br>ℹ️ تتبّع الوصول والفتح يتطلب ربط Webhook في Resend':''}
-      </p>`;
+    box.innerHTML=contractFunnelHTML(f,steps,lastDone,fmt);
   })();
   {const ct=document.getElementById('chdCert');
    if(ct)ct.onclick=async()=>{
      let cert;
      try{ cert=await fetchSignatureCertificate(contractId); }catch(e){toast(e.message,'err');return;}
-     const f=d=>d?new Date(d).toLocaleString('ar',{dateStyle:'full',timeStyle:'short'}):'—';
-     const org=cert.parties.org||{},pt=cert.parties.partner||{};
-     const rows=(label,val)=>`<tr><th>${esc(label)}</th><td>${esc(val==null?'—':String(val))}</td></tr>`;
+     // المُنسِّقات الثلاثة (f · org/pt · rows) انتقلت مع الوثيقة إلى بانيها.
      const okc=await dialog({title:'شهادة التوقيع',
        message:'سيُفتح حوار الطباعة — اختر «حفظ بصيغة PDF» للاحتفاظ بنسخة خارج النظام.',
        html:'<div class="cr-diff"><b>تتضمّن الشهادة:</b><div>· الأطراف وبياناتهم</div>'
@@ -639,70 +622,7 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
            +'<div>· التواقيع وأدلتها كاملة</div><div>· سجل الإجراءات</div></div>',
        confirmText:'متابعة'});
      if(!okc)return;
-     document.getElementById('contractPrint').innerHTML=`
-       <section class="cx-cover">
-         <div class="cx-cover-brand">علامة <span>· أثر دائم</span></div>
-         <h1>شهادة توقيع إلكتروني</h1>
-         <div class="cx-cover-meta">
-           <div><b>العقد</b><span>${esc(cert.contract.name||'—')}</span></div>
-           <div><b>رقم العقد</b><span>${esc(cert.contract.number||'—')}</span></div>
-         </div>
-         <p class="cx-cover-note">وثيقة أدلة مُولَّدة في ${f(cert.generated_at)}</p>
-       </section>
-       <section class="cx-page">
-         <div class="cx-annex-hd">أولًا — الأطراف</div>
-         <table class="cx-table"><tbody>
-           ${rows('الطرف الأول',org.legal_name||'علامة')}${rows('السجل التجاري',org.cr_number)}
-           ${rows('الرقم الضريبي',org.vat_number)}${rows('الممثل',org.rep_name)}
-           ${rows('الطرف الثاني',pt.name)}${rows('السجل التجاري',pt.cr)}
-           ${rows('الرقم الضريبي',pt.vat)}${rows('الممثل',pt.rep)}
-         </tbody></table>
-
-         <div class="cx-annex-hd">ثانيًا — المستند الموقَّع</div>
-         <table class="cx-table"><tbody>
-           ${rows('وقت ختم النص',f(cert.document.sealed_at))}
-           ${rows('بصمة النص (SHA-256)',cert.document.sealed_hash||'—')}
-           ${rows('النموذج المستخدَم',(cert.document.template||'')+(cert.document.template_version?' · إصدار '+cert.document.template_version:''))}
-           ${rows('قيمة العقد',cert.contract.value!=null?Number(cert.contract.value).toLocaleString('ar')+' ر.س':'—')}
-           ${rows('تاريخ السريان',cert.contract.effective_date)}
-         </tbody></table>
-
-         <div class="cx-annex-hd">ثالثًا — حوكمة الاعتماد</div>
-         <table class="cx-table"><tbody>
-           ${rows('أعدّ العقد',(cert.governance||{}).created_by)}
-           ${rows('اعتمده داخليًا',(cert.governance||{}).approved_by)}
-           ${rows('وقت الاعتماد',f((cert.governance||{}).approved_at))}
-           ${rows('فصل الأدوار',(cert.governance||{}).self_approved?'اعتماد ذاتي — المُعِدّ هو المعتمِد':'✔ مُعِدّ ومعتمِد مختلفان')}
-           ${(cert.governance||{}).override_reason?rows('مبرّر الاعتماد الذاتي',cert.governance.override_reason):''}
-         </tbody></table>
-
-         ${(cert.attachments||[]).length?`<div class="cx-annex-hd">الملاحق وبصماتها</div>
-         <table class="cx-table"><thead><tr><th>الملحق</th><th>النوع</th><th>بصمة المحتوى</th></tr></thead><tbody>
-           ${cert.attachments.map(a=>`<tr><td>${esc(a.label)}</td><td>${a.kind==='file'?'ملف مرفوع':'رابط'}</td>
-             <td style="font-size:.6rem;direction:ltr">${esc(a.hash||'—')}</td></tr>`).join('')}
-         </tbody></table>`:''}
-
-         <div class="cx-annex-hd">رابعًا — التواقيع وأدلتها</div>
-         ${(cert.signatures||[]).map(sg=>`
-           <table class="cx-table mb-14"><tbody>
-             ${rows('الطرف',sg.party==='alamaa'?'علامة':'الشريك')}
-             ${rows('الموقِّع',sg.name)}${rows('البريد',sg.email)}
-             ${rows('وقت التوقيع',f(sg.signed_at))}
-             ${rows('عنوان الشبكة',sg.ip)}
-             ${rows('تحقق الهوية',sg.identity_verified?('نعم — '+(sg.verified_via||'')):'لا')}
-             ${rows('وقت التحقق',f(sg.verified_at))}
-             ${rows('بصمة النص وقت التوقيع',sg.hash_at_signing||'—')}
-             ${rows('مطابقة النص الحالي',sg.signed_current_text?'✔ مطابق — لم يتغيّر منذ التوقيع':'✘ غير مطابق — راجع فورًا')}
-             ${rows('إقرار القبول',sg.consent)}
-           </tbody></table>`).join('')}
-
-         <div class="cx-annex-hd">خامسًا — سجل الإجراءات</div>
-         <table class="cx-table"><thead><tr><th>الإجراء</th><th>المنفِّذ</th><th>الوقت</th></tr></thead><tbody>
-           ${(cert.audit||[]).map(a=>`<tr><td>${esc(AUDIT_ACTIONS[a.action]||a.action)}</td>
-             <td>${esc(a.by||'—')}</td><td>${f(a.at)}</td></tr>`).join('')||'<tr><td colspan="3">—</td></tr>'}
-         </tbody></table>
-       </section>
-       <div class="cx-footer">علامة · شهادة أدلة توقيع — ${esc(cert.contract.number||'')}</div>`;
+     document.getElementById('contractPrint').innerHTML=signatureCertificateHTML(cert);
      runPrintSafely();
    };}
   {const am=document.getElementById('chdAmend');
@@ -1323,4 +1243,109 @@ export function contractLinkValidity(c,sentAt,now){
   const expiresAt=new Date(new Date(sentAt).getTime()+days*86400000);
   const daysLeft=Math.ceil((expiresAt-(now===undefined?Date.now():+now))/86400000);
   return {days,expiresAt,daysLeft,expired:daysLeft<=0};
+}
+
+
+/**
+ * شهادة التوقيع الإلكتروني — وثيقة أدلّة تُطبَع وتُحفَظ خارج النظام.
+ *
+ * كانت ٦٤ سطرًا داخل مُعالِج زرّ، فلا تُفحَص إلا بنقرٍ في متصفّح. وهي **أثقل
+ * مخرَجات المنصّة أثرًا**: تُقدَّم عند النزاع، فغيابُ حقلٍ منها أو تسرّبُ نصٍّ
+ * غير مُهرَّب فيها ليس عيبًا بصريًا.
+ *
+ * بانٍ خالص: `cert` كما تُعيدها `fetchSignatureCertificate` ⇦ نصّ.
+ */
+export function signatureCertificateHTML(cert){
+  const f=d=>d?new Date(d).toLocaleString('ar',{dateStyle:'full',timeStyle:'short'}):'—';
+  const org=cert.parties.org||{},pt=cert.parties.partner||{};
+  const rows=(label,val)=>`<tr><th>${esc(label)}</th><td>${esc(val==null?'—':String(val))}</td></tr>`;
+  return `
+    <section class="cx-cover">
+      <div class="cx-cover-brand">علامة <span>· أثر دائم</span></div>
+      <h1>شهادة توقيع إلكتروني</h1>
+      <div class="cx-cover-meta">
+        <div><b>العقد</b><span>${esc(cert.contract.name||'—')}</span></div>
+        <div><b>رقم العقد</b><span>${esc(cert.contract.number||'—')}</span></div>
+      </div>
+      <p class="cx-cover-note">وثيقة أدلة مُولَّدة في ${f(cert.generated_at)}</p>
+    </section>
+    <section class="cx-page">
+      <div class="cx-annex-hd">أولًا — الأطراف</div>
+      <table class="cx-table"><tbody>
+        ${rows('الطرف الأول',org.legal_name||'علامة')}${rows('السجل التجاري',org.cr_number)}
+        ${rows('الرقم الضريبي',org.vat_number)}${rows('الممثل',org.rep_name)}
+        ${rows('الطرف الثاني',pt.name)}${rows('السجل التجاري',pt.cr)}
+        ${rows('الرقم الضريبي',pt.vat)}${rows('الممثل',pt.rep)}
+      </tbody></table>
+
+      <div class="cx-annex-hd">ثانيًا — المستند الموقَّع</div>
+      <table class="cx-table"><tbody>
+        ${rows('وقت ختم النص',f(cert.document.sealed_at))}
+        ${rows('بصمة النص (SHA-256)',cert.document.sealed_hash||'—')}
+        ${rows('النموذج المستخدَم',(cert.document.template||'')+(cert.document.template_version?' · إصدار '+cert.document.template_version:''))}
+        ${rows('قيمة العقد',cert.contract.value!=null?Number(cert.contract.value).toLocaleString('ar')+' ر.س':'—')}
+        ${rows('تاريخ السريان',cert.contract.effective_date)}
+      </tbody></table>
+
+      <div class="cx-annex-hd">ثالثًا — حوكمة الاعتماد</div>
+      <table class="cx-table"><tbody>
+        ${rows('أعدّ العقد',(cert.governance||{}).created_by)}
+        ${rows('اعتمده داخليًا',(cert.governance||{}).approved_by)}
+        ${rows('وقت الاعتماد',f((cert.governance||{}).approved_at))}
+        ${rows('فصل الأدوار',(cert.governance||{}).self_approved?'اعتماد ذاتي — المُعِدّ هو المعتمِد':'✔ مُعِدّ ومعتمِد مختلفان')}
+        ${(cert.governance||{}).override_reason?rows('مبرّر الاعتماد الذاتي',cert.governance.override_reason):''}
+      </tbody></table>
+
+      ${(cert.attachments||[]).length?`<div class="cx-annex-hd">الملاحق وبصماتها</div>
+      <table class="cx-table"><thead><tr><th>الملحق</th><th>النوع</th><th>بصمة المحتوى</th></tr></thead><tbody>
+        ${cert.attachments.map(a=>`<tr><td>${esc(a.label)}</td><td>${a.kind==='file'?'ملف مرفوع':'رابط'}</td>
+          <td style="font-size:.6rem;direction:ltr">${esc(a.hash||'—')}</td></tr>`).join('')}
+      </tbody></table>`:''}
+
+      <div class="cx-annex-hd">رابعًا — التواقيع وأدلتها</div>
+      ${(cert.signatures||[]).map(sg=>`
+        <table class="cx-table mb-14"><tbody>
+          ${rows('الطرف',sg.party==='alamaa'?'علامة':'الشريك')}
+          ${rows('الموقِّع',sg.name)}${rows('البريد',sg.email)}
+          ${rows('وقت التوقيع',f(sg.signed_at))}
+          ${rows('عنوان الشبكة',sg.ip)}
+          ${rows('تحقق الهوية',sg.identity_verified?('نعم — '+(sg.verified_via||'')):'لا')}
+          ${rows('وقت التحقق',f(sg.verified_at))}
+          ${rows('بصمة النص وقت التوقيع',sg.hash_at_signing||'—')}
+          ${rows('مطابقة النص الحالي',sg.signed_current_text?'✔ مطابق — لم يتغيّر منذ التوقيع':'✘ غير مطابق — راجع فورًا')}
+          ${rows('إقرار القبول',sg.consent)}
+        </tbody></table>`).join('')}
+
+      <div class="cx-annex-hd">خامسًا — سجل الإجراءات</div>
+      <table class="cx-table"><thead><tr><th>الإجراء</th><th>المنفِّذ</th><th>الوقت</th></tr></thead><tbody>
+        ${(cert.audit||[]).map(a=>`<tr><td>${esc(AUDIT_ACTIONS[a.action]||a.action)}</td>
+          <td>${esc(a.by||'—')}</td><td>${f(a.at)}</td></tr>`).join('')||'<tr><td colspan="3">—</td></tr>'}
+      </tbody></table>
+    </section>
+    <div class="cx-footer">علامة · شهادة أدلة توقيع — ${esc(cert.contract.number||'')}</div>`;
+}
+
+
+/**
+ * ترميز مسار الرسالة — بانٍ خالص فوق `contractFunnelSteps`.
+ * `fmt` يُمرَّر لا يُستورَد: تنسيق التاريخ يخصّ اللوحة، وحقنُه يجعل المُخرَج
+ * قابلًا للمقارنة في الاختبار بلا اعتمادٍ على منطقة زمنية.
+ */
+export function contractFunnelHTML(f,steps,lastDone,fmt){
+  return `
+      <div class="chd-funnel">
+        ${f.bounced_at?`<div class="ctr-integrity warn" style="font-size:.74rem;margin-bottom:8px">
+          ⚠ ارتدّت الرسالة${f.bounce_reason?' — '+esc(f.bounce_reason):''} — تحقّق من صحة البريد</div>`:''}
+        ${steps.map((s,i)=>{
+          const done=!!s.at, current=(i===lastDone+1&&!done);
+          return `<div class="chd-step ${done?'done':(current?'next':'pending')}">
+            <span class="chd-step-icon">${done?s.icon:'○'}</span>
+            <span class="chd-step-label">${s.k}</span>
+            <span class="chd-step-time">${done?fmt(s.at):(current?'بانتظاره':'—')}</span>
+          </div>`;}).join('')}
+      </div>
+      <p class="sa-hint mt-6">
+        📧 ${esc(f.to_email||'')} · ${f.total_sends} إرسال${f.failed_sends?` · ${f.failed_sends} فاشل`:''}
+        ${!f.tracking_active&&f.sent_at?'<br>ℹ️ تتبّع الوصول والفتح يتطلب ربط Webhook في Resend':''}
+      </p>`;
 }

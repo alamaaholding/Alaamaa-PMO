@@ -33,7 +33,8 @@ w.eval(`window.supabase={createClient:()=>({rpc:()=>Promise.resolve({data:[],err
   w.document.body.appendChild(s); }
 
 const { contractStage, defaultContractTab, contractPanelHTML,
-        contractFunnelSteps, contractLinkValidity } = w;
+        contractFunnelSteps, contractLinkValidity,
+        contractFunnelHTML, signatureCertificateHTML } = w;
 
 // عقدٌ في أبسط حالاته الصالحة: معتمَد، مُسنَد لشريك، بلا توقيع.
 const base = (over = {}) => Object.assign({
@@ -235,6 +236,81 @@ console.log('\n▸ ترميز اللوحة — بانٍ خالص، يُقارَ�
   const evil = html(base({ contract_name: '<img src=x onerror=alert(1)>' }));
   t('اسم العقد مُهرَّب', !evil.includes('<img src=x'), evil.slice(0, 200));
   t('ورقمه كذلك', !html(base({ contract_number: '<b>x</b>' })).includes('<b>x</b>'));
+}
+
+console.log('\n▸ ترميز مسار الرسالة');
+{
+  const fmt = d => d ? 'ت:' + d : null;
+  const H = o => { const { steps, lastDone } = contractFunnelSteps(o); return contractFunnelHTML(o, steps, lastDone, fmt); };
+
+  const none = H({});
+  eq('بلا إرسال: لا خطوة تمّت', (none.match(/chd-step done/g) || []).length, 0);
+  // وأوّلها هي «التالية» لا معلَّقة: قبل الإرسال، الإرسالُ نفسه هو ما يُنتظَر —
+  // وهذا ما يجعل الشريط يدلّ على فعلٍ بدل أن يصف عدمًا.
+  eq('وأوّلها هي التالية', (none.match(/chd-step next/g) || []).length, 1);
+  eq('والأربع الباقية معلَّقة', (none.match(/chd-step pending/g) || []).length, 4);
+
+  const sent = H({ sent_at: 'a', has_send: true });
+  eq('بعد الإرسال: واحدة تمّت', (sent.match(/chd-step done/g) || []).length, 1);
+  eq('وواحدة تالية لا أكثر', (sent.match(/chd-step next/g) || []).length, 1);
+  t('والتالية معنونة «بانتظاره»', sent.includes('بانتظاره'));
+
+  const all = H({ sent_at: 'a', delivered_at: 'b', opened_at: 'c', clicked_at: 'd', signed_at: 'e' });
+  eq('مكتمل: خمس تمّت', (all.match(/chd-step done/g) || []).length, 5);
+  eq('ولا تالية بعد الاكتمال', (all.match(/chd-step next/g) || []).length, 0);
+
+  // الارتداد: أخطر ما في المسار — رسالةٌ لم تصل والمستخدم يظنّها في الطريق.
+  const b = H({ sent_at: 'a', bounced_at: 'z', bounce_reason: 'صندوق ممتلئ' });
+  t('الارتداد يظهر بتحذير', b.includes('ارتدّت الرسالة') && b.includes('ctr-integrity warn'));
+  t('وسببه يُعرَض', b.includes('صندوق ممتلئ'));
+  t('وسببٌ خبيث يُهرَّب', !H({ sent_at: 'a', bounced_at: 'z', bounce_reason: '<b>x</b>' }).includes('<b>x</b>'));
+  t('وبريد المستلم مُهرَّب كذلك', !H({ to_email: '<i>e</i>' }).includes('<i>e</i>'));
+
+  // تنبيه التتبّع: يظهر بعد إرسالٍ فعليّ فقط — وإلا كان ضجيجًا دائمًا.
+  t('تنبيه التتبّع يظهر بعد إرسالٍ بلا تتبّع', H({ sent_at: 'a' }).includes('Webhook'));
+  t('ولا يظهر قبل أي إرسال', !H({}).includes('Webhook'));
+  t('ولا يظهر والتتبّع مفعَّل', !H({ sent_at: 'a', tracking_active: true }).includes('Webhook'));
+}
+
+console.log('\n▸ شهادة التوقيع — أثقل مخرَجات المنصّة أثرًا');
+{
+  // تُقدَّم عند النزاع. فغيابُ حقلٍ منها أو تسرّبُ نصٍّ غير مُهرَّب ليس عيبًا بصريًا.
+  const cert = (over = {}) => Object.assign({
+    generated_at: '2026-03-01T10:00:00Z',
+    contract: { name: 'عقد هوية', number: 'ALM-1' },
+    parties: { org: { legal_name: 'علامة', cr_number: '1010', vat_number: '3000', rep_name: 'أ' },
+               partner: { name: 'شريك', cr: '2020', vat: '4000', rep: 'ب' } },
+    document: { sealed_at: '2026-02-01T00:00:00Z', sealed_hash: 'HASH1', algo: 'sha256' },
+    governance: {}, attachments: [], signatures: [], audit: []
+  }, over);
+
+  const h = signatureCertificateHTML(cert());
+  t('العقد واسمه ورقمه', h.includes('عقد هوية') && h.includes('ALM-1'));
+  t('الطرفان وبياناتهما',
+    ['علامة', '1010', '3000', 'شريك', '2020', '4000'].every(v => h.includes(v)));
+  t('وأقسامها الخمسة موجودة',
+    ['أولًا', 'خامسًا'].every(v => h.includes(v)) && (h.match(/cx-annex-hd/g) || []).length >= 4);
+  t('ووقت التوليد مذكور', h.includes('وثيقة أدلة مُولَّدة'));
+
+  // الحقول الغائبة تُعرَض «—» لا `undefined` ولا فراغًا صامتًا.
+  const bare = signatureCertificateHTML(cert({ parties: { org: {}, partner: {} } }));
+  t('حقلٌ غائب يُعرَض شرطةً لا undefined', !bare.includes('undefined'), 'undefined في الوثيقة');
+  t('والطرف الأول له اسمٌ افتراضي', bare.includes('علامة'));
+
+  // التهريب: كل نصّ في الوثيقة يأتي من القاعدة، وبعضه من إدخال المستخدم.
+  const evil = signatureCertificateHTML(cert({
+    contract: { name: '<script>x</script>', number: '<b>n</b>' },
+    parties: { org: { legal_name: '<i>o</i>' }, partner: { name: '<u>p</u>' } }
+  }));
+  ['<script>', '<b>n</b>', '<i>o</i>', '<u>p</u>'].forEach(bad =>
+    t('مُهرَّب: ' + bad, !evil.includes(bad)));
+
+  // سجل الإجراءات والتواقيع: قائمتان فارغتان لا تُسقطان الوثيقة.
+  t('سجلٌّ فارغ لا يكسر الوثيقة', signatureCertificateHTML(cert({ audit: [] })).includes('سجل الإجراءات'));
+  const withAudit = signatureCertificateHTML(cert({ audit: [{ action: 'x', by: 'ج', at: '2026-03-01T00:00:00Z' }] }));
+  t('وسطرُ سجلٍّ يظهر بمنفِّذه', withAudit.includes('ج'));
+  t('و`audit` غائبةً تمامًا لا ترمي',
+    typeof signatureCertificateHTML(cert({ audit: undefined })) === 'string');
 }
 
 console.log(`\nنجح ${ok} · فشل ${fail}`);
