@@ -381,72 +381,10 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
     rep_name:c.client_rep_name,rep_title:c.client_rep_title,contact_email:c.client_contact_email,contact_phone:c.client_contact_phone};
   const isCustom=c.contract_type==='custom';
 
-  // ===== المرحلة الحالية: مصدر واحد يحدّد ما يجب فعله الآن =====
-  // بدل تسعة أزرار متساوية وخمسة شرائط متنافسة: إجراء أساسي واحد يتغيّر بحسب الحالة،
-  // وشريط حالة واحد يجيب على «أين نحن؟ وما التالي؟»، والباقي في قائمة ⋯.
-  const isTemplate=!c.client_id&&!c.source_contract_id;
-  const STAGE={primary:null,secondary:[],notes:[],tone:'',title:'',hint:''};
+  // المرحلة والتبويب الافتراضي: قراران خالصان، خرجا إلى دالتيهما (أدنى الملف).
+  const STAGE=contractStage(c,{al,cl,anySigned,editable,canApprove});
+  if(!KEEP_TAB)CHD_TAB=defaultContractTab(c,{anySigned,editable,cl});
 
-  if(c.status==='void'){
-    STAGE.tone='void';STAGE.title='عقد ملغى';
-    STAGE.hint='لا يمكن إرساله أو توقيعه. أنشئ عقدًا جديدًا إن لزم.';
-  }else if(c.archived_at){
-    STAGE.tone='muted';STAGE.title='عقد مؤرشف';
-    STAGE.hint='مخفيّ عن القائمة الرئيسية — استرجعه للعمل عليه.';
-    STAGE.primary={id:'chdUnarchive',label:'↩ استرجاع',color:'var(--gold)'};
-  }else if(!c.internal_approved&&!anySigned){
-    STAGE.tone='wait';STAGE.title='بانتظار الاعتماد الداخلي';
-    STAGE.hint='لا يُرسَل ولا يُوقَّع قبل اعتماده. راجع البنود والقيمة ثم اعتمده.';
-    if(canApprove)STAGE.primary={id:'chdApprove',label:'✅ اعتماد داخلي',color:'var(--ok)'};
-    else STAGE.notes.push({text:'الاعتماد بصلاحية مالك/مدير المنصة'});
-  }else if(isTemplate){
-    STAGE.tone='info';STAGE.title='عقد أصل (قالب) معتمَد';
-    STAGE.hint='أسنِده لشريك فتُنشأ نسخة مستقلة له — والأصل يبقى كما هو لعدد غير محدود من الشركاء.';
-    STAGE.primary={id:'chdAssign',label:'👥 إسناد لشريك',color:'var(--gold)'};
-  }else if(!al){
-    STAGE.tone='go';STAGE.title='بانتظار توقيع علامة';
-    STAGE.hint='وقّع بصفتك ممثل علامة، ثم أرسل الرابط للشريك.';
-    STAGE.primary={id:'chdSignNow',label:'✍️ توقيع علامة',color:'var(--ok)'};
-  }else if(!cl){
-    STAGE.tone='go';STAGE.title='بانتظار توقيع الشريك';
-    STAGE.hint=c.send_count>0
-      ?`أُرسل ${c.send_count} مرة — تابع المسار أدناه أو ذكّره.`
-      :'وقّعت علامة. أرسل الرابط للشريك ليوقّع.';
-    STAGE.notes.push({text:`✍️ وقّعت علامة (${esc(al.name)})`,tone:'ok'});
-  }else{
-    STAGE.tone='done';STAGE.title='موقَّع بالكامل';
-    STAGE.hint='عقد ساري ومكتمل التوقيع من الطرفين.';
-    STAGE.primary={id:'chdCert',label:'🎖 شهادة التوقيع',color:'var(--ok)'};
-  }
-
-  // ملاحظات الحالة — تُدمج في الشريط بدل شرائط منفصلة متتالية
-  if(c.source_contract_id)STAGE.notes.push({text:`📎 نسخة من «${esc(c.source_name||'')}» — تعديلها لا يمسّ الأصل`,tone:'ok'});
-  if(c.amends_contract_id)STAGE.notes.push({text:`📝 ملحق (${c.amendment_no}) على ${esc(c.amends_number||'')}`,tone:'ok'});
-  if(c.amendment_count>0)STAGE.notes.push({text:`${c.amendment_count} ملحق تعديل`,tone:'ok'});
-  STAGE.notes.push(anySigned
-    ?{text:'🔒 بيانات الطرفين مجمَّدة كما وُقِّع عليها',tone:'ok'}
-    :{text:'🔄 بيانات الطرفين حيّة — تُجمَّد عند أول توقيع',tone:''});
-  if(c.approval_override_reason)
-    STAGE.notes.push({text:`⚠ اعتماد ذاتي موثَّق — ${esc(c.approval_override_reason)}`,tone:'warn'});
-
-  // الإجراءات الثانوية: تظهر عند الحاجة فقط، ولا تُزاحم الإجراء الأساسي
-  const add=(id,label,when)=>{if(when&&(!STAGE.primary||STAGE.primary.id!==id))STAGE.secondary.push({id,label});};
-  add('chdAssign','👥 إسناد لشريك (نسخة جديدة)',isTemplate&&c.internal_approved);
-  add('chdCert','🎖 شهادة التوقيع',anySigned);
-  add('chdAmend','📝 إنشاء ملحق تعديل',anySigned);
-  add('chdExport','📄 تصدير PDF',true);
-  add('chdDuplicate','📑 تكرار العقد',true);
-  add('chdUnlink','🔓 فك الارتباط بالمشروع',!!c.project_id);
-  add('chdArchive','🗄 أرشفة',!anySigned&&!c.archived_at&&c.status!=='void');
-  add('chdUnarchive','↩ استرجاع من الأرشيف',!!c.archived_at);
-  add('chdVoid','🗑 إلغاء العقد',editable);
-
-  // التبويب الافتراضي يتبع المرحلة: من يفتح عقدًا بانتظار التوقيع يريد الإرسال لا الشروط
-  if(!KEEP_TAB){
-    CHD_TAB = (!c.internal_approved&&!anySigned&&editable) ? 'terms'
-            : (c.internal_approved&&c.status!=='void'&&!cl) ? 'send'
-            : 'overview';
-  }
   const panel=document.getElementById('chubPanel');
   panel.innerHTML=`<div class="chub-detail">
     <div class="chub-detail-hd">
@@ -591,47 +529,10 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
   if(!Array.isArray(CHD_OVERRIDES.added))CHD_OVERRIDES.added=[];
 
   const renderClauses=()=>chubRenderClauseEditor('chdClauses',refreshPreview);
-  const _unusedClauses=()=>{
-    const box=document.getElementById('chdClauses');
-    if(!box)return;
-    const tpl=(CONTRACT_TEMPLATES[CHD_TEMPLATE]||CONTRACT_TEMPLATES.alamaa_v1).tpl;
-    box.innerHTML=`
-      <p class="sa-hint mb-8">إلغاء تحديد بند يجعله «غير منطبق» في هذا العقد — <b>يبقى برقمه</b> ولا تُزاح أرقام بقية البنود، حفاظًا على سلامة الإحالات بينها.</p>
-      <div class="chd-clause-grid">
-        ${tpl.sections.map(sec=>`
-          <label class="chd-clause ${CHD_OVERRIDES.excluded.includes(sec.num)?'chd-clause-off':''}">
-            <input type="checkbox" data-clause="${sec.num}" ${CHD_OVERRIDES.excluded.includes(sec.num)?'':'checked'}>
-            <span>${esc(sec.num)}. ${esc(sec.title)}</span>
-          </label>`).join('')}
-      </div>
-      ${CHD_OVERRIDES.added.length?`<div class="mt-12"><b style="font-size:.85rem">بنود مضافة:</b>
-        ${CHD_OVERRIDES.added.map((a,i)=>`<div class="chd-att-row"><span>${esc(a.num||'')} ${esc(a.title)}</span>
-          <button class="reqbtn txt-crit" data-delclause="${i}">حذف</button></div>`).join('')}</div>`:''}
-      <div class="sa-form mt-12 fx-wrap">
-        <input id="chdNewClauseNum" placeholder="الرقم (مثال: ١٦.٧)" class="w-130">
-        <input id="chdNewClauseTitle" placeholder="عنوان البند الجديد" class="grow-160">
-        <button class="reqbtn" id="chdAddClause">إضافة بند</button>
-      </div>
-      <textarea id="chdNewClauseBody" placeholder="نص البند الجديد..." style="width:100%;min-height:60px;margin-top:8px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px"></textarea>`;
-
-    box.querySelectorAll('[data-clause]').forEach(cb=>cb.onchange=()=>{
-      const num=cb.dataset.clause;
-      if(cb.checked)CHD_OVERRIDES.excluded=CHD_OVERRIDES.excluded.filter(x=>x!==num);
-      else if(!CHD_OVERRIDES.excluded.includes(num))CHD_OVERRIDES.excluded.push(num);
-      renderClauses();refreshPreview();
-    });
-    box.querySelectorAll('[data-delclause]').forEach(b=>b.onclick=()=>{
-      CHD_OVERRIDES.added.splice(Number(b.dataset.delclause),1);renderClauses();refreshPreview();
-    });
-    document.getElementById('chdAddClause').onclick=()=>{
-      const title=document.getElementById('chdNewClauseTitle').value.trim();
-      if(!title){toast('أدخل عنوان البند','warn');return;}
-      CHD_OVERRIDES.added.push({
-        num:document.getElementById('chdNewClauseNum').value.trim()||null,
-        title,body:document.getElementById('chdNewClauseBody').value});
-      renderClauses();refreshPreview();
-    };
-  };
+  // كان هنا `_unusedClauses` — ٤١ سطرًا لمحرر بنودٍ سابق حلّ محلّه
+  // `chubRenderClauseEditor` أعلاه. بقي معرَّفًا بلا مستدعٍ واحد، ومستترًا:
+  // حارس الأسماء الميتة كان يمسح **المستوى الأعلى** وحده فلا يرى ما يُصرَّح
+  // داخل دالة. وقد امتدّ الحارس ليشمل التعشيش، فلن يتكرّر.
   {const ts=document.getElementById('chdTemplate');
    if(ts)ts.onchange=()=>{CHD_TEMPLATE=ts.value;CHD_OVERRIDES.excluded=[];renderClauses();refreshPreview();};}
 
@@ -1301,3 +1202,90 @@ async function openNewContractPanel(){
 // ===== تسجيل الشاشة في السجلّ (src/screens.js) =====
 // المفتاح هو ما يناديه بقية التطبيق، فلا ملف شاشةٍ يعرف اسم دالة شاشةٍ أخرى.
 registerScreen('contractshub', renderContractsHub);
+
+
+// ═══ قرارا لوحة العقد — خالصان ومُختبَران ═══
+//
+// كانا ٦٥ سطرًا داخل `openContractDetailPanel` (٧٧٤ سطرًا)، وهما **أهمّ ما
+// فيها**: يحدّدان ما يراه المستخدم وما يستطيع فعله بعقدٍ في كل حالة. ولم يكن
+// عليهما تأكيدٌ واحد — لأن اختبارهما كان يعني تصيير اللوحة كاملةً بـDOM وشبكة.
+//
+// وبخروجهما صارا دالتين بلا DOM ولا شبكة ولا حالة عامّة: مُدخَلٌ كائنُ عقد،
+// ومُخرَجٌ قرار. فمصفوفة الحالات تُكتب في أسطر.
+
+/**
+ * المرحلة الحالية للعقد: إجراءٌ أساسيّ واحد، وشريط حالة، وثانويّات وملاحظات.
+ * @param {object} c كائن العقد كما يصل من القاعدة
+ * @param {{al,cl,anySigned:boolean,editable:boolean,canApprove:boolean}} f الحقائق المشتقّة
+ */
+export function contractStage(c,f){
+  const {al,cl,anySigned,editable,canApprove}=f;
+  const isTemplate=!c.client_id&&!c.source_contract_id;
+  const STAGE={primary:null,secondary:[],notes:[],tone:'',title:'',hint:''};
+
+  if(c.status==='void'){
+    STAGE.tone='void';STAGE.title='عقد ملغى';
+    STAGE.hint='لا يمكن إرساله أو توقيعه. أنشئ عقدًا جديدًا إن لزم.';
+  }else if(c.archived_at){
+    STAGE.tone='muted';STAGE.title='عقد مؤرشف';
+    STAGE.hint='مخفيّ عن القائمة الرئيسية — استرجعه للعمل عليه.';
+    STAGE.primary={id:'chdUnarchive',label:'↩ استرجاع',color:'var(--gold)'};
+  }else if(!c.internal_approved&&!anySigned){
+    STAGE.tone='wait';STAGE.title='بانتظار الاعتماد الداخلي';
+    STAGE.hint='لا يُرسَل ولا يُوقَّع قبل اعتماده. راجع البنود والقيمة ثم اعتمده.';
+    if(canApprove)STAGE.primary={id:'chdApprove',label:'✅ اعتماد داخلي',color:'var(--ok)'};
+    else STAGE.notes.push({text:'الاعتماد بصلاحية مالك/مدير المنصة'});
+  }else if(isTemplate){
+    STAGE.tone='info';STAGE.title='عقد أصل (قالب) معتمَد';
+    STAGE.hint='أسنِده لشريك فتُنشأ نسخة مستقلة له — والأصل يبقى كما هو لعدد غير محدود من الشركاء.';
+    STAGE.primary={id:'chdAssign',label:'👥 إسناد لشريك',color:'var(--gold)'};
+  }else if(!al){
+    STAGE.tone='go';STAGE.title='بانتظار توقيع علامة';
+    STAGE.hint='وقّع بصفتك ممثل علامة، ثم أرسل الرابط للشريك.';
+    STAGE.primary={id:'chdSignNow',label:'✍️ توقيع علامة',color:'var(--ok)'};
+  }else if(!cl){
+    STAGE.tone='go';STAGE.title='بانتظار توقيع الشريك';
+    STAGE.hint=c.send_count>0
+      ?`أُرسل ${c.send_count} مرة — تابع المسار أدناه أو ذكّره.`
+      :'وقّعت علامة. أرسل الرابط للشريك ليوقّع.';
+    STAGE.notes.push({text:`✍️ وقّعت علامة (${esc(al.name)})`,tone:'ok'});
+  }else{
+    STAGE.tone='done';STAGE.title='موقَّع بالكامل';
+    STAGE.hint='عقد ساري ومكتمل التوقيع من الطرفين.';
+    STAGE.primary={id:'chdCert',label:'🎖 شهادة التوقيع',color:'var(--ok)'};
+  }
+
+  // ملاحظات الحالة — تُدمج في الشريط بدل شرائط منفصلة متتالية
+  if(c.source_contract_id)STAGE.notes.push({text:`📎 نسخة من «${esc(c.source_name||'')}» — تعديلها لا يمسّ الأصل`,tone:'ok'});
+  if(c.amends_contract_id)STAGE.notes.push({text:`📝 ملحق (${c.amendment_no}) على ${esc(c.amends_number||'')}`,tone:'ok'});
+  if(c.amendment_count>0)STAGE.notes.push({text:`${c.amendment_count} ملحق تعديل`,tone:'ok'});
+  STAGE.notes.push(anySigned
+    ?{text:'🔒 بيانات الطرفين مجمَّدة كما وُقِّع عليها',tone:'ok'}
+    :{text:'🔄 بيانات الطرفين حيّة — تُجمَّد عند أول توقيع',tone:''});
+  if(c.approval_override_reason)
+    STAGE.notes.push({text:`⚠ اعتماد ذاتي موثَّق — ${esc(c.approval_override_reason)}`,tone:'warn'});
+
+  // الإجراءات الثانوية: تظهر عند الحاجة فقط، ولا تُزاحم الإجراء الأساسي
+  const add=(id,label,when)=>{if(when&&(!STAGE.primary||STAGE.primary.id!==id))STAGE.secondary.push({id,label});};
+  add('chdAssign','👥 إسناد لشريك (نسخة جديدة)',isTemplate&&c.internal_approved);
+  add('chdCert','🎖 شهادة التوقيع',anySigned);
+  add('chdAmend','📝 إنشاء ملحق تعديل',anySigned);
+  add('chdExport','📄 تصدير PDF',true);
+  add('chdDuplicate','📑 تكرار العقد',true);
+  add('chdUnlink','🔓 فك الارتباط بالمشروع',!!c.project_id);
+  add('chdArchive','🗄 أرشفة',!anySigned&&!c.archived_at&&c.status!=='void');
+  add('chdUnarchive','↩ استرجاع من الأرشيف',!!c.archived_at);
+  add('chdVoid','🗑 إلغاء العقد',editable);
+
+  return STAGE;
+}
+
+/**
+ * التبويب الافتراضي يتبع المرحلة: من يفتح عقدًا بانتظار التوقيع يريد الإرسال
+ * لا الشروط. (تُستدعى فقط حين لا يطلب المُستدعي إبقاء التبويب الحالي.)
+ */
+export function defaultContractTab(c,{anySigned,editable,cl}){
+  return (!c.internal_approved&&!anySigned&&editable) ? 'terms'
+       : (c.internal_approved&&c.status!=='void'&&!cl) ? 'send'
+       : 'overview';
+}
