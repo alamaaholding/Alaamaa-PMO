@@ -151,7 +151,12 @@ console.log('\n▸ الدورة مكسورة — وتبقى مكسورة');
   for (const [key, [fn, owner]] of Object.entries(SCREENS)) {
     const src = fs.readFileSync(owner, 'utf8');
     const at = src.indexOf(`function ${fn}(`);
-    const body = src.slice(at, at + 400);
+    // جسم الدالة كاملًا لا نافذةً بعدد حروف: هذه دوالٌ في المستوى الأعلى، فقوسها
+    // الختامي في العمود صفر. وكانت النافذة ٤٠٠ حرف فسقط التأكيد على openProject
+    // لا لأن الدعوى انكسرت بل لأن `setState('SCREEN', …)` أطول من `SCREEN=…`
+    // بحروف — أي أن الحارس كان يعاقب التقدّم الذي وُضع ليحميه.
+    const end = src.indexOf('\n}', at);
+    const body = src.slice(at, end < 0 ? src.length : end);
     // صيغتان بحكم الهجرة، والمعنى واحد: الملف غير المُحوَّل يكتب `SCREEN='x'`
     // (واصفٌ على globalThis)، والوحدة المُحوَّلة تكتب `setState('SCREEN','x')`.
     // فيُفحَص المعنى لا الإملاء — وإلا سقط التأكيد على كل ملف يتحوّل، وهو أسوأ

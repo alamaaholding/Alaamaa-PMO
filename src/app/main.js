@@ -13,6 +13,31 @@
 // script-src 'unsafe-inline'** على أي CSP مستقبلية — وهي الطبقة الدفاعية
 // الثانية الغائبة اليوم (AUDIT §د-١). معالج مفوَّض واحد يغطي كل نافذة حالية
 // وقادمة: يكفي أن يحمل زر الإغلاق data-close="<معرّف الطبقة>".
+// ═══ وحدة ESM — آخر ملف في الدمج النصي ═══
+// نداء `boot()` كان آخر سطر تنفيذيّ في الحزمة كلها، وقد انتقل إلى
+// `bundle-entry.js`: هناك موضع نقطة الانطلاق حين يصير كل شيء وحدة. والفارق
+// ليس شكليًا — كان يُنفَّذ **قبل** `registerScreen` في أسفل هذا الملف ويسلَم
+// لأنه غير متزامن فحسب؛ وصار يُنفَّذ بعد تهيئة كل وحدة، بضمانٍ لا بمصادفة.
+
+import { convertLead, fetchAuditLog, fetchPortfolio, loadClients, loadLeads, loadProject, openTimelinePortfolio, resolveClientLink, resolveProjectLink, rpcApproveContract } from '../api.js';
+import { hideChrome, showChrome } from '../chrome.js';
+import { $, $$, AUDIT_ACTIONS, AUDIT_ENTITIES, I, PERMS, ROLE_NAMES } from '../config.js';
+import { D } from '../engine.js';
+import { esc, fmt, fmtY } from '../format.js';
+import { bindNotificationCenter } from '../notifications.js';
+import { registerScreen, showScreen } from '../screens.js';
+import { skeleton } from '../skeleton.js';
+import { closeTaskPanel } from '../taskpanel.js';
+import { bindTheme } from '../theme.js';
+import { toast } from '../toast.js';
+import { applyHashFilters, isHashLocked, parseHash, writeHash } from '../urlstate.js';
+import { render } from '../views.js';
+import { resolveClientIdentifier } from './clienthome.js';
+import { confirmDialog, dialog } from './dialogs.js';
+import { buildContractDoc } from './exportcontract.js';
+import { openProjectMenu } from './lifecycle.js';
+import { focusTask } from './projectactions.js';
+import { getState, setState } from './state.js';
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-close]');
   if (!b) return;
@@ -65,13 +90,13 @@ function qjClose(){
 }
 async function qjGo(item){
   qjClose();
-  if(item.kind==='project'){CID=item.cid;PID=item.id;await openProject();return;}
+  if(item.kind==='project'){setState('CID', item.cid);setState('PID', item.id);await openProject();return;}
   await showScreen('clienthome', item.cid);
 }
 function bindQJump(){
   const wrap=$('#qjumpWrap');if(!wrap||wrap._bound)return;wrap._bound=true;
-  wrap.style.display=(ROLE==='pmo'||ROLE==='delivery')?'':'none';
-  if(ROLE!=='pmo'&&ROLE!=='delivery')return;
+  wrap.style.display=(getState('ROLE')==='pmo'||getState('ROLE')==='delivery')?'':'none';
+  if(getState('ROLE')!=='pmo'&&getState('ROLE')!=='delivery')return;
   const input=$('#qjumpInput'),list=$('#qjumpList');
   input.addEventListener('focus',async()=>{if(!QJ_INDEX.length)await refreshQJIndex();qjRender(input.value);});
   input.addEventListener('input',()=>qjRender(input.value));
@@ -86,7 +111,7 @@ function bindQJump(){
   // الجوال: الزر يفتح اللوحة نفسها — لا واجهة بحث ثانية
   const qbtn=$('#qjumpBtn');
   if(qbtn){
-    qbtn.style.display=(ROLE==='pmo'||ROLE==='delivery')?'':'none';
+    qbtn.style.display=(getState('ROLE')==='pmo'||getState('ROLE')==='delivery')?'':'none';
     qbtn.onclick=async()=>{
       wrap.classList.add('open');
       qbtn.setAttribute('aria-expanded','true');
@@ -97,33 +122,33 @@ function bindQJump(){
   const qx=$('#qjumpClose');if(qx)qx.onclick=qjClose;
 }
 
-async function startApp(){
+export async function startApp(){
   $('#login').classList.add('hidden');$('#loader').classList.remove('hidden');
   await loadClients();
   $('#app').classList.remove('hidden');$('#loader').classList.add('hidden');
-  $('#uName').textContent=USER._name||USER.email;
-  $('#roleChip').textContent=ROLE_NAMES[ROLE];
+  $('#uName').textContent=getState('USER')._name||getState('USER').email;
+  $('#roleChip').textContent=ROLE_NAMES[getState('ROLE')];
   bindQJump();
-  $('#dataDate').value=DATA_DATE;$('#dataDate').onchange=e=>{DATA_DATE=e.target.value;if(SCREEN==='project')render();else showScreen('portfolio');};
-  if(!CLIENTS.length){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا توجد مشاريع متاحة لحسابك بعد.</p>';hideChrome();return;}
+  $('#dataDate').value=getState('DATA_DATE');$('#dataDate').onchange=e=>{setState('DATA_DATE', e.target.value);if(getState('SCREEN')==='project')render();else showScreen('portfolio');};
+  if(!getState('CLIENTS').length){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا توجد مشاريع متاحة لحسابك بعد.</p>';hideChrome();return;}
   // الفلاتر من الرابط قبل أي تصيير: تطبيقها بعده يعني وميضًا يعرض المحفظة
   // كاملة ثم يصفّيها — والمستخدم يرى شاشة لم يطلبها للحظة.
   applyHashFilters();
   // الشريك: دخول مباشر لمشروعه الوحيد. الطاقم: شاشة المحفظة
-  if(ROLE==='client'){
-    SCREEN='project';CID=CLIENTS[0].id;await loadProject(CID);render();
+  if(getState('ROLE')==='client'){
+    setState('SCREEN', 'project');setState('CID', getState('CLIENTS')[0].id);await loadProject(getState('CID'));render();
   }else if(await tryOpenProjectFromHash()){
     // فُتح مشروع مباشرة من رابط عميق (مجلد فرعي أو الصيغة القديمة) — لا شيء إضافي مطلوب
-  }else if(/^#\/workload\/?$/.test(location.hash||'')&&(ROLE==='pmo'||ROLE==='delivery')){
-    SCREEN='workload';await showScreen('workload');
-  }else if(/^#\/contracts\/?$/.test(location.hash||'')&&(ROLE==='pmo'||ROLE==='delivery')){
-    SCREEN='contractshub';await showScreen('contractshub');
+  }else if(/^#\/workload\/?$/.test(location.hash||'')&&(getState('ROLE')==='pmo'||getState('ROLE')==='delivery')){
+    setState('SCREEN', 'workload');await showScreen('workload');
+  }else if(/^#\/contracts\/?$/.test(location.hash||'')&&(getState('ROLE')==='pmo'||getState('ROLE')==='delivery')){
+    setState('SCREEN', 'contractshub');await showScreen('contractshub');
   }else{
     const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
     let rid=cm?resolveClientIdentifier(cm[1]):null;
     if(cm&&!rid){ try{const r=await resolveClientLink(cm[1]);if(r&&r.ok)rid=r.client_id;}catch(e){} }
-    if(rid){SCREEN='clienthome';await showScreen('clienthome', rid);}
-    else{SCREEN='portfolio';await showScreen('portfolio');}
+    if(rid){setState('SCREEN', 'clienthome');await showScreen('clienthome', rid);}
+    else{setState('SCREEN', 'portfolio');await showScreen('portfolio');}
   }
 }
 
@@ -147,14 +172,14 @@ async function startApp(){
 // النظيف أو الخام معًا (لا يفتح مشروعًا جديدًا؛ ذلك عمل tryOpenProjectFromHash عند الإقلاع)
 function applyHash(){
   const h=parseHash();if(!h)return false;
-  if(!PROJECT||!PROJECT._dbId)return false;
-  const client=(CLIENTS||[]).find(x=>x.id===CID);
-  const cOk=!h.clientRef||CID===h.clientRef||(client&&client.slug===h.clientRef);
-  const pOk=PROJECT._dbId===h.projectRef||PROJECT.slug===h.projectRef;
-  if(cOk&&pOk&&PERMS[ROLE]&&PERMS[ROLE].views.indexOf(h.view)>-1){
-    VIEW=h.view;FOCUS_REF=h.ref||null;
+  if(!getState('PROJECT')||!getState('PROJECT')._dbId)return false;
+  const client=(getState('CLIENTS')||[]).find(x=>x.id===getState('CID'));
+  const cOk=!h.clientRef||getState('CID')===h.clientRef||(client&&client.slug===h.clientRef);
+  const pOk=getState('PROJECT')._dbId===h.projectRef||getState('PROJECT').slug===h.projectRef;
+  if(cOk&&pOk&&PERMS[getState('ROLE')]&&PERMS[getState('ROLE')].views.indexOf(h.view)>-1){
+    setState('VIEW', h.view);setState('FOCUS_REF', h.ref||null);
     render();
-    if(FOCUS_REF)focusTask(FOCUS_REF);
+    if(getState('FOCUS_REF'))focusTask(getState('FOCUS_REF'));
     return true;
   }
   return false;
@@ -166,37 +191,40 @@ async function tryOpenProjectFromHash(){
   try{
     const r=await resolveProjectLink(h.clientRef,h.projectRef);
     if(!r||!r.ok)return false;
-    CID=r.client_id;PID=r.project_id;
-    SCREEN='project';
-    await loadProject(CID,PID);
-    if(PROJECT_ACCESS_DENIED||!PROJECT)return false;
+    setState('CID', r.client_id);setState('PID', r.project_id);
+    setState('SCREEN', 'project');
+    await loadProject(getState('CID'),getState('PID'));
+    if(getState('PROJECT_ACCESS_DENIED')||!getState('PROJECT'))return false;
     $('#barClient').style.display='';showChrome();
-    if(PERMS[ROLE]&&PERMS[ROLE].views.indexOf(h.view)>-1){VIEW=h.view;FOCUS_REF=h.ref||null;}
+    if(PERMS[getState('ROLE')]&&PERMS[getState('ROLE')].views.indexOf(h.view)>-1){setState('VIEW', h.view);setState('FOCUS_REF', h.ref||null);}
     render();writeHash();
-    if(FOCUS_REF)focusTask(FOCUS_REF);
+    if(getState('FOCUS_REF'))focusTask(getState('FOCUS_REF'));
     return true;
   }catch(e){return false;}
 }
 window.addEventListener('hashchange',async()=>{
   if(isHashLocked())return;
-  if(typeof SCREEN!=='undefined'&&SCREEN==='project'&&applyHash())return;
+  // سقطت حراسة `typeof SCREEN==='undefined'` كما سقطت في urlstate.js: كانت من
+  // زمن النطاق المشترك حيث الترتيب النصّي هو كل شيء، و getState تُرجع قيمةً
+  // دائمًا لمفتاح معروف.
+  if(getState('SCREEN')==='project'&&applyHash())return;
   if(await tryOpenProjectFromHash())return;
   if(/^#\/workload\/?$/.test(location.hash||'')){
-    if(ROLE==='pmo'||ROLE==='delivery')showScreen('workload');
+    if(getState('ROLE')==='pmo'||getState('ROLE')==='delivery')showScreen('workload');
     return;
   }
   if(/^#\/contracts\/?$/.test(location.hash||'')){
-    if(ROLE==='pmo'||ROLE==='delivery')showScreen('contractshub');
+    if(getState('ROLE')==='pmo'||getState('ROLE')==='delivery')showScreen('contractshub');
     return;
   }
   if(/^#\/?$/.test(location.hash||'')){
-    if(ROLE==='pmo'||ROLE==='delivery')showScreen('portfolio');
+    if(getState('ROLE')==='pmo'||getState('ROLE')==='delivery')showScreen('portfolio');
     return;
   }
   const cm=/^#\/c\/([^/]+)$/.exec(location.hash||'');
   let rid=cm?resolveClientIdentifier(cm[1]):null;
   if(cm&&!rid){ try{const r=await resolveClientLink(cm[1]);if(r&&r.ok)rid=r.client_id;}catch(e){} }
-  if(rid&&(ROLE==='pmo'||ROLE==='delivery'))showScreen('clienthome', rid);
+  if(rid&&(getState('ROLE')==='pmo'||getState('ROLE')==='delivery'))showScreen('clienthome', rid);
 });
 
 // إغلاق لوحة البند: زر، نقر على الخلفية، ومفتاح Esc
@@ -224,14 +252,14 @@ window.addEventListener('hashchange',async()=>{
 })();
 
 async function openProject(){
-  TFILTER={phases:new Set(),statuses:new Set(),smart:new Set(),q:''};
+  setState('TFILTER', {phases:new Set(),statuses:new Set(),smart:new Set(),q:''});
   $('#loader').classList.remove('hidden');
-  await loadProject(CID,PID);
+  await loadProject(getState('CID'),getState('PID'));
   $('#loader').classList.add('hidden');
-  if(PROJECT_ACCESS_DENIED){
-    SCREEN='portfolio';toast('لا تملك صلاحية الوصول لهذا المشروع','err');await showScreen('portfolio');return;
+  if(getState('PROJECT_ACCESS_DENIED')){
+    setState('SCREEN', 'portfolio');toast('لا تملك صلاحية الوصول لهذا المشروع','err');await showScreen('portfolio');return;
   }
-  SCREEN='project';$('#barClient').style.display='';showChrome();
+  setState('SCREEN', 'project');$('#barClient').style.display='';showChrome();
   // إن كان الوصول عبر رابط عميق، افتح التبويب/البند المقصود؛ وإلا اعرض الافتراضي
   if(!applyHash()){render();writeHash();}
 }
@@ -243,13 +271,13 @@ async function openProject(){
 // حوار مشروع جديد (يُستدعى من قائمة الشريك وزر البطاقة)
 
 async function renderPortfolioTimeline(){
-  SCREEN='ptimeline';$('#hProject').textContent='خط التسليمات — كل المشاريع';hideChrome();
+  setState('SCREEN', 'ptimeline');$('#hProject').textContent='خط التسليمات — كل المشاريع';hideChrome();
   $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backPT">↩ المحفظة</button><span class="ms-auto">📦 <b>خط التسليمات:</b> سجل زمني للتبادل بين علامة والشركاء عبر <b>كل المشاريع</b>.</span></div><div id="ptlWrap">'+skeleton('cards',2)+'</div>';
   $('#backPT').onclick=()=>showScreen('portfolio');
   openTimelinePortfolio('ptlWrap');
 }
 async function renderAuditLog(){
-  SCREEN='audit';$('#hProject').textContent='سجل المكتب — كل المشاريع';hideChrome();
+  setState('SCREEN', 'audit');$('#hProject').textContent='سجل المكتب — كل المشاريع';hideChrome();
   $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ المحفظة</button><span class="ms-auto">🗂 <b>سجل المكتب:</b> كل الأفعال الحسّاسة عبر <b>كل المشاريع والشركاء</b> — من فعل، ماذا، ومتى. (سجل مشروع واحد: تبويب «سجل المشروع» داخله)</span></div><div id="auditList">'+skeleton('panel',3)+'</div>';
   $('#backP').onclick=()=>showScreen('portfolio');
   const rows=await fetchAuditLog(150);
@@ -270,7 +298,7 @@ async function renderLeads(){
   // كانت هذه الشاشة وحدها لا تضبط SCREEN ولا تُخفي الإطار — بخلاف شقيقتيها
   // المجاورتين لها أعلاه حرفيًّا. ولم يظهر الأثر لأن لا مستهلك يميّز 'leads' عن
   // 'portfolio' بعدُ، فبقي التناقض مستترًا خلف صدفةٍ لا خلف قرار.
-  SCREEN='leads';$('#hProject').textContent='الشركاء المحتملون';hideChrome();
+  setState('SCREEN', 'leads');$('#hProject').textContent='الشركاء المحتملون';hideChrome();
   $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backToPortfolio">↩ المحفظة</button><span class="ms-auto">النماذج الواردة من الموقع — حوّل أيًّا منها إلى مشروع-مقترح.</span></div><div id="leadsList">'+skeleton('list',2)+'</div>';
   $('#backToPortfolio').onclick=()=>showScreen('portfolio');
   let leads;
@@ -304,24 +332,24 @@ async function renderLeads(){
 }
 
 
-const _pmb=$('#projMenuBtn');if(_pmb)_pmb.onclick=()=>{if(PROJECT)openProjectMenu(PROJECT._dbId,PROJECT.name);};
+const _pmb=$('#projMenuBtn');if(_pmb)_pmb.onclick=()=>{if(getState('PROJECT'))openProjectMenu(getState('PROJECT')._dbId,getState('PROJECT').name);};
 
 // ===== اعتماد العقد + تثبيت الأساس =====
-$('#approveContract').onclick=async()=>{
+{const _ac=$('#approveContract'); if(_ac)_ac.onclick=async()=>{
   const r=await dialog({title:'اعتماد العقد وتثبيت الأساس',
     message:'سيتحوّل المشروع إلى «نشط» وتُجمّد الخطة كخط أساس. بعدها أي تعديل على البنية يتطلب طلب تعديل خطة رسميًا (من تبويب طلبات تعديل الخطة).',
     fields:[{key:'val',label:'قيمة العقد (ر.س) — اختياري',type:'number',value:'',placeholder:'مثال: 571400'}],
     confirmText:'اعتماد وتثبيت'});
   if(!r)return;
   const val=r.val;
-  const snap={};PROJECT.tasks.forEach(t=>{const rr=SCHED.R[t.id];snap[t.id]={duration:t.duration,ES:fmtY(rr.ES),EF:fmtY(rr.EF)};});
-  const {error}=await rpcApproveContract(PROJECT._dbId, val?parseFloat(val):null, snap);
+  const snap={};getState('PROJECT').tasks.forEach(t=>{const rr=getState('SCHED').R[t.id];snap[t.id]={duration:t.duration,ES:fmtY(rr.ES),EF:fmtY(rr.EF)};});
+  const {error}=await rpcApproveContract(getState('PROJECT')._dbId, val?parseFloat(val):null, snap);
   if(error){toast('تعذّر الاعتماد: '+error.message,'err');return;}
-  await loadProject(CID,PID);render();
+  await loadProject(getState('CID'),getState('PID'));render();
   toast('تم اعتماد العقد وتثبيت خط الأساس · المشروع الآن نشط','ok');
   if(await confirmDialog('تصدير للعقد','تصدير هذه اللقطة الآن كمستند PDF مرفق بالعقد؟',false))
-    await buildContractDoc(PROJECT.baselines[PROJECT.baselines.length-1].id);
-};
+    await buildContractDoc(getState('PROJECT').baselines[getState('PROJECT').baselines.length-1].id);
+};}
 
 // ===== تبويب طلبات التغيير =====
 
@@ -332,17 +360,17 @@ $('#approveContract').onclick=async()=>{
 // ===== تصدير تقرير الحالة (PDF عبر طباعة المتصفح) =====
 
 function buildReport(){
-  const c=CLIENTS.find(x=>x.id===CID);
-  const tasks=PROJECT.tasks.filter(t=>t.type!=='cont');
+  const c=getState('CLIENTS').find(x=>x.id===getState('CID'));
+  const tasks=getState('PROJECT').tasks.filter(t=>t.type!=='cont');
   const real=tasks.filter(t=>t.type!=='milestone');
   const done=real.filter(t=>t.status==='done').length;
   const pct=real.length?Math.round(done/real.length*100):0;
-  const crit=tasks.filter(t=>SCHED.R[t.id].critical).length;
-  const blocked=tasks.filter(t=>TRACK[t.id].blocked).length;
-  const dd=D(DATA_DATE);
-  const miles=PROJECT.tasks.filter(t=>t.type==='milestone').map(t=>({t,ef:SCHED.R[t.id].EF})).sort((a,b)=>a.ef-b.ef);
-  const delayed=tasks.filter(t=>TRACK[t.id].delay).map(t=>({t,d:TRACK[t.id].delay}));
-  const pendingReqs=[];PROJECT.tasks.forEach(t=>(t.requirements||[]).forEach(r=>{if(r.owner==='client'&&r._state!=='received'&&r._state!=='latejust')pendingReqs.push({t,r});}));
+  const crit=tasks.filter(t=>getState('SCHED').R[t.id].critical).length;
+  const blocked=tasks.filter(t=>getState('TRACK')[t.id].blocked).length;
+  const dd=D(getState('DATA_DATE'));
+  const miles=getState('PROJECT').tasks.filter(t=>t.type==='milestone').map(t=>({t,ef:getState('SCHED').R[t.id].EF})).sort((a,b)=>a.ef-b.ef);
+  const delayed=tasks.filter(t=>getState('TRACK')[t.id].delay).map(t=>({t,d:getState('TRACK')[t.id].delay}));
+  const pendingReqs=[];getState('PROJECT').tasks.forEach(t=>(t.requirements||[]).forEach(r=>{if(r.owner==='client'&&r._state!=='received'&&r._state!=='latejust')pendingReqs.push({t,r});}));
   const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق',lost:'ملغى'};
   const reportHtml=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير حالة — ${esc(c?c.name:'')}</title>
   <style>
@@ -368,12 +396,12 @@ function buildReport(){
   </style></head><body>
   <div class="rhd">
     <div><div class="eb">علامة · أثر دائم</div><h1><span class="cdot"></span>${esc(c?c.name:'')} — تقرير حالة المشروع</h1></div>
-    <div class="meta">التاريخ: ${new Date().toLocaleDateString('ar')}<br>تاريخ الحالة: ${fmt(dd)}/${dd.getFullYear()}<br>المرحلة: ${LIFE[PROJECT.lifecycle]||'—'}</div>
+    <div class="meta">التاريخ: ${new Date().toLocaleDateString('ar')}<br>تاريخ الحالة: ${fmt(dd)}/${dd.getFullYear()}<br>المرحلة: ${LIFE[getState('PROJECT').lifecycle]||'—'}</div>
   </div>
   <div class="kpis">
     <div class="kpi ok"><b>${pct}%</b><span>نسبة الإنجاز</span></div>
-    <div class="kpi"><b>${fmt(SCHED.pEnd)}/${new Date(SCHED.pEnd).getFullYear()}</b><span>الانتهاء المتوقع</span></div>
-    <div class="kpi"><b>${SCHED.totalWD}</b><span>أيام العمل</span></div>
+    <div class="kpi"><b>${fmt(getState('SCHED').pEnd)}/${new Date(getState('SCHED').pEnd).getFullYear()}</b><span>الانتهاء المتوقع</span></div>
+    <div class="kpi"><b>${getState('SCHED').totalWD}</b><span>أيام العمل</span></div>
     <div class="kpi"><b>${done}/${real.length}</b><span>المنجز/الإجمالي</span></div>
     <div class="kpi crit"><b>${blocked}</b><span>بنود متوقفة</span></div>
     <div class="kpi crit"><b>${crit}</b><span>على المسار الحرج</span></div>
@@ -382,14 +410,14 @@ function buildReport(){
   <table>${miles.map(m=>`<tr><td>◆ ${esc(m.t.name.replace('معلم: ',''))}</td><td style="text-align:left;font-weight:700">${fmt(m.ef)}/${new Date(m.ef).getFullYear()}</td></tr>`).join('')||'<tr><td>لا معالم</td></tr>'}</table>
   ${delayed.length?`<h2>البنود المتأخرة (${delayed.length})</h2><table>${delayed.map(x=>`<tr><td>${esc(x.t.id)} — ${esc(x.t.name)}</td><td class="del-${x.d}" style="text-align:left;font-weight:700">${x.d==='client'?'بانتظار الشريك':'على فريق علامة'}</td></tr>`).join('')}</table>`:''}
   ${pendingReqs.length?`<h2>متطلبات معلّقة من الشريك (${pendingReqs.length})</h2><table>${pendingReqs.map(x=>`<tr><td>${esc(x.r.desc)}</td><td style="text-align:left"><span class="badge">${esc(x.t.id)} · SLA ${x.r.sla}ي</span></td></tr>`).join('')}</table>`:''}
-  <div class="foot">علامة · منصّة حوكمة المشاريع — تقرير مُولّد آليًا · ${PROJECT.name}</div>
+  <div class="foot">علامة · منصّة حوكمة المشاريع — تقرير مُولّد آليًا · ${getState('PROJECT').name}</div>
   </body></html>`;
   const w=window.open('','_blank');
   if(!w){toast('فعّل النوافذ المنبثقة لتصدير التقرير','warn');return;}
   w.document.write(reportHtml);w.document.close();
   setTimeout(()=>{w.focus();w.print();},600);
 }
-$('#exportReport').onclick=()=>{ if(SCREEN!=='project'||!PROJECT||!PROJECT.tasks.length){toast('افتح مشروعًا له خطة أولًا','warn');return;} buildReport(); };
+{const _er=$('#exportReport'); if(_er)_er.onclick=()=>{ if(getState('SCREEN')!=='project'||!getState('PROJECT')||!getState('PROJECT').tasks.length){toast('افتح مشروعًا له خطة أولًا','warn');return;} buildReport(); };}
 
 // دعم لوحة المفاتيح: Enter/Space يفعّلان العناصر ذات role=button (بطاقات، صفوف)
 document.addEventListener('keydown',e=>{
@@ -401,7 +429,7 @@ document.addEventListener('keydown',e=>{
 // إعادة العرض عند تبدّل عرض الشاشة (جوال ↔ سطح مكتب)
 if(typeof window!=='undefined'&&window.matchMedia){
   const _mq=window.matchMedia('(max-width:700px)');
-  const _onMQ=()=>{if(typeof SCREEN!=='undefined'&&SCREEN==='project'&&VIEW==='table')render();};
+  const _onMQ=()=>{if(getState('SCREEN')==='project'&&getState('VIEW')==='table')render();};
   if(_mq.addEventListener)_mq.addEventListener('change',_onMQ);
   else if(_mq.addListener)_mq.addListener(_onMQ);
 }
@@ -411,7 +439,7 @@ if(typeof window!=='undefined'&&window.matchMedia){
 // حتى الدخول، فلا يظهر قبل أوانه.
 bindNotificationCenter();
 bindTheme();
-boot();
+// والانطلاق نفسه (`boot()`) انتقل إلى bundle-entry.js — آخر سطرٍ في نقطة الدخول.
 // طباعة احترافية: الجدول (كل مرحلة صفحة) أو الجانت (مصغّر ليطابق الصفحة، بلا تداخل)
 
 

@@ -52,18 +52,26 @@ console.log('\n▸ نمط رابط التوقيع العام — التجاوز 
 /**
  * يبني نافذة كاملة بالحزمة الحقيقية، مع تحكّم في الجلسة والهوية والـhash.
  *
- * ملاحظة لزمة: الحزمة **تُقلع نفسها** — آخر سطر في app/main.js هو `boot();`.
- * فالإقلاع التلقائي يحدث أولًا، ثم تُصفَّر العدّادات، ثم يُستدعى boot صراحةً.
- * بلا هذا يُحتسب كل شيء مرّتين — وهو ما وقع فعلًا في أول تشغيل لهذا الملف.
+ * ملاحظة لزمة: الحزمة **تُقلع نفسها** — آخر سطر في src/bundle-entry.js هو
+ * `boot();` (كان في app/main.js قبل تحوّلها إلى وحدة). فالإقلاع التلقائي يحدث
+ * أولًا، ثم تُصفَّر السجلّات، ثم يُستدعى boot صراحةً. بلا هذا يُحتسب كل شيء
+ * مرّتين — وهو ما وقع فعلًا في أول تشغيل لهذا الملف.
+ *
+ * وملاحظة ثانية أهمّ: كان هذا الملف يُثبّت بدائل على النطاق العام
+ * (`startApp=…` و`renderPublicSign=…`). وقد أُغلق ذلك المَنفَذ بتحوّل الملفّين
+ * إلى وحدات: `boot` تنادي البِنْية المستورَدة لا اسمًا عامًّا. فانتقل الرصد إلى
+ * الطبقة الباقية — `sb` نفسها — والدوال الحقيقية تُنفَّذ الآن بدل أن تُتخطّى،
+ * فصار ما يُقاس **الأثر** لا النداء.
  */
 async function boot(opts) {
   const { session = null, teamRow = null, clientIds = null, hash = '' } = opts;
   const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'https://pmo.example/' + hash });
   const w = dom.window;
-  const calls = { startApp: 0, publicSign: [], portfolio: 0, signOut: 0, oauth: [] };
+  const calls = { publicSign: [], signOut: 0, oauth: [] };
   w.__calls = calls;
   w.eval(`window.supabase={createClient:()=>({
-    rpc:(n)=>Promise.resolve({data: n==='pmo_my_client_ids' ? ${JSON.stringify(clientIds)} : false, error:null}),
+    rpc:(n,a)=>{ if(n==='pmo_contract_public_view'&&a&&a.p_token)window.__calls.publicSign.push(a.p_token);
+      return Promise.resolve({data: n==='pmo_my_client_ids' ? ${JSON.stringify(clientIds)} : false, error:null}); },
     from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:${JSON.stringify(teamRow)},error:null})}),
       order:()=>Promise.resolve({data:[],error:null})})}),
     auth:{getSession:async()=>({data:{session:${JSON.stringify(session)}}}),
@@ -75,15 +83,17 @@ async function boot(opts) {
   const s = w.document.createElement('script');
   s.textContent = bundle;
   w.document.body.appendChild(s);
-  // تُستبدل بعد تحميل الحزمة كي تُرصد النداءات بدل تنفيذ التطبيق كاملًا.
-  w.eval(`startApp=async()=>{window.__calls.startApp++;};
-          renderPublicSign=async(tok)=>{window.__calls.publicSign.push(tok);};
-          renderPortfolio=async()=>{window.__calls.portfolio++;};`);
-  // انتظار الإقلاع التلقائي حتى يستقرّ، ثم تصفير ما رصده.
-  for (let i = 0; i < 5; i++) await new Promise(r => setTimeout(r, 0));
-  const autoStart = calls.startApp, autoSign = calls.publicSign.length;
-  calls.startApp = 0; calls.publicSign.length = 0; calls.portfolio = 0;
-  return { w, doc: w.document, calls, autoStart, autoSign, run: () => w.boot() };
+  // انتظار الإقلاع التلقائي حتى يستقرّ، ثم تصفير ما رصده وإعادة الشاشات لحالتها.
+  for (let i = 0; i < 8; i++) await new Promise(r => setTimeout(r, 0));
+  // «بدأ التطبيق» يُقاس بأثره لا بعدّاد على بديل: startApp تكشف #app وتُخفي
+  // #login، وهو أوّل ما تفعله بعد loadClients — فوجود #app ظاهرةً هو الدعوى.
+  const started = d => !d.getElementById('app').classList.contains('hidden');
+  const autoStart = started(w.document) ? 1 : 0, autoSign = calls.publicSign.length;
+  calls.publicSign.length = 0;
+  ['app', 'login', 'denied', 'publicSign'].forEach(id => w.document.getElementById(id).classList.add('hidden'));
+  w.document.getElementById('loader').classList.remove('hidden');
+  return { w, doc: w.document, calls,
+    started: () => started(w.document), autoStart, autoSign, run: () => w.boot() };
 }
 const vis = (doc, id) => !doc.getElementById(id).classList.contains('hidden');
 
@@ -95,27 +105,30 @@ const vis = (doc, id) => !doc.getElementById(id).classList.contains('hidden');
     const { autoStart } = await boot({ session: { user: { id: 'u1' } },
       teamRow: { role: 'admin', is_active: true, full_name: 'أ' } });
     t('الإقلاع التلقائي يحدث مرة واحدة بلا نداء صريح', autoStart === 1);
-    t('و main.js تناديه في مستواها الأعلى',
-      /^boot\(\);$/m.test(fs.readFileSync('src/app/main.js', 'utf8')));
+    // موضع النداء انتقل مع اكتمال W2: نقطة الدخول تُهيّئ كل وحدة ثم تنطلق،
+    // بدل أن يعتمد الانطلاق على كون main.js آخر ملف في دمجٍ نصّي.
+    t('و bundle-entry.js تناديه في مستواها الأعلى — بالوحدة لا بالنطاق',
+      /^session\.boot\(\);$/m.test(fs.readFileSync('src/bundle-entry.js', 'utf8')));
+    t('و main.js لم تعد تناديه', !/^boot\(\);$/m.test(fs.readFileSync('src/app/main.js', 'utf8')));
   }
 
   console.log('\n▸ بلا جلسة → شاشة الدخول');
   {
-    const { doc, calls, run } = await boot({ session: null });
+    const { doc, started, run } = await boot({ session: null });
     await run();
     t('#login ظاهرة', vis(doc, 'login'));
     t('#app مخفية', !vis(doc, 'app'));
     t('#loader مخفي', !vis(doc, 'loader'));
     t('#denied مخفية', !vis(doc, 'denied'));
-    t('التطبيق لم يبدأ', calls.startApp === 0);
+    t('التطبيق لم يبدأ', !started());
   }
 
   console.log('\n▸ جلسة + عضو فريق مُفعَّل → يبدأ التطبيق');
   {
-    const { calls, run, w } = await boot({ session: { user: { id: 'u1' } },
+    const { started, run, w } = await boot({ session: { user: { id: 'u1' } },
       teamRow: { role: 'admin', is_active: true, full_name: 'أ' } });
     await run();
-    t('startApp نُودي مرة', calls.startApp === 1);
+    t('التطبيق بدأ فعلًا — #app كُشفت', started());
     t('الدور pmo لمدير النظام', w.ROLE === 'pmo');
     t('واسم المستخدم مُحمَّل', w.USER && w.USER._name === 'أ');
   }
@@ -128,30 +141,31 @@ const vis = (doc, id) => !doc.getElementById(id).classList.contains('hidden');
 
   console.log('\n▸ جلسة بلا تصريح → شاشة الرفض لا شاشة التطبيق');
   {
-    const { doc, calls, run } = await boot({ session: { user: { id: 'u1' } },
+    const { doc, started, run } = await boot({ session: { user: { id: 'u1' } },
       teamRow: { role: 'admin', is_active: false }, clientIds: [] });
     await run();
     t('#denied ظاهرة', vis(doc, 'denied'));
     t('#login ظاهرة معها', vis(doc, 'login'));
     t('#app تبقى مخفية', !vis(doc, 'app'));
-    t('التطبيق لم يبدأ', calls.startApp === 0);
+    t('التطبيق لم يبدأ', !started());
   }
   {
     // شريك مصرَّح له بالإيميل: ليس عضو فريق، لكن له مشاريع.
-    const { calls, run, w } = await boot({ session: { user: { id: 'u1' } },
+    const { started, run, w } = await boot({ session: { user: { id: 'u1' } },
       teamRow: null, clientIds: ['c1'] });
     await run();
-    t('الشريك المصرَّح له يدخل', calls.startApp === 1);
+    t('الشريك المصرَّح له يدخل', started());
     t('بدور client', w.ROLE === 'client');
   }
 
   console.log('\n▸ مسار التوقيع العام يتجاوز الدخول كليًا');
   {
-    const { calls, doc, run } = await boot({ session: null, hash: '#/sign/tok123' });
+    const { calls, doc, started, run } = await boot({ session: null, hash: '#/sign/tok123' });
     await run();
-    t('renderPublicSign نُودي بالرمز', calls.publicSign[0] === 'tok123');
+    t('مسار التوقيع طلب العقد بالرمز نفسه', calls.publicSign[0] === 'tok123', calls.publicSign.join(','));
+    t('و#publicSign كُشفت', vis(doc, 'publicSign'));
     t('بلا جلسة وبلا شاشة دخول', !vis(doc, 'login'));
-    t('والتطبيق لم يبدأ', calls.startApp === 0);
+    t('والتطبيق لم يبدأ', !started());
     t('و#loader أُخفي', !vis(doc, 'loader'));
   }
   {
