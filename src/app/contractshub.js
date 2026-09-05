@@ -1107,7 +1107,21 @@ export function isSendableEmail(s){
  * وفيها بعدُ فاصلٌ حقيقيّ — مُعالِجاتٌ تعرض وأخرى تكتب في القاعدة — لكن الفصل
  * عليه يقتضي إعادة ترتيبٍ للتنفيذ، وذاك تغييرُ سلوكٍ لا نقل. فيُترَك لدفعته.
  */
-function bindContractPanel({c,contractId,panel,STAGE,client,editable,canApprove,isCustom}){
+/**
+ * ربط لوحة العقد — واجهةٌ واحدة تُنادى من `openContractDetailPanel`.
+ *
+ * وتفصل بين ما **يعرض** وما **يكتب في القاعدة**. والفصل صار ممكنًا بعد قياسٍ
+ * أثبت أن إعادة الترتيب لا تمسّ سلوكًا: سبعَ عشرةَ كتلةً، **لا عنصر DOM واحد
+ * يلمسه أكثر من كتلة**، ولا تصريح في المستوى الأعلى يعبر بينها. فالترتيب بينها
+ * كان مصادفةَ كتابةٍ لا عقدًا.
+ */
+function bindContractPanel(ctx){
+  bindPanelViews(ctx);
+  bindPanelActions(ctx);
+}
+
+/** ما يعرض ويقرأ: القائمة · فحص البريد · مسار الرسالة · الشهادة · النسخ · التصدير. */
+function bindPanelViews({c,contractId,panel,STAGE,client,editable,canApprove,isCustom}){
   {const mb=document.getElementById('chdMore'),mm=document.getElementById('chdMoreMenu');
    if(mb&&mm){
      if(!STAGE.secondary.length)mb.style.display='none';
@@ -1128,23 +1142,6 @@ function bindContractPanel({c,contractId,panel,STAGE,client,editable,canApprove,
        box.innerHTML='<div class="ctr-integrity warn mt-6 fs-75">⚠ '+esc(e.message)+'</div>';
      }
    };}
-  {const sendBtn=document.getElementById('chdSendBtn');
-   if(sendBtn)sendBtn.onclick=async()=>{
-     const to=document.getElementById('chdSendTo').value.trim();
-     if(!isSendableEmail(to)){toast('أدخل بريدًا صحيحًا','warn');return;}
-     sendBtn.disabled=true;const old=sendBtn.textContent;sendBtn.textContent='جارٍ الإرسال...';
-     try{
-       await sendContractEmail(c,to,c.send_count>0?'reminder':'invite');
-       // حفظ البريد في ملف الشريك مرة واحدة — لا يُعاد إدخاله في أي عقد لاحق
-       const saveBox=document.getElementById('chdSaveEmail');
-       if(saveBox&&saveBox.checked&&c.client_id){
-         try{ await saveClientEmail(c.client_id,to); }catch(e){}
-       }
-       toast('أُرسل العقد إلى '+to,'ok');
-       await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
-     }catch(e){toast(e.message,'err');sendBtn.disabled=false;sendBtn.textContent=old;}
-   };}
-
   // ===== مسار الرسالة: أُرسلت ← وصلت ← فُتحت ← نُقر ← وُقِّع =====
   (async()=>{
     const box=document.getElementById('chdFunnel');
@@ -1184,6 +1181,54 @@ function bindContractPanel({c,contractId,panel,STAGE,client,editable,canApprove,
      document.getElementById('contractPrint').innerHTML=signatureCertificateHTML(cert);
      runPrintSafely();
    };}
+  // الأصل: عرض نسخه الحالية + إتاحة إسناده لشريك جديد (نسخة مستقلة)
+  document.querySelectorAll('[data-chdcopy]').forEach(b=>b.onclick=async()=>{
+    try{await navigator.clipboard.writeText(b.dataset.chdcopy);toast('نُسخ الرابط','ok');}
+    catch(e){toast('انسخ الرابط يدويًا','warn');}
+  });
+  {const exportBtn=document.getElementById('chdExport');
+   if(exportBtn)exportBtn.onclick=async()=>{
+     // حوار تمهيدي: يوضّح ما سيُنتَج ويشرح الخطوة التالية قبل ظهور حوار المتصفح فجأة
+     let atts=[];try{atts=await fetchContractAttachments(contractId);}catch(e){}
+     const links=atts.filter(a=>a.url||a.storage_path);
+     const parts=['متن العقد الكامل'];
+     if(c.baseline_id)parts.push('ملحق الخطة المعتمدة');
+     if(links.length)parts.push(`قائمة الملاحق (${links.length})`);
+     if(c.token)parts.push('رمز QR لصفحة التوقيع');
+     const ok=await dialog({title:'تصدير العقد',
+       message:'سيُفتح حوار الطباعة — اختر منه «حفظ بصيغة PDF» (Save as PDF) للحصول على ملف.',
+       html:`<div class="cr-diff"><b>سيتضمّن المستند:</b>${parts.map(x=>`<div>· ${esc(x)}</div>`).join('')}</div>`,
+       confirmText:'متابعة التصدير'});
+     if(!ok)return;
+     exportBtn.disabled=true;const old=exportBtn.textContent;exportBtn.textContent='جارٍ التحضير...';
+     try{ await buildContractDoc(c.baseline_id,c,atts); }
+     catch(e){toast('تعذّر التصدير: '+e.message,'err');}
+     exportBtn.disabled=false;exportBtn.textContent=old;
+   };}
+}
+
+/**
+ * ما يكتب في القاعدة: إرسالٌ · ملحق · أرشفة · توقيع · إسناد · فكّ ارتباط ·
+ * تكرار · اعتماد · حفظ وإلغاء. كل مسارٍ هنا يترك أثرًا في سجل التدقيق.
+ */
+function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,isCustom}){
+  {const sendBtn=document.getElementById('chdSendBtn');
+   if(sendBtn)sendBtn.onclick=async()=>{
+     const to=document.getElementById('chdSendTo').value.trim();
+     if(!isSendableEmail(to)){toast('أدخل بريدًا صحيحًا','warn');return;}
+     sendBtn.disabled=true;const old=sendBtn.textContent;sendBtn.textContent='جارٍ الإرسال...';
+     try{
+       await sendContractEmail(c,to,c.send_count>0?'reminder':'invite');
+       // حفظ البريد في ملف الشريك مرة واحدة — لا يُعاد إدخاله في أي عقد لاحق
+       const saveBox=document.getElementById('chdSaveEmail');
+       if(saveBox&&saveBox.checked&&c.client_id){
+         try{ await saveClientEmail(c.client_id,to); }catch(e){}
+       }
+       toast('أُرسل العقد إلى '+to,'ok');
+       await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
+     }catch(e){toast(e.message,'err');sendBtn.disabled=false;sendBtn.textContent=old;}
+   };}
+
   {const am=document.getElementById('chdAmend');
    if(am)am.onclick=async()=>{
      const r=await dialog({title:'ملحق تعديل',
@@ -1239,7 +1284,6 @@ function bindContractPanel({c,contractId,panel,STAGE,client,editable,canApprove,
        }catch(e){toast('تعذّر التوقيع: '+e.message,'err');btn.disabled=false;}
      };
    };}
-  // الأصل: عرض نسخه الحالية + إتاحة إسناده لشريك جديد (نسخة مستقلة)
   if(!c.client_id&&!c.source_contract_id){
     (async()=>{
       const box=document.getElementById('chdInstances');
@@ -1289,29 +1333,6 @@ function bindContractPanel({c,contractId,panel,STAGE,client,editable,canApprove,
       }catch(e){toast('تعذّر فك الارتباط: '+e.message,'err');}
     };
   }
-  document.querySelectorAll('[data-chdcopy]').forEach(b=>b.onclick=async()=>{
-    try{await navigator.clipboard.writeText(b.dataset.chdcopy);toast('نُسخ الرابط','ok');}
-    catch(e){toast('انسخ الرابط يدويًا','warn');}
-  });
-  {const exportBtn=document.getElementById('chdExport');
-   if(exportBtn)exportBtn.onclick=async()=>{
-     // حوار تمهيدي: يوضّح ما سيُنتَج ويشرح الخطوة التالية قبل ظهور حوار المتصفح فجأة
-     let atts=[];try{atts=await fetchContractAttachments(contractId);}catch(e){}
-     const links=atts.filter(a=>a.url||a.storage_path);
-     const parts=['متن العقد الكامل'];
-     if(c.baseline_id)parts.push('ملحق الخطة المعتمدة');
-     if(links.length)parts.push(`قائمة الملاحق (${links.length})`);
-     if(c.token)parts.push('رمز QR لصفحة التوقيع');
-     const ok=await dialog({title:'تصدير العقد',
-       message:'سيُفتح حوار الطباعة — اختر منه «حفظ بصيغة PDF» (Save as PDF) للحصول على ملف.',
-       html:`<div class="cr-diff"><b>سيتضمّن المستند:</b>${parts.map(x=>`<div>· ${esc(x)}</div>`).join('')}</div>`,
-       confirmText:'متابعة التصدير'});
-     if(!ok)return;
-     exportBtn.disabled=true;const old=exportBtn.textContent;exportBtn.textContent='جارٍ التحضير...';
-     try{ await buildContractDoc(c.baseline_id,c,atts); }
-     catch(e){toast('تعذّر التصدير: '+e.message,'err');}
-     exportBtn.disabled=false;exportBtn.textContent=old;
-   };}
   document.getElementById('chdDuplicate').onclick=async()=>{
     const r=await dialog({title:'تكرار العقد',
       message:'ستُنشأ نسخة جديدة مستقلة بكل بيانات هذا العقد ومرفقاته، بلا شريك ولا مشروع — قابلة للتعديل والإسناد كأصل جديد.',
