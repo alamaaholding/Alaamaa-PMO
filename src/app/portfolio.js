@@ -285,41 +285,9 @@ async function renderPortfolio(){
   const isStaff=(getState('ROLE')==='pmo'||getState('ROLE')==='delivery');
   // هيكل skeleton فوري (تجربة أسرع بصريًا)
   const skel=getState('CLIENTS').map(()=>'<div class="pcard">'+skeleton('panel',3)+'</div>').join('');
-  const toolItems=[];
-  if(isStaff){
-    toolItems.push({g:'عروض شاملة',id:'showPGantt',t:'الخط الزمني الشامل',i:'📅'});
-    toolItems.push({g:'عروض شاملة',id:'showTimeline',t:'خط التسليمات الشامل',i:'📦'});
-    toolItems.push({g:'عروض شاملة',id:'showDOL',t:'طبقة القرار (DOL)',i:'⚖'});
-    toolItems.push({g:'إدارة',id:'showAudit',t:'سجل المكتب',i:'📋'});
-    toolItems.push({g:'عروض شاملة',id:'showWorkload',t:'حِمل العمل',i:'📊'});
-  toolItems.push({g:'إدارة',id:'showContractsHub',t:'إدارة العقود',i:'✍️'});
-  }
-  if(getState('ROLE')==='pmo'){
-    toolItems.push({g:'إعدادات',id:'showHolidays',t:'العطلات الرسمية',i:'🗓'});
-    toolItems.push({g:'إدارة',id:'showArchived',t:'المؤرشفة',i:'🗄'});
-    toolItems.push({g:'إدارة',id:'showLeads',t:'الشركاء المحتملون',i:'👥'});
-  }
-  // الملف التعاقدي لعلامة: متاح لمالك المنصة ومديرها معًا — مطابقًا لسياسة القاعدة
-  // (pmo_update_org_profile تسمح لكليهما). كان محصورًا بالمالك في الواجهة فقط، فاختفى
-  // عن مدير المنصة بعد نقل الملكية رغم امتلاكه الصلاحية فعليًا.
-  if(getState('IS_OWNER')||getState('ROLE')==='pmo'){toolItems.push({g:'إعدادات',id:'showCapacity',t:'الأقسام والمسمّيات',i:'👥'});
-    toolItems.push({g:'إعدادات',id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});
-    toolItems.push({g:'إعدادات',id:'showAutomation',t:'أتمتة العقود',i:'⚡'});
-    toolItems.push({g:'إعدادات',id:'showSecAudit',t:'فحص أمني',i:'🛡'});}
-  if(getState('IS_OWNER')){toolItems.push({g:'إعدادات',id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
-    toolItems.push({g:'إعدادات',id:'showStaffAccess',t:'صلاحيات الفريق',i:'🔐'});}
-  const toolsMenu=toolItems.length?`<div class="tools-wrap">
-    <button class="hbtn tools-btn" id="toolsBtn" aria-expanded="false" aria-haspopup="true">⚙ أدوات المكتب <span class="tools-caret">▾</span></button>
-    <div class="tools-pop" id="toolsPop" role="menu">${
-      // تجميع بعناوين: القائمة المسطّحة من 14 بندًا كانت تخلط العروض بالإدارة بالإعدادات
-      ['عروض شاملة','إدارة','إعدادات'].map(g=>{
-        const items=toolItems.filter(t=>(t.g||'إدارة')===g);
-        if(!items.length)return '';
-        return `<div class="tools-grp" role="group" aria-label="${g}"><span class="tools-grp-h">${g}</span>`
-          +items.map(t=>`<button role="menuitem" id="${t.id}"><span class="ti" aria-hidden="true">${t.i}</span>${t.t}</button>`).join('')
-          +`</div>`;
-      }).join('')}</div>
-  </div>`:'';
+  // أدواتُ المكتب: القائمة قرارُ صلاحية، وترميزها بانٍ خالص — كلاهما في دالته.
+  const toolItems=portfolioTools(getState('ROLE'),getState('IS_OWNER'));
+  const toolsMenu=portfolioToolsHTML(toolItems);
   const primaryBtn=(getState('ROLE')==='pmo')?'<button class="hbtn primary-cta" id="addClientBtn">+ شريك جديد</button>':'';
   const legendBtn=isStaff?'<button class="hbtn" id="statusLegendBtn" title="دليل حالات المشاريع">ⓘ دليل الحالات</button>':'';
   const toolbar=isStaff?`<div class="portfolio-tools">${primaryBtn}${legendBtn}${toolsMenu}</div>`:'';
@@ -505,3 +473,59 @@ async function renderPortfolio(){
 // ===== تسجيل الشاشة في السجلّ (src/screens.js) =====
 // المفتاح هو ما يناديه بقية التطبيق، فلا ملف شاشةٍ يعرف اسم دالة شاشةٍ أخرى.
 registerScreen('portfolio', renderPortfolio);
+
+
+/**
+ * أدوات المكتب المتاحة لدورٍ بعينه — قرارُ صلاحية خالص، ومصدرُ حقيقةٍ واحد له.
+ *
+ * كان مبثوثًا داخل `renderPortfolio`، فلا يُفحَص إلا بتصيير المحفظة كاملةً
+ * بـDOM وشبكة. وهو **بوابةُ صلاحية**: توسيعها خطأً يعرض أداةً على من لا يملكها،
+ * وتضييقها خطأً يُخفي أداةً عمّن يملكها — وقد وقع الثاني فعلًا حين حُصر «الملف
+ * التعاقدي» بالمالك وحده فاختفى عن مدير المنصّة بعد نقل الملكية.
+ *
+ * والقاعدة الحاكمة: بوابة الواجهة **لا تكون أضيق من سياسة القاعدة** ولا أوسع.
+ */
+export function portfolioTools(role,isOwner){
+  const toolItems=[];
+  const isStaff=(role==='pmo'||role==='delivery');
+  if(isStaff){
+    toolItems.push({g:'عروض شاملة',id:'showPGantt',t:'الخط الزمني الشامل',i:'📅'});
+    toolItems.push({g:'عروض شاملة',id:'showTimeline',t:'خط التسليمات الشامل',i:'📦'});
+    toolItems.push({g:'عروض شاملة',id:'showDOL',t:'طبقة القرار (DOL)',i:'⚖'});
+    toolItems.push({g:'إدارة',id:'showAudit',t:'سجل المكتب',i:'📋'});
+    toolItems.push({g:'عروض شاملة',id:'showWorkload',t:'حِمل العمل',i:'📊'});
+  toolItems.push({g:'إدارة',id:'showContractsHub',t:'إدارة العقود',i:'✍️'});
+  }
+  if(role==='pmo'){
+    toolItems.push({g:'إعدادات',id:'showHolidays',t:'العطلات الرسمية',i:'🗓'});
+    toolItems.push({g:'إدارة',id:'showArchived',t:'المؤرشفة',i:'🗄'});
+    toolItems.push({g:'إدارة',id:'showLeads',t:'الشركاء المحتملون',i:'👥'});
+  }
+  // الملف التعاقدي لعلامة: متاح لمالك المنصة ومديرها معًا — مطابقًا لسياسة القاعدة
+  // (pmo_update_org_profile تسمح لكليهما). كان محصورًا بالمالك في الواجهة فقط، فاختفى
+  // عن مدير المنصة بعد نقل الملكية رغم امتلاكه الصلاحية فعليًا.
+  if(isOwner||role==='pmo'){toolItems.push({g:'إعدادات',id:'showCapacity',t:'الأقسام والمسمّيات',i:'👥'});
+    toolItems.push({g:'إعدادات',id:'showOrgProfile',t:'الملف التعاقدي لعلامة',i:'🏢'});
+    toolItems.push({g:'إعدادات',id:'showAutomation',t:'أتمتة العقود',i:'⚡'});
+    toolItems.push({g:'إعدادات',id:'showSecAudit',t:'فحص أمني',i:'🛡'});}
+  if(isOwner){toolItems.push({g:'إعدادات',id:'showTrelloSet',t:'إعدادات Trello',i:'🔗'});
+    toolItems.push({g:'إعدادات',id:'showStaffAccess',t:'صلاحيات الفريق',i:'🔐'});}
+  return toolItems;
+}
+
+/** ترميز قائمة الأدوات — مجمَّعةً بعناوين: عروض · إدارة · إعدادات. */
+export function portfolioToolsHTML(toolItems){
+  if(!toolItems.length)return '';
+  return `<div class="tools-wrap">
+    <button class="hbtn tools-btn" id="toolsBtn" aria-expanded="false" aria-haspopup="true">⚙ أدوات المكتب <span class="tools-caret">▾</span></button>
+    <div class="tools-pop" id="toolsPop" role="menu">${
+      // تجميع بعناوين: القائمة المسطّحة من 14 بندًا كانت تخلط العروض بالإدارة بالإعدادات
+      ['عروض شاملة','إدارة','إعدادات'].map(g=>{
+        const items=toolItems.filter(t=>(t.g||'إدارة')===g);
+        if(!items.length)return '';
+        return `<div class="tools-grp" role="group" aria-label="${g}"><span class="tools-grp-h">${g}</span>`
+          +items.map(t=>`<button role="menuitem" id="${t.id}"><span class="ti" aria-hidden="true">${t.i}</span>${t.t}</button>`).join('')
+          +`</div>`;
+      }).join('')}</div>
+  </div>`;
+}
