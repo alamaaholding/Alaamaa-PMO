@@ -506,295 +506,10 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
     panel.querySelectorAll('.chub-pane').forEach(x=>{x.hidden=(x.dataset.pane!==CHD_TAB);});
   });
   // قائمة الإجراءات الثانوية
-  {const mb=document.getElementById('chdMore'),mm=document.getElementById('chdMoreMenu');
-   if(mb&&mm){
-     if(!STAGE.secondary.length)mb.style.display='none';
-     const close=()=>{mm.hidden=true;mb.setAttribute('aria-expanded','false');};
-     mb.onclick=e=>{e.stopPropagation();const open=mm.hidden;mm.hidden=!open;mb.setAttribute('aria-expanded',String(open));};
-     document.addEventListener('click',close);
-     mm.querySelectorAll('.chub-more-item').forEach(b=>b.addEventListener('click',close));
-   }}
-  {const mc=document.getElementById('chdMailCheck');
-   if(mc)mc.onclick=async()=>{
-     const box=document.getElementById('chdMailStatus');
-     box.innerHTML='<p class="sa-hint mt-6">جارٍ الفحص...</p>';
-     try{
-       const r=await checkEmailReady();
-       box.innerHTML='<div class="ctr-integrity ok mt-6 fs-75">✅ جاهز للإرسال · المرسِل: '+esc(r.from||'—')
-         +(r.webhookConfigured?'<br>✅ تتبّع الوصول والفتح مفعَّل':'<br>ℹ️ تتبّع الوصول والفتح غير مفعَّل (يحتاج ضبط WEBHOOK_SECRET وربطه في Resend)')+'</div>';
-     }catch(e){
-       box.innerHTML='<div class="ctr-integrity warn mt-6 fs-75">⚠ '+esc(e.message)+'</div>';
-     }
-   };}
-  {const sendBtn=document.getElementById('chdSendBtn');
-   if(sendBtn)sendBtn.onclick=async()=>{
-     const to=document.getElementById('chdSendTo').value.trim();
-     if(!isSendableEmail(to)){toast('أدخل بريدًا صحيحًا','warn');return;}
-     sendBtn.disabled=true;const old=sendBtn.textContent;sendBtn.textContent='جارٍ الإرسال...';
-     try{
-       await sendContractEmail(c,to,c.send_count>0?'reminder':'invite');
-       // حفظ البريد في ملف الشريك مرة واحدة — لا يُعاد إدخاله في أي عقد لاحق
-       const saveBox=document.getElementById('chdSaveEmail');
-       if(saveBox&&saveBox.checked&&c.client_id){
-         try{ await saveClientEmail(c.client_id,to); }catch(e){}
-       }
-       toast('أُرسل العقد إلى '+to,'ok');
-       await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
-     }catch(e){toast(e.message,'err');sendBtn.disabled=false;sendBtn.textContent=old;}
-   };}
-
-  // ===== مسار الرسالة: أُرسلت ← وصلت ← فُتحت ← نُقر ← وُقِّع =====
-  (async()=>{
-    const box=document.getElementById('chdFunnel');
-    if(!box)return;
-    let f={};
-    try{ f=await fetchContractFunnel(contractId); }
-    catch(e){ box.innerHTML='<p class="sa-hint">تعذّر تحميل حالة الإرسال</p>'; return; }
-
-    if(!f.has_send){
-      box.innerHTML='<p class="sa-hint">📭 لم يُرسل هذا العقد للشريك بعد.</p>';
-      return;
-    }
-    const fmt=d=>d?new Date(d).toLocaleString('ar',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):null;
-    const {steps,lastDone}=contractFunnelSteps(f);
-    // حالة صلاحية الرابط — تظهر للمستخدم بدل أن يكتشفها من شكوى الشريك
-    const ls=document.getElementById('chdLinkState');
-    if(ls&&f.sent_at&&!f.signed_at){
-      const v=contractLinkValidity(c,f.sent_at);
-      ls.innerHTML=v.daysLeft>0
-        ?`<p class="sa-hint mt-6">🔗 الرابط صالح ${v.daysLeft} يومًا (حتى ${v.expiresAt.toLocaleDateString('ar')}) — أي تذكير يجدّد المدة</p>`
-        :`<div class="ctr-integrity warn mt-6 fs-75">⚠ انتهت صلاحية الرابط — أرسل تذكيرًا ليعمل مجددًا</div>`;
-    }
-    box.innerHTML=contractFunnelHTML(f,steps,lastDone,fmt);
-  })();
-  {const ct=document.getElementById('chdCert');
-   if(ct)ct.onclick=async()=>{
-     let cert;
-     try{ cert=await fetchSignatureCertificate(contractId); }catch(e){toast(e.message,'err');return;}
-     // المُنسِّقات الثلاثة (f · org/pt · rows) انتقلت مع الوثيقة إلى بانيها.
-     const okc=await dialog({title:'شهادة التوقيع',
-       message:'سيُفتح حوار الطباعة — اختر «حفظ بصيغة PDF» للاحتفاظ بنسخة خارج النظام.',
-       html:'<div class="cr-diff"><b>تتضمّن الشهادة:</b><div>· الأطراف وبياناتهم</div>'
-           +'<div>· بصمة النص المختوم ووقت ختمه</div><div>· حوكمة الاعتماد (المُعِدّ والمعتمِد)</div>'
-           +'<div>· التواقيع وأدلتها كاملة</div><div>· سجل الإجراءات</div></div>',
-       confirmText:'متابعة'});
-     if(!okc)return;
-     document.getElementById('contractPrint').innerHTML=signatureCertificateHTML(cert);
-     runPrintSafely();
-   };}
-  {const am=document.getElementById('chdAmend');
-   if(am)am.onclick=async()=>{
-     const r=await dialog({title:'ملحق تعديل',
-       message:'يُنشأ ملحق مرقَّم مرتبط بهذا العقد، ينسخ بنوده ومرفقاته للتعديل — والعقد الأصلي يبقى ساريًا كما وُقِّع.',
-       fields:[{key:'reason',label:'موضوع التعديل',type:'textarea',placeholder:'ما الذي يعدّله هذا الملحق؟'}],
-       confirmText:'إنشاء الملحق'});
-     if(!r)return;
-     try{
-       const d=await createAmendment(contractId,r.reason);
-       toast('أُنشئ الملحق '+d.number,'ok');
-       await reloadContracts();renderContractsHubBody();openContractDetailPanel(d.id);
-     }catch(e){toast(e.message,'err');}
-   };}
-  {const ar=document.getElementById('chdArchive');
-   if(ar)ar.onclick=async()=>{
-     if(!await confirmDialog('أرشفة العقد','يختفي من القائمة الرئيسية ويبقى قابلًا للاسترجاع.',false,'أرشفة'))return;
-     try{ await archiveContract(contractId,false);toast('أُرشف العقد','ok');
-       await reloadContracts();renderContractsHubBody();panel.innerHTML='';
-     }catch(e){toast(e.message,'err');}
-   };}
-  {const ua=document.getElementById('chdUnarchive');
-   if(ua)ua.onclick=async()=>{
-     try{ await archiveContract(contractId,true);toast('استُرجع العقد','ok');
-       await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
-     }catch(e){toast(e.message,'err');}
-   };}
-  {const sb2=document.getElementById('chdSignNow');
-   if(sb2)sb2.onclick=()=>{
-     const area=document.getElementById('chdSignArea');
-     area.innerHTML=`<div class="sa-section" style="background:var(--soft-2)">
-       <h4>توقيع علامة على «${esc(c.contract_name||'')}»</h4>
-       <input id="chdSignName" placeholder="اسم الموقِّع عن علامة" style="width:100%;margin-bottom:10px;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
-       <div id="chdSignPad"></div>
-       <div class="row-8 mt-10">
-         <button class="hbtn ok" id="chdSignConfirm">اعتماد التوقيع</button>
-         <button class="reqbtn" id="chdSignCancel">إلغاء</button>
-       </div></div>`;
-     const pad=mountSignaturePad(document.getElementById('chdSignPad'));
-     if(area.scrollIntoView)area.scrollIntoView({behavior:'smooth',block:'center'});
-     document.getElementById('chdSignCancel').onclick=()=>{area.innerHTML='';};
-     document.getElementById('chdSignConfirm').onclick=async()=>{
-       const name=document.getElementById('chdSignName').value.trim();
-       if(!name){toast('أدخل اسم الموقِّع','warn');return;}
-       const sig=pad.getData();
-       if(!sig.ok){toast('ارسم توقيعك أو اكتب اسمك في لوحة التوقيع','warn');return;}
-       const btn=document.getElementById('chdSignConfirm');btn.disabled=true;
-       try{
-         const r=await signContractAsStaff(contractId,name,sig.data||('نصي: '+sig.typed));
-         if(r&&r.ok){
-           toast('وُقِّع العقد من علامة — أرسل الرابط للشريك الآن','ok');
-           await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
-         }else toast((r&&r.error==='not_approved')?'العقد غير معتمَد داخليًا بعد':'تعذّر التوقيع','err');
-       }catch(e){toast('تعذّر التوقيع: '+e.message,'err');btn.disabled=false;}
-     };
-   };}
-  // الأصل: عرض نسخه الحالية + إتاحة إسناده لشريك جديد (نسخة مستقلة)
-  if(!c.client_id&&!c.source_contract_id){
-    (async()=>{
-      const box=document.getElementById('chdInstances');
-      if(!box)return;
-      let insts=[];
-      try{ insts=await fetchContractInstances(contractId); }catch(e){}
-      const {data:allCl}=await sb.from('pmo_clients').select('id,name').order('name');
-      const taken=new Set(insts.filter(i=>i.status!=='void').map(i=>i.client_name));
-      box.innerHTML=`
-        <div class="sa-section mb-14">
-          <h4>النسخ المُنشأة من هذا الأصل <span class="sa-hint">(${insts.length})</span></h4>
-          ${insts.length?insts.map(i=>`
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft)">
-              <div><span class="chub-num">${esc(i.contract_number||'—')}</span> <b>${esc(i.client_name||'—')}</b>
-                <span class="sa-hint"> · ${CH_STL[i.status]||i.status}${i.project_name?' · 📁 '+esc(i.project_name):''}${i.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}</span></div>
-              <button class="reqbtn" data-openinst="${i.id}">فتح ←</button>
-            </div>`).join(''):'<p class="sa-hint">لا نسخ بعد — أسنِد هذا الأصل لشريك لإنشاء أول نسخة.</p>'}
-          <div class="sa-form mt-12">
-            <select id="chdAssignClient"><option value="">اختر الشريك لإنشاء نسخة له...</option>${
-              (allCl||[]).filter(x=>!taken.has(x.name)).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
-            <button class="reqbtn" id="chdAssignGo">إنشاء نسخة</button>
-          </div>
-        </div>`;
-      document.querySelectorAll('[data-openinst]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.openinst));
-      const go=async()=>{
-        const cid=document.getElementById('chdAssignClient').value;
-        if(!cid){toast('اختر الشريك','warn');return;}
-        try{
-          const r=await assignContractToClient(contractId,cid);
-          toast('أُنشئت نسخة خاصة بالشريك ('+r.number+') — الأصل بقي كما هو','ok');
-          await reloadContracts();renderContractsHubBody();
-          openContractDetailPanel(r.id);
-        }catch(e){toast(e.message,'err');}
-      };
-      document.getElementById('chdAssignGo').onclick=go;
-      const topBtn=document.getElementById('chdAssign');
-      if(topBtn)topBtn.onclick=()=>{const sel=document.getElementById('chdAssignClient');if(sel&&sel.scrollIntoView)sel.scrollIntoView({behavior:'smooth',block:'center'});};
-    })();
-  }
-  if(c.project_id){
-    document.getElementById('chdUnlink').onclick=async()=>{
-      if(!await confirmDialog('فك الارتباط','سيبقى العقد موجودًا في محفظة العقود، لكنه لن يظهر بعد الآن كمرتبط بهذا المشروع.',false,'فك الارتباط'))return;
-      try{
-        const r=await unlinkContractFromProject(contractId);
-        if(r&&r.ok){toast('فُكّ الارتباط','ok');await reloadContracts();renderContractsHubBody();panel.innerHTML='';}
-        else toast((r&&r.error)||'تعذّر فك الارتباط','err');
-      }catch(e){toast('تعذّر فك الارتباط: '+e.message,'err');}
-    };
-  }
-  document.querySelectorAll('[data-chdcopy]').forEach(b=>b.onclick=async()=>{
-    try{await navigator.clipboard.writeText(b.dataset.chdcopy);toast('نُسخ الرابط','ok');}
-    catch(e){toast('انسخ الرابط يدويًا','warn');}
-  });
-  {const exportBtn=document.getElementById('chdExport');
-   if(exportBtn)exportBtn.onclick=async()=>{
-     // حوار تمهيدي: يوضّح ما سيُنتَج ويشرح الخطوة التالية قبل ظهور حوار المتصفح فجأة
-     let atts=[];try{atts=await fetchContractAttachments(contractId);}catch(e){}
-     const links=atts.filter(a=>a.url||a.storage_path);
-     const parts=['متن العقد الكامل'];
-     if(c.baseline_id)parts.push('ملحق الخطة المعتمدة');
-     if(links.length)parts.push(`قائمة الملاحق (${links.length})`);
-     if(c.token)parts.push('رمز QR لصفحة التوقيع');
-     const ok=await dialog({title:'تصدير العقد',
-       message:'سيُفتح حوار الطباعة — اختر منه «حفظ بصيغة PDF» (Save as PDF) للحصول على ملف.',
-       html:`<div class="cr-diff"><b>سيتضمّن المستند:</b>${parts.map(x=>`<div>· ${esc(x)}</div>`).join('')}</div>`,
-       confirmText:'متابعة التصدير'});
-     if(!ok)return;
-     exportBtn.disabled=true;const old=exportBtn.textContent;exportBtn.textContent='جارٍ التحضير...';
-     try{ await buildContractDoc(c.baseline_id,c,atts); }
-     catch(e){toast('تعذّر التصدير: '+e.message,'err');}
-     exportBtn.disabled=false;exportBtn.textContent=old;
-   };}
-  document.getElementById('chdDuplicate').onclick=async()=>{
-    const r=await dialog({title:'تكرار العقد',
-      message:'ستُنشأ نسخة جديدة مستقلة بكل بيانات هذا العقد ومرفقاته، بلا شريك ولا مشروع — قابلة للتعديل والإسناد كأصل جديد.',
-      fields:[{key:'name',label:'اسم النسخة الجديدة',value:(c.contract_name||'')+' (نسخة)'}],confirmText:'تكرار'});
-    if(!r)return;
-    try{
-      const d=await duplicateContract(contractId,r.name);
-      toast('تم التكرار ('+d.number+')','ok');
-      await reloadContracts();renderContractsHubBody();openContractDetailPanel(d.id);
-    }catch(e){toast(e.message,'err');}
-  };
-  if(canApprove){
-    document.getElementById('chdApprove').onclick=async()=>{
-      if(!await confirmDialog('اعتماد داخلي','بعد الاعتماد، يصبح هذا العقد قابلًا للإرسال والتوقيع من الطرفين. متابعة؟',false,'اعتماد'))return;
-      const finish=async()=>{
-        {const fr=(await fetchAllContracts()).find(x=>x.id===contractId);
-         if(fr){try{await sealContract(fr);}catch(e){}}}
-        toast('اعتُمد العقد داخليًا وخُتم نصه — أصبح قابلًا للإرسال والتوقيع','ok');
-        await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
-      };
-      try{
-        await approveContractInternal(contractId);
-        await finish();
-      }catch(e){
-        // فصل الأدوار: المُعِدّ لا يعتمد عمله إلا بمبرّر موثَّق يظهر في الشهادة والسجل
-        if(e.code==='value_mismatch'){
-          const pv=Number(e.info.project_value||0).toLocaleString('ar');
-          const cv=Number(e.info.contract_value||0).toLocaleString('ar');
-          if(!await confirmDialog('تعارض في القيمة المالية',
-            `قيمة العقد ${cv} ر.س تخالف القيمة المعتمَدة للمشروع ${pv} ر.س.\n\nراجعها قبل الاعتماد، أو أقرّ بالفرق للمتابعة.`,
-            true,'أقرّ بالفرق وأعتمد'))return;
-          try{ await approveContractInternal(contractId,null,true); await finish(); }
-          catch(e3){
-            if(e3.code==='self_approval'){
-              const r2=await dialog({title:'أنت مُعِدّ هذا العقد',
-                message:'مبدأ «أربع عيون» يقضي بأن يعتمده مخوَّل آخر. إن تعذّر، اذكر مبرّرًا موثَّقًا.',
-                fields:[{key:'reason',label:'مبرّر الاعتماد الذاتي',type:'textarea'}],confirmText:'اعتماد'});
-              if(!r2||!r2.reason||!r2.reason.trim()){toast('المبرّر إلزامي','warn');return;}
-              try{ await approveContractInternal(contractId,r2.reason,true); await finish(); }
-              catch(e4){toast(e4.message,'err');}
-            }else toast(e3.message,'err');
-          }
-          return;
-        }
-        if(e.code==='self_approval'){
-          const r=await dialog({title:'أنت مُعِدّ هذا العقد',
-            message:'مبدأ «أربع عيون» يقضي بأن يعتمده مخوَّل آخر. إن تعذّر ذلك، اذكر مبرّرًا — سيُوثَّق في شهادة التوقيع وسجل العقد.',
-            fields:[{key:'reason',label:'مبرّر الاعتماد الذاتي',type:'textarea',placeholder:'لماذا يتعذّر اعتماد شخص آخر؟'}],
-            confirmText:'اعتماد مع توثيق المبرّر'});
-          if(!r)return;
-          if(!r.reason||!r.reason.trim()){toast('المبرّر إلزامي','warn');return;}
-          try{ await approveContractInternal(contractId,r.reason); await finish(); }
-          catch(e2){toast(e2.message,'err');}
-        }else toast(e.message,'err');
-      }
-    };
-  }
-  if(editable){
-    document.getElementById('chdSave').onclick=async()=>{
-      const btn=document.getElementById('chdSave');btn.disabled=true;
-      const nameNum={contractName:document.getElementById('chdName').value,contractNumber:document.getElementById('chdNumber').value};
-      try{
-        if(isCustom){
-          await updateContract(contractId,Object.assign({customTitle:document.getElementById('chdTitle').value,customBody:document.getElementById('chdBody').value},nameNum));
-        }else{
-          await updateContract(contractId,Object.assign(chubReadStandardFields('chd',client),nameNum));
-        }
-        await reloadContracts();
-        const fresh=CH_CONTRACTS.find(x=>x.id===contractId);
-        if(fresh){try{await sealContract(fresh);}catch(e){}}
-        toast('حُفظت التعديلات وثُبِّتت','ok');
-        await reloadContracts();
-        renderContractsHubBody();
-        openContractDetailPanel(contractId,true);
-      }catch(e){toast(e.message,'err');btn.disabled=false;}
-    };
-    document.getElementById('chdVoid').onclick=async()=>{
-      if(!await confirmDialog('إلغاء العقد','سيصبح هذا العقد ملغى ولا يمكن توقيعه بعد الآن.',true,'إلغاء العقد'))return;
-      try{
-        const r=await voidContract(contractId);
-        if(r&&r.ok){toast('أُلغي العقد','ok');panel.innerHTML='';await reloadContracts();renderContractsHubBody();}
-        else toast('تعذّر الإلغاء','err');
-      }catch(e){toast('تعذّر الإلغاء: '+e.message,'err');}
-    };
-  }
+  // ═══ الربط ═══
+  // مُعالِجات اللوحة كلها في دالتها، بترتيبها نفسه حرفًا بحرف. وثمانية أسماء
+  // تعبر إليها لا أكثر — وهو ما جعل النقل ممكنًا بلا إعادة ترتيب.
+  bindContractPanel({c,contractId,panel,STAGE,client,editable,canApprove,isCustom});
 }
 
 // ===== لوحة إنشاء عقد جديد: مستقل تمامًا — لا خيار مشروع هنا إطلاقًا =====
@@ -1379,4 +1094,328 @@ export function contractAuditHTML(rows,who){
  */
 export function isSendableEmail(s){
   return !!s && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
+}
+
+
+/**
+ * ربط مُعالِجات لوحة العقد — كتلةٌ واحدة نُقلت بترتيبها نفسه حرفًا بحرف.
+ *
+ * ولم تُقسَّم إلى دواليَّ صغيرة عن قصد: هذه المُعالِجات تتشارك سياقًا واحدًا
+ * (العقد · اللوحة · الصلاحيات)، وتفتيتها إلى عشرين دالةً كلٌّ منها تأخذ نفس
+ * الثمانية **يزيد الحواف ولا ينقص التعقيد**.
+ *
+ * وفيها بعدُ فاصلٌ حقيقيّ — مُعالِجاتٌ تعرض وأخرى تكتب في القاعدة — لكن الفصل
+ * عليه يقتضي إعادة ترتيبٍ للتنفيذ، وذاك تغييرُ سلوكٍ لا نقل. فيُترَك لدفعته.
+ */
+/**
+ * ربط لوحة العقد — واجهةٌ واحدة تُنادى من `openContractDetailPanel`.
+ *
+ * وتفصل بين ما **يعرض** وما **يكتب في القاعدة**. والفصل صار ممكنًا بعد قياسٍ
+ * أثبت أن إعادة الترتيب لا تمسّ سلوكًا: سبعَ عشرةَ كتلةً، **لا عنصر DOM واحد
+ * يلمسه أكثر من كتلة**، ولا تصريح في المستوى الأعلى يعبر بينها. فالترتيب بينها
+ * كان مصادفةَ كتابةٍ لا عقدًا.
+ */
+function bindContractPanel(ctx){
+  bindPanelViews(ctx);
+  bindPanelActions(ctx);
+}
+
+/** ما يعرض ويقرأ: القائمة · فحص البريد · مسار الرسالة · الشهادة · النسخ · التصدير. */
+function bindPanelViews({c,contractId,panel,STAGE,client,editable,canApprove,isCustom}){
+  {const mb=document.getElementById('chdMore'),mm=document.getElementById('chdMoreMenu');
+   if(mb&&mm){
+     if(!STAGE.secondary.length)mb.style.display='none';
+     const close=()=>{mm.hidden=true;mb.setAttribute('aria-expanded','false');};
+     mb.onclick=e=>{e.stopPropagation();const open=mm.hidden;mm.hidden=!open;mb.setAttribute('aria-expanded',String(open));};
+     document.addEventListener('click',close);
+     mm.querySelectorAll('.chub-more-item').forEach(b=>b.addEventListener('click',close));
+   }}
+  {const mc=document.getElementById('chdMailCheck');
+   if(mc)mc.onclick=async()=>{
+     const box=document.getElementById('chdMailStatus');
+     box.innerHTML='<p class="sa-hint mt-6">جارٍ الفحص...</p>';
+     try{
+       const r=await checkEmailReady();
+       box.innerHTML='<div class="ctr-integrity ok mt-6 fs-75">✅ جاهز للإرسال · المرسِل: '+esc(r.from||'—')
+         +(r.webhookConfigured?'<br>✅ تتبّع الوصول والفتح مفعَّل':'<br>ℹ️ تتبّع الوصول والفتح غير مفعَّل (يحتاج ضبط WEBHOOK_SECRET وربطه في Resend)')+'</div>';
+     }catch(e){
+       box.innerHTML='<div class="ctr-integrity warn mt-6 fs-75">⚠ '+esc(e.message)+'</div>';
+     }
+   };}
+  // ===== مسار الرسالة: أُرسلت ← وصلت ← فُتحت ← نُقر ← وُقِّع =====
+  (async()=>{
+    const box=document.getElementById('chdFunnel');
+    if(!box)return;
+    let f={};
+    try{ f=await fetchContractFunnel(contractId); }
+    catch(e){ box.innerHTML='<p class="sa-hint">تعذّر تحميل حالة الإرسال</p>'; return; }
+
+    if(!f.has_send){
+      box.innerHTML='<p class="sa-hint">📭 لم يُرسل هذا العقد للشريك بعد.</p>';
+      return;
+    }
+    const fmt=d=>d?new Date(d).toLocaleString('ar',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):null;
+    const {steps,lastDone}=contractFunnelSteps(f);
+    // حالة صلاحية الرابط — تظهر للمستخدم بدل أن يكتشفها من شكوى الشريك
+    const ls=document.getElementById('chdLinkState');
+    if(ls&&f.sent_at&&!f.signed_at){
+      const v=contractLinkValidity(c,f.sent_at);
+      ls.innerHTML=v.daysLeft>0
+        ?`<p class="sa-hint mt-6">🔗 الرابط صالح ${v.daysLeft} يومًا (حتى ${v.expiresAt.toLocaleDateString('ar')}) — أي تذكير يجدّد المدة</p>`
+        :`<div class="ctr-integrity warn mt-6 fs-75">⚠ انتهت صلاحية الرابط — أرسل تذكيرًا ليعمل مجددًا</div>`;
+    }
+    box.innerHTML=contractFunnelHTML(f,steps,lastDone,fmt);
+  })();
+  {const ct=document.getElementById('chdCert');
+   if(ct)ct.onclick=async()=>{
+     let cert;
+     try{ cert=await fetchSignatureCertificate(contractId); }catch(e){toast(e.message,'err');return;}
+     // المُنسِّقات الثلاثة (f · org/pt · rows) انتقلت مع الوثيقة إلى بانيها.
+     const okc=await dialog({title:'شهادة التوقيع',
+       message:'سيُفتح حوار الطباعة — اختر «حفظ بصيغة PDF» للاحتفاظ بنسخة خارج النظام.',
+       html:'<div class="cr-diff"><b>تتضمّن الشهادة:</b><div>· الأطراف وبياناتهم</div>'
+           +'<div>· بصمة النص المختوم ووقت ختمه</div><div>· حوكمة الاعتماد (المُعِدّ والمعتمِد)</div>'
+           +'<div>· التواقيع وأدلتها كاملة</div><div>· سجل الإجراءات</div></div>',
+       confirmText:'متابعة'});
+     if(!okc)return;
+     document.getElementById('contractPrint').innerHTML=signatureCertificateHTML(cert);
+     runPrintSafely();
+   };}
+  // الأصل: عرض نسخه الحالية + إتاحة إسناده لشريك جديد (نسخة مستقلة)
+  document.querySelectorAll('[data-chdcopy]').forEach(b=>b.onclick=async()=>{
+    try{await navigator.clipboard.writeText(b.dataset.chdcopy);toast('نُسخ الرابط','ok');}
+    catch(e){toast('انسخ الرابط يدويًا','warn');}
+  });
+  {const exportBtn=document.getElementById('chdExport');
+   if(exportBtn)exportBtn.onclick=async()=>{
+     // حوار تمهيدي: يوضّح ما سيُنتَج ويشرح الخطوة التالية قبل ظهور حوار المتصفح فجأة
+     let atts=[];try{atts=await fetchContractAttachments(contractId);}catch(e){}
+     const links=atts.filter(a=>a.url||a.storage_path);
+     const parts=['متن العقد الكامل'];
+     if(c.baseline_id)parts.push('ملحق الخطة المعتمدة');
+     if(links.length)parts.push(`قائمة الملاحق (${links.length})`);
+     if(c.token)parts.push('رمز QR لصفحة التوقيع');
+     const ok=await dialog({title:'تصدير العقد',
+       message:'سيُفتح حوار الطباعة — اختر منه «حفظ بصيغة PDF» (Save as PDF) للحصول على ملف.',
+       html:`<div class="cr-diff"><b>سيتضمّن المستند:</b>${parts.map(x=>`<div>· ${esc(x)}</div>`).join('')}</div>`,
+       confirmText:'متابعة التصدير'});
+     if(!ok)return;
+     exportBtn.disabled=true;const old=exportBtn.textContent;exportBtn.textContent='جارٍ التحضير...';
+     try{ await buildContractDoc(c.baseline_id,c,atts); }
+     catch(e){toast('تعذّر التصدير: '+e.message,'err');}
+     exportBtn.disabled=false;exportBtn.textContent=old;
+   };}
+}
+
+/**
+ * ما يكتب في القاعدة: إرسالٌ · ملحق · أرشفة · توقيع · إسناد · فكّ ارتباط ·
+ * تكرار · اعتماد · حفظ وإلغاء. كل مسارٍ هنا يترك أثرًا في سجل التدقيق.
+ */
+function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,isCustom}){
+  {const sendBtn=document.getElementById('chdSendBtn');
+   if(sendBtn)sendBtn.onclick=async()=>{
+     const to=document.getElementById('chdSendTo').value.trim();
+     if(!isSendableEmail(to)){toast('أدخل بريدًا صحيحًا','warn');return;}
+     sendBtn.disabled=true;const old=sendBtn.textContent;sendBtn.textContent='جارٍ الإرسال...';
+     try{
+       await sendContractEmail(c,to,c.send_count>0?'reminder':'invite');
+       // حفظ البريد في ملف الشريك مرة واحدة — لا يُعاد إدخاله في أي عقد لاحق
+       const saveBox=document.getElementById('chdSaveEmail');
+       if(saveBox&&saveBox.checked&&c.client_id){
+         try{ await saveClientEmail(c.client_id,to); }catch(e){}
+       }
+       toast('أُرسل العقد إلى '+to,'ok');
+       await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
+     }catch(e){toast(e.message,'err');sendBtn.disabled=false;sendBtn.textContent=old;}
+   };}
+
+  {const am=document.getElementById('chdAmend');
+   if(am)am.onclick=async()=>{
+     const r=await dialog({title:'ملحق تعديل',
+       message:'يُنشأ ملحق مرقَّم مرتبط بهذا العقد، ينسخ بنوده ومرفقاته للتعديل — والعقد الأصلي يبقى ساريًا كما وُقِّع.',
+       fields:[{key:'reason',label:'موضوع التعديل',type:'textarea',placeholder:'ما الذي يعدّله هذا الملحق؟'}],
+       confirmText:'إنشاء الملحق'});
+     if(!r)return;
+     try{
+       const d=await createAmendment(contractId,r.reason);
+       toast('أُنشئ الملحق '+d.number,'ok');
+       await reloadContracts();renderContractsHubBody();openContractDetailPanel(d.id);
+     }catch(e){toast(e.message,'err');}
+   };}
+  {const ar=document.getElementById('chdArchive');
+   if(ar)ar.onclick=async()=>{
+     if(!await confirmDialog('أرشفة العقد','يختفي من القائمة الرئيسية ويبقى قابلًا للاسترجاع.',false,'أرشفة'))return;
+     try{ await archiveContract(contractId,false);toast('أُرشف العقد','ok');
+       await reloadContracts();renderContractsHubBody();panel.innerHTML='';
+     }catch(e){toast(e.message,'err');}
+   };}
+  {const ua=document.getElementById('chdUnarchive');
+   if(ua)ua.onclick=async()=>{
+     try{ await archiveContract(contractId,true);toast('استُرجع العقد','ok');
+       await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
+     }catch(e){toast(e.message,'err');}
+   };}
+  {const sb2=document.getElementById('chdSignNow');
+   if(sb2)sb2.onclick=()=>{
+     const area=document.getElementById('chdSignArea');
+     area.innerHTML=`<div class="sa-section" style="background:var(--soft-2)">
+       <h4>توقيع علامة على «${esc(c.contract_name||'')}»</h4>
+       <input id="chdSignName" placeholder="اسم الموقِّع عن علامة" style="width:100%;margin-bottom:10px;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
+       <div id="chdSignPad"></div>
+       <div class="row-8 mt-10">
+         <button class="hbtn ok" id="chdSignConfirm">اعتماد التوقيع</button>
+         <button class="reqbtn" id="chdSignCancel">إلغاء</button>
+       </div></div>`;
+     const pad=mountSignaturePad(document.getElementById('chdSignPad'));
+     if(area.scrollIntoView)area.scrollIntoView({behavior:'smooth',block:'center'});
+     document.getElementById('chdSignCancel').onclick=()=>{area.innerHTML='';};
+     document.getElementById('chdSignConfirm').onclick=async()=>{
+       const name=document.getElementById('chdSignName').value.trim();
+       if(!name){toast('أدخل اسم الموقِّع','warn');return;}
+       const sig=pad.getData();
+       if(!sig.ok){toast('ارسم توقيعك أو اكتب اسمك في لوحة التوقيع','warn');return;}
+       const btn=document.getElementById('chdSignConfirm');btn.disabled=true;
+       try{
+         const r=await signContractAsStaff(contractId,name,sig.data||('نصي: '+sig.typed));
+         if(r&&r.ok){
+           toast('وُقِّع العقد من علامة — أرسل الرابط للشريك الآن','ok');
+           await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
+         }else toast((r&&r.error==='not_approved')?'العقد غير معتمَد داخليًا بعد':'تعذّر التوقيع','err');
+       }catch(e){toast('تعذّر التوقيع: '+e.message,'err');btn.disabled=false;}
+     };
+   };}
+  if(!c.client_id&&!c.source_contract_id){
+    (async()=>{
+      const box=document.getElementById('chdInstances');
+      if(!box)return;
+      let insts=[];
+      try{ insts=await fetchContractInstances(contractId); }catch(e){}
+      const {data:allCl}=await sb.from('pmo_clients').select('id,name').order('name');
+      const taken=new Set(insts.filter(i=>i.status!=='void').map(i=>i.client_name));
+      box.innerHTML=`
+        <div class="sa-section mb-14">
+          <h4>النسخ المُنشأة من هذا الأصل <span class="sa-hint">(${insts.length})</span></h4>
+          ${insts.length?insts.map(i=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft)">
+              <div><span class="chub-num">${esc(i.contract_number||'—')}</span> <b>${esc(i.client_name||'—')}</b>
+                <span class="sa-hint"> · ${CH_STL[i.status]||i.status}${i.project_name?' · 📁 '+esc(i.project_name):''}${i.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}</span></div>
+              <button class="reqbtn" data-openinst="${i.id}">فتح ←</button>
+            </div>`).join(''):'<p class="sa-hint">لا نسخ بعد — أسنِد هذا الأصل لشريك لإنشاء أول نسخة.</p>'}
+          <div class="sa-form mt-12">
+            <select id="chdAssignClient"><option value="">اختر الشريك لإنشاء نسخة له...</option>${
+              (allCl||[]).filter(x=>!taken.has(x.name)).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
+            <button class="reqbtn" id="chdAssignGo">إنشاء نسخة</button>
+          </div>
+        </div>`;
+      document.querySelectorAll('[data-openinst]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.openinst));
+      const go=async()=>{
+        const cid=document.getElementById('chdAssignClient').value;
+        if(!cid){toast('اختر الشريك','warn');return;}
+        try{
+          const r=await assignContractToClient(contractId,cid);
+          toast('أُنشئت نسخة خاصة بالشريك ('+r.number+') — الأصل بقي كما هو','ok');
+          await reloadContracts();renderContractsHubBody();
+          openContractDetailPanel(r.id);
+        }catch(e){toast(e.message,'err');}
+      };
+      document.getElementById('chdAssignGo').onclick=go;
+      const topBtn=document.getElementById('chdAssign');
+      if(topBtn)topBtn.onclick=()=>{const sel=document.getElementById('chdAssignClient');if(sel&&sel.scrollIntoView)sel.scrollIntoView({behavior:'smooth',block:'center'});};
+    })();
+  }
+  if(c.project_id){
+    document.getElementById('chdUnlink').onclick=async()=>{
+      if(!await confirmDialog('فك الارتباط','سيبقى العقد موجودًا في محفظة العقود، لكنه لن يظهر بعد الآن كمرتبط بهذا المشروع.',false,'فك الارتباط'))return;
+      try{
+        const r=await unlinkContractFromProject(contractId);
+        if(r&&r.ok){toast('فُكّ الارتباط','ok');await reloadContracts();renderContractsHubBody();panel.innerHTML='';}
+        else toast((r&&r.error)||'تعذّر فك الارتباط','err');
+      }catch(e){toast('تعذّر فك الارتباط: '+e.message,'err');}
+    };
+  }
+  document.getElementById('chdDuplicate').onclick=async()=>{
+    const r=await dialog({title:'تكرار العقد',
+      message:'ستُنشأ نسخة جديدة مستقلة بكل بيانات هذا العقد ومرفقاته، بلا شريك ولا مشروع — قابلة للتعديل والإسناد كأصل جديد.',
+      fields:[{key:'name',label:'اسم النسخة الجديدة',value:(c.contract_name||'')+' (نسخة)'}],confirmText:'تكرار'});
+    if(!r)return;
+    try{
+      const d=await duplicateContract(contractId,r.name);
+      toast('تم التكرار ('+d.number+')','ok');
+      await reloadContracts();renderContractsHubBody();openContractDetailPanel(d.id);
+    }catch(e){toast(e.message,'err');}
+  };
+  if(canApprove){
+    document.getElementById('chdApprove').onclick=async()=>{
+      if(!await confirmDialog('اعتماد داخلي','بعد الاعتماد، يصبح هذا العقد قابلًا للإرسال والتوقيع من الطرفين. متابعة؟',false,'اعتماد'))return;
+      const finish=async()=>{
+        {const fr=(await fetchAllContracts()).find(x=>x.id===contractId);
+         if(fr){try{await sealContract(fr);}catch(e){}}}
+        toast('اعتُمد العقد داخليًا وخُتم نصه — أصبح قابلًا للإرسال والتوقيع','ok');
+        await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
+      };
+      try{
+        await approveContractInternal(contractId);
+        await finish();
+      }catch(e){
+        // فصل الأدوار: المُعِدّ لا يعتمد عمله إلا بمبرّر موثَّق يظهر في الشهادة والسجل
+        if(e.code==='value_mismatch'){
+          const pv=Number(e.info.project_value||0).toLocaleString('ar');
+          const cv=Number(e.info.contract_value||0).toLocaleString('ar');
+          if(!await confirmDialog('تعارض في القيمة المالية',
+            `قيمة العقد ${cv} ر.س تخالف القيمة المعتمَدة للمشروع ${pv} ر.س.\n\nراجعها قبل الاعتماد، أو أقرّ بالفرق للمتابعة.`,
+            true,'أقرّ بالفرق وأعتمد'))return;
+          try{ await approveContractInternal(contractId,null,true); await finish(); }
+          catch(e3){
+            if(e3.code==='self_approval'){
+              const r2=await dialog({title:'أنت مُعِدّ هذا العقد',
+                message:'مبدأ «أربع عيون» يقضي بأن يعتمده مخوَّل آخر. إن تعذّر، اذكر مبرّرًا موثَّقًا.',
+                fields:[{key:'reason',label:'مبرّر الاعتماد الذاتي',type:'textarea'}],confirmText:'اعتماد'});
+              if(!r2||!r2.reason||!r2.reason.trim()){toast('المبرّر إلزامي','warn');return;}
+              try{ await approveContractInternal(contractId,r2.reason,true); await finish(); }
+              catch(e4){toast(e4.message,'err');}
+            }else toast(e3.message,'err');
+          }
+          return;
+        }
+        if(e.code==='self_approval'){
+          const r=await dialog({title:'أنت مُعِدّ هذا العقد',
+            message:'مبدأ «أربع عيون» يقضي بأن يعتمده مخوَّل آخر. إن تعذّر ذلك، اذكر مبرّرًا — سيُوثَّق في شهادة التوقيع وسجل العقد.',
+            fields:[{key:'reason',label:'مبرّر الاعتماد الذاتي',type:'textarea',placeholder:'لماذا يتعذّر اعتماد شخص آخر؟'}],
+            confirmText:'اعتماد مع توثيق المبرّر'});
+          if(!r)return;
+          if(!r.reason||!r.reason.trim()){toast('المبرّر إلزامي','warn');return;}
+          try{ await approveContractInternal(contractId,r.reason); await finish(); }
+          catch(e2){toast(e2.message,'err');}
+        }else toast(e.message,'err');
+      }
+    };
+  }
+  if(editable){
+    document.getElementById('chdSave').onclick=async()=>{
+      const btn=document.getElementById('chdSave');btn.disabled=true;
+      const nameNum={contractName:document.getElementById('chdName').value,contractNumber:document.getElementById('chdNumber').value};
+      try{
+        if(isCustom){
+          await updateContract(contractId,Object.assign({customTitle:document.getElementById('chdTitle').value,customBody:document.getElementById('chdBody').value},nameNum));
+        }else{
+          await updateContract(contractId,Object.assign(chubReadStandardFields('chd',client),nameNum));
+        }
+        await reloadContracts();
+        const fresh=CH_CONTRACTS.find(x=>x.id===contractId);
+        if(fresh){try{await sealContract(fresh);}catch(e){}}
+        toast('حُفظت التعديلات وثُبِّتت','ok');
+        await reloadContracts();
+        renderContractsHubBody();
+        openContractDetailPanel(contractId,true);
+      }catch(e){toast(e.message,'err');btn.disabled=false;}
+    };
+    document.getElementById('chdVoid').onclick=async()=>{
+      if(!await confirmDialog('إلغاء العقد','سيصبح هذا العقد ملغى ولا يمكن توقيعه بعد الآن.',true,'إلغاء العقد'))return;
+      try{
+        const r=await voidContract(contractId);
+        if(r&&r.ok){toast('أُلغي العقد','ok');panel.innerHTML='';await reloadContracts();renderContractsHubBody();}
+        else toast('تعذّر الإلغاء','err');
+      }catch(e){toast('تعذّر الإلغاء: '+e.message,'err');}
+    };
+  }
 }
