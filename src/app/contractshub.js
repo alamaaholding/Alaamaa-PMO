@@ -72,29 +72,7 @@ function renderContractsHubBody(){
   const counts={all:CH_CONTRACTS.length};
   ['pending_alamaa','pending_client','signed','void'].forEach(s=>{counts[s]=CH_CONTRACTS.filter(c=>c.status===s).length;});
 
-  const q=CH_FILTER.q.trim().toLowerCase();
-  const filtered=CH_CONTRACTS.filter(c=>{
-    if(CH_FILTER.status!=='all'&&c.status!==CH_FILTER.status)return false;
-    if(CH_FILTER.client&&c.client_id!==CH_FILTER.client)return false;
-    if(CH_FILTER.type&&c.contract_type!==CH_FILTER.type)return false;
-    if(CH_FILTER.link==='linked'&&!c.project_id)return false;
-    if(CH_FILTER.link==='unlinked'&&c.project_id)return false;
-    if(CH_FILTER.link==='template'&&(c.client_id||c.source_contract_id))return false;
-    if(CH_FILTER.link==='amendment'&&!c.amends_contract_id)return false;
-    if(q){
-      const hay=[c.contract_name,c.contract_number,c.client_name,c.project_name].filter(Boolean).join(' ').toLowerCase();
-      if(!hay.includes(q))return false;
-    }
-    return true;
-  }).sort((a,b)=>{
-    if(CH_FILTER.sort==='value')return (Number(b.contract_value)||0)-(Number(a.contract_value)||0);
-    if(CH_FILTER.sort==='name')return String(a.contract_name||'').localeCompare(String(b.contract_name||''),'ar');
-    if(CH_FILTER.sort==='ending'){
-      if(!a.end_date)return 1; if(!b.end_date)return -1;
-      return new Date(a.end_date)-new Date(b.end_date);
-    }
-    return new Date(b.created_at)-new Date(a.created_at);
-  });
+  const filtered=filterContracts(CH_CONTRACTS,CH_FILTER);
   // مؤشرات سريعة تُبنى من المعروض فعليًا لا من الكل
   const totalValue=filtered.reduce((s2,c)=>s2+(Number(c.contract_value)||0),0);
   const clients=[...new Map(CH_CONTRACTS.filter(c=>c.client_id).map(c=>[c.client_id,c.client_name])).entries()];
@@ -1418,4 +1396,40 @@ function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,i
       }catch(e){toast('تعذّر الإلغاء: '+e.message,'err');}
     };
   }
+}
+
+
+/**
+ * تصفيةُ العقود وترتيبها — قرارٌ خالص: قائمةٌ ومرشِّح ⇦ قائمة.
+ *
+ * كان مبثوثًا في `renderContractsHubBody`، فلا يُفحَص إلا بتصيير المحفظة. وهو
+ * **خمسة مرشِّحات متعامدة** (حالة · شريك · نوع · ارتباط · بحث) وأربعة ترتيبات،
+ * أي مصفوفةٌ لا تُغطّى بالنقر. وأخطر ما فيه أن المرشِّحات تتقاطع: خطأٌ في واحدٍ
+ * منها يُخفي عقودًا **بلا رسالة ولا أثر** — المستخدم يرى قائمةً أقصر ويظنّها كل
+ * ما لديه.
+ */
+export function filterContracts(list,f){
+  const q=(f.q||'').trim().toLowerCase();
+  return list.filter(c=>{
+    if(f.status!=='all'&&c.status!==f.status)return false;
+    if(f.client&&c.client_id!==f.client)return false;
+    if(f.type&&c.contract_type!==f.type)return false;
+    if(f.link==='linked'&&!c.project_id)return false;
+    if(f.link==='unlinked'&&c.project_id)return false;
+    if(f.link==='template'&&(c.client_id||c.source_contract_id))return false;
+    if(f.link==='amendment'&&!c.amends_contract_id)return false;
+    if(q){
+      const hay=[c.contract_name,c.contract_number,c.client_name,c.project_name].filter(Boolean).join(' ').toLowerCase();
+      if(!hay.includes(q))return false;
+    }
+    return true;
+  }).sort((a,b)=>{
+    if(f.sort==='value')return (Number(b.contract_value)||0)-(Number(a.contract_value)||0);
+    if(f.sort==='name')return String(a.contract_name||'').localeCompare(String(b.contract_name||''),'ar');
+    if(f.sort==='ending'){
+      if(!a.end_date)return 1; if(!b.end_date)return -1;
+      return new Date(a.end_date)-new Date(b.end_date);
+    }
+    return new Date(b.created_at)-new Date(a.created_at);
+  });
 }
