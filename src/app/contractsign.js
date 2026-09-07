@@ -72,14 +72,9 @@ export async function renderPublicSign(token){
   let d;
   try{ d=await fetchPublicContract(token); }
   catch(e){ return pubSignError('تعذّر تحميل العقد. تحقّق من الرابط أو حاول لاحقًا.'); }
-  if(d&&d.error==='link_expired') return pubSignError(
-    'انتهت صلاحية هذا الرابط. تواصل مع علامة لإرسال رابط جديد — سيصلك خلال دقائق.');
-  if(!d||!d.ok) return pubSignError(
-    d&&d.error==='not_found'?'هذا الرابط غير صالح.':
-    'تعذّر عرض هذا العقد حاليًا.');
-
-  if(d.archived) return pubSignError('انتهت صلاحية هذا الرابط العام — المشروع مؤرشف الآن. لعرض التفاصيل، سجّل الدخول من داخل المنصة.',true);
-  if(!d.internal_approved) return pubSignError('هذا العقد قيد المراجعة الداخلية من فريق علامة ولم يُعتمَد بعد للإرسال — يُرجى المحاولة لاحقًا أو التواصل مع من أرسل لك هذا الرابط.');
+  // بوابةُ العرض العام: خمسة أسبابٍ للمنع، ولكلٍّ منها رسالته. القرار في دالته.
+  const gate=publicSignGate(d);
+  if(gate) return pubSignError(gate.message,gate.signIn);
 
   const clientSigned=(d.signatures||[]).some(s=>s.party==='client');
   const alamaaSig=(d.signatures||[]).find(s=>s.party==='alamaa');
@@ -377,3 +372,28 @@ async function refreshContractPanel(){
   });
 }
 
+
+/**
+ * بوابةُ صفحة التوقيع العامة — ما يراه الشريك قبل أن يرى العقد.
+ *
+ * هذه **الشاشة الوحيدة خارج تسجيل الدخول**، وحارسها الرمز العشوائي في الرابط.
+ * فرسائلها ليست تفاصيل واجهة: من يفتح رابطًا منتهيًا يجب أن يعرف أن عليه طلب
+ * رابطٍ جديد، ومن يفتح عقدًا لم يُعتمَد بعد يجب ألّا يظنّه ضائعًا.
+ *
+ * وترتيب البوابات مقصود: انتهاء الصلاحية يسبق «غير صالح» — فرابطٌ منتهٍ يُرَدّ
+ * برسالته الخاصّة لا برسالة الرابط الخاطئ، وهما تجربتان مختلفتان تمامًا.
+ *
+ * @returns {null|{message:string,signIn?:boolean}} `null` يعني: اعرِض العقد.
+ */
+export function publicSignGate(d){
+  if(d&&d.error==='link_expired')
+    return {message:'انتهت صلاحية هذا الرابط. تواصل مع علامة لإرسال رابط جديد — سيصلك خلال دقائق.'};
+  if(!d||!d.ok)
+    return {message:d&&d.error==='not_found'?'هذا الرابط غير صالح.':'تعذّر عرض هذا العقد حاليًا.'};
+  // المؤرشف وحده يُعرَض معه مدخل تسجيل الدخول: البيانات موجودة لكنها لم تعد عامّة.
+  if(d.archived)
+    return {message:'انتهت صلاحية هذا الرابط العام — المشروع مؤرشف الآن. لعرض التفاصيل، سجّل الدخول من داخل المنصة.',signIn:true};
+  if(!d.internal_approved)
+    return {message:'هذا العقد قيد المراجعة الداخلية من فريق علامة ولم يُعتمَد بعد للإرسال — يُرجى المحاولة لاحقًا أو التواصل مع من أرسل لك هذا الرابط.'};
+  return null;
+}
