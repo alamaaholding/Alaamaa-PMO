@@ -93,7 +93,36 @@ const base={id:'c1',token:'t1',contract_type:'standard',contract_name:'عقد س
 const wait=setInterval(()=>{
   if(!w.__done)return; clearInterval(wait);
   const css=fs.readFileSync('src/styles.css','utf8');
+  // ═══ بوابة صفحة التوقيع العامة — الشاشة الوحيدة خارج تسجيل الدخول ═══
+  //
+  // حارسها الرمز العشوائي في الرابط، ورسائلها ليست تفاصيل واجهة: من يفتح رابطًا
+  // منتهيًا يجب أن يعرف أن عليه طلب رابطٍ جديد، ومن يفتح عقدًا لم يُعتمَد بعد
+  // يجب ألّا يظنّه ضائعًا. وكانت هذه الفروق ستّة أسطرٍ داخل دالة تصييرٍ لا تُفحَص.
+  const G=d=>w.publicSignGate(d);
+  const OK={ok:true,archived:false,internal_approved:true};
+  const gate=[
+    ['العقد السليم يمرّ', G(OK)===null, JSON.stringify(G(OK))],
+    // الترتيب مقصود: المنتهي يُرَدّ برسالته لا برسالة «غير صالح» — تجربتان مختلفتان.
+    ['المنتهي: رسالةُ تجديدٍ لا رسالةُ خطأ',
+      /انتهت صلاحية هذا الرابط\./.test(G({error:'link_expired'}).message)],
+    ['وحتى لو جاء معه ok:true — الانتهاء يسبق',
+      /انتهت صلاحية/.test(G({ok:true,error:'link_expired',internal_approved:true}).message)],
+    ['غير الموجود: «غير صالح»', G({error:'not_found'}).message==='هذا الرابط غير صالح.'],
+    ['وخطأٌ مجهول: رسالةٌ عامّة لا صمت',
+      G({error:'boom'}).message==='تعذّر عرض هذا العقد حاليًا.'],
+    ['و undefined لا يرمي', !!G(undefined)&&!!G(undefined).message],
+    ['المؤرشف يُمنَع', /مؤرشف/.test(G(Object.assign({},OK,{archived:true})).message)],
+    // وهو الوحيد الذي يُعرَض معه مدخل الدخول: البيانات موجودة لكنها لم تعد عامّة.
+    ['ومعه وحده مدخلُ تسجيل الدخول',
+      G(Object.assign({},OK,{archived:true})).signIn===true],
+    ['ولا مدخلَ مع المنتهي', !G({error:'link_expired'}).signIn],
+    ['غير المعتمَد داخليًا يُمنَع',
+      /قيد المراجعة الداخلية/.test(G(Object.assign({},OK,{internal_approved:false})).message)],
+    ['ولا يُفشى للشريك أنه «غير صالح»',
+      !/غير صالح/.test(G(Object.assign({},OK,{internal_approved:false})).message)],
+  ];
   const extra=[
+    ...gate,
     ['الغلاف لم يعد يستخدم 100vh (وحدة شاشة لا معنى لها في الطباعة)',
       !/\.cx-cover\{min-height:100vh/.test(css)],
     // القاعدة الحاكمة السادسة: القدرة هي «الغلاف لا ينقسم عبر حدّ الصفحة»،
