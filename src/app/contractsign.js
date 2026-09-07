@@ -234,10 +234,7 @@ async function refreshContractPanel(){
     const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
     const link=location.origin+location.pathname+'#/sign/'+c.token;
     const cEmail=(getState('CLIENTS').find(x=>x.id===getState('CID'))||{}).contact_email||'';
-    const subject=encodeURIComponent('عقد '+getState('PROJECT').name+' — علامة');
-    const body=encodeURIComponent(
-      `تحية طيبة،\n\nنرفق رابط خاص بكم حصرًا لتوقيع عقد مشروع «${getState('PROJECT').name}» إلكترونيًا (لا يُستخدم لغير هذا الغرض):\n${link}\n\nيمكنكم فتح الرابط والاطّلاع على نص العقد كاملًا ثم التوقيع مباشرة، بلا حاجة لإنشاء حساب.\n\nشكرًا لكم،\nفريق علامة`);
-    const mailHref=`mailto:${encodeURIComponent(cEmail)}?subject=${subject}&body=${body}`;
+    const mailHref=signInviteMailto(cEmail,getState('PROJECT').name,link);
     return `<div style="padding:14px 0;border-bottom:1px solid var(--line)">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <b>${esc(c.baseline_label)}</b><span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${STL[c.status]||c.status}</span>
@@ -396,4 +393,22 @@ export function publicSignGate(d){
   if(!d.internal_approved)
     return {message:'هذا العقد قيد المراجعة الداخلية من فريق علامة ولم يُعتمَد بعد للإرسال — يُرجى المحاولة لاحقًا أو التواصل مع من أرسل لك هذا الرابط.'};
   return null;
+}
+
+
+/**
+ * رابط `mailto:` لدعوة الشريك إلى التوقيع — بانٍ خالص.
+ *
+ * ونصُّه **يخرج من المنصّة إلى بريد شريك**، فهو أوضح ما فيه أثرًا: يَعِد بأن
+ * الرابط خاصٌّ به حصرًا، وبأنه لا يحتاج حسابًا. وكان مبثوثًا داخل حلقة تصيير.
+ *
+ * والترميز مرّتان بالضرورة: مرةً لكل حقلٍ (الموضوع والمتن) لأن `mailto` يفصل
+ * حقولها بـ`&`، ومرةً للبريد نفسه. وسطرٌ جديدٌ غير مُرمَّز يقطع المتن عند أول
+ * فاصلة — وهو عطلٌ لا يظهر إلا في بريد المستلم.
+ */
+export function signInviteMailto(toEmail,projectName,link){
+  const subject=encodeURIComponent('عقد '+projectName+' — علامة');
+  const body=encodeURIComponent(
+    `تحية طيبة،\n\nنرفق رابط خاص بكم حصرًا لتوقيع عقد مشروع «${projectName}» إلكترونيًا (لا يُستخدم لغير هذا الغرض):\n${link}\n\nيمكنكم فتح الرابط والاطّلاع على نص العقد كاملًا ثم التوقيع مباشرة، بلا حاجة لإنشاء حساب.\n\nشكرًا لكم،\nفريق علامة`);
+  return `mailto:${encodeURIComponent(toEmail||'')}?subject=${subject}&body=${body}`;
 }

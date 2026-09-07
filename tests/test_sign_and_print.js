@@ -121,8 +121,37 @@ const wait=setInterval(()=>{
     ['ولا يُفشى للشريك أنه «غير صالح»',
       !/غير صالح/.test(G(Object.assign({},OK,{internal_approved:false})).message)],
   ];
+  // ═══ دعوة التوقيع — نصٌّ يخرج من المنصّة إلى بريد شريك ═══
+  const M=(to,proj,link)=>w.signInviteMailto(to,proj,link);
+  const m=M('a@b.co','هوية','https://pmo.example/#/sign/tok');
+  const invite=[
+    ['المستلم في موضعه', m.startsWith('mailto:a%40b.co?')],
+    ['والموضوع يحمل اسم المشروع', decodeURIComponent(m.split('subject=')[1].split('&')[0])==='عقد هوية — علامة'],
+    // الرابط داخل المتن: لو ضاع في الترميز لصار البريد بلا الغرض منه.
+    ['والرابط داخل المتن كاملًا',
+      decodeURIComponent(m.split('body=')[1]).includes('https://pmo.example/#/sign/tok')],
+    // الأسطر الجديدة تُرمَّز — وإلا انقطع المتن عند أوّل فاصلة في بريد المستلم.
+    ['والأسطر الجديدة مُرمَّزة لا خامّة', m.includes('%0A')&&!/body=[^&]*\n/.test(m)],
+    // الرابط على سطرٍ وحده: عملاء البريد يجعلونه قابلًا للنقر حين لا يلتصق بنصّ.
+    ['والرابط على سطرٍ وحده',
+      decodeURIComponent(m.split('body=')[1]).split('\n')
+        .some(l=>l.trim()==='https://pmo.example/#/sign/tok')],
+    // الوعدان اللذان يقطعهما النصّ للشريك.
+    ['يَعِد بأن الرابط خاصٌّ به حصرًا',
+      /خاص بكم حصرًا/.test(decodeURIComponent(m.split('body=')[1]))],
+    ['وبأنه لا يحتاج حسابًا',
+      /بلا حاجة لإنشاء حساب/.test(decodeURIComponent(m.split('body=')[1]))],
+    // الشريك بلا بريد: يبقى الرابط صالحًا للفتح، ويملأ المرسِل المستلم بنفسه.
+    ['وبلا بريدٍ للشريك لا ينكسر الرابط',
+      M('','هوية','L').startsWith('mailto:?subject=')],
+    ['و undefined كذلك', M(undefined,'هوية','L').startsWith('mailto:?subject=')],
+    // ومحارف تكسر mailto لو لم تُرمَّز.
+    ['واسمٌ فيه & أو # مُرمَّز',
+      !/[&#]/.test(M('x@y.z','أ&ب#ج','L').split('subject=')[1].split('&body=')[0])],
+  ];
   const extra=[
     ...gate,
+    ...invite,
     ['الغلاف لم يعد يستخدم 100vh (وحدة شاشة لا معنى لها في الطباعة)',
       !/\.cx-cover\{min-height:100vh/.test(css)],
     // القاعدة الحاكمة السادسة: القدرة هي «الغلاف لا ينقسم عبر حدّ الصفحة»،
