@@ -43,16 +43,17 @@ import * as staffAccess from './app/staffaccess.js';
 import * as workload from './app/workload.js';
 import * as contractSign from './app/contractsign.js';
 import * as contractsHub from './app/contractshub.js';
-// شاشتان تُسجَّلان في سجلّ الشاشات ولا تُصدّران شيئًا يحتاجه القديم — عدا
-// `resolveClientIdentifier` (يستدعيها محلّل الرابط في main.js). فالمحفظة تُستورَد
-// لأثرها وحده، وصفحة الشريك تُمرَّر إلى الجسر لاسمها الواحد.
-import './app/portfolio.js';
+// شاشتان تُسجَّلان في سجلّ الشاشات ولا تُصدّران **دالة شاشةٍ** تُنادى بالاسم.
+// لكنّ لكلٍّ منهما صادراتٍ يحتاجها غيرها: `resolveClientIdentifier` لمحلّل الرابط،
+// و`portfolioTools`/`portfolioToolsHTML` — قرارُ صلاحيةٍ وبانيه (W3) تستجوبهما
+// الاختبارات مباشرةً بدل تصيير المحفظة كاملة. فتُمرَّران إلى الجسر.
+import * as portfolio from './app/portfolio.js';
 import * as clientHome from './app/clienthome.js';
 import * as main from './app/main.js';
 import * as session from './app/session.js';
 import { STATE_KEYS, getState, setState, savePFilters } from './app/state.js';
 
-Object.assign(globalThis, theme, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate, exportContract, chrome, screens, actions, views, projectActions, taskPanel, lifecycle, emptyStateMod, staffAccess, workload, contractSign, contractsHub, clientHome, main, session);
+Object.assign(globalThis, theme, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate, exportContract, chrome, screens, actions, views, projectActions, taskPanel, lifecycle, emptyStateMod, staffAccess, workload, contractSign, contractsHub, portfolio, clientHome, main, session);
 
 // state.js **لا تُمرَّر كفضاء أسماء** — حالتها تصل بواصفات لا بنسخ (أدناه). لكن
 // `savePFilters` دالةٌ لا حالة، ومكانها هناك لأن القراءة المقابلة لها هناك. فتُجسَّر

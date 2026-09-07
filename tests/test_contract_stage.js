@@ -21,6 +21,7 @@ const eq = (n, got, want) => t(n, got === want, `توقّعنا ${JSON.stringify
 
 // الحزمة الحقيقية في نافذة jsdom — نفس الطريق الذي تسلكه بقيّة الاختبارات.
 const html = fs.readFileSync('index.html', 'utf8').replace(/<script[^>]*src=[^>]*><\/script>/g, '');
+const bundle = fs.readFileSync('app.bundle.js', 'utf8');
 const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'https://pmo.example/' });
 const w = dom.window;
 w.eval(`window.supabase={createClient:()=>({rpc:()=>Promise.resolve({data:[],error:null}),
@@ -29,7 +30,7 @@ w.eval(`window.supabase={createClient:()=>({rpc:()=>Promise.resolve({data:[],err
   auth:{getSession:async()=>({data:{session:null}}),getUser:async()=>({data:{user:null}}),
     onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},
   channel:()=>({on(){return this},subscribe(){return this}}),removeChannel:()=>{}})}`);
-{ const s = w.document.createElement('script'); s.textContent = fs.readFileSync('app.bundle.js', 'utf8');
+{ const s = w.document.createElement('script'); s.textContent = bundle;
   w.document.body.appendChild(s); }
 
 const { contractStage, defaultContractTab, contractPanelHTML,
@@ -389,5 +390,53 @@ console.log('\n▸ بريد الإرسال — منع الخطأ المطبعي�
   t('و undefined لا يرمي', !isSendableEmail(undefined));
 }
 
-console.log(`\nنجح ${ok} · فشل ${fail}`);
-process.exit(fail ? 1 : 0);
+console.log('\n▸ اللوحة تُفتح فعلًا وتُربَط — بصمةٌ سلوكية للتفكيك كله');
+// كتلةٌ غير متزامنة وحدها في الملف: فتحُ اللوحة ينتظر الجلب. والتقرير داخلها.
+(async () => {
+  // W3 نقلت من هذه اللوحة سبعة أجزاء. وكل التأكيدات أعلاه تفحص **القطع**؛
+  // وهذا يفحص أنها ما زالت تتركّب: تُفتح اللوحة بمسارها الحقيقي، ويُحصى ما
+  // رُبط فعلًا. أي معالِج يسقط في تفكيكٍ لاحق يظهر هنا بالاسم.
+  //
+  // ودرسٌ من بنائه: أوّل صيغةٍ لهذه البصمة أعطت «صفر مربوط» **في النسختين**،
+  // فبدت المقارنة ناجحة وهي جوفاء. والسببان: `#chubPanel` يُنشئه
+  // renderContractsHubBody لا index.html، و`CH_CONTRACTS` رابطةٌ داخل الوحدة
+  // لا تُصدَّر فلا يصلها إسنادٌ من الخارج — تُملأ عبر `reloadContracts()`.
+  const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'https://pmo.example/' });
+  const W = dom.window;
+  W.eval(`window.__c=${JSON.stringify({
+    id: 'k1', token: 'tok', status: 'active', client_id: 'c1', source_contract_id: null,
+    internal_approved: true, archived_at: null, project_id: 'p1', send_count: 0,
+    amendment_count: 0, contract_name: 'عقد', contract_number: 'ALM-1',
+    signatures: [], sealed_body: 'نص', org: {}, template_key: 'alamaa_v1', clause_overrides: {}
+  })};
+  window.supabase={createClient:()=>({
+    rpc:(n)=>Promise.resolve({data:n==='pmo_all_contracts_view'?[window.__c]:[],error:null}),
+    from:()=>({select:()=>({order:()=>Promise.resolve({data:[],error:null}),
+      eq:()=>({maybeSingle:async()=>({data:null,error:null})})})}),
+    auth:{getSession:async()=>({data:{session:null}}),getUser:async()=>({data:{user:null}}),
+      onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},
+    channel:()=>({on(){return this},subscribe(){return this}}),removeChannel:()=>{}})}`);
+  { const sc = W.document.createElement('script'); sc.textContent = bundle; W.document.body.appendChild(sc); }
+
+  W.eval("ROLE='pmo';IS_OWNER=true;CLIENTS=[{id:'c1',name:'ش'}]");
+  W.eval("document.getElementById('host').innerHTML='<div id=\"chubPanel\"></div><div id=\"contractPrint\"></div>'");
+  await W.reloadContracts();
+  await W.openContractDetailPanel('k1');
+  await new Promise(r => setTimeout(r, 500));
+
+  const panel = W.document.getElementById('chubPanel');
+  t('اللوحة صُيِّرت لا فارغة', panel.innerHTML.length > 5000, panel.innerHTML.length + ' حرفًا');
+  eq('وتبويباتها الخمسة', W.document.querySelectorAll('#chubPanel [data-pane]').length, 5);
+
+  const bound = [...W.document.querySelectorAll('#chubPanel *')]
+    .filter(el => typeof el.onclick === 'function' || typeof el.onchange === 'function')
+    .map(el => el.id).filter(Boolean).sort();
+  // الأسماء لا العدد: عدٌّ وحده يمرّ لو سقط معالِجان وأُضيف اثنان.
+  ['chdClose', 'chdMore', 'chdSave', 'chdVoid', 'chdSendBtn', 'chdSignNow', 'chdExport',
+   'chdDuplicate', 'chdArchive', 'chdUnlink', 'chdMailCheck', 'chdTemplate',
+   'chdAttAdd', 'chdAttUpload'].forEach(id =>
+    t('مربوط: ' + id, bound.includes(id), bound.join(',')));
+
+  console.log(`\nنجح ${ok} · فشل ${fail}`);
+  process.exit(fail ? 1 : 0);
+})();

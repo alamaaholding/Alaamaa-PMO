@@ -62,9 +62,37 @@ toast=()=>{};CLIENTS=[];
 const wait=setInterval(()=>{
   if(!w.__done)return;clearInterval(wait);
   const pf=fs.readFileSync('src/app/portfolio.js','utf8');
+  // ═══ المصفوفة الكاملة — على الدالة الخالصة مباشرةً ═══
+  // كان هنا تأكيدٌ **نصّيّ** يبحث عن شرط الصلاحية بإملائه في المصدر. وهو يُثبت أن
+  // السطر مكتوب لا أن البوابة تعمل: تغييرُ `||` إلى `&&` يُبقي النصّ مطابقًا في
+  // معظم صيغه. وقد خرج القرار إلى `portfolioTools(role,isOwner)` (W3) فصار
+  // يُستجوَب بالحالات لا بالنصّ.
+  const T=(role,owner)=>w.portfolioTools(role,owner).map(x=>x.id);
+  const OWNER=T('pmo',true), PMO=T('pmo',false), DEL=T('delivery',false), CLI=T('client',false);
+  const has=(a,id)=>a.includes(id);
   const extra=[
-    ['بوابة الواجهة تطابق سياسة القاعدة (مالك أو مدير)',
-      pf.includes("if(getState('IS_OWNER')||getState('ROLE')==='pmo'){toolItems.push({g:'إعدادات',id:'showCapacity'")],
+    // القاعدة التي كُسرت فعلًا: الملف التعاقدي لمدير المنصّة كما للمالك.
+    ['الملف التعاقدي: للمالك وللمدير معًا', has(OWNER,'showOrgProfile')&&has(PMO,'showOrgProfile')],
+    ['ولا يراه دور التنفيذ', !has(DEL,'showOrgProfile')],
+    ['وكذلك الأقسام والأتمتة والفحص الأمني',
+      ['showCapacity','showAutomation','showSecAudit'].every(id=>has(OWNER,id)&&has(PMO,id)&&!has(DEL,id))],
+    // وأدوات المالك الحصرية تبقى حصرية — لا نوسّع أكثر ممّا تسمح به القاعدة.
+    ['Trello وصلاحيات الفريق للمالك حصرًا',
+      ['showTrelloSet','showStaffAccess'].every(id=>has(OWNER,id)&&!has(PMO,id)&&!has(DEL,id))],
+    ['وأدوات pmo الإدارية لا يراها التنفيذ',
+      ['showHolidays','showArchived','showLeads'].every(id=>has(PMO,id)&&!has(DEL,id))],
+    // والعروض الشاملة للطاقم كلّه.
+    ['العروض الشاملة للطاقم كلّه',
+      ['showPGantt','showTimeline','showDOL','showWorkload','showContractsHub']
+        .every(id=>has(PMO,id)&&has(DEL,id))],
+    // الشريك لا يرى أداةً واحدة — وهذا أخطر صفٍّ في المصفوفة.
+    ['الشريك لا يرى أداةً واحدة', CLI.length===0, CLI.join(',')],
+    // ولا معرّف مكرَّر: تكراره يُنتج زرّين بنفس id فيربط أحدهما ويموت الآخر.
+    ['ولا معرّف مكرَّر في أي دور',
+      [OWNER,PMO,DEL].every(a=>new Set(a).size===a.length)],
+    // وكل أداة في مجموعةٍ معروفة، وإلا سقطت من الترميز صامتةً.
+    ['وكل أداة ضمن مجموعةٍ معروفة',
+      w.portfolioTools('pmo',true).every(x=>['عروض شاملة','إدارة','إعدادات'].includes(x.g))],
     ['openOrgProfile معرَّفة',/async function openOrgProfile/.test(pf)],
   ];
   let ok=0,fail=0;

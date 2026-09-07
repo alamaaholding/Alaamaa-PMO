@@ -310,9 +310,15 @@ console.log('\n▸ الشاشتان الأوليان — والمتبقّي من
     t(`${n}.js لا يمسّ الحالة إلا عبر المتجر`, bare.length === 0, bare.join(' '));
   }
 
-  // الشاشتان تُسجَّلان ولا تُصدّران أسماء تُنادى بها — الاسم الوحيد المُصدَّر
-  // من صفحة الشريك يحتاجه محلّل الرابط، وسيسقط هو الآخر يوم يتحوّل main.js.
-  t('المحفظة لا تُصدّر شيئًا', !/^export /m.test(pf));
+  // الشاشتان تُسجَّلان ولا تُصدّران **دالة شاشةٍ** تُنادى بالاسم. وصادرات المحفظة
+  // اليوم قرارٌ وبانٍ خالصان (W3) لا مدخلَ تنقّلٍ — والدعوى التي تستحقّ الحراسة
+  // هي هذه لا «صفر صادرات»: أن `renderPortfolio` نفسها تبقى خلف السجلّ.
+  t('المحفظة لا تُصدّر دالة شاشتها', !/^export (async )?function renderPortfolio/m.test(pf));
+  t('وصادراتها قراراتٌ وبناةٌ لا أكثر',
+    (pf.match(/^export /gm) || []).length === 2
+    && /^export function portfolioTools\(/m.test(pf)
+    && /^export function portfolioToolsHTML\(/m.test(pf),
+    (pf.match(/^export .*/gm) || []).join(' | '));
   t('صفحة الشريك تُصدّر resolveClientIdentifier وحدها',
     (ch.match(/^export /gm) || []).length === 1 && /^export function resolveClientIdentifier/m.test(ch));
   t('كلتاهما تُسجَّل في سجلّ الشاشات',
