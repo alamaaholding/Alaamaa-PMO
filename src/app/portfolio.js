@@ -357,29 +357,9 @@ async function renderPortfolio(){
     </div>
   </div>`;
 
-  // تطبيق الفلاتر (تُدمج: حالة + تنبيهات متعددة + بحث)
-  let shown=companies.filter(x=>{
-    if(getState('PFILTER')==='active'&&!x.isActive)return false;
-    if(getState('PFILTER')==='draft'&&!x.isDraft)return false;
-    if(getState('PALERTS').has('blocked')&&!(x.blocked>0))return false;
-    if(getState('PALERTS').has('reqs')&&!(x.reqs>0))return false;
-    if(getState('PALERTS').has('comments')&&!(x.comments>0))return false;
-    if(getState('PSEARCH')){
-      const q=getState('PSEARCH').trim();
-      const inName=x.c.name.includes(q);
-      const inProj=x.list.some(r=>(r.project_name||'').includes(q));
-      if(!inName&&!inProj)return false;
-    }
-    return true;
-  });
-  // الترتيب حسب اختيار المستخدم
-  const sorters={
-    alerts:(a,b)=>(b.hasAlerts-a.hasAlerts)||(b.list.length-a.list.length),
-    name:(a,b)=>a.c.name.localeCompare(b.c.name,'ar'),
-    progress:(a,b)=>b.pct-a.pct,
-    projects:(a,b)=>b.list.length-a.list.length
-  };
-  shown.sort(sorters[getState('PSORT')]||sorters.alerts);
+  // تصفية المحفظة وترتيبها: قرارٌ خالص، وقد يُخفي شركاء — فله دالته.
+  const shown=filterPortfolio(companies,{filter:getState('PFILTER'),
+    alerts:getState('PALERTS'),search:getState('PSEARCH'),sort:getState('PSORT')});
 
   // شرائح الفلاتر النشطة (قابلة للإزالة)
   const activeChips=[];
@@ -528,4 +508,44 @@ export function portfolioToolsHTML(toolItems){
           +`</div>`;
       }).join('')}</div>
   </div>`;
+}
+
+
+/**
+ * تصفية المحفظة وترتيبها — قرارٌ خالص: شركاتٌ ومرشِّح ⇦ شركاتٌ مرتَّبة.
+ *
+ * وثلاثة مرشِّحات تُدمج لا تتبادل: الحالة (نشطة/مسوّدة) · التنبيهات (متوقفة ·
+ * متطلبات · نقاش، وهي **مجموعة** فقد تُختار معًا) · البحث. وخطأٌ في أيٍّ منها
+ * **يُخفي شركاء بلا رسالة** — وهو أخطر ما في شاشة المحفظة، لأن غياب شريكٍ لا
+ * يُرى؛ يُرى فقط بعدم رؤيته.
+ *
+ * والبحث يشمل اسم الشركة **واسم أي مشروع لها** — فمن يبحث باسم مشروعٍ يجد
+ * شريكه، وهو ما يفعله المستخدم فعلًا.
+ *
+ * @param {{filter:string,alerts:Set<string>,search:string,sort:string}} o
+ */
+export function filterPortfolio(companies,{filter,alerts,search,sort}){
+  const shown=companies.filter(x=>{
+    if(filter==='active'&&!x.isActive)return false;
+    if(filter==='draft'&&!x.isDraft)return false;
+    if(alerts.has('blocked')&&!(x.blocked>0))return false;
+    if(alerts.has('reqs')&&!(x.reqs>0))return false;
+    if(alerts.has('comments')&&!(x.comments>0))return false;
+    if(search){
+      const q=search.trim();
+      const inName=x.c.name.includes(q);
+      const inProj=x.list.some(r=>(r.project_name||'').includes(q));
+      if(!inName&&!inProj)return false;
+    }
+    return true;
+  });
+  // الترتيب حسب اختيار المستخدم
+  const sorters={
+    alerts:(a,b)=>(b.hasAlerts-a.hasAlerts)||(b.list.length-a.list.length),
+    name:(a,b)=>a.c.name.localeCompare(b.c.name,'ar'),
+    progress:(a,b)=>b.pct-a.pct,
+    projects:(a,b)=>b.list.length-a.list.length
+  };
+  shown.sort(sorters[sort]||sorters.alerts);
+  return shown;
 }

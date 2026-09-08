@@ -108,6 +108,86 @@ t('دالة الحلّ معرَّفة',/async function dissolvePackage/.test(api
   t('لا يفرز القائمة الأصلية في مكانها', orig.map(x => x.id).join() === before,
     before + ' صارت ' + orig.map(x => x.id).join());
 }
+
+// ===== فلترة المحفظة — وغيابُ شريكٍ لا يُرى، يُرى فقط بعدم رؤيته =====
+//
+// ثلاثة مرشِّحات تُدمج لا تتبادل: الحالة · التنبيهات (مجموعة، فقد تُختار معًا)
+// · البحث. وخطأٌ في أيٍّ منها يُخفي شركاء بلا رسالة — وهو أخطر ما في هذه
+// الشاشة، لأن المستخدم لا يرى ما غاب.
+{
+  const { JSDOM } = require('jsdom');
+  const html2 = fs.readFileSync('index.html', 'utf8').replace(/<script[^>]*src=[^>]*><\/script>/g, '');
+  const W = new JSDOM(html2, { runScripts: 'dangerously', url: 'https://pmo.example/' }).window;
+  W.eval(`window.supabase={createClient:()=>({rpc:()=>Promise.resolve({data:[],error:null}),
+    from:()=>({select:()=>({order:()=>Promise.resolve({data:[],error:null}),
+      eq:()=>({maybeSingle:async()=>({data:null,error:null})})})}),
+    auth:{getSession:async()=>({data:{session:null}}),getUser:async()=>({data:{user:null}}),
+      onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},
+    channel:()=>({on(){return this},subscribe(){return this}}),removeChannel:()=>{}})}`);
+  { const sc = W.document.createElement('script');
+    sc.textContent = fs.readFileSync('app.bundle.js', 'utf8'); W.document.body.appendChild(sc); }
+  const P = W.filterPortfolio;
+
+  const K = (name, o = {}) => Object.assign({
+    c: { name }, list: [{ project_name: name + '-مشروع' }],
+    isActive: true, isDraft: false, blocked: 0, reqs: 0, comments: 0, pct: 50, hasAlerts: 0
+  }, o);
+  const g = (list, o) => P(list, Object.assign({ filter: 'all', alerts: new Set(), search: '', sort: '' }, o))
+    .map(x => x.c.name);
+
+  const L = [
+    K('ألف'), K('باء', { isActive: false, isDraft: true }),
+    K('جيم', { blocked: 2, hasAlerts: 1 }), K('دال', { reqs: 3, hasAlerts: 1 }),
+    K('هاء', { comments: 1, hasAlerts: 1 })
+  ];
+
+  t('بلا مرشِّح: الكل', g(L, {}).length === 5, g(L, {}).join(','));
+  t('النشطة', !g(L, { filter: 'active' }).includes('باء'));
+  t('والمسوّدة', g(L, { filter: 'draft' }).join() === 'باء');
+  t('تنبيه المتوقفة', g(L, { alerts: new Set(['blocked']) }).join() === 'جيم');
+  t('وتنبيه المتطلبات', g(L, { alerts: new Set(['reqs']) }).join() === 'دال');
+  t('وتنبيه النقاش', g(L, { alerts: new Set(['comments']) }).join() === 'هاء');
+  // التنبيهات مجموعة: اختيار اثنين يعني **كليهما** لا أحدهما — وهذا ما يفاجئ.
+  t('وتنبيهان معًا يعنيان كليهما لا أحدهما',
+    g(L, { alerts: new Set(['blocked', 'reqs']) }).length === 0,
+    g(L, { alerts: new Set(['blocked', 'reqs']) }).join(','));
+  t('ومن يحمل الاثنين يبقى',
+    g([K('واو', { blocked: 1, reqs: 1 })], { alerts: new Set(['blocked', 'reqs']) }).join() === 'واو');
+
+  // البحث يشمل اسم الشركة **واسم أي مشروع لها** — فمن يبحث بمشروعٍ يجد شريكه.
+  t('البحث باسم الشركة', g(L, { search: 'ألف' }).join() === 'ألف');
+  t('والبحث باسم مشروعها', g(L, { search: 'جيم-مشروع' }).join() === 'جيم');
+  t('وفراغاتٌ حول البحث تُقَصّ', g(L, { search: '  ألف  ' }).join() === 'ألف');
+  t('وبحثٌ فارغ لا يُسقط شيئًا', g(L, { search: '' }).length === 5);
+  t('وشركةٌ بلا مشاريع لا ترمي',
+    g([Object.assign(K('زاي'), { list: [] })], { search: 'زاي' }).join() === 'زاي');
+
+  // الدمج: الحالة + التنبيه + البحث معًا.
+  t('المرشِّحات الثلاثة تتقاطع',
+    g([K('حاء', { blocked: 1 }), K('طاء', { blocked: 1, isActive: false, isDraft: true }),
+       K('ياء')], { filter: 'active', alerts: new Set(['blocked']), search: 'حاء' }).join() === 'حاء');
+
+  // الترتيب.
+  t('الترتيب بالاسم عربيًّا',
+    g([K('ياء'), K('ألف')], { sort: 'name' }).join() === 'ألف,ياء');
+  t('وبالأعلى تقدّمًا',
+    g([K('بطيء', { pct: 10 }), K('سريع', { pct: 90 })], { sort: 'progress' }).join() === 'سريع,بطيء');
+  t('وبعدد المشاريع',
+    g([K('واحد'), Object.assign(K('ثلاثة'), { list: [1, 2, 3] })], { sort: 'projects' }).join() === 'ثلاثة,واحد');
+  // الافتراضي: التنبيهات أولًا — لأن ما يحتاج تدخّلًا يجب أن يُرى أوّلًا.
+  //
+  // والتجهيزة مُنتقاة كي **تُميّز** الافتراضي عن الترتيب بالاسم: المُنبِّه اسمه
+  // «ياء» والهادئ «ألف». وأوّل صياغةٍ كانت «منبِّه»/«هادئ» — والميم تسبق الهاء
+  // عربيًّا، فالترتيبان يتطابقان صدفةً ويعجز التأكيد عن السقوط. (وهذه رابع مرّة
+  // في الموجة تُعجِز فيها تجهيزةٌ تأكيدَها.)
+  const ALERT_FIRST = [K('ألف'), K('ياء', { hasAlerts: 1 })];
+  t('والافتراضي التنبيهات أولًا', g(ALERT_FIRST, {}).join() === 'ياء,ألف', g(ALERT_FIRST, {}).join());
+  t('وترتيبٌ مجهول يعود للافتراضي',
+    g(ALERT_FIRST, { sort: 'لا-شيء' }).join() === 'ياء,ألف');
+  t('والترتيب بالاسم يعكسه — فالتجهيزة تُميّز',
+    g(ALERT_FIRST, { sort: 'name' }).join() === 'ألف,ياء');
+}
+
 t('مؤشرات سريعة تُحسب من المعروض فعليًا',hub.includes('const totalValue=filtered.reduce'));
 t('زر مسح الفلاتر يظهر عند وجود فلتر نشط',hub.includes('id="chubReset"'));
 
