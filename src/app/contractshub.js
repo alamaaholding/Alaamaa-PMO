@@ -1337,32 +1337,25 @@ function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,i
       }catch(e){
         // فصل الأدوار: المُعِدّ لا يعتمد عمله إلا بمبرّر موثَّق يظهر في الشهادة والسجل
         if(e.code==='value_mismatch'){
-          const pv=Number(e.info.project_value||0).toLocaleString('ar');
-          const cv=Number(e.info.contract_value||0).toLocaleString('ar');
-          if(!await confirmDialog('تعارض في القيمة المالية',
-            `قيمة العقد ${cv} ر.س تخالف القيمة المعتمَدة للمشروع ${pv} ر.س.\n\nراجعها قبل الاعتماد، أو أقرّ بالفرق للمتابعة.`,
+          if(!await confirmDialog('تعارض في القيمة المالية',valueMismatchMessage(e.info),
             true,'أقرّ بالفرق وأعتمد'))return;
           try{ await approveContractInternal(contractId,null,true); await finish(); }
           catch(e3){
             if(e3.code==='self_approval'){
-              const r2=await dialog({title:'أنت مُعِدّ هذا العقد',
-                message:'مبدأ «أربع عيون» يقضي بأن يعتمده مخوَّل آخر. إن تعذّر، اذكر مبرّرًا موثَّقًا.',
-                fields:[{key:'reason',label:'مبرّر الاعتماد الذاتي',type:'textarea'}],confirmText:'اعتماد'});
-              if(!r2||!r2.reason||!r2.reason.trim()){toast('المبرّر إلزامي','warn');return;}
-              try{ await approveContractInternal(contractId,r2.reason,true); await finish(); }
+              const r2=await dialog(selfApprovalDialogSpec(false));
+              const d2=selfApprovalDecision(r2);
+              if(!d2.ok){ if(d2.warn)toast(d2.warn,'warn'); return; }
+              try{ await approveContractInternal(contractId,d2.reason,true); await finish(); }
               catch(e4){toast(e4.message,'err');}
             }else toast(e3.message,'err');
           }
           return;
         }
         if(e.code==='self_approval'){
-          const r=await dialog({title:'أنت مُعِدّ هذا العقد',
-            message:'مبدأ «أربع عيون» يقضي بأن يعتمده مخوَّل آخر. إن تعذّر ذلك، اذكر مبرّرًا — سيُوثَّق في شهادة التوقيع وسجل العقد.',
-            fields:[{key:'reason',label:'مبرّر الاعتماد الذاتي',type:'textarea',placeholder:'لماذا يتعذّر اعتماد شخص آخر؟'}],
-            confirmText:'اعتماد مع توثيق المبرّر'});
-          if(!r)return;
-          if(!r.reason||!r.reason.trim()){toast('المبرّر إلزامي','warn');return;}
-          try{ await approveContractInternal(contractId,r.reason); await finish(); }
+          const r=await dialog(selfApprovalDialogSpec(true));
+          const d=selfApprovalDecision(r);
+          if(!d.ok){ if(d.warn)toast(d.warn,'warn'); return; }
+          try{ await approveContractInternal(contractId,d.reason); await finish(); }
           catch(e2){toast(e2.message,'err');}
         }else toast(e.message,'err');
       }
@@ -1432,4 +1425,58 @@ export function filterContracts(list,f){
     }
     return new Date(b.created_at)-new Date(a.created_at);
   });
+}
+
+
+/**
+ * رسالة تعارض القيمة المالية — تُعرَض حين تخالف قيمة العقد القيمة المعتمَدة
+ * للمشروع. وهي **ضابطُ حوكمة لا تنبيه**: الرقمان يُعرَضان صراحةً كي يُراجَع
+ * الفرق قبل الإقرار به، لا أن يُقرّ المستخدم بشيءٍ لم يره.
+ */
+export function valueMismatchMessage(info){
+  const pv=Number((info||{}).project_value||0).toLocaleString('ar');
+  const cv=Number((info||{}).contract_value||0).toLocaleString('ar');
+  return `قيمة العقد ${cv} ر.س تخالف القيمة المعتمَدة للمشروع ${pv} ر.س.\n\nراجعها قبل الاعتماد، أو أقرّ بالفرق للمتابعة.`;
+}
+
+/**
+ * نافذة الاعتماد الذاتي — **مبدأ «أربع عيون»**: مُعِدّ العقد لا يعتمد عمله إلا
+ * بمبرّرٍ موثَّق يظهر في شهادة التوقيع وسجل العقد.
+ *
+ * وكان النصّ مكتوبًا مرّتين بصيغتين مختلفتين (مسار تعارض القيمة، والمسار
+ * المباشر) — فمصدر حقيقةٍ واحد الآن. و`detailed` يُبقي الفارق الوحيد المقصود:
+ * المسار المباشر يذكر **أين يُوثَّق** المبرّر، والمسار المتشعّب يوجز.
+ */
+export function selfApprovalDialogSpec(detailed){
+  return detailed
+    ? {title:'أنت مُعِدّ هذا العقد',
+       message:'مبدأ «أربع عيون» يقضي بأن يعتمده مخوَّل آخر. إن تعذّر ذلك، اذكر مبرّرًا — سيُوثَّق في شهادة التوقيع وسجل العقد.',
+       fields:[{key:'reason',label:'مبرّر الاعتماد الذاتي',type:'textarea',placeholder:'لماذا يتعذّر اعتماد شخص آخر؟'}],
+       confirmText:'اعتماد مع توثيق المبرّر'}
+    : {title:'أنت مُعِدّ هذا العقد',
+       message:'مبدأ «أربع عيون» يقضي بأن يعتمده مخوَّل آخر. إن تعذّر، اذكر مبرّرًا موثَّقًا.',
+       fields:[{key:'reason',label:'مبرّر الاعتماد الذاتي',type:'textarea'}],
+       confirmText:'اعتماد'};
+}
+
+
+/**
+ * قرارُ الاعتماد الذاتي: هل نمضي، وبأيّ مبرّر؟
+ *
+ * **وهذا إصلاحُ تباينٍ لا تنظيم.** كان الفحص مكتوبًا مرّتين ومختلفًا بينهما:
+ *
+ *   مسار تعارض القيمة: `if(!r2||!r2.reason||!r2.reason.trim())` ⇦ تنبيه
+ *   المسار المباشر:    `if(!r)return;` ثم الفحص ⇦ صمت
+ *
+ * أي أن **إلغاء النافذة** كان يُنتج تنبيه «المبرّر إلزامي» في مسارٍ وصمتًا في
+ * الآخر. والإلغاء ليس تقديمَ مبرّرٍ فارغ؛ هو انصرافٌ عن الاعتماد أصلًا، فتوبيخه
+ * خطأ. فصار الصمت هو السلوك في الحالتين، والتنبيه للفراغ وحده.
+ *
+ * والمبرّر يبقى **إلزاميًا**: هذا هو الضابط، ولم يُمسّ.
+ */
+export function selfApprovalDecision(r){
+  if(!r) return {ok:false};                       // إلغاء: انصرافٌ لا خطأ
+  const reason=(r.reason||'').trim();
+  if(!reason) return {ok:false,warn:'المبرّر إلزامي'};
+  return {ok:true,reason};
 }
