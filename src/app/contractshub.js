@@ -1343,8 +1343,9 @@ function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,i
           catch(e3){
             if(e3.code==='self_approval'){
               const r2=await dialog(selfApprovalDialogSpec(false));
-              if(!r2||!r2.reason||!r2.reason.trim()){toast('المبرّر إلزامي','warn');return;}
-              try{ await approveContractInternal(contractId,r2.reason,true); await finish(); }
+              const d2=selfApprovalDecision(r2);
+              if(!d2.ok){ if(d2.warn)toast(d2.warn,'warn'); return; }
+              try{ await approveContractInternal(contractId,d2.reason,true); await finish(); }
               catch(e4){toast(e4.message,'err');}
             }else toast(e3.message,'err');
           }
@@ -1352,9 +1353,9 @@ function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,i
         }
         if(e.code==='self_approval'){
           const r=await dialog(selfApprovalDialogSpec(true));
-          if(!r)return;
-          if(!r.reason||!r.reason.trim()){toast('المبرّر إلزامي','warn');return;}
-          try{ await approveContractInternal(contractId,r.reason); await finish(); }
+          const d=selfApprovalDecision(r);
+          if(!d.ok){ if(d.warn)toast(d.warn,'warn'); return; }
+          try{ await approveContractInternal(contractId,d.reason); await finish(); }
           catch(e2){toast(e2.message,'err');}
         }else toast(e.message,'err');
       }
@@ -1456,4 +1457,26 @@ export function selfApprovalDialogSpec(detailed){
        message:'مبدأ «أربع عيون» يقضي بأن يعتمده مخوَّل آخر. إن تعذّر، اذكر مبرّرًا موثَّقًا.',
        fields:[{key:'reason',label:'مبرّر الاعتماد الذاتي',type:'textarea'}],
        confirmText:'اعتماد'};
+}
+
+
+/**
+ * قرارُ الاعتماد الذاتي: هل نمضي، وبأيّ مبرّر؟
+ *
+ * **وهذا إصلاحُ تباينٍ لا تنظيم.** كان الفحص مكتوبًا مرّتين ومختلفًا بينهما:
+ *
+ *   مسار تعارض القيمة: `if(!r2||!r2.reason||!r2.reason.trim())` ⇦ تنبيه
+ *   المسار المباشر:    `if(!r)return;` ثم الفحص ⇦ صمت
+ *
+ * أي أن **إلغاء النافذة** كان يُنتج تنبيه «المبرّر إلزامي» في مسارٍ وصمتًا في
+ * الآخر. والإلغاء ليس تقديمَ مبرّرٍ فارغ؛ هو انصرافٌ عن الاعتماد أصلًا، فتوبيخه
+ * خطأ. فصار الصمت هو السلوك في الحالتين، والتنبيه للفراغ وحده.
+ *
+ * والمبرّر يبقى **إلزاميًا**: هذا هو الضابط، ولم يُمسّ.
+ */
+export function selfApprovalDecision(r){
+  if(!r) return {ok:false};                       // إلغاء: انصرافٌ لا خطأ
+  const reason=(r.reason||'').trim();
+  if(!reason) return {ok:false,warn:'المبرّر إلزامي'};
+  return {ok:true,reason};
 }

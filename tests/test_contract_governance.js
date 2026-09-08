@@ -79,6 +79,65 @@ t('الفحص يكشف تعدّد توقيعات الدوال (نمط سبّب �
 t('الإصلاح متاح بضغطة لا يدويًا',pf.includes("id=\"secFix\"")&&api.includes('runSecurityAudit(fix)'));
 t('الفحص يحذّر أن النسخة القديمة قد تتجاوز حواجز الجديدة',pf.includes('قد تتجاوز حواجز النسخة الجديدة'));
 
+
+// ===== مبدأ «أربع عيون» — وتباينٌ كان بين نسختَي فحصه =====
+//
+// مُعِدّ العقد لا يعتمد عمله إلا بمبرّرٍ موثَّق يظهر في شهادة التوقيع وسجل
+// العقد. وكان الفحص مكتوبًا مرّتين ومختلفًا بينهما: إلغاءُ النافذة يُنتج تنبيه
+// «المبرّر إلزامي» في مسار تعارض القيمة، وصمتًا في المسار المباشر.
+//
+// والإلغاء ليس تقديمَ مبرّرٍ فارغ — هو انصرافٌ عن الاعتماد أصلًا، فتوبيخه خطأ.
+{
+  const { JSDOM } = require('jsdom');
+  const html = fs.readFileSync('index.html', 'utf8').replace(/<script[^>]*src=[^>]*><\/script>/g, '');
+  const w = new JSDOM(html, { runScripts: 'dangerously', url: 'https://pmo.example/' }).window;
+  w.eval(`window.supabase={createClient:()=>({rpc:()=>Promise.resolve({data:[],error:null}),
+    from:()=>({select:()=>({order:()=>Promise.resolve({data:[],error:null}),
+      eq:()=>({maybeSingle:async()=>({data:null,error:null})})})}),
+    auth:{getSession:async()=>({data:{session:null}}),getUser:async()=>({data:{user:null}}),
+      onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},
+    channel:()=>({on(){return this},subscribe(){return this}}),removeChannel:()=>{}})}`);
+  { const sc = w.document.createElement('script');
+    sc.textContent = fs.readFileSync('app.bundle.js', 'utf8'); w.document.body.appendChild(sc); }
+
+  const D = w.selfApprovalDecision;
+  // الضابط نفسه: المبرّر إلزامي، والفراغ ليس مبرّرًا.
+  t('مبرّرٌ حقيقيّ يمضي', D({reason:'المخوَّل الآخر في إجازة'}).ok===true);
+  t('ويصل مقصوصًا لا خامًّا', D({reason:'  س  '}).reason==='س');
+  t('والفراغ يُرفَض', D({reason:'   '}).ok===false);
+  t('وينبَّه عليه صراحةً', D({reason:''}).warn==='المبرّر إلزامي');
+  t('وغيابُ الحقل كذلك', D({}).ok===false && D({}).warn==='المبرّر إلزامي');
+  // وهذا هو التباين المُصلَح: الإلغاء صمتٌ لا توبيخ، في المسارين معًا.
+  t('والإلغاء انصرافٌ لا خطأ', D(null).ok===false && D(null).warn===undefined);
+  t('و undefined كذلك', D(undefined).ok===false && D(undefined).warn===undefined);
+  // مصدر حقيقةٍ واحد: لم يبقَ فحصٌ نصّيّ مكرَّر في المصدر.
+  // التعليقات تشرح التباين المُصلَح فتذكر النصّ — والعدّ الساذج يلتقطها. يُفحَص
+  // الكود وحده. (وهذا ثالثُ فحصٍ في هذه الموجة التقط نثرًا بدل ما يقصده.)
+  const hubCode = hub.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+  t('ولا نسخة ثانية من الفحص في الكود',
+    (hubCode.match(/المبرّر إلزامي/g)||[]).length===1,
+    (hubCode.match(/المبرّر إلزامي/g)||[]).length+' نسخة');
+  t('وكلا المسارين يستشير القرار الواحد',
+    (hub.match(/selfApprovalDecision\(/g)||[]).length===3,
+    (hub.match(/selfApprovalDecision\(/g)||[]).length+'');
+
+  // تعارض القيمة: الرقمان يُعرَضان صراحةً كي يُراجَع الفرق قبل الإقرار به.
+  const M = w.valueMismatchMessage({project_value:100000,contract_value:120000});
+  t('رسالة التعارض تحمل الرقمين',
+    M.includes((120000).toLocaleString('ar')) && M.includes((100000).toLocaleString('ar')), M);
+  t('وتدعو للمراجعة قبل الإقرار', /راجعها قبل الاعتماد/.test(M));
+  t('وبيانات ناقصة لا ترمي', typeof w.valueMismatchMessage(undefined)==='string');
+
+  // نافذة «أربع عيون»: المبرّر حقلٌ إلزاميّ في الصيغتين، والمباشرة تذكر أين يُوثَّق.
+  const S1 = w.selfApprovalDialogSpec(true), S2 = w.selfApprovalDialogSpec(false);
+  t('كلتا الصيغتين تطلبان المبرّر',
+    S1.fields[0].key==='reason' && S2.fields[0].key==='reason');
+  t('وكلتاهما تذكر «أربع عيون»',
+    /أربع عيون/.test(S1.message) && /أربع عيون/.test(S2.message));
+  t('والمباشرة تذكر أين يُوثَّق المبرّر',
+    /شهادة التوقيع وسجل العقد/.test(S1.message) && !/شهادة التوقيع/.test(S2.message));
+}
+
 console.log('\n(الحماية على مستوى الجدول مُطبَّقة بمُشغِّلات في القاعدة وتحقَّقت حيًّا:');
 console.log(' منع تعديل قيمة/نص عقد موقَّع، ومنع حذف التوقيع، مع بقاء الربط والحالة قابلين للتعديل)');
 console.log('\nنجح '+ok+' · فشل '+fail);
