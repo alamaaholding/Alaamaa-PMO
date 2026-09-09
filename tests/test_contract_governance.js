@@ -44,7 +44,7 @@ t('الاعتماد يمرّر مبرّر التجاوز وإقرار فرق ا�
 t('تعارض القيمة يُمرَّر للواجهة بتفاصيله',api.includes('e.info=data'));
 t('الواجهة تعرض الفرق بين قيمة العقد والمشروع وتطلب إقرارًا',
   hub.includes("e.code==='value_mismatch'")&&hub.includes('أقرّ بالفرق وأعتمد'));
-t('التعارض والاعتماد الذاتي يتسلسلان بلا تعارض',hub.includes("e3.code==='self_approval'"));
+t('التعارض والاعتماد الذاتي يتسلسلان بلا تعارض',hub.includes("e2.code==='self_approval'"));
 t('صلاحية الرابط تظهر للمستخدم بأيام متبقية',hub.includes('الرابط صالح')&&hub.includes('أي تذكير يجدّد المدة'));
 t('انتهاء الرابط ينبّه بوضوح مع الحل',hub.includes('انتهت صلاحية الرابط — أرسل تذكيرًا'));
 t('صفحة التوقيع ترد برسالة مفهومة للشريك عند انتهاء الرابط',
@@ -87,7 +87,7 @@ t('الفحص يحذّر أن النسخة القديمة قد تتجاوز حو
 // «المبرّر إلزامي» في مسار تعارض القيمة، وصمتًا في المسار المباشر.
 //
 // والإلغاء ليس تقديمَ مبرّرٍ فارغ — هو انصرافٌ عن الاعتماد أصلًا، فتوبيخه خطأ.
-{
+void (async () => {
   const { JSDOM } = require('jsdom');
   const html = fs.readFileSync('index.html', 'utf8').replace(/<script[^>]*src=[^>]*><\/script>/g, '');
   const w = new JSDOM(html, { runScripts: 'dangerously', url: 'https://pmo.example/' }).window;
@@ -117,9 +117,77 @@ t('الفحص يحذّر أن النسخة القديمة قد تتجاوز حو
   t('ولا نسخة ثانية من الفحص في الكود',
     (hubCode.match(/المبرّر إلزامي/g)||[]).length===1,
     (hubCode.match(/المبرّر إلزامي/g)||[]).length+' نسخة');
-  t('وكلا المسارين يستشير القرار الواحد',
-    (hub.match(/selfApprovalDecision\(/g)||[]).length===3,
-    (hub.match(/selfApprovalDecision\(/g)||[]).length+'');
+  // وكان هذا يُحصى نصًّا: «ثلاث مرات» = تعريفٌ ونداءان. وقد سقط حين صار
+  // النداء **واحدًا** لأن المسارين التقيا في درجةٍ واحدة — أي أنه عاقب التوحيد
+  // الذي وُضع ليحرسه. فصار يُقاد السُّلّم نفسه بآثارٍ محقونة، والدعوى تُثبَت
+  // بالسلوك: ماذا نُودي، وبأيّ وسائط، وماذا وصل القاعدة.
+  const drive = async (script) => {
+    const log = [];
+    let n = 0;
+    await w.approveEscalation({
+      approve: (reason, ack) => { log.push(['approve', reason, !!ack]); const e = script.errors[n++];
+        if (e) { const x = new Error(e.message||'خطأ'); x.code = e.code; x.info = e.info; return Promise.reject(x); }
+        return Promise.resolve(); },
+      done: async () => { log.push(['done']); },
+      confirmMismatch: async (info) => { log.push(['confirmMismatch', info && info.contract_value]); return script.ackMismatch; },
+      askSelf: async (detailed) => { log.push(['askSelf', detailed]); return script.selfAnswer; },
+      warn: m => log.push(['warn', m]),
+      fail: m => log.push(['fail', m]),
+    });
+    return log;
+  };
+  const J = l => JSON.stringify(l);
+
+  // الطريق السالك: نداءٌ واحد بلا مبرّر ولا إقرار، ثم الختم.
+  t('الاعتماد النظيف: محاولةٌ واحدة ثم الختم',
+    J(await drive({errors:[]})) === J([['approve',null,false],['done']]));
+
+  // درجةُ تعارض القيمة: رفضُ الإقرار ينهي المسار بلا اعتماد ولا رسالة خطأ.
+  t('ورفضُ الإقرار بالفرق ينصرف بلا اعتماد',
+    J(await drive({errors:[{code:'value_mismatch',info:{contract_value:120000}}], ackMismatch:false}))
+      === J([['approve',null,false],['confirmMismatch',120000]]));
+
+  // وقبولُه يعيد المحاولة **بالإقرار** — وهذا هو الوسيط الذي يميّز المسارين.
+  t('وقبولُه يعيد المحاولة بإقرارٍ مُمرَّر',
+    J(await drive({errors:[{code:'value_mismatch',info:{contract_value:1}}], ackMismatch:true}))
+      === J([['approve',null,false],['confirmMismatch',1],['approve',null,true],['done']]));
+
+  // السُّلّم كاملًا: تعارضُ قيمةٍ ثم اعتمادٌ ذاتيّ. النافذة **موجزة** (detailed=false)
+  // والاعتماد الأخير يحمل المبرّر **والإقرار معًا** — وهذا ما كان مكتوبًا مرّتين.
+  t('والدرجتان تتسلسلان: مبرّرٌ وإقرارٌ في نداءٍ واحد',
+    J(await drive({errors:[{code:'value_mismatch',info:{contract_value:1}},{code:'self_approval'}],
+      ackMismatch:true, selfAnswer:{reason:'المخوَّل في إجازة'}}))
+      === J([['approve',null,false],['confirmMismatch',1],['approve',null,true],
+             ['askSelf',false],['approve','المخوَّل في إجازة',true],['done']]));
+
+  // والمسار المباشر: نافذةٌ **مفصَّلة** (detailed=true) واعتمادٌ **بلا إقرار**.
+  t('والمسار المباشر يفصّل النافذة ولا يقرّ بفرق',
+    J(await drive({errors:[{code:'self_approval'}], selfAnswer:{reason:'س'}}))
+      === J([['approve',null,false],['askSelf',true],['approve','س',false],['done']]));
+
+  // وهذا هو التباين المُصلَح، مُثبَتًا الآن في **المسارين** لا في دالة القرار وحدها:
+  // الإلغاء صمتٌ، والفراغ تنبيه — سواء وصلنا الدرجة مباشرةً أو عبر تعارض القيمة.
+  for (const [اسم, script, prefix] of [
+    ['المباشر', {errors:[{code:'self_approval'}]}, [['approve',null,false],['askSelf',true]]],
+    ['المتشعّب', {errors:[{code:'value_mismatch',info:{contract_value:1}},{code:'self_approval'}],
+                  ackMismatch:true}, [['approve',null,false],['confirmMismatch',1],['approve',null,true],['askSelf',false]]],
+  ]) {
+    t('والإلغاء في المسار '+اسم+' انصرافٌ صامت',
+      J(await drive(Object.assign({}, script, {selfAnswer:null}))) === J(prefix));
+    t('والفراغ في المسار '+اسم+' تنبيهٌ صريح',
+      J(await drive(Object.assign({}, script, {selfAnswer:{reason:'  '}})))
+        === J(prefix.concat([['warn','المبرّر إلزامي']])));
+  }
+
+  // خطأٌ لا يُعرف رمزُه لا يُصعَّد ولا يُبتلع — يصل المستخدمَ كما هو.
+  t('وخطأٌ غريب يصل المستخدم بنصّه',
+    J(await drive({errors:[{code:'nope',message:'تعذّر'}]}))
+      === J([['approve',null,false],['fail','تعذّر']]));
+
+  // ولا نسخة ثانية من درجة الاعتماد الذاتي: نداءٌ واحد للقرار، وتعريفُه.
+  t('ودرجةُ الاعتماد الذاتي مكتوبةٌ مرّةً واحدة',
+    (hubCode.match(/selfApprovalDecision\(/g)||[]).length===2,
+    (hubCode.match(/selfApprovalDecision\(/g)||[]).length+' موضعًا');
 
   // تعارض القيمة: الرقمان يُعرَضان صراحةً كي يُراجَع الفرق قبل الإقرار به.
   const M = w.valueMismatchMessage({project_value:100000,contract_value:120000});
@@ -136,9 +204,13 @@ t('الفحص يحذّر أن النسخة القديمة قد تتجاوز حو
     /أربع عيون/.test(S1.message) && /أربع عيون/.test(S2.message));
   t('والمباشرة تذكر أين يُوثَّق المبرّر',
     /شهادة التوقيع وسجل العقد/.test(S1.message) && !/شهادة التوقيع/.test(S2.message));
-}
 
+  report();
+})();
+
+function report(){
 console.log('\n(الحماية على مستوى الجدول مُطبَّقة بمُشغِّلات في القاعدة وتحقَّقت حيًّا:');
 console.log(' منع تعديل قيمة/نص عقد موقَّع، ومنع حذف التوقيع، مع بقاء الربط والحالة قابلين للتعديل)');
 console.log('\nنجح '+ok+' · فشل '+fail);
 process.exit(fail?1:0);
+}
