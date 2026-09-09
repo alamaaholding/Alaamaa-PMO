@@ -314,11 +314,16 @@ console.log('\n▸ الشاشتان الأوليان — والمتبقّي من
   // اليوم قرارٌ وبانٍ خالصان (W3) لا مدخلَ تنقّلٍ — والدعوى التي تستحقّ الحراسة
   // هي هذه لا «صفر صادرات»: أن `renderPortfolio` نفسها تبقى خلف السجلّ.
   t('المحفظة لا تُصدّر دالة شاشتها', !/^export (async )?function renderPortfolio/m.test(pf));
-  t('وصادراتها قراراتٌ وبناةٌ لا أكثر',
-    (pf.match(/^export /gm) || []).length === 2
-    && /^export function portfolioTools\(/m.test(pf)
-    && /^export function portfolioToolsHTML\(/m.test(pf),
-    (pf.match(/^export .*/gm) || []).join(' | '));
+  // كان هنا عددٌ ثابت (٢). وهو يسقط مع كل استخراجٍ **مشروع** — أي أنه يعاقب
+  // التقدّم. والدعوى التي تستحقّ الحراسة صفةٌ لا عدد: كل صادرٍ قرارٌ أو بانٍ،
+  // ولا دالةَ شاشةٍ (render*/open*) تُصدَّر فتُنادى بالاسم خلف ظهر السجلّ.
+  {
+    const names = [...pf.matchAll(/^export (?:async )?function ([\w$]+)/gm)].map(m => m[1]);
+    const screens = names.filter(n => /^(render|open)[A-Z]/.test(n));
+    t('وصادراتها قراراتٌ وبناةٌ لا دوالَّ شاشة', screens.length === 0, screens.join(' '));
+    t('وفيها قرار الأدوات وبانيه',
+      names.includes('portfolioTools') && names.includes('portfolioToolsHTML'), names.join(' '));
+  }
   t('صفحة الشريك تُصدّر resolveClientIdentifier وحدها',
     (ch.match(/^export /gm) || []).length === 1 && /^export function resolveClientIdentifier/m.test(ch));
   t('كلتاهما تُسجَّل في سجلّ الشاشات',
