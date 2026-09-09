@@ -94,6 +94,24 @@ const wait=setInterval(()=>{
     ['وكل أداة ضمن مجموعةٍ معروفة',
       w.portfolioTools('pmo',true).every(x=>['عروض شاملة','إدارة','إعدادات'].includes(x.g))],
     ['openOrgProfile معرَّفة',/async function openOrgProfile/.test(pf)],
+    // ═══ البندُ وفعلُه: مطابقةٌ في الاتجاهين ═══
+    //
+    // كان الربط ستةَ عشرَ سطرًا يدويًّا منفصلًا عن قائمة البنود. وانفصالُهما
+    // بابُ عطبٍ **صامت**: بندٌ يُضاف بلا فعلٍ يظهر ويُنقر ولا يحدث شيء — لا
+    // خطأ ولا رسالة ولا أثر. وفعلٌ بلا بندٍ عكسُه: كودٌ ميّت لا طريق إليه.
+    ['كلُّ بندٍ في القائمة له فعل',
+      T('pmo',true).every(id=>typeof w.PORTFOLIO_TOOL_ACTIONS[id]==='function'),
+      T('pmo',true).filter(id=>typeof w.PORTFOLIO_TOOL_ACTIONS[id]!=='function').join(',')],
+    ['وكلُّ فعلٍ له بندٌ يصل إليه',
+      Object.keys(w.PORTFOLIO_TOOL_ACTIONS).every(id=>OWNER.includes(id)),
+      Object.keys(w.PORTFOLIO_TOOL_ACTIONS).filter(id=>!OWNER.includes(id)).join(',')],
+    // والجدولُ حصرٌ للأدوات وحدها: زرّا «شريك جديد» و«دليل الحالات» ليسا منها،
+    // ويُربطان على حدة — فوجودُهما فيه يعني أنهما فُقدا من قائمة الأدوات.
+    ['ولا يحمل الجدول ما ليس أداةً',
+      !('addClientBtn' in w.PORTFOLIO_TOOL_ACTIONS) && !('statusLegendBtn' in w.PORTFOLIO_TOOL_ACTIONS)],
+    ['والعدد يطابق أوسع دور',
+      Object.keys(w.PORTFOLIO_TOOL_ACTIONS).length===OWNER.length,
+      Object.keys(w.PORTFOLIO_TOOL_ACTIONS).length+' فعلًا · '+OWNER.length+' بندًا'],
   ];
   let ok=0,fail=0;
   [...w.__R,...extra.map(([n,c])=>[n,c,''])].forEach(([n,c,x])=>{
