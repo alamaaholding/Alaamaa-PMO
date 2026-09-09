@@ -37,7 +37,7 @@ const { contractStage, defaultContractTab, contractPanelHTML,
         contractFunnelSteps, contractLinkValidity,
         contractFunnelHTML, signatureCertificateHTML,
         contractAttachmentsHTML, auditChangeSummary, contractAuditHTML,
-        isSendableEmail } = w;
+        isSendableEmail, contractInstancesHTML, staffSignAreaHTML } = w;
 
 // عقدٌ في أبسط حالاته الصالحة: معتمَد، مُسنَد لشريك، بلا توقيع.
 const base = (over = {}) => Object.assign({
@@ -436,6 +436,65 @@ console.log('\n▸ اللوحة تُفتح فعلًا وتُربَط — بصم�
    'chdDuplicate', 'chdArchive', 'chdUnlink', 'chdMailCheck', 'chdTemplate',
    'chdAttAdd', 'chdAttUpload'].forEach(id =>
     t('مربوط: ' + id, bound.includes(id), bound.join(',')));
+
+  // ===== نسخُ الأصل: قائمةُ الإسناد تحمل ضابطًا لا يُرى في الترميز =====
+  //
+  // الشريك الذي له نسخةٌ قائمة يسقط من قائمة الاختيار — فلا تُنشأ له نسخةٌ
+  // ثانية سهوًا. والملغاة لا تحجزه: الإلغاء يُعيده إلى القائمة، وهذا هو
+  // المقصود منه. وهذا ضابطٌ **صامت**: إن انعكس، لا رسالة ولا أثر — تظهر
+  // للشريك نسختان من عقدٍ واحد، ولا يكتشفها إلا هو.
+  const CLIENTS = [{id:'c1',name:'ألف'},{id:'c2',name:'باء'},{id:'c3',name:'جيم'}];
+  const opts = h => Array.from(h.matchAll(/<option value="c\d">([^<]+)</g)).map(m => m[1]);
+
+  {
+    const h = contractInstancesHTML([], CLIENTS);
+    eq('بلا نسخ: الشركاء الثلاثة متاحون', opts(h).join(), 'ألف,باء,جيم');
+    t('ورسالةٌ تشرح الفراغ بدل جدولٍ خاوٍ', h.includes('لا نسخ بعد'));
+    t('والعدّاد صفر', h.includes('<span class="sa-hint">(0)</span>'));
+  }
+  {
+    const h = contractInstancesHTML(
+      [{id:'i1',contract_number:'C-1',client_name:'باء',status:'draft'}], CLIENTS);
+    eq('ومن له نسخةٌ قائمة يسقط من القائمة', opts(h).join(), 'ألف,جيم');
+    t('ويظهر في الجدول بزرّ فتحٍ يحمل معرّفه', h.includes('data-openinst="i1"'));
+    t('وحالتُه معرَّبة لا خامًّا', h.includes('مسودة') && !h.includes('>draft<'));
+    t('وغيرُ المعتمَد يُعلَّم بانتظار الاعتماد', h.includes('بانتظار الاعتماد'));
+  }
+  {
+    const h = contractInstancesHTML(
+      [{id:'i1',client_name:'باء',status:'void'}], CLIENTS);
+    eq('والملغاة لا تحجز شريكها', opts(h).join(), 'ألف,باء,جيم');
+    t('لكنها تبقى معروضةً في السجل', h.includes('data-openinst="i1"'));
+  }
+  {
+    const h = contractInstancesHTML(
+      [{id:'i1',client_name:'باء',status:'signed',internal_approved:true,project_name:'مبنى'}], CLIENTS);
+    t('والموقَّعة كذلك تحجز', opts(h).join() === 'ألف,جيم');
+    t('والمشروع يُذكر حين يوجد', h.includes('مبنى'));
+    t('والمعتمَد يُعلَّم بعلامته', h.includes('✅ معتمد'));
+  }
+  {
+    // اسمُ شريكٍ يحمل ترميزًا لا يُنفَّذ — القائمة تُبنى من مُدخَلٍ خارجيّ.
+    const h = contractInstancesHTML([], [{id:'c9',name:'<img src=x onerror=alert(1)>'}]);
+    t('واسمُ الشريك يُهرَّب في القائمة',
+      !h.includes('<img src=x') && h.includes('&lt;img'));
+  }
+  {
+    const h = contractInstancesHTML(
+      [{id:'i1',client_name:'<b>باء</b>',status:'draft'}], CLIENTS);
+    t('واسمُه في الجدول كذلك', !h.includes('<b>باء</b>') && h.includes('&lt;b&gt;باء'));
+  }
+  t('وغيابُ النسخ والشركاء معًا لا يرمي',
+    typeof contractInstancesHTML(null, null) === 'string');
+
+  // لوحةُ توقيع علامة: الحقول التي يقرأها المُعالِج لاحقًا موجودةٌ بأسمائها.
+  {
+    const h = staffSignAreaHTML('<script>x</script>عقدٌ ما');
+    t('لوحة التوقيع تحمل حقل الاسم واللوحة والزرّين',
+      ['chdSignName','chdSignPad','chdSignConfirm','chdSignCancel'].every(id => h.includes('id="'+id+'"')));
+    t('واسمُ العقد يُهرَّب فيها', !h.includes('<script>x') && h.includes('&lt;script&gt;'));
+    t('وغيابُ الاسم لا يرمي', typeof staffSignAreaHTML(undefined) === 'string');
+  }
 
   console.log(`\nنجح ${ok} · فشل ${fail}`);
   process.exit(fail ? 1 : 0);

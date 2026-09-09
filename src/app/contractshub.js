@@ -1075,16 +1075,103 @@ export function isSendableEmail(s){
 }
 
 
+/** لوحة توقيع علامة داخل اللوحة — ترميزٌ خالص، لا قراءة من DOM ولا كتابة فيه. */
+export function staffSignAreaHTML(contractName){
+  return `<div class="sa-section" style="background:var(--soft-2)">
+       <h4>توقيع علامة على «${esc(contractName||'')}»</h4>
+       <input id="chdSignName" placeholder="اسم الموقِّع عن علامة" style="width:100%;margin-bottom:10px;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
+       <div id="chdSignPad"></div>
+       <div class="row-8 mt-10">
+         <button class="hbtn ok" id="chdSignConfirm">اعتماد التوقيع</button>
+         <button class="reqbtn" id="chdSignCancel">إلغاء</button>
+       </div></div>`;
+}
+
 /**
- * ربط مُعالِجات لوحة العقد — كتلةٌ واحدة نُقلت بترتيبها نفسه حرفًا بحرف.
+ * نسخُ الأصل وقائمةُ الإسناد.
  *
- * ولم تُقسَّم إلى دواليَّ صغيرة عن قصد: هذه المُعالِجات تتشارك سياقًا واحدًا
- * (العقد · اللوحة · الصلاحيات)، وتفتيتها إلى عشرين دالةً كلٌّ منها تأخذ نفس
- * الثمانية **يزيد الحواف ولا ينقص التعقيد**.
- *
- * وفيها بعدُ فاصلٌ حقيقيّ — مُعالِجاتٌ تعرض وأخرى تكتب في القاعدة — لكن الفصل
- * عليه يقتضي إعادة ترتيبٍ للتنفيذ، وذاك تغييرُ سلوكٍ لا نقل. فيُترَك لدفعته.
+ * وفيها **ضابطٌ لا يُرى في الترميز**: الشريك الذي له نسخةٌ قائمة يسقط من قائمة
+ * الاختيار، فلا تُنشأ له نسخةٌ ثانية سهوًا. والملغاة (`void`) لا تحجز شريكها —
+ * فالإلغاء يُعيد الشريك إلى القائمة، وهذا هو المقصود منه.
  */
+export function contractInstancesHTML(insts,clients){
+  const list=insts||[];
+  const taken=new Set(list.filter(i=>i.status!=='void').map(i=>i.client_name));
+  return `
+        <div class="sa-section mb-14">
+          <h4>النسخ المُنشأة من هذا الأصل <span class="sa-hint">(${list.length})</span></h4>
+          ${list.length?list.map(i=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft)">
+              <div><span class="chub-num">${esc(i.contract_number||'—')}</span> <b>${esc(i.client_name||'—')}</b>
+                <span class="sa-hint"> · ${CH_STL[i.status]||i.status}${i.project_name?' · 📁 '+esc(i.project_name):''}${i.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}</span></div>
+              <button class="reqbtn" data-openinst="${i.id}">فتح ←</button>
+            </div>`).join(''):'<p class="sa-hint">لا نسخ بعد — أسنِد هذا الأصل لشريك لإنشاء أول نسخة.</p>'}
+          <div class="sa-form mt-12">
+            <select id="chdAssignClient"><option value="">اختر الشريك لإنشاء نسخة له...</option>${
+              (clients||[]).filter(x=>!taken.has(x.name)).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
+            <button class="reqbtn" id="chdAssignGo">إنشاء نسخة</button>
+          </div>
+        </div>`;
+}
+
+/** جلبُ النسخ وربطُ أزرارها — الأثر وحده، والترميز في بانيه. */
+function bindInstancesSection(contractId){
+  (async()=>{
+    const box=document.getElementById('chdInstances');
+    if(!box)return;
+    let insts=[];
+    try{ insts=await fetchContractInstances(contractId); }catch(e){}
+    const {data:allCl}=await sb.from('pmo_clients').select('id,name').order('name');
+    box.innerHTML=contractInstancesHTML(insts,allCl);
+    document.querySelectorAll('[data-openinst]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.openinst));
+    document.getElementById('chdAssignGo').onclick=async()=>{
+      const cid=document.getElementById('chdAssignClient').value;
+      if(!cid){toast('اختر الشريك','warn');return;}
+      try{
+        const r=await assignContractToClient(contractId,cid);
+        toast('أُنشئت نسخة خاصة بالشريك ('+r.number+') — الأصل بقي كما هو','ok');
+        await reloadContracts();renderContractsHubBody();
+        openContractDetailPanel(r.id);
+      }catch(e){toast(e.message,'err');}
+    };
+    const topBtn=document.getElementById('chdAssign');
+    if(topBtn)topBtn.onclick=()=>{const sel=document.getElementById('chdAssignClient');if(sel&&sel.scrollIntoView)sel.scrollIntoView({behavior:'smooth',block:'center'});};
+  })();
+}
+
+/**
+ * سُلّمُ الاعتماد الداخلي — ثلاثُ درجاتٍ في مسارٍ واحد.
+ *
+ * وكان مكتوبًا **مرّتين**: درجةُ «الاعتماد الذاتي» مرّةً متداخلةً داخل درجة
+ * «تعارض القيمة»، ومرّةً بجوارها للمسار المباشر. وهما نسختان من ضابطٍ واحد —
+ * ومن نسختين وُلد التباين الذي أُصلح في `selfApprovalDecision`. فمصدرُ حقيقةٍ
+ * واحد الآن، والفارق الوحيد بين المسارين صار **مُعامَلًا**: `ack` للإقرار بفرق
+ * القيمة، و`detailed` لصيغة النافذة.
+ *
+ * والآثار كلها مُحقونة (`fx`) — فالسُّلّم يُختبَر بلا قاعدةٍ ولا شبكة.
+ */
+export async function approveEscalation(fx){
+  const attempt=async(reason,ack)=>{ await fx.approve(reason,ack); await fx.done(); };
+  // درجةُ الاعتماد الذاتي: تُنادى من المسارين، ولها في كليهما السلوك نفسه
+  const selfStep=async(detailed,ack)=>{
+    const d=selfApprovalDecision(await fx.askSelf(detailed));
+    if(!d.ok){ if(d.warn)fx.warn(d.warn); return; }
+    try{ await attempt(d.reason,ack); }catch(e){ fx.fail(e.message); }
+  };
+  try{ await attempt(null,false); return; }
+  catch(e){
+    if(e.code==='value_mismatch'){
+      if(!await fx.confirmMismatch(e.info))return;
+      try{ await attempt(null,true); }
+      catch(e2){ if(e2.code==='self_approval') await selfStep(false,true); else fx.fail(e2.message); }
+      return;
+    }
+    if(e.code==='self_approval'){ await selfStep(true,false); return; }
+    fx.fail(e.message);
+  }
+}
+
+
 /**
  * ربط لوحة العقد — واجهةٌ واحدة تُنادى من `openContractDetailPanel`.
  *
@@ -1236,14 +1323,7 @@ function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,i
   {const sb2=document.getElementById('chdSignNow');
    if(sb2)sb2.onclick=()=>{
      const area=document.getElementById('chdSignArea');
-     area.innerHTML=`<div class="sa-section" style="background:var(--soft-2)">
-       <h4>توقيع علامة على «${esc(c.contract_name||'')}»</h4>
-       <input id="chdSignName" placeholder="اسم الموقِّع عن علامة" style="width:100%;margin-bottom:10px;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
-       <div id="chdSignPad"></div>
-       <div class="row-8 mt-10">
-         <button class="hbtn ok" id="chdSignConfirm">اعتماد التوقيع</button>
-         <button class="reqbtn" id="chdSignCancel">إلغاء</button>
-       </div></div>`;
+     area.innerHTML=staffSignAreaHTML(c.contract_name);
      const pad=mountSignaturePad(document.getElementById('chdSignPad'));
      if(area.scrollIntoView)area.scrollIntoView({behavior:'smooth',block:'center'});
      document.getElementById('chdSignCancel').onclick=()=>{area.innerHTML='';};
@@ -1262,45 +1342,7 @@ function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,i
        }catch(e){toast('تعذّر التوقيع: '+e.message,'err');btn.disabled=false;}
      };
    };}
-  if(!c.client_id&&!c.source_contract_id){
-    (async()=>{
-      const box=document.getElementById('chdInstances');
-      if(!box)return;
-      let insts=[];
-      try{ insts=await fetchContractInstances(contractId); }catch(e){}
-      const {data:allCl}=await sb.from('pmo_clients').select('id,name').order('name');
-      const taken=new Set(insts.filter(i=>i.status!=='void').map(i=>i.client_name));
-      box.innerHTML=`
-        <div class="sa-section mb-14">
-          <h4>النسخ المُنشأة من هذا الأصل <span class="sa-hint">(${insts.length})</span></h4>
-          ${insts.length?insts.map(i=>`
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft)">
-              <div><span class="chub-num">${esc(i.contract_number||'—')}</span> <b>${esc(i.client_name||'—')}</b>
-                <span class="sa-hint"> · ${CH_STL[i.status]||i.status}${i.project_name?' · 📁 '+esc(i.project_name):''}${i.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}</span></div>
-              <button class="reqbtn" data-openinst="${i.id}">فتح ←</button>
-            </div>`).join(''):'<p class="sa-hint">لا نسخ بعد — أسنِد هذا الأصل لشريك لإنشاء أول نسخة.</p>'}
-          <div class="sa-form mt-12">
-            <select id="chdAssignClient"><option value="">اختر الشريك لإنشاء نسخة له...</option>${
-              (allCl||[]).filter(x=>!taken.has(x.name)).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
-            <button class="reqbtn" id="chdAssignGo">إنشاء نسخة</button>
-          </div>
-        </div>`;
-      document.querySelectorAll('[data-openinst]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.openinst));
-      const go=async()=>{
-        const cid=document.getElementById('chdAssignClient').value;
-        if(!cid){toast('اختر الشريك','warn');return;}
-        try{
-          const r=await assignContractToClient(contractId,cid);
-          toast('أُنشئت نسخة خاصة بالشريك ('+r.number+') — الأصل بقي كما هو','ok');
-          await reloadContracts();renderContractsHubBody();
-          openContractDetailPanel(r.id);
-        }catch(e){toast(e.message,'err');}
-      };
-      document.getElementById('chdAssignGo').onclick=go;
-      const topBtn=document.getElementById('chdAssign');
-      if(topBtn)topBtn.onclick=()=>{const sel=document.getElementById('chdAssignClient');if(sel&&sel.scrollIntoView)sel.scrollIntoView({behavior:'smooth',block:'center'});};
-    })();
-  }
+  if(!c.client_id&&!c.source_contract_id) bindInstancesSection(contractId);
   if(c.project_id){
     document.getElementById('chdUnlink').onclick=async()=>{
       if(!await confirmDialog('فك الارتباط','سيبقى العقد موجودًا في محفظة العقود، لكنه لن يظهر بعد الآن كمرتبط بهذا المشروع.',false,'فك الارتباط'))return;
@@ -1325,40 +1367,18 @@ function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,i
   if(canApprove){
     document.getElementById('chdApprove').onclick=async()=>{
       if(!await confirmDialog('اعتماد داخلي','بعد الاعتماد، يصبح هذا العقد قابلًا للإرسال والتوقيع من الطرفين. متابعة؟',false,'اعتماد'))return;
-      const finish=async()=>{
-        {const fr=(await fetchAllContracts()).find(x=>x.id===contractId);
-         if(fr){try{await sealContract(fr);}catch(e){}}}
-        toast('اعتُمد العقد داخليًا وخُتم نصه — أصبح قابلًا للإرسال والتوقيع','ok');
-        await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
-      };
-      try{
-        await approveContractInternal(contractId);
-        await finish();
-      }catch(e){
-        // فصل الأدوار: المُعِدّ لا يعتمد عمله إلا بمبرّر موثَّق يظهر في الشهادة والسجل
-        if(e.code==='value_mismatch'){
-          if(!await confirmDialog('تعارض في القيمة المالية',valueMismatchMessage(e.info),
-            true,'أقرّ بالفرق وأعتمد'))return;
-          try{ await approveContractInternal(contractId,null,true); await finish(); }
-          catch(e3){
-            if(e3.code==='self_approval'){
-              const r2=await dialog(selfApprovalDialogSpec(false));
-              const d2=selfApprovalDecision(r2);
-              if(!d2.ok){ if(d2.warn)toast(d2.warn,'warn'); return; }
-              try{ await approveContractInternal(contractId,d2.reason,true); await finish(); }
-              catch(e4){toast(e4.message,'err');}
-            }else toast(e3.message,'err');
-          }
-          return;
-        }
-        if(e.code==='self_approval'){
-          const r=await dialog(selfApprovalDialogSpec(true));
-          const d=selfApprovalDecision(r);
-          if(!d.ok){ if(d.warn)toast(d.warn,'warn'); return; }
-          try{ await approveContractInternal(contractId,d.reason); await finish(); }
-          catch(e2){toast(e2.message,'err');}
-        }else toast(e.message,'err');
-      }
+      await approveEscalation({
+        approve:(reason,ack)=>approveContractInternal(contractId,reason,ack),
+        done:async()=>{
+          {const fr=(await fetchAllContracts()).find(x=>x.id===contractId);
+           if(fr){try{await sealContract(fr);}catch(e){}}}
+          toast('اعتُمد العقد داخليًا وخُتم نصه — أصبح قابلًا للإرسال والتوقيع','ok');
+          await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
+        },
+        confirmMismatch:info=>confirmDialog('تعارض في القيمة المالية',valueMismatchMessage(info),
+          true,'أقرّ بالفرق وأعتمد'),
+        askSelf:detailed=>dialog(selfApprovalDialogSpec(detailed)),
+        warn:m=>toast(m,'warn'), fail:m=>toast(m,'err')});
     };
   }
   if(editable){
