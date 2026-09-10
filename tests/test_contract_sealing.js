@@ -64,7 +64,7 @@ const base={id:'c1',contract_type:'standard',client_name:'سنام',client_cr:'1
   window.__done=true;
 })();
 `);
-const wait=setInterval(()=>{
+const wait=setInterval(async()=>{
   if(!w.__done)return;clearInterval(wait);
   const sign=fs.readFileSync('src/app/contractsign.js','utf8');
   const hub=fs.readFileSync('src/app/contractshub.js','utf8');
@@ -77,10 +77,67 @@ const wait=setInterval(()=>{
     ['الاعتماد الداخلي يختم النص',hub.includes('وخُتم نصه')],
     ['ختم تلقائي للعقود القائمة بلا ختم',hub.includes("if(!c.sealed_body&&c.status!=='void')")],
     ['contractMergeData مصدر واحد لبناء بيانات التجزئة',api.includes('function contractMergeData(c)')],
-    ['إعادة الجلب محصَّنة ضد فقدان القائمة',hub.includes('if(found){CH_CONTRACTS=fresh;c=found;}')],
   ];
+  // ═══ إعادة الجلب محصَّنة ضد فقدان القائمة ═══
+  //
+  // كان هذا تأكيدًا **نصّيًّا** على سطرٍ بعينه، وقد كان مكتوبًا مرّتين فسقط حين
+  // صار واحدًا. والدعوى أوسع من سطرها: جلبٌ يعود بقائمةٍ لا تحوي العقد
+  // المعروض (سباقٌ، أو صلاحيةٌ تغيّرت أثناء الفتح) **يُبقي القديمة قائمة** بدل
+  // أن يُفرغ اللوحة. فتُقاد الآن بقائمتين محقونتين، ويُقرأ الأثر من اللوحة.
+  const R = w.reloadOne;
+  const C = n => Array.from({length:n},(_,i)=>({id:'k'+i,status:'draft',contract_name:'ع'+i,signatures:[]}));
+  const shownTotal = () => w.loadedContracts().length;
+  await R('k1', async () => C(4));                      // قائمةٌ رابحة: تُثبَّت
+  const before = shownTotal();
+  extra.push(['القائمة الرابحة تُثبَّت', before === 4, String(before)]);
+
+  const lost = await R('k1', async () => [{id:'غريب',status:'draft',signatures:[]}]);
+  extra.push(['وجلبٌ يفقد العقد يعود بلا شيء', lost === null, JSON.stringify(lost)]);
+  extra.push(['ولا يستبدل القائمة القائمة', shownTotal() === 4, String(shownTotal())]);
+
+  const gone = await R('k1', async () => null);
+  extra.push(['وقائمةٌ معدومة لا ترمي ولا تمسح', gone === null && shownTotal() === 4]);
+
+  // ═══ مصدرُ نصّ المعاينة: ثلاثةٌ لا واحد ═══
+  //
+  // وأخطرُ ما قد تعرضه هذه اللوحة نصٌّ **لم يوقّعه أحد**: عقدٌ موقَّعٌ يُعاد
+  // توليد نصّه من نموذجٍ تغيّر أو بياناتٍ عُدِّلت بعد التوقيع. فالمختوم
+  // الموقَّع له الأسبقية، **حتى على المخصَّص**.
+  const PS = w.previewSource;
+  const SEALED = {sealed_body:{kind:'standard'}};
+  extra.push(['مختومٌ وموقَّع: النصُّ المختوم',
+    PS(SEALED,{anySigned:true,isCustom:false}) === 'sealed']);
+  extra.push(['وله الأسبقية حتى على المخصَّص',
+    PS(SEALED,{anySigned:true,isCustom:true}) === 'sealed',
+    PS(SEALED,{anySigned:true,isCustom:true})]);
+  // والشرطان مجتمعان: ختمٌ بلا توقيعٍ ما زال قابلًا للتعديل، فيُعاد توليده كي
+  // تظهر تعديلاتُ المستخدم وهو يكتب.
+  extra.push(['وختمٌ بلا توقيع يُعاد توليده',
+    PS(SEALED,{anySigned:false,isCustom:false}) === 'merged',
+    PS(SEALED,{anySigned:false,isCustom:false})]);
+  extra.push(['وتوقيعٌ بلا ختمٍ كذلك',
+    PS({sealed_body:null},{anySigned:true,isCustom:false}) === 'merged']);
+  extra.push(['والمخصَّص غيرُ الموقَّع يُبنى من حقوله',
+    PS({},{anySigned:false,isCustom:true}) === 'custom']);
+  extra.push(['والنموذجيّ هو الافتراضي', PS({},{}) === 'merged']);
+  extra.push(['وعقدٌ معدوم لا يرمي', PS(null,{anySigned:true}) === 'merged']);
+
+  // وترتيبُ الإنعاش عقدٌ لا تفصيل: التوقيع يُقرأ **قبل** أوّل انتظار. ولو قُرئ
+  // بعد الختم وإعادة الجلب، لاختلف المعنى في عقدٍ وُقِّع بين الخطوتين.
+  {
+    const body = (hub.match(/async function freshenContract[^]*?\n}/) || [''])[0];
+    const sigAt = body.indexOf('signatures');
+    const awaitAt = body.indexOf('await');
+    extra.push(['التوقيع يُقرأ قبل أوّل انتظار في الإنعاش',
+      sigAt > -1 && awaitAt > -1 && sigAt < awaitAt, sigAt + ' قبل ' + awaitAt]);
+  }
+
+  const won = await R('k1', async () => C(2));   // C(2) = k0,k1 — فيها k1
+  extra.push(['وجلبٌ يجد العقد يعيده', won && won.id === 'k1', JSON.stringify(won && won.id)]);
+  extra.push(['ويستبدل القائمة عندئذٍ', shownTotal() === 2, String(shownTotal())]);
+
   let ok=0,fail=0;
-  [...w.__R,...extra.map(([n,c])=>[n,c,''])].forEach(([n,c,x])=>{
+  [...w.__R,...extra.map(([n,c,x])=>[n,c,x||''])].forEach(([n,c,x])=>{
     if(c){ok++;console.log('  ✓ '+n);}else{fail++;console.log('  ✗ '+n+(x?' → '+x:''));}});
   console.log('\nنجح '+ok+' · فشل '+fail);
   process.exit(fail?1:0);
