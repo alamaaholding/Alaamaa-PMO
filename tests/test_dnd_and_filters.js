@@ -186,6 +186,109 @@ t('دالة الحلّ معرَّفة',/async function dissolvePackage/.test(api
     g(ALERT_FIRST, { sort: 'لا-شيء' }).join() === 'ياء,ألف');
   t('والترتيب بالاسم يعكسه — فالتجهيزة تُميّز',
     g(ALERT_FIRST, { sort: 'name' }).join() === 'ألف,ياء');
+
+  // ═══ شريطُ الفلاتر: العدّادات على مستوى الشركات لا المشاريع ═══
+  //
+  // «٣ متوقفة» تعني ثلاثةَ **شركاء** لدى كلٍّ منهم توقّفٌ ما، لا ثلاثةَ مشاريع
+  // متوقفة. والفرق يظهر عند شريكٍ له مشروعان متوقفان: يُعدّ مرّةً واحدة، لأن
+  // وحدة العرض هي الشركة. ولو عُدَّت المشاريع لأصبح العدّاد أكبر من «الكل».
+  const BAR = W.portfolioFilterBarHTML;
+  const num = (h, k) => {
+    const m = h.match(new RegExp('data-(?:alert)?filter="' + k + '"[^]*?pfilter-n">(\\d+)<'));
+    return m ? +m[1] : null;
+  };
+  {
+    const list = [K('أ', { blocked: 5 }), K('ب', { blocked: 1 }),
+                  K('ج'), K('د', { isActive: false, isDraft: true })];
+    const h = BAR(list, { filter: 'all', alerts: new Set(), sort: 'alerts', search: '' });
+    t('الكل يعدّ الشركات', num(h, 'all') === 4, String(num(h, 'all')));
+    t('والمتوقفة شركاءُ لا مشاريع', num(h, 'blocked') === 2, String(num(h, 'blocked')));
+    t('ولا عدّادَ يتجاوز الكل',
+      ['active', 'draft', 'blocked', 'reqs', 'comments'].every(k => num(h, k) <= num(h, 'all')));
+    t('والنشطة والمسوّدة تُعدّان بحقلَيهما', num(h, 'active') === 3 && num(h, 'draft') === 1);
+  }
+  {
+    // الحالةُ الظاهرة تُعلَّم: الفلتر المُختار والتنبيهات المُفعَّلة والترتيب.
+    const h = BAR([], { filter: 'draft', alerts: new Set(['reqs']), sort: 'name', search: 'بحثي' });
+    t('والفلتر المُختار يُعلَّم وحده',
+      /data-filter="draft"/.test(h) && h.includes('class="pfilter active" data-filter="draft"')
+        && !h.includes('class="pfilter active" data-filter="all"'));
+    t('والتنبيه المُفعَّل يُعلَّم وحده',
+      h.includes('data-alertfilter="reqs"') && /active[^>]*data-alertfilter="reqs"/.test(h)
+        && !/active[^>]*data-alertfilter="blocked"/.test(h));
+    t('والترتيب المُختار مُنتقًى في القائمة',
+      h.includes('value="name" selected') && !h.includes('value="alerts" selected'));
+    t('ونصُّ البحث يعود إلى الحقل', h.includes('value="بحثي"'));
+  }
+  t('ونصُّ البحث يُهرَّب فيه',
+    !BAR([], { filter: 'all', alerts: new Set(), sort: '', search: '"><img src=x>' })
+      .includes('"><img src=x>'));
+  t('وغيابُ الشركات والتنبيهات لا يرمي',
+    typeof BAR(null, { filter: 'all', sort: '', search: '' }) === 'string');
+
+  // ═══ الشرائح: مفتاحُها عقدُها مع زرّ الإزالة ═══
+  //
+  // تغييرُ حرفٍ في `k` يُبقي الشريحة ظاهرةً وزرَّها **بلا أثر** — فيبقى الفلتر
+  // مُفعَّلًا والمستخدم يظنّ أنه أزاله. فالمفاتيح تُثبَّت هنا بأسمائها.
+  const CH = W.portfolioActiveChips, CHH = W.portfolioChipsHTML;
+  const keys = o => CH(Object.assign({ filter: 'all', alerts: new Set(), search: '' }, o)).map(c => c.k);
+  t('بلا فلاتر: لا شرائح', keys({}).length === 0);
+  t('وشريطُها فراغٌ لا هيكلٌ خاوٍ', CHH(CH({ filter: 'all', alerts: new Set(), search: '' })) === '');
+  t('والحالة مفتاحُها status', keys({ filter: 'draft' }).join() === 'status');
+  t('ونصُّها يتبع الفلتر',
+    CH({ filter: 'active', alerts: new Set(), search: '' })[0].label === 'نشطة'
+      && CH({ filter: 'draft', alerts: new Set(), search: '' })[0].label === 'مسوّدة');
+  t('والتنبيهات مفاتيحُها alert:<الاسم>',
+    keys({ alerts: new Set(['blocked', 'comments']) }).join() === 'alert:blocked,alert:comments');
+  t('والبحث مفتاحُه search', keys({ search: 'س' }).join() === 'search');
+  t('ويظهر نصُّه في الشريحة',
+    CH({ filter: 'all', alerts: new Set(), search: 'س' })[0].label === 'بحث: س');
+  t('والثلاثة تجتمع بترتيبها',
+    keys({ filter: 'draft', alerts: new Set(['reqs']), search: 'س' }).join()
+      === 'status,alert:reqs,search');
+  t('وزرُّ الإزالة يحمل المفتاح نفسه',
+    CHH([{ k: 'alert:reqs', label: 'متطلبات' }]).includes('data-rmchip="alert:reqs"'));
+  t('ونصُّ الشريحة يُهرَّب', !CHH([{ k: 'search', label: '<b>x</b>' }]).includes('<b>x</b>'));
+  t('وزرُّ مسح الكل حاضرٌ متى ظهر شريط', CHH([{ k: 'status', label: 'س' }]).includes('id="pClearAll"'));
+
+  // ═══ البطاقة: سطرُها الفرعيّ ثلاثُ حالاتٍ لا اثنتان ═══
+  const CARD = W.portfolioCardHTML;
+  const X = (o = {}) => Object.assign({ cid: 'c1', c: { name: 'شريك', color: '#111' },
+    list: [{ project_name: 'مبنى' }], tot: 7, pct: 40, blocked: 0, reqs: 0, comments: 0 }, o);
+  t('مشروعٌ واحد: يُعرَف باسمه لا بعدده',
+    CARD(X(), false).includes('مبنى · 7 بند'));
+  t('وأكثرُ من واحد: بالعدد',
+    CARD(X({ list: [1, 2] }), false).includes('2 مشاريع · 7 بند'));
+  t('وبلا مشاريع: دعوةٌ لا عدّاد',
+    CARD(X({ noProjects: 1 }), false).includes('لا مشاريع بعد'));
+  t('وبلا مشاريع لا شريطَ تقدّمٍ ولا حالة',
+    !CARD(X({ noProjects: 1 }), false).includes('pcompany-pct'));
+  t('ومع مشاريعَ يظهر شريط التقدّم بنسبته',
+    CARD(X({ pct: 40 }), false).includes('aria-valuenow="40"'));
+  t('والتنبيهات الثلاثة بترتيبها ووحداتها',
+    (CARD(X({ blocked: 2, reqs: 3, comments: 1 }), false).match(/palert (\w+)">(\d+) ([^<]+)/g) || []).join('|')
+      === 'palert red">2 متوقف|palert amber">3 متطلب|palert blue">1 نقاش');
+  t('والصفرُ منها لا يُعرَض', !CARD(X(), false).includes('palert'));
+  t('وزرُّ الإجراءات للمخوَّل وحده',
+    CARD(X(), true).includes('data-cmenu="c1"') && !CARD(X(), false).includes('data-cmenu'));
+  t('واسمُ الشريك يُهرَّب في البطاقة',
+    !CARD(X({ c: { name: '<b>x</b>', color: '#111' } }), false).includes('<b>x</b>'));
+  t('واسمُ المشروع كذلك',
+    !CARD(X({ list: [{ project_name: '<i>y</i>' }] }), false).includes('<i>y</i>'));
+
+  // ═══ قسمُ الشركاء بلا مشاريع: مطويٌّ افتراضيًّا ═══
+  const SEC = W.portfolioEmptySectionHTML;
+  const E = [{ cid: 'e1', c: { name: 'خالٍ', color: '#222' } }];
+  t('مطويّ: مخفيٌّ وسهمُه لأسفل',
+    SEC(E, false).includes('display:none') && SEC(E, false).includes('▾')
+      && SEC(E, false).includes('aria-expanded="false"'));
+  t('ومفتوح: ظاهرٌ وسهمُه لأعلى',
+    SEC(E, true).includes('display:flex') && SEC(E, true).includes('▴')
+      && SEC(E, true).includes('aria-expanded="true"'));
+  t('وكلُّ شريكٍ زرٌّ يحمل معرّفه', SEC(E, true).includes('data-newproj="e1"'));
+  t('والعدد معروضٌ في الترويسة', SEC(E, false).includes('es-n">1<'));
+  t('واسمُه يُهرَّب', !SEC([{ cid: 'e1', c: { name: '<b>z</b>', color: '#222' } }], true).includes('<b>z</b>'));
+  t('وقائمةٌ فارغة لا ترمي', typeof SEC(null, false) === 'string');
 }
 
 t('مؤشرات سريعة تُحسب من المعروض فعليًا',hub.includes('const totalValue=filtered.reduce'));

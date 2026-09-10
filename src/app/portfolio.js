@@ -292,23 +292,10 @@ async function renderPortfolio(){
   const legendBtn=isStaff?'<button class="hbtn" id="statusLegendBtn" title="دليل حالات المشاريع">ⓘ دليل الحالات</button>':'';
   const toolbar=isStaff?`<div class="portfolio-tools">${primaryBtn}${legendBtn}${toolsMenu}</div>`:'';
   $('#host').innerHTML='<div class="hintbar">اختر شريكًا لعرض لوحة مشروعه الكاملة.'+toolbar+'</div><div class="pgrid" id="pgrid">'+skel+'</div>';
-  if(getState('ROLE')==='pmo'){const lb=$('#showLeads');if(lb)lb.onclick=()=>showScreen('leads');
-    const ac=$('#addClientBtn');if(ac)ac.onclick=addNewClient;}
-  {const db=$('#showDOL');if(db)db.onclick=openDOL;}
-  {const ab=$('#showAudit');if(ab)ab.onclick=()=>showScreen('audit');}
-  {const cb=$('#showContractsHub');if(cb)cb.onclick=()=>showScreen('contractshub');}
+  // كلُّ بندٍ في القائمة له فعلٌ في الجدول — والحارس يُطابق المجموعتين.
+  for(const id in PORTFOLIO_TOOL_ACTIONS){const b=$('#'+id);if(b)b.onclick=PORTFOLIO_TOOL_ACTIONS[id];}
+  {const ac=$('#addClientBtn');if(ac)ac.onclick=addNewClient;}
   {const lb=$('#statusLegendBtn');if(lb)lb.onclick=openStatusLegend;}
-  {const op=$('#showOrgProfile');if(op)op.onclick=openOrgProfile;}
-  {const wl=$('#showWorkload');if(wl)wl.onclick=()=>showScreen('workload');}
-  {const cp=$('#showCapacity');if(cp)cp.onclick=openCapacityPanel;}
-  {const au=$('#showAutomation');if(au)au.onclick=openAutomationPanel;}
-  {const sa2=$('#showSecAudit');if(sa2)sa2.onclick=openSecurityAudit;}
-  {const tb=$('#showTimeline');if(tb)tb.onclick=()=>showScreen('ptimeline');}
-  {const hb=$('#showHolidays');if(hb)hb.onclick=openHolidaysManager;}
-  {const arb=$('#showArchived');if(arb)arb.onclick=()=>showScreen('archived');}
-  {const pg=$('#showPGantt');if(pg)pg.onclick=()=>renderPortfolioGantt();}
-  {const ts=$('#showTrelloSet');if(ts)ts.onclick=()=>openTrello('settings');}
-  {const sa=$('#showStaffAccess');if(sa)sa.onclick=()=>showScreen('staffaccess');}
   {const tb=$('#toolsBtn'),pop=$('#toolsPop');
     if(tb&&pop){
       const close=()=>{pop.classList.remove('open');tb.setAttribute('aria-expanded','false');};
@@ -333,42 +320,13 @@ async function renderPortfolio(){
     companies.push(aggregateClientRows(r.client_id,null,{name:r.client_name,color:r.color||'#C8A06B'}));
   });
 
-  // عدّادات الفلاتر (على مستوى الشركات)
-  const counts={all:companies.length,
-    active:companies.filter(x=>x.isActive).length,
-    draft:companies.filter(x=>x.isDraft).length,
-    blocked:companies.filter(x=>x.blocked>0).length,
-    reqs:companies.filter(x=>x.reqs>0).length,
-    comments:companies.filter(x=>x.comments>0).length};
-  const fbtn=(k,lbl)=>`<button class="pfilter ${getState('PFILTER')===k?'active':''}" data-filter="${k}">${lbl} <span class="pfilter-n">${counts[k]}</span></button>`;
-  const abtn=(k,lbl,cls)=>`<button class="pfilter chip-${cls} ${getState('PALERTS').has(k)?'active':''}" data-alertfilter="${k}">${lbl} <span class="pfilter-n">${counts[k]}</span></button>`;
-  const searchBox=`<input id="pSearch" class="psearch" placeholder="🔍 بحث باسم الشركة أو المشروع…" value="${esc(getState('PSEARCH'))}">`;
-  const sortSel=`<select id="pSort" class="psort" aria-label="ترتيب">
-    <option value="alerts" ${getState('PSORT')==='alerts'?'selected':''}>ترتيب: التنبيهات أولًا</option>
-    <option value="name" ${getState('PSORT')==='name'?'selected':''}>ترتيب: الاسم</option>
-    <option value="progress" ${getState('PSORT')==='progress'?'selected':''}>ترتيب: الأعلى تقدّمًا</option>
-    <option value="projects" ${getState('PSORT')==='projects'?'selected':''}>ترتيب: عدد المشاريع</option>
-  </select>`;
-  const filterBar=`<div class="pfilters-wrap">
-    <div class="pfilters">
-      <span class="pfacet-lbl">الحالة:</span>${fbtn('all','الكل')}${fbtn('active','نشطة')}${fbtn('draft','مسوّدة')}
-      <span class="pfacet-lbl">تنبيهات:</span>${abtn('blocked','متوقفة','red')}${abtn('reqs','متطلبات','amber')}${abtn('comments','نقاش','blue')}
-      ${sortSel}${searchBox}
-    </div>
-  </div>`;
+  const view={filter:getState('PFILTER'),alerts:getState('PALERTS'),
+    search:getState('PSEARCH'),sort:getState('PSORT')};
+  const filterBar=portfolioFilterBarHTML(companies,view);
 
   // تصفية المحفظة وترتيبها: قرارٌ خالص، وقد يُخفي شركاء — فله دالته.
-  const shown=filterPortfolio(companies,{filter:getState('PFILTER'),
-    alerts:getState('PALERTS'),search:getState('PSEARCH'),sort:getState('PSORT')});
-
-  // شرائح الفلاتر النشطة (قابلة للإزالة)
-  const activeChips=[];
-  if(getState('PFILTER')!=='all')activeChips.push({k:'status',label:(getState('PFILTER')==='active'?'نشطة':'مسوّدة')});
-  if(getState('PALERTS').has('blocked'))activeChips.push({k:'alert:blocked',label:'متوقفة'});
-  if(getState('PALERTS').has('reqs'))activeChips.push({k:'alert:reqs',label:'متطلبات'});
-  if(getState('PALERTS').has('comments'))activeChips.push({k:'alert:comments',label:'نقاش'});
-  if(getState('PSEARCH'))activeChips.push({k:'search',label:'بحث: '+getState('PSEARCH')});
-  const chipsBar=activeChips.length?`<div class="pchips"><span class="pchips-lbl">مُفعّل:</span>${activeChips.map(c=>`<span class="pchip">${esc(c.label)}<button data-rmchip="${c.k}" aria-label="إزالة الفلتر">✕</button></span>`).join('')}<button class="pchips-clear" id="pClearAll">مسح الكل</button></div>`:'';
+  const shown=filterPortfolio(companies,view);
+  const chipsBar=portfolioChipsHTML(portfolioActiveChips(view));
 
   $('#host').querySelector('.hintbar').insertAdjacentHTML('afterend',filterBar+chipsBar);
   document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{setState('PFILTER', b.dataset.filter);savePFilters();writePortfolioHash();renderPortfolio();});
@@ -392,42 +350,18 @@ async function renderPortfolio(){
   grid.className='pcompany-grid';
 
   const withProj=shown.filter(x=>!x.noProjects), empty=shown.filter(x=>x.noProjects);
-  const renderCard=x=>{
-    const alertBadges=[];
-    if(x.blocked>0)alertBadges.push(`<span class="palert red">${x.blocked} متوقف</span>`);
-    if(x.reqs>0)alertBadges.push(`<span class="palert amber">${x.reqs} متطلب</span>`);
-    if(x.comments>0)alertBadges.push(`<span class="palert blue">${x.comments} نقاش</span>`);
-    const actBtn=(getState('ROLE')==='pmo')?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات" aria-label="إجراءات الشريك">${I.dots}</button>`:'';
+  const canManage=(getState('ROLE')==='pmo');
+  withProj.forEach(x=>{
     const card=document.createElement('div');
     card.className='pcompany'+(x.hasAlerts?' has-alerts':'');
     card.style.cssText=`--cc:${x.c.color}`;
-    card.innerHTML=`
-      <div class="pcompany-hd" data-toggle="${x.cid}" role="button" tabindex="0">
-        <div class="pcv-top">
-          <span class="pdot" style="background:${x.c.color}" title="لون تعريفي لهذا الشريك — يُستخدم لتمييزه في «الخط الزمني الشامل» وأي عرض مجمَّع آخر"></span>
-          <h3>${esc(x.c.name)}</h3>
-          ${actBtn}
-        </div>
-        <span class="pcompany-sub">${x.noProjects?'لا مشاريع بعد — انقر لإضافة أول مشروع':(x.list.length>1?x.list.length+' مشاريع':esc(x.list[0].project_name||'مشروع واحد'))+' · '+x.tot+' بند'}</span>
-        ${x.noProjects?'':renderStatusBadge(worstProjectStatus(x.list))}
-        ${x.noProjects?'':`<div class="pcompany-pct"><div class="pbar mini" role="progressbar" aria-valuenow="${x.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="نسبة الإنجاز"><div class="pbar-fill" style="width:${x.pct}%"></div></div><b>${x.pct}%</b></div>`}
-        ${alertBadges.length?`<div class="palerts">${alertBadges.join('')}</div>`:''}
-      </div>
-    `;
+    card.innerHTML=portfolioCardHTML(x,canManage);
     grid.appendChild(card);
-  };
-  withProj.forEach(renderCard);
+  });
   // قسم مطوي للشركاء بلا مشاريع (لا يزاحم النشط)
   if(empty.length){
     const sec=document.createElement('div');sec.className='empty-sec';
-    const open=getState('PEXPANDED').has('__empty');
-    sec.innerHTML=`<button class="empty-sec-hd" data-emptytoggle="1" aria-expanded="${open}">
-        <span class="es-chev">${open?'▴':'▾'}</span> شركاء بلا مشاريع <span class="es-n">${empty.length}</span>
-        <span class="es-hint">جاهزون لإضافة أول مشروع</span></button>
-      <div class="empty-sec-body" style="display:${open?'flex':'none'}">
-        ${empty.map(x=>`<button class="ecard" data-newproj="${x.cid}" style="--cc:${x.c.color}">
-          <span class="edot"></span><b>${esc(x.c.name)}</b><span class="eadd">+ أول مشروع</span></button>`).join('')}
-      </div>`;
+    sec.innerHTML=portfolioEmptySectionHTML(empty,getState('PEXPANDED').has('__empty'));
     grid.appendChild(sec);
     const hd=sec.querySelector('[data-emptytoggle]');
     hd.onclick=()=>{getState('PEXPANDED').has('__empty')?getState('PEXPANDED').delete('__empty'):getState('PEXPANDED').add('__empty');renderPortfolio();};
@@ -465,6 +399,134 @@ registerScreen('portfolio', renderPortfolio);
  *
  * والقاعدة الحاكمة: بوابة الواجهة **لا تكون أضيق من سياسة القاعدة** ولا أوسع.
  */
+/**
+ * أدواتُ المكتب: ماذا يفعل كلُّ بند.
+ *
+ * وكان الربط ستةَ عشرَ سطرًا متطابقًا (`{const x=$('#id');if(x)x.onclick=…}`)
+ * **منفصلًا** عن قائمة البنود في `portfolioTools`. وانفصالُهما بابُ عطبٍ صامت:
+ * بندٌ يُضاف إلى القائمة بلا فعلٍ **يظهر ويُنقر ولا يحدث شيء** — لا خطأ ولا
+ * رسالة ولا أثر في السجل. فصار المفتاحُ واحدًا، وعليه حارسٌ يطابق المجموعتين
+ * في الاتجاهين: لا بندَ بلا فعل، ولا فعلَ بلا بند.
+ */
+export const PORTFOLIO_TOOL_ACTIONS = {
+  showPGantt:      ()=>renderPortfolioGantt(),
+  showTimeline:    ()=>showScreen('ptimeline'),
+  showDOL:         openDOL,
+  showAudit:       ()=>showScreen('audit'),
+  showWorkload:    ()=>showScreen('workload'),
+  showContractsHub:()=>showScreen('contractshub'),
+  showHolidays:    openHolidaysManager,
+  showArchived:    ()=>showScreen('archived'),
+  showLeads:       ()=>showScreen('leads'),
+  showCapacity:    openCapacityPanel,
+  showOrgProfile:  openOrgProfile,
+  showAutomation:  openAutomationPanel,
+  showSecAudit:    openSecurityAudit,
+  showTrelloSet:   ()=>openTrello('settings'),
+  showStaffAccess: ()=>showScreen('staffaccess'),
+};
+
+/**
+ * شريطُ الفلاتر وعدّاداته.
+ *
+ * والعدّادات **على مستوى الشركات لا المشاريع**: «٣ متوقفة» تعني ثلاثة شركاء
+ * لدى كلٍّ منهم توقّفٌ ما، لا ثلاثة مشاريع متوقفة. والفرق يظهر عند شريكٍ له
+ * مشروعان متوقفان — يُعدّ مرّةً واحدة، لأن وحدة العرض هي الشركة.
+ */
+export function portfolioFilterBarHTML(companies,{filter,alerts,sort,search}){
+  const list=companies||[], A=alerts||new Set();
+  const counts={all:list.length,
+    active:list.filter(x=>x.isActive).length,
+    draft:list.filter(x=>x.isDraft).length,
+    blocked:list.filter(x=>x.blocked>0).length,
+    reqs:list.filter(x=>x.reqs>0).length,
+    comments:list.filter(x=>x.comments>0).length};
+  const fbtn=(k,lbl)=>`<button class="pfilter ${filter===k?'active':''}" data-filter="${k}">${lbl} <span class="pfilter-n">${counts[k]}</span></button>`;
+  const abtn=(k,lbl,cls)=>`<button class="pfilter chip-${cls} ${A.has(k)?'active':''}" data-alertfilter="${k}">${lbl} <span class="pfilter-n">${counts[k]}</span></button>`;
+  const searchBox=`<input id="pSearch" class="psearch" placeholder="🔍 بحث باسم الشركة أو المشروع…" value="${esc(search||'')}">`;
+  const opt=(v,lbl)=>`<option value="${v}" ${sort===v?'selected':''}>ترتيب: ${lbl}</option>`;
+  const sortSel=`<select id="pSort" class="psort" aria-label="ترتيب">
+    ${opt('alerts','التنبيهات أولًا')}
+    ${opt('name','الاسم')}
+    ${opt('progress','الأعلى تقدّمًا')}
+    ${opt('projects','عدد المشاريع')}
+  </select>`;
+  return `<div class="pfilters-wrap">
+    <div class="pfilters">
+      <span class="pfacet-lbl">الحالة:</span>${fbtn('all','الكل')}${fbtn('active','نشطة')}${fbtn('draft','مسوّدة')}
+      <span class="pfacet-lbl">تنبيهات:</span>${abtn('blocked','متوقفة','red')}${abtn('reqs','متطلبات','amber')}${abtn('comments','نقاش','blue')}
+      ${sortSel}${searchBox}
+    </div>
+  </div>`;
+}
+
+/**
+ * الشرائح النشطة — ما يراه المستخدم مُفعَّلًا الآن.
+ *
+ * ومفتاحُ كلِّ شريحة (`k`) هو **عقدُها مع زرّ الإزالة**: `status` و`search`
+ * و`alert:<اسم>`. وتغييرُ حرفٍ فيه يُبقي الشريحة ظاهرةً وزرَّها بلا أثر —
+ * فيبقى الفلتر مُفعَّلًا والمستخدم يظنّ أنه أزاله.
+ */
+export function portfolioActiveChips({filter,alerts,search}){
+  const A=alerts||new Set(), chips=[];
+  if(filter&&filter!=='all')chips.push({k:'status',label:(filter==='active'?'نشطة':'مسوّدة')});
+  [['blocked','متوقفة'],['reqs','متطلبات'],['comments','نقاش']].forEach(([k,label])=>{
+    if(A.has(k))chips.push({k:'alert:'+k,label});
+  });
+  if(search)chips.push({k:'search',label:'بحث: '+search});
+  return chips;
+}
+
+/** ترميزُ الشرائح — وفراغُها فراغٌ، لا شريطٌ خاوٍ يشغل مكانًا. */
+export function portfolioChipsHTML(chips){
+  if(!chips||!chips.length)return '';
+  return `<div class="pchips"><span class="pchips-lbl">مُفعّل:</span>${
+    chips.map(c=>`<span class="pchip">${esc(c.label)}<button data-rmchip="${c.k}" aria-label="إزالة الفلتر">✕</button></span>`).join('')
+  }<button class="pchips-clear" id="pClearAll">مسح الكل</button></div>`;
+}
+
+/**
+ * بطاقةُ الشريك.
+ *
+ * وسطرُها الفرعيّ ثلاثُ حالاتٍ لا اثنتان: بلا مشاريع ⇦ دعوةٌ لإضافة أوّلها؛
+ * ومشروعٌ واحد ⇦ **اسمُه** لا عددُه؛ وأكثر ⇦ العدد. فالشريك ذو المشروع الواحد
+ * يُعرَف بمشروعه، ولا يُقال له «١ مشاريع».
+ */
+export function portfolioCardHTML(x,canManage){
+  const badges=[];
+  if(x.blocked>0)badges.push(`<span class="palert red">${x.blocked} متوقف</span>`);
+  if(x.reqs>0)badges.push(`<span class="palert amber">${x.reqs} متطلب</span>`);
+  if(x.comments>0)badges.push(`<span class="palert blue">${x.comments} نقاش</span>`);
+  const actBtn=canManage?`<button class="pcard-menu" data-cmenu="${x.cid}" title="إجراءات" aria-label="إجراءات الشريك">${I.dots}</button>`:'';
+  const sub=x.noProjects?'لا مشاريع بعد — انقر لإضافة أول مشروع'
+    :(x.list.length>1?x.list.length+' مشاريع':esc(x.list[0].project_name||'مشروع واحد'))+' · '+x.tot+' بند';
+  return `
+      <div class="pcompany-hd" data-toggle="${x.cid}" role="button" tabindex="0">
+        <div class="pcv-top">
+          <span class="pdot" style="background:${x.c.color}" title="لون تعريفي لهذا الشريك — يُستخدم لتمييزه في «الخط الزمني الشامل» وأي عرض مجمَّع آخر"></span>
+          <h3>${esc(x.c.name)}</h3>
+          ${actBtn}
+        </div>
+        <span class="pcompany-sub">${sub}</span>
+        ${x.noProjects?'':renderStatusBadge(worstProjectStatus(x.list))}
+        ${x.noProjects?'':`<div class="pcompany-pct"><div class="pbar mini" role="progressbar" aria-valuenow="${x.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="نسبة الإنجاز"><div class="pbar-fill" style="width:${x.pct}%"></div></div><b>${x.pct}%</b></div>`}
+        ${badges.length?`<div class="palerts">${badges.join('')}</div>`:''}
+      </div>
+    `;
+}
+
+/** قسمُ الشركاء بلا مشاريع — مطويٌّ كي لا يزاحم النشط. */
+export function portfolioEmptySectionHTML(empty,open){
+  const list=empty||[];
+  return `<button class="empty-sec-hd" data-emptytoggle="1" aria-expanded="${!!open}">
+        <span class="es-chev">${open?'▴':'▾'}</span> شركاء بلا مشاريع <span class="es-n">${list.length}</span>
+        <span class="es-hint">جاهزون لإضافة أول مشروع</span></button>
+      <div class="empty-sec-body" style="display:${open?'flex':'none'}">
+        ${list.map(x=>`<button class="ecard" data-newproj="${x.cid}" style="--cc:${x.c.color}">
+          <span class="edot"></span><b>${esc(x.c.name)}</b><span class="eadd">+ أول مشروع</span></button>`).join('')}
+      </div>`;
+}
+
 export function portfolioTools(role,isOwner){
   const toolItems=[];
   const isStaff=(role==='pmo'||role==='delivery');
