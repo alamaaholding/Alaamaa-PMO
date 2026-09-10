@@ -41,7 +41,7 @@
 
 import { registerAction } from '../actions.js';
 import { addClientAccess, addTask, compute, deleteRequirement, deleteTask, fetchClientAccess, insertRequirement, loadProject, removeClientAccess, setDependencies, updateProjectStart, updateRequirement } from '../api.js';
-import { $, PERMS, TYPES, can, preserveFocus, projTrackList, sb, trackMeta } from '../config.js';
+import { $, $$, can, PERMS, preserveFocus, projTrackList, sb, trackMeta, TYPES } from '../config.js';
 import { esc } from '../format.js';
 import { toast, toastUndo } from '../toast.js';
 import { undoable } from '../undo.js';
@@ -63,7 +63,7 @@ export function focusTask(ref){
     const sel='[data-id="'+(window.CSS&&CSS.escape?CSS.escape(ref):ref)+'"]';
     const el=document.querySelector('#host '+sel)||document.querySelector('#host [data-grow="'+ref+'"]');
     if(!el)return;
-    document.querySelectorAll('.row-focus').forEach(x=>x.classList.remove('row-focus'));
+    $$('.row-focus').forEach(x=>x.classList.remove('row-focus'));
     el.classList.add('row-focus');
     if(el.scrollIntoView)el.scrollIntoView({behavior:'smooth',block:'center'});
   },60);
@@ -272,7 +272,7 @@ function renderDeps(){
     </select>
     <input type="number" data-deplag="${esc(t.id)}" class="dep-lag" value="${x.lag||0}" title="إزاحة بأيام العمل (سالبة=تداخل)" aria-label="الإزاحة" ${on?'':'disabled'}>
   </div>`;}).join('')||'<p class="empty">لا بنود متاحة.</p>';
-  document.querySelectorAll('#depList [data-dep]').forEach(cb=>cb.onchange=()=>{
+  $$('#depList [data-dep]').forEach(cb=>cb.onchange=()=>{
     const r=cb.dataset.dep;
     const s=document.querySelector(`[data-deptype="${r}"]`),l=document.querySelector(`[data-deplag="${r}"]`);
     if(s)s.disabled=!cb.checked;if(l)l.disabled=!cb.checked;});
@@ -325,7 +325,7 @@ function printProject(mode){
 {const _el=$('#reqClose'); if(_el)_el.onclick=()=>{$('#reqOverlay').style.display='none';render();};}
 {const _el=$('#reqOverlay'); if(_el)_el.onclick=e=>{if(e.target.id==='reqOverlay'){$('#reqOverlay').style.display='none';render();}};}
 {const _el=$('#depSave'); if(_el)_el.onclick=async()=>{
-  const links=[...document.querySelectorAll('#depList [data-dep]:checked')].map(c=>{
+  const links=[...$$('#depList [data-dep]:checked')].map(c=>{
     const ref=c.dataset.dep;const t=getState('PROJECT').tasks.find(x=>x.id===ref);if(!t)return null;
     const s=document.querySelector(`[data-deptype="${ref}"]`),l=document.querySelector(`[data-deplag="${ref}"]`);
     return {db:t._dbId,type:(s&&s.value)||'FS',lag:parseInt((l&&l.value)||'0',10)||0};

@@ -422,7 +422,7 @@ function bindAttachments(contractId,c,editable){
       }catch(e){toast(e.message,'err');}
       btn.disabled=false;btn.textContent=t0;
     };
-    document.querySelectorAll('[data-delatt]').forEach(b=>b.onclick=async()=>{
+    $$('[data-delatt]').forEach(b=>b.onclick=async()=>{
       try{
         await deleteContractAttachment(b.dataset.delatt);
         // الملف المرفوع يُحذف من التخزين أيضًا فلا تتراكم ملفات يتيمة
@@ -430,7 +430,7 @@ function bindAttachments(contractId,c,editable){
         toast('حُذف المرفق','ok'); await render();
       }catch(e){toast(e.message,'err');}
     });
-    document.querySelectorAll('[data-openfile]').forEach(b=>b.onclick=async()=>{
+    $$('[data-openfile]').forEach(b=>b.onclick=async()=>{
       try{ window.open(await contractFileURL(b.dataset.openfile),'_blank','noopener'); }
       catch(e){toast(e.message,'err');}
     });
@@ -622,7 +622,7 @@ async function openNewContractPanel(){
     byId('chnCustomFields').style.display=isCustom?'':'none';
     refreshPreview();
   };
-  document.querySelectorAll('input[name="chnType"]').forEach(r=>r.onchange=applyTypeVisibility);
+  $$('input[name="chnType"]').forEach(r=>r.onchange=applyTypeVisibility);
   {const ts=byId('chnTemplate');
    if(ts)ts.onchange=()=>{CHD_TEMPLATE=ts.value;CHD_OVERRIDES.excluded=[];CHD_OVERRIDES.edited={};
      chubRenderClauseEditor('chnClauses',refreshPreview);refreshPreview();};}
@@ -1182,7 +1182,7 @@ function bindInstancesSection(contractId){
     try{ insts=await fetchContractInstances(contractId); }catch(e){}
     const {data:allCl}=await sb.from('pmo_clients').select('id,name').order('name');
     box.innerHTML=contractInstancesHTML(insts,allCl);
-    document.querySelectorAll('[data-openinst]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.openinst));
+    $$('[data-openinst]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.openinst));
     byId('chdAssignGo').onclick=async()=>{
       const cid=byId('chdAssignClient').value;
       if(!cid){toast('اختر الشريك','warn');return;}
@@ -1306,7 +1306,7 @@ function bindPanelViews({c,contractId,panel,STAGE,client,editable,canApprove,isC
      runPrintSafely();
    };}
   // الأصل: عرض نسخه الحالية + إتاحة إسناده لشريك جديد (نسخة مستقلة)
-  document.querySelectorAll('[data-chdcopy]').forEach(b=>b.onclick=async()=>{
+  $$('[data-chdcopy]').forEach(b=>b.onclick=async()=>{
     try{await navigator.clipboard.writeText(b.dataset.chdcopy);toast('نُسخ الرابط','ok');}
     catch(e){toast('انسخ الرابط يدويًا','warn');}
   });

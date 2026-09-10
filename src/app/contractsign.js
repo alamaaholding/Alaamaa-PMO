@@ -16,7 +16,7 @@ import { mergeContract, renderCustomContractHTML, renderMergedContractHTML } fro
 import { confirmDialog } from './dialogs.js';
 import { buildContractDoc } from './exportcontract.js';
 import { getState } from './state.js';
-import { byId } from '../config.js';
+import { $$, byId } from '../config.js';
 export function mountSignaturePad(container){
   container.innerHTML=`
     <div class="sig-tabs">
@@ -83,9 +83,6 @@ export async function renderPublicSign(token){
   const fullySigned=d.status==='signed';
   const isCustom=d.contract_type==='custom';
 
-  const sigRow=(label,s)=>s?`<div class="pubsig-row"><b>${label}</b><span>${esc(s.name)} · ${new Date(s.signed_at).toLocaleString('ar')}</span></div>`
-    :`<div class="pubsig-row pubsig-pending"><b>${label}</b><span>بانتظار التوقيع</span></div>`;
-
   const mergeData={
     clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,org:d.org||{},clientAddress:d.client_address,
     clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title,
@@ -109,7 +106,25 @@ export async function renderPublicSign(token){
     }catch(e){}
   }
 
-  byId('publicSign').innerHTML=`
+  byId('publicSign').innerHTML=publicSignHTML(d,{contractHtml,integrityBadge,
+    alamaaSig,clientSig,clientSigned,fullySigned});
+  bindPublicSign(token);
+}
+/**
+ * ترميزُ صفحة التوقيع العامّة — **الشاشة الوحيدة خارج تسجيل الدخول**.
+ *
+ * وثلاثةُ فروقٍ فيها تُقرأ من الحالة لا من الصلاحية، لأن قارئها بلا حساب:
+ *
+ *   موقَّعٌ بالكامل ⇦ اطّلاعٌ ونسبةُ إنجاز، بلا حقول
+ *   وقّع الشريك    ⇦ انتظارُ علامة، والنصُّ **مطويّ** (قرأه فعلًا)
+ *   لم يوقّع       ⇦ النصُّ **مفتوح** بالضرورة، ثم حقولُ التوقيع
+ *
+ * والطيُّ ليس زينة: من لم يوقّع بعد يجب أن يرى النصّ مفتوحًا أمامه.
+ */
+export function publicSignHTML(d,{contractHtml,integrityBadge,alamaaSig,clientSig,clientSigned,fullySigned}){
+  const sigRow=(label,s)=>s?`<div class="pubsig-row"><b>${label}</b><span>${esc(s.name)} · ${new Date(s.signed_at).toLocaleString('ar')}</span></div>`
+    :`<div class="pubsig-row pubsig-pending"><b>${label}</b><span>بانتظار التوقيع</span></div>`;
+  return `
     <div class="pubsign-wrap"><div class="pubsign-card">
       <div class="pubsign-brand">علامة <span>· أثر دائم</span></div>
       <h2>${fullySigned?'العقد موقَّع من الطرفين':'توقيع العقد'}</h2>
@@ -162,7 +177,30 @@ export async function renderPublicSign(token){
             سيُسجَّل اسمك ووقت التوقيع كتوثيق لهذه الموافقة.</p>
         </div>`)}
     </div></div>`;
+}
 
+/**
+ * رسالةُ فشل التوقيع — لكل رمزٍ رسالتُه، **ولا رمزَ يمرّ بلا رسالة**.
+ *
+ * وقارئُ هذه الصفحة بلا حساب ولا سجلّ ولا أحدٍ يسأله: الرسالة هي كلُّ ما بين
+ * يديه. فرمزٌ مجهول يُترجَم إلى «تعذّر التوقيع» لا إلى فراغ.
+ *
+ * و`otp_wrong` وحده يحمل عددًا: المحاولاتُ الباقية. وغيابُه لا يُنتج
+ * «بقيت undefined محاولات».
+ */
+export function signFailureMessage(r){
+  const msgs={already_signed:'تم توقيع هذا العقد من قبل الشريك بالفعل.',
+    archived:'انتهت صلاحية هذا الرابط.',void:'أُلغي هذا العقد.',name_required:'الاسم مطلوب.',
+    not_sealed:'العقد غير جاهز للتوقيع بعد — تواصل مع علامة.',
+    otp_required:'أرسل رمز التحقق لبريدك ثم أدخله قبل التوقيع.',
+    otp_expired:'انتهت صلاحية الرمز — اطلب رمزًا جديدًا.',
+    otp_locked:'تجاوزت عدد المحاولات — اطلب رمزًا جديدًا.',
+    otp_wrong:'الرمز غير صحيح'+(r&&r.left!=null?` — بقيت ${r.left} محاولات`:'')+'.'};
+  return msgs[r&&r.error]||'تعذّر التوقيع';
+}
+
+/** ربطُ حقول الصفحة: رمزُ التحقق، ولوحةُ التوقيع، والإرسال. */
+function bindPublicSign(token){
   const golf=byId('pubGoLogin');if(golf)golf.onclick=()=>{location.hash='';location.reload();};
   {const ob=byId('pubOtpSend');
    if(ob)ob.onclick=async()=>{
@@ -194,19 +232,13 @@ export async function renderPublicSign(token){
         const r=await signContractPublic(token,name,email,s.data||('نصي: '+s.typed),otpEl?otpEl.value.trim():null);
         if(r&&r.ok){toast('تم توثيق توقيعك بنجاح','ok');renderPublicSign(token);}
         else{
-          const msgs={already_signed:'تم توقيع هذا العقد من قبل الشريك بالفعل.',
-            archived:'انتهت صلاحية هذا الرابط.',void:'أُلغي هذا العقد.',name_required:'الاسم مطلوب.',
-            not_sealed:'العقد غير جاهز للتوقيع بعد — تواصل مع علامة.',
-            otp_required:'أرسل رمز التحقق لبريدك ثم أدخله قبل التوقيع.',
-            otp_expired:'انتهت صلاحية الرمز — اطلب رمزًا جديدًا.',
-            otp_locked:'تجاوزت عدد المحاولات — اطلب رمزًا جديدًا.',
-            otp_wrong:'الرمز غير صحيح'+(r&&r.left!=null?` — بقيت ${r.left} محاولات`:'')+'.'};
-          toast(msgs[r&&r.error]||'تعذّر التوقيع','err');btn.disabled=false;btn.textContent='أوافق وأوقّع';
+          toast(signFailureMessage(r),'err');btn.disabled=false;btn.textContent='أوافق وأوقّع';
         }
       }catch(e){toast('تعذّر التوقيع: '+e.message,'err');btn.disabled=false;btn.textContent='أوافق وأوقّع';}
     };
   }
 }
+
 function pubSignError(msg,withLogin){
   byId('publicSign').innerHTML=`<div class="pubsign-wrap"><div class="pubsign-card" style="text-align:center">
     <div class="pubsign-brand">علامة <span>· أثر دائم</span></div>
@@ -291,7 +323,7 @@ async function refreshContractPanel(){
           <span class="sa-hint">${u.contract_value?' · '+Number(u.contract_value).toLocaleString('ar')+' ر.س':''}${u.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}${u.has_client?'':' · 🆓 عقد مستقل بلا شريك'}</span></div>
         <button class="reqbtn" data-linkbl="${u.id}">ربط بهذا المشروع</button>
       </div>`).join('');
-    document.querySelectorAll('[data-linkbl]').forEach(b=>b.onclick=async()=>{
+    $$('[data-linkbl]').forEach(b=>b.onclick=async()=>{
       const blSel=getState('PROJECT').baselines[getState('PROJECT').baselines.length-1];
       if(!blSel){toast('لا توجد لقطة (Baseline) لهذا المشروع','warn');return;}
       try{
@@ -301,7 +333,7 @@ async function refreshContractPanel(){
       }catch(e){toast('تعذّر الربط: '+e.message,'err');}
     });
   };
-  document.querySelectorAll('[data-viewtext]').forEach(b=>b.onclick=async()=>{
+  $$('[data-viewtext]').forEach(b=>b.onclick=async()=>{
     const c=list.find(x=>x.id===b.dataset.viewtext);
     const box=byId('ctText-'+c.id);
     const show=box.style.display==='none';
@@ -323,7 +355,7 @@ async function refreshContractPanel(){
     }
     box.innerHTML=integrityBadge+renderMergedContractHTML(mergeContract(mergeData));
   });
-  document.querySelectorAll('[data-voidcontract]').forEach(b=>b.onclick=async()=>{
+  $$('[data-voidcontract]').forEach(b=>b.onclick=async()=>{
     if(!await confirmDialog('إلغاء العقد','سيصبح هذا العقد ملغى ولا يمكن توقيعه بعد الآن. لا يمكن التراجع عن هذا الإجراء.',true,'إلغاء العقد'))return;
     try{
       const r=await voidContract(b.dataset.voidcontract);
@@ -332,7 +364,7 @@ async function refreshContractPanel(){
     }catch(e){toast('تعذّر الإلغاء: '+e.message,'err');}
   });
 
-  document.querySelectorAll('[data-unlink]').forEach(b=>b.onclick=async()=>{
+  $$('[data-unlink]').forEach(b=>b.onclick=async()=>{
     if(!await confirmDialog('فك الارتباط','سيبقى العقد موجودًا في محفظة العقود، لكنه لن يظهر هنا كمرتبط بهذا المشروع بعد الآن. يمكن ربطه بمشروع آخر لاحقًا.',false,'فك الارتباط'))return;
     try{
       const r=await unlinkContractFromProject(b.dataset.unlink);
@@ -340,11 +372,11 @@ async function refreshContractPanel(){
       else toast((r&&r.error)||'تعذّر فك الارتباط','err');
     }catch(e){toast('تعذّر فك الارتباط: '+e.message,'err');}
   });
-  document.querySelectorAll('[data-copylink]').forEach(b=>b.onclick=async()=>{
+  $$('[data-copylink]').forEach(b=>b.onclick=async()=>{
     try{await navigator.clipboard.writeText(b.dataset.copylink);toast('نُسخ الرابط','ok');}
     catch(e){toast('انسخ الرابط يدويًا من الحقل','warn');}
   });
-  document.querySelectorAll('[data-exportqr]').forEach(b=>b.onclick=async()=>{
+  $$('[data-exportqr]').forEach(b=>b.onclick=async()=>{
     const c=list.find(x=>x.id===b.dataset.exportqr);
     if(!c){toast('العقد غير موجود','err');return;}
     b.disabled=true;const old=b.textContent;b.textContent='جارٍ التحضير...';
@@ -352,7 +384,7 @@ async function refreshContractPanel(){
     catch(e){ toast('تعذّر التصدير: '+e.message,'err'); }
     b.disabled=false;b.textContent=old;
   });
-  document.querySelectorAll('[data-signalamaa]').forEach(b=>b.onclick=()=>{
+  $$('[data-signalamaa]').forEach(b=>b.onclick=()=>{
     const cid=b.dataset.signalamaa;
     const area=byId('ctSignArea');
     area.innerHTML='<div class="sa-section"><h4>توقيع علامة</h4><input id="ctStaffName" placeholder="اسمك الكامل" style="width:100%;margin-bottom:10px;border:1.5px solid var(--line);border-radius:8px;padding:9px"><div id="ctStaffPad"></div><button class="hbtn" id="ctStaffSign" style="background:var(--ok);border-color:var(--ok);color:#fff;width:100%;margin-top:12px">توقيع وتأكيد</button></div>';

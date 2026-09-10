@@ -121,6 +121,76 @@ const wait=setInterval(()=>{
     ['ولا يُفشى للشريك أنه «غير صالح»',
       !/غير صالح/.test(G(Object.assign({},OK,{internal_approved:false})).message)],
   ];
+  // ═══ رسالةُ فشل التوقيع — كلُّ ما بين يدَي قارئٍ بلا حساب ═══
+  //
+  // من يفتح هذه الصفحة لا حسابَ له ولا سجلَّ ولا أحدَ يسأله. فالرسالة هي كلُّ
+  // ما يُخبره بما جرى وبما يفعله تاليًا. وكانت خريطةً من تسعة رموزٍ **داخل**
+  // مُعالِجِ زرّ، لا تُفحَص.
+  const F = r => w.signFailureMessage(r);
+  const fail_msgs = [
+    ['رمزٌ مجهول يُترجَم ولا يُترك فراغًا', F({error:'boom'})==='تعذّر التوقيع', F({error:'boom'})],
+    ['وغيابُ الردّ كلّه كذلك', F(null)==='تعذّر التوقيع' && F(undefined)==='تعذّر التوقيع'],
+    ['ورمزٌ بلا خطأٍ كذلك', F({ok:false})==='تعذّر التوقيع'],
+    // كل رمزٍ يقول للقارئ **ما يفعله**، لا أن شيئًا فشل وحسب.
+    ['المنتهي يدلّ على طلب رمزٍ جديد', /اطلب رمزًا جديدًا/.test(F({error:'otp_expired'}))],
+    ['والمقفول كذلك', /اطلب رمزًا جديدًا/.test(F({error:'otp_locked'}))],
+    ['والمطلوب يدلّ على الإرسال أوّلًا', /أرسل رمز التحقق/.test(F({error:'otp_required'}))],
+    ['وغيرُ المختوم يدلّ على التواصل مع علامة', /تواصل مع علامة/.test(F({error:'not_sealed'}))],
+    // والمحاولات الباقية: رقمٌ حقيقيّ أو لا رقم — لا «بقيت undefined».
+    ['والرمز الخاطئ يعرض ما بقي من محاولات', F({error:'otp_wrong',left:2}).includes('بقيت 2 محاولات')],
+    ['وصفرُ محاولاتٍ رقمٌ لا فراغ', F({error:'otp_wrong',left:0}).includes('بقيت 0 محاولات')],
+    ['وغيابُه لا يُنتج «undefined»',
+      !/undefined|NaN/.test(F({error:'otp_wrong'})) && /الرمز غير صحيح\./.test(F({error:'otp_wrong'})),
+      F({error:'otp_wrong'})],
+    // ولا رمزَ من التسعة بلا رسالةٍ خاصّة به.
+    ['وكلُّ رمزٍ معروفٍ له رسالتُه',
+      ['already_signed','archived','void','name_required','not_sealed',
+       'otp_required','otp_expired','otp_locked','otp_wrong']
+        .every(c => F({error:c}) !== 'تعذّر التوقيع'),
+      ['already_signed','archived','void','name_required','not_sealed',
+       'otp_required','otp_expired','otp_locked','otp_wrong']
+        .filter(c => F({error:c}) === 'تعذّر التوقيع').join(',')],
+  ];
+
+  // ═══ ترميزُ الصفحة: ثلاثُ حالاتٍ تُقرأ من الحالة لا من الصلاحية ═══
+  const H = w.publicSignHTML;
+  const D = (o={}) => Object.assign({client_name:'سنام',progress_pct:40,signatures:[]}, o);
+  const base = {contractHtml:'<p>نص</p>',integrityBadge:'',alamaaSig:null,clientSig:null};
+  const page = (d,o={}) => H(D(d), Object.assign({}, base, o));
+  const html_states = [
+    // الطيُّ ليس زينة: من لم يوقّع بعد يجب أن يرى النصّ **مفتوحًا** أمامه.
+    ['من لم يوقّع: النصُّ مفتوح', /<details[^>]*\sopen>/.test(page({},{clientSigned:false}))],
+    ['ومن وقّع: مطويّ', !/<details[^>]*\sopen>/.test(page({},{clientSigned:true}))],
+    ['ودعوةُ القراءة تسبق التوقيع', /اقرأ نص العقد كاملًا قبل التوقيع/.test(page({},{clientSigned:false}))],
+    // والحقول: من وقّع لا يوقّع مرّتين، والمكتمل للاطّلاع وحده.
+    ['ومن لم يوقّع يرى حقول التوقيع', page({},{clientSigned:false}).includes('id="pubSignBtn"')],
+    ['ومن وقّع لا يراها', !page({},{clientSigned:true}).includes('id="pubSignBtn"')],
+    ['والموقَّع بالكامل للاطّلاع وحده',
+      !page({},{fullySigned:true,clientSigned:true}).includes('id="pubSignBtn"')
+        && /للاطّلاع فقط/.test(page({},{fullySigned:true,clientSigned:true}))],
+    ['ويعرض نسبة الإنجاز', page({progress_pct:73},{fullySigned:true}).includes('73%')],
+    // رمزُ التحقق يظهر **فقط** حين يوجد بريدٌ مسجَّل يُرسَل إليه.
+    ['ورمزُ التحقق يظهر ببريدٍ مسجَّل',
+      page({client_contact_email:'a@b.co'},{clientSigned:false}).includes('id="pubOtpSend"')],
+    ['ويغيب بدونه', !page({},{clientSigned:false}).includes('id="pubOtpSend"')],
+    ['ولا يُفشي البريد نفسه',
+      !page({client_contact_email:'a@b.co'},{clientSigned:false}).includes('a@b.co')],
+    // والتوقيعان يُعرضان بحالتيهما — والانتظار حالةٌ تُقال لا تُترك فراغًا.
+    ['وغيرُ الموقَّع يُعلَّم بالانتظار',
+      (page({},{}).match(/بانتظار التوقيع/g)||[]).length===2],
+    ['والموقَّع يحمل اسمه ووقته',
+      page({},{alamaaSig:{name:'مي',signed_at:'2026-01-01T10:00:00Z'}}).includes('مي')],
+    // ومُدخَلاتُ الشريك تُهرَّب: الاسم والمشروع والملاحق تأتي من خارج المنصّة.
+    ['واسمُ الشريك يُهرَّب', !page({client_name:'<b>x</b>'},{}).includes('<b>x</b>')],
+    ['واسمُ المشروع كذلك', !page({project_name:'<i>y</i>'},{}).includes('<i>y</i>')],
+    ['واسمُ الملحق كذلك',
+      !page({attachments:[{label:'<s>z</s>',url:''}]},{}).includes('<s>z</s>')],
+    ['واسمُ الموقِّع كذلك',
+      !page({},{alamaaSig:{name:'<u>w</u>',signed_at:'2026-01-01T10:00:00Z'}}).includes('<u>w</u>')],
+    ['وتحذيرُ التطابق يُعرَض حين يُمرَّر',
+      page({},{integrityBadge:'<div class="ctr-integrity warn">تنبيه</div>'}).includes('ctr-integrity warn')],
+  ];
+
   // ═══ دعوة التوقيع — نصٌّ يخرج من المنصّة إلى بريد شريك ═══
   const M=(to,proj,link)=>w.signInviteMailto(to,proj,link);
   const m=M('a@b.co','هوية','https://pmo.example/#/sign/tok');
@@ -151,6 +221,8 @@ const wait=setInterval(()=>{
   ];
   const extra=[
     ...gate,
+    ...fail_msgs,
+    ...html_states,
     ...invite,
     ['الغلاف لم يعد يستخدم 100vh (وحدة شاشة لا معنى لها في الطباعة)',
       !/\.cx-cover\{min-height:100vh/.test(css)],

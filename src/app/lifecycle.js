@@ -118,7 +118,7 @@ export async function openProjectMenu(projectId, projectName){
         </button>`).join('')}
       </div>
     </div>`).join('');
-  document.querySelectorAll('[data-pmaction]').forEach(b=>b.onclick=()=>runProjectMenuAction(b.dataset.pmaction,projectId,projectName));
+  $$('[data-pmaction]').forEach(b=>b.onclick=()=>runProjectMenuAction(b.dataset.pmaction,projectId,projectName));
 }
 async function runProjectMenuAction(action,projectId,projectName){
   if(action==='exportContract'){
@@ -321,7 +321,7 @@ async function saveTracks(){
   const list=getState('PROJECT').tracks||[];let changed=0;
   const btn=$('#trkSave');if(btn)btn.disabled=true;
   try{
-    for(const card of document.querySelectorAll('#trkBody .trk-card[data-key]')){
+    for(const card of $$('#trkBody .trk-card[data-key]')){
       const tid=card.dataset.tid,key=card.dataset.key;
       const colorInput=card.querySelector('.trk-color');
       const color=colorInput.value;
@@ -517,7 +517,7 @@ async function openAssignPanel(projectId,projectName){
       </div>`;
     $('#assignClose').onclick=()=>{$('#assignOverlay').style.display='none';};
     $('#assignSave').onclick=async()=>{
-      const ids=[...document.querySelectorAll('#assignBody [data-assign]:checked')].map(c=>c.dataset.assign);
+      const ids=[...$$('#assignBody [data-assign]:checked')].map(c=>c.dataset.assign);
       try{await saveProjectStaff(projectId,ids);toast('حُفظ الإسناد ('+ids.length+')','ok');$('#assignOverlay').style.display='none';}
       catch(e){toast('تعذّر: '+e.message,'err');}
     };

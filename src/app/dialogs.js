@@ -7,7 +7,7 @@
 // opts.html: HTML جاهز يُدرَج بين الرسالة والحقول (للمحتوى المُنسَّق كجدول الفروق).
 // يُبنى داخليًا فقط ولا يقبل مدخلات مستخدم خامًا.
 import { esc } from '../format.js';
-import { byId } from '../config.js';
+import { $$, byId } from '../config.js';
 
 export function dialog(opts){ // {title, message, html, fields:[{key,label,value,type,placeholder,options}], confirmText, danger}
   return new Promise(resolve=>{
@@ -38,7 +38,7 @@ export function dialog(opts){ // {title, message, html, fields:[{key,label,value
     const prevFocus=document.activeElement;
     const first=document.querySelector('#dlgBox .dlg-i')||byId('dlgOk');if(first)setTimeout(()=>first.focus(),50);
     const close=val=>{ov.style.display='none';document.removeEventListener('keydown',keyH,true);if(prevFocus&&prevFocus.focus)prevFocus.focus();resolve(val);};
-    const collect=()=>{ if(!opts.fields||!opts.fields.length)return true; const o={}; document.querySelectorAll('#dlgBox .dlg-i').forEach(i=>o[i.dataset.k]=i.value.trim()); return o; };
+    const collect=()=>{ if(!opts.fields||!opts.fields.length)return true; const o={}; $$('#dlgBox .dlg-i').forEach(i=>o[i.dataset.k]=i.value.trim()); return o; };
     // لوحة المفاتيح: Escape يغلق، Tab محبوس داخل الحوار
     const keyH=e=>{
       if(e.key==='Escape'){e.preventDefault();close(null);return;}
@@ -55,7 +55,7 @@ export function dialog(opts){ // {title, message, html, fields:[{key,label,value
     byId('dlgCancel').onclick=()=>close(null);
     byId('dlgX').onclick=()=>close(null);
     ov.onclick=e=>{if(e.target.id==='dlgOverlay')close(null);};
-    document.querySelectorAll('#dlgBox .dlg-i').forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter'&&i.tagName!=='TEXTAREA'){e.preventDefault();close(collect());}}));
+    $$('#dlgBox .dlg-i').forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter'&&i.tagName!=='TEXTAREA'){e.preventDefault();close(collect());}}));
   });
 }
 

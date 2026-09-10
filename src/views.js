@@ -117,7 +117,7 @@ function renderNow(){
     const bs=$('#blSel');if(bs)bs.onchange=()=>{GBASE=bs.value;
       const b=(getState('PROJECT').baselines||[]).find(x=>x.id===GBASE);
       if(b)getState('PROJECT').baseline={snapshot:b.snapshot};render();};
-    document.querySelectorAll('[data-scale]').forEach(b=>{const on=b.dataset.scale===GSCALE;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false');
+    $$('[data-scale]').forEach(b=>{const on=b.dataset.scale===GSCALE;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false');
       b.onclick=()=>{GSCALE=b.dataset.scale;try{localStorage.setItem('pmo_gscale',GSCALE);}catch(_e){}setState('PX', GSCALE_PX[GSCALE]||16);render();};});
     $$('#host .glbl[data-tkopen]').forEach(el=>{
       el.onclick=()=>runAction('openTaskPanel', el.dataset.tkopen);
@@ -239,18 +239,18 @@ function projFilterBar(){
   </div>`;
 }
 function bindProjFilterBar(){
-  document.querySelectorAll('[data-tf-phase]').forEach(b=>b.onclick=()=>{
+  $$('[data-tf-phase]').forEach(b=>b.onclick=()=>{
     const k=b.dataset.tfPhase; getState('TFILTER').phases.has(k)?getState('TFILTER').phases.delete(k):getState('TFILTER').phases.add(k); writeHash(); render();});
-  document.querySelectorAll('[data-tf-status]').forEach(b=>b.onclick=()=>{
+  $$('[data-tf-status]').forEach(b=>b.onclick=()=>{
     const k=b.dataset.tfStatus; getState('TFILTER').statuses.has(k)?getState('TFILTER').statuses.delete(k):getState('TFILTER').statuses.add(k); writeHash(); render();});
-  document.querySelectorAll('[data-tf-smart]').forEach(b=>b.onclick=()=>{
+  $$('[data-tf-smart]').forEach(b=>b.onclick=()=>{
     const k=b.dataset.tfSmart; getState('TFILTER').smart.has(k)?getState('TFILTER').smart.delete(k):getState('TFILTER').smart.add(k); writeHash(); render();});
   const tfs=byId('tfSearch');
   if(tfs){tfs.oninput=()=>{getState('TFILTER').q=tfs.value;clearTimeout(tfs._t);tfs._t=setTimeout(()=>{writeHash();render();},300);};
     if(getState('TFILTER').q){setTimeout(()=>{tfs.focus();tfs.setSelectionRange(tfs.value.length,tfs.value.length);},0);}}
   const tfc=byId('tfClear');
   if(tfc)tfc.onclick=()=>{setState('TFILTER', {phases:new Set(),statuses:new Set(),smart:new Set(),q:''});writeHash();render();};
-  document.querySelectorAll('[data-pkgtoggle]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();
+  $$('[data-pkgtoggle]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();
     const id=b.dataset.pkgtoggle;PKG_COLLAPSED.has(id)?PKG_COLLAPSED.delete(id):PKG_COLLAPSED.add(id);render();});
 }
 
@@ -261,9 +261,9 @@ function bindProjFilterBar(){
 // مثبَّتة ما لم تكن هناك نافذة تنفيذ تغيير معتمَد.
 let DRAG_TASK=null;
 function bindTaskDragDrop(){
-  const clear=()=>document.querySelectorAll('.drop-on,.drag-src').forEach(x=>x.classList.remove('drop-on','drag-src'));
+  const clear=()=>$$('.drop-on,.drag-src').forEach(x=>x.classList.remove('drop-on','drag-src'));
 
-  document.querySelectorAll('[data-dragtask]').forEach(tr=>{
+  $$('[data-dragtask]').forEach(tr=>{
     tr.addEventListener('dragstart',e=>{
       DRAG_TASK=tr.dataset.dragtask;
       tr.classList.add('drag-src');
@@ -273,8 +273,8 @@ function bindTaskDragDrop(){
   });
 
   const dropTargets=[
-    ...document.querySelectorAll('[data-droppkg]'),
-    ...document.querySelectorAll('tr.grp')
+    ...$$('[data-droppkg]'),
+    ...$$('tr.grp')
   ];
   dropTargets.forEach(el=>{
     el.addEventListener('dragover',e=>{
@@ -820,14 +820,14 @@ function vDiscuss(rows){
   return composer+'<div class="crlist">'+thread+'</div>';
 }
 function bindDiscuss(){
-  document.querySelectorAll('[data-gotask]').forEach(b=>b.onclick=()=>runAction('gotoTask', b.dataset.gotask));
+  $$('[data-gotask]').forEach(b=>b.onclick=()=>runAction('gotoTask', b.dataset.gotask));
   const send=byId('dcSend');
   if(send)send.onclick=async()=>{
     const body=byId('dcBody').value.trim();if(!body){toast('اكتب رسالة','warn');return;}
     try{ await addComment(getState('PROJECT')._dbId, byId('dcKind').value, body, null); toast('أُرسلت','ok'); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر الإرسال: '+e.message,'err'); }
   };
-  document.querySelectorAll('[data-reply]').forEach(b=>b.onclick=()=>{
+  $$('[data-reply]').forEach(b=>b.onclick=()=>{
     const box=byId('replyBox-'+b.dataset.reply);
     if(box.innerHTML){box.innerHTML='';return;}
     box.innerHTML=`<div style="display:flex;gap:6px;margin-top:8px"><input id="rin-${b.dataset.reply}" placeholder="ردك..." style="flex:1;border:1.5px solid var(--line);border-radius:7px;padding:7px;font-family:inherit;font-size:.82rem"><button class="reqbtn gold" data-sendreply="${b.dataset.reply}">رد</button></div>`;
@@ -837,11 +837,11 @@ function bindDiscuss(){
       catch(e){ toast('تعذّر: '+e.message,'err'); }
     };
   });
-  document.querySelectorAll('[data-resolve]').forEach(b=>b.onclick=async()=>{
+  $$('[data-resolve]').forEach(b=>b.onclick=async()=>{
     try{ await resolveComment(b.dataset.resolve, b.dataset.cur!=='1'); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
-  document.querySelectorAll('[data-delc]').forEach(b=>b.onclick=async()=>{
+  $$('[data-delc]').forEach(b=>b.onclick=async()=>{
     // كان الحوار يقول «لا يمكن التراجع» — وعدٌ لم يكن ثمّة سبب تقنيّ لقطعه.
     if(!await confirmDialog('حذف التعليق','حذف هذا التعليق؟',true,'حذف'))return;
     const id=b.dataset.delc;
@@ -922,15 +922,15 @@ function bindRequests(){
     try{ await addClientRequest(getState('PROJECT')._dbId,title,body,dept,prio); toast('أُرسل الطلب','ok'); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر الإرسال: '+e.message,'err'); }
   };
-  document.querySelectorAll('[data-setstatus]').forEach(b=>b.onclick=async()=>{
+  $$('[data-setstatus]').forEach(b=>b.onclick=async()=>{
     try{ await updateClientRequest(b.dataset.setstatus,{status:b.dataset.s}); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر: '+e.message,'err'); }
   });
-  document.querySelectorAll('[data-assign]').forEach(b=>b.onclick=async()=>{
+  $$('[data-assign]').forEach(b=>b.onclick=async()=>{
     const r=await dialog({title:'إسناد الطلب',fields:[{key:'who',label:'إلى مَن (شخص/فريق)',value:b.dataset.cur,placeholder:'مثل: الفريق التقني'}],confirmText:'إسناد'});
     if(r&&r.who){try{ await updateClientRequest(b.dataset.assign,{assigned_to:r.who}); toast('تم الإسناد','ok'); render(); }catch(e){toast('تعذّر','err');}}
   });
-  document.querySelectorAll('[data-delreq]').forEach(b=>b.onclick=async()=>{
+  $$('[data-delreq]').forEach(b=>b.onclick=async()=>{
     if(!await confirmDialog('حذف الطلب','حذف هذا الطلب؟',true,'حذف'))return;
     const id=b.dataset.delreq;
     try{

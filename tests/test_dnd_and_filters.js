@@ -11,7 +11,9 @@ const css=fs.readFileSync('src/styles.css','utf8');
 t('البنود قابلة للسحب عند صلاحية التعديل فقط',
   v.includes("editStruct&&t.type!=='cont'?`draggable=\"true\"")); 
 t('حزم العمل أهداف إفلات',v.includes('data-droppkg='));
-t('رؤوس المراحل أهداف إفلات أيضًا (إخراج البند من حزمته)',v.includes("document.querySelectorAll('tr.grp')"));
+// الدعوى: صفوفُ المراحل تدخل مجموعةَ أهداف الإفلات — لا هجاءُ نداء البحث.
+// (كان يطابق `document.querySelectorAll` حرفيًّا فسقط حين صار `$$`.)
+t('رؤوس المراحل أهداف إفلات أيضًا (إخراج البند من حزمته)',/\$\$\('tr\.grp'\)|querySelectorAll\('tr\.grp'\)/.test(v));
 t('الإفلات على مرحلة يستخرج مفتاحها لا يخمّنه',v.includes("el.querySelector('[data-grpedit]')"));
 t('منع إفلات البند على نفسه',v.includes('if(pkgId&&pkgId===id)return'));
 t('مؤشّر بصري أثناء السحب والإفلات',css.includes('.drag-src')&&css.includes('tr.drop-on'));

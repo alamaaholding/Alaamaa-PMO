@@ -238,7 +238,7 @@ window.addEventListener('hashchange',async()=>{
     // حبس Tab داخل النافذة العائمة المفتوحة (WAI-ARIA Dialog)
     document.addEventListener('keydown',e=>{
       if(e.key!=='Tab')return;
-      const open=[...document.querySelectorAll('.rqoverlay')].find(x=>x.style.display==='flex');
+      const open=[...$$('.rqoverlay')].find(x=>x.style.display==='flex');
       if(!open)return;
       const f=[...open.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')]
         .filter(el=>!el.disabled&&!el.hasAttribute('hidden')&&el.getAttribute('tabindex')!=='-1');
