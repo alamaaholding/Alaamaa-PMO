@@ -289,7 +289,7 @@ console.log('\n▸ التصغير: مساحة بلا فقد إمكانية ال�
 
   // وسقف الحجم — ينقص ولا يزيد. غيابُه هو ما سمح بمئة كيلوبايت من النموّ الصامت.
   const KB = Math.round(bundle.length / 1024);
-  const CORE_KB_CAP = 405;   // W2: 621 ← 414 (utf8) ← 409 ← 404 (اكتمال W2). الهدف < 250 (W6).
+  const CORE_KB_CAP = 401;   // W2: 621 ← 414 (utf8) ← 409 ← 404؛ W3: 405 ← 401 (byId). الهدف < 250 (W6).
   t(`النواة ${KB} KB ≤ ${CORE_KB_CAP}`, KB <= CORE_KB_CAP,
     KB + ' KB — إن نقصت فأنزِل السقف');
 }
@@ -383,6 +383,58 @@ console.log('\n▸ الرسم البياني للاستيراد — بلا دو�
 console.log('\n▸ الجسر مؤقّت بطبيعته — موثَّق لا منسيّ');
 t('bundle-entry يُصرّح أنه مرحلي', /مؤقّت|مرحلي/.test(entry));
 t('يشرح سبب IIFE لا ESM', entry.includes('jsdom') && entry.includes('IIFE'));
+
+console.log('\n▸ وحداتٌ تُحزَم وحدها');
+// ═══ وحداتٌ تُحزَم وحدها — استقلالٌ كان بلا حارس ═══
+//
+// أربع وحدات تُحزَم **منفردةً** في اختباراتها (`esbuild src/x.js --bundle`)،
+// فلا يصحّ أن يصل رسمُ استيراداتها إلى `config.js` أو `api.js`: كلاهما ينشئ
+// عميل Supabase **عند التحميل**، فتنفجر الحزمة المنفردة بـ«createClient of
+// undefined» قبل أن يُنفَّذ تأكيدٌ واحد.
+//
+// وقد كاد يُكسَر: أداةٌ صغيرة (`byId`) وُضعت في `config.js` — وهو موضعها
+// الطبيعيّ بجوار `$` و`$$` — فاستوردتها ثلاثُ وحداتٍ منها، فسقطت أربعةُ ملفاتِ
+// اختبارٍ دفعةً واحدة. ولم يكن ثمّة تأكيدٌ **يسمّي** هذا الاستقلال؛ ظهر العطب
+// انهيارًا لا رسالة.
+{
+  const STANDALONE = ['src/theme.js', 'src/toast.js', 'src/notifications.js', 'src/undo.js'];
+  const FORBIDDEN = ['config.js', 'api.js'];
+  const readImports = f => {
+    let src;
+    try { src = fs.readFileSync(f, 'utf8'); } catch (e) { return null; }
+    return [...src.matchAll(/^import\s+(?:[^'"]*?from\s+)?['"](\.[^'"]+)['"]/gm)].map(m => m[1]);
+  };
+  const dirOf = f => f.slice(0, f.lastIndexOf('/'));
+  const resolve = (from, rel) => {
+    const parts = (dirOf(from) + '/' + rel).split('/'), out = [];
+    for (const p of parts) { if (p === '.' || p === '') continue; if (p === '..') out.pop(); else out.push(p); }
+    return out.join('/');
+  };
+  for (const entry of STANDALONE) {
+    const seen = new Set(), queue = [entry], path = { [entry]: [entry] };
+    let hit = null;
+    while (queue.length && !hit) {
+      const f = queue.shift();
+      if (seen.has(f)) continue;
+      seen.add(f);
+      const imps = readImports(f);
+      if (imps === null) continue;
+      for (const rel of imps) {
+        const target = resolve(f, rel);
+        path[target] = path[target] || path[f].concat(target);
+        if (FORBIDDEN.some(x => target.endsWith(x))) { hit = path[target]; break; }
+        queue.push(target);
+      }
+    }
+    t(entry.replace('src/', '') + ' تُحزَم وحدها بلا أثرٍ جانبيّ',
+      !hit, hit ? hit.join(' → ') : '');
+  }
+  // والحارس يميّز فعلًا: مسارٌ مصطنع إلى config.js يُلتقَط.
+  t('والحارس يلتقط المسار غير المباشر',
+    (readImports('src/undo.js') || []).some(r => /toast/.test(r)),
+    (readImports('src/undo.js') || []).join(' '));
+}
+
 
 console.log('\nنجح ' + ok + ' · فشل ' + fail);
 process.exit(fail ? 1 : 0);

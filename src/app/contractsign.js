@@ -16,6 +16,7 @@ import { mergeContract, renderCustomContractHTML, renderMergedContractHTML } fro
 import { confirmDialog } from './dialogs.js';
 import { buildContractDoc } from './exportcontract.js';
 import { getState } from './state.js';
+import { byId } from '../config.js';
 export function mountSignaturePad(container){
   container.innerHTML=`
     <div class="sig-tabs">
@@ -62,9 +63,9 @@ export function mountSignaturePad(container){
 
 // ===== المسار العام: بلا تسجيل دخول =====
 export async function renderPublicSign(token){
-  document.getElementById('login').classList.add('hidden');
-  document.getElementById('app').classList.add('hidden');
-  const root=document.getElementById('publicSign');
+  byId('login').classList.add('hidden');
+  byId('app').classList.add('hidden');
+  const root=byId('publicSign');
   root.classList.remove('hidden');
   root.innerHTML=`<div class="pubsign-wrap"><div class="pubsign-card">${skeleton('panel',1)}
     ${skeleton('cards',1)}</div></div>`;
@@ -108,7 +109,7 @@ export async function renderPublicSign(token){
     }catch(e){}
   }
 
-  document.getElementById('publicSign').innerHTML=`
+  byId('publicSign').innerHTML=`
     <div class="pubsign-wrap"><div class="pubsign-card">
       <div class="pubsign-brand">علامة <span>· أثر دائم</span></div>
       <h2>${fullySigned?'العقد موقَّع من الطرفين':'توقيع العقد'}</h2>
@@ -162,10 +163,10 @@ export async function renderPublicSign(token){
         </div>`)}
     </div></div>`;
 
-  const golf=document.getElementById('pubGoLogin');if(golf)golf.onclick=()=>{location.hash='';location.reload();};
-  {const ob=document.getElementById('pubOtpSend');
+  const golf=byId('pubGoLogin');if(golf)golf.onclick=()=>{location.hash='';location.reload();};
+  {const ob=byId('pubOtpSend');
    if(ob)ob.onclick=async()=>{
-     const msg=document.getElementById('pubOtpMsg');
+     const msg=byId('pubOtpMsg');
      ob.disabled=true;const t0=ob.textContent;ob.textContent='جارٍ الإرسال...';
      try{
        const r=await requestSigningOTP(token);
@@ -178,18 +179,18 @@ export async function renderPublicSign(token){
        ob.disabled=false;ob.textContent=t0;
      }
    };}
-  const pad=document.getElementById('pubSigPad');
+  const pad=byId('pubSigPad');
   if(pad){
     const sig=mountSignaturePad(pad);
-    document.getElementById('pubSignBtn').onclick=async()=>{
-      const name=document.getElementById('pubName').value.trim();
-      const email=document.getElementById('pubEmail').value.trim();
+    byId('pubSignBtn').onclick=async()=>{
+      const name=byId('pubName').value.trim();
+      const email=byId('pubEmail').value.trim();
       if(!name){toast('الاسم مطلوب','warn');return;}
       const s=sig.getData();
       if(!s.ok){toast('يرجى التوقيع (رسمًا أو كتابة الاسم) قبل المتابعة','warn');return;}
-      const btn=document.getElementById('pubSignBtn');btn.disabled=true;btn.textContent='جارٍ الحفظ...';
+      const btn=byId('pubSignBtn');btn.disabled=true;btn.textContent='جارٍ الحفظ...';
       try{
-        const otpEl=document.getElementById('pubOtp');
+        const otpEl=byId('pubOtp');
         const r=await signContractPublic(token,name,email,s.data||('نصي: '+s.typed),otpEl?otpEl.value.trim():null);
         if(r&&r.ok){toast('تم توثيق توقيعك بنجاح','ok');renderPublicSign(token);}
         else{
@@ -207,28 +208,28 @@ export async function renderPublicSign(token){
   }
 }
 function pubSignError(msg,withLogin){
-  document.getElementById('publicSign').innerHTML=`<div class="pubsign-wrap"><div class="pubsign-card" style="text-align:center">
+  byId('publicSign').innerHTML=`<div class="pubsign-wrap"><div class="pubsign-card" style="text-align:center">
     <div class="pubsign-brand">علامة <span>· أثر دائم</span></div>
     <p style="margin-top:20px;font-size:1.05rem">${esc(msg)}</p>
     ${withLogin?`<button class="hbtn" id="pubErrLogin" style="background:var(--gold);border-color:var(--gold);margin-top:16px">تسجيل الدخول</button>`:''}
   </div></div>`;
-  const b=document.getElementById('pubErrLogin');if(b)b.onclick=()=>{location.hash='';location.reload();};
+  const b=byId('pubErrLogin');if(b)b.onclick=()=>{location.hash='';location.reload();};
 }
 
 // ===== لوحة التحكم الداخلية: من داخل المشروع (موظف) — تُعاد استخدام نافذة taskOverlay =====
 export async function openContractPanel(){
   if(!getState('PROJECT')){toast('افتح المشروع أولًا','warn');return;}
   if(!getState('PROJECT').baselines||!getState('PROJECT').baselines.length){toast('لا توجد لقطة (Baseline) بعد — ثبّت أساسًا أولًا','warn');return;}
-  document.getElementById('taskOverlay').style.display='flex';
-  document.getElementById('tkTitle').textContent='عقود المشروع والتوقيع';
-  document.getElementById('tkTabs').innerHTML='';
-  document.getElementById('tkBody').innerHTML=skeleton('cards',1);
+  byId('taskOverlay').style.display='flex';
+  byId('tkTitle').textContent='عقود المشروع والتوقيع';
+  byId('tkTabs').innerHTML='';
+  byId('tkBody').innerHTML=skeleton('cards',1);
   await refreshContractPanel();
 }
 async function refreshContractPanel(){
   let list;
   try{ list=await fetchContractsForProject(getState('PROJECT')._dbId); }
-  catch(e){ document.getElementById('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
+  catch(e){ byId('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
   const STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع الشريك',signed:'موقَّع بالكامل ✅',void:'ملغى'};
   const rows=list.map(c=>{
     const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
@@ -258,7 +259,7 @@ async function refreshContractPanel(){
   }).join('')||'<p class="empty">لا عقود بعد.</p>';
 
   const clientC=getState('CLIENTS').find(x=>x.id===getState('CID'))||{};
-  document.getElementById('tkBody').innerHTML=`
+  byId('tkBody').innerHTML=`
     <div class="sa-section mb-14">
       <h4>عقود هذا المشروع <span class="sa-hint">العقد كيان مستقل في محفظة العقود — اربط عقدًا قائمًا بدل إنشاء واحد جديد في كل مرة</span></h4>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -270,9 +271,9 @@ async function refreshContractPanel(){
     ${rows}
     <div id="ctSignArea"></div>`;
 
-  document.getElementById('ctGoHub').onclick=()=>showScreen('contractshub');
-  document.getElementById('ctLinkExisting').onclick=async()=>{
-    const picker=document.getElementById('ctLinkPicker');
+  byId('ctGoHub').onclick=()=>showScreen('contractshub');
+  byId('ctLinkExisting').onclick=async()=>{
+    const picker=byId('ctLinkPicker');
     const show=picker.style.display==='none';
     picker.style.display=show?'':'none';
     if(!show)return;
@@ -302,7 +303,7 @@ async function refreshContractPanel(){
   };
   document.querySelectorAll('[data-viewtext]').forEach(b=>b.onclick=async()=>{
     const c=list.find(x=>x.id===b.dataset.viewtext);
-    const box=document.getElementById('ctText-'+c.id);
+    const box=byId('ctText-'+c.id);
     const show=box.style.display==='none';
     box.style.display=show?'':'none';
     if(!show)return;
@@ -353,11 +354,11 @@ async function refreshContractPanel(){
   });
   document.querySelectorAll('[data-signalamaa]').forEach(b=>b.onclick=()=>{
     const cid=b.dataset.signalamaa;
-    const area=document.getElementById('ctSignArea');
+    const area=byId('ctSignArea');
     area.innerHTML='<div class="sa-section"><h4>توقيع علامة</h4><input id="ctStaffName" placeholder="اسمك الكامل" style="width:100%;margin-bottom:10px;border:1.5px solid var(--line);border-radius:8px;padding:9px"><div id="ctStaffPad"></div><button class="hbtn" id="ctStaffSign" style="background:var(--ok);border-color:var(--ok);color:#fff;width:100%;margin-top:12px">توقيع وتأكيد</button></div>';
-    const sig=mountSignaturePad(document.getElementById('ctStaffPad'));
-    document.getElementById('ctStaffSign').onclick=async()=>{
-      const name=document.getElementById('ctStaffName').value.trim();
+    const sig=mountSignaturePad(byId('ctStaffPad'));
+    byId('ctStaffSign').onclick=async()=>{
+      const name=byId('ctStaffName').value.trim();
       if(!name){toast('أدخل اسمك','warn');return;}
       const s=sig.getData();if(!s.ok){toast('وقّع أولًا','warn');return;}
       try{

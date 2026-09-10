@@ -83,7 +83,11 @@ t('معالج مفوَّض واحد يخدم كل النوافذ', main.includes
     { runScripts: 'dangerously' });
   const w = dom.window;
   const s = w.document.createElement('script');
-  s.textContent = main.match(/document\.addEventListener\('click', e => \{[\s\S]*?\}\);/)[0];
+  // القصاصة تُنتزع من وحدتها وتُنفَّذ عاريةً، فتُزوَّد بما تستورده تلك الوحدة.
+  // (كان `byId` يُكتب `document.getElementById` فلم يحتج شيئًا — والقصاصة
+  //  المنتزعة تكسر مع كل استيرادٍ جديد، وهذا ثمنُ تنفيذ المصدر لا استدعائه.)
+  s.textContent = 'const byId=id=>document.getElementById(id);\n'
+    + main.match(/document\.addEventListener\('click', e => \{[\s\S]*?\}\);/)[0];
   w.document.body.appendChild(s);
   w.document.querySelector('[data-close]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   t('النقر على data-close يُخفي الطبقة فعليًا', w.document.getElementById('ov').style.display === 'none');

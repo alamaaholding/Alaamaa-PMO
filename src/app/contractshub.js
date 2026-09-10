@@ -10,7 +10,7 @@
 
 import { ORG_PROFILE, addContractAttachment, approveContractInternal, archiveContract, assignContractToClient, cachedTeamMembers, checkEmailReady, computeContractHash, contractFileURL, createAmendment, createContractV2, deleteContractAttachment, deleteContractFile, duplicateContract, fetchAllContracts, fetchContractAttachments, fetchContractAudit, fetchContractFunnel, fetchContractInstances, fetchContractsNeedingReminder, fetchExpiringContracts, fetchSignatureCertificate, refreshContractParties, saveClientEmail, sealContract, sendContractEmail, signContractAsStaff, syncTemplateRegistry, unlinkContractFromProject, updateContract, uploadContractFile, voidContract } from '../api.js';
 import { hideChrome } from '../chrome.js';
-import { $, $$, AUDIT_ACTIONS, sb } from '../config.js';
+import { $, $$, AUDIT_ACTIONS, byId, sb } from '../config.js';
 import { esc } from '../format.js';
 import { registerScreen, showScreen } from '../screens.js';
 import { skeleton } from '../skeleton.js';
@@ -166,7 +166,7 @@ function renderContractsHubBody(){
 
   // تنبيهات انتهاء/تجديد العقود السارية
   (async()=>{
-    const box=document.getElementById('chubExpiring');
+    const box=byId('chubExpiring');
     if(!box)return;
     let exp=[],rem=[];
     try{exp=await fetchExpiringContracts();}catch(e){}
@@ -199,15 +199,15 @@ function renderContractsHubBody(){
 
   $('#chubSearch').oninput=e=>{CH_FILTER.q=e.target.value;renderContractsHubBody();};
   [['chubClient','client'],['chubLink','link'],['chubType','type'],['chubSort','sort']].forEach(([id,key])=>{
-    const el=document.getElementById(id);
+    const el=byId(id);
     if(el)el.onchange=()=>{CH_FILTER[key]=el.value;renderContractsHubBody();};
   });
-  {const rs=document.getElementById('chubReset');
+  {const rs=byId('chubReset');
    if(rs)rs.onclick=()=>{CH_FILTER={status:'all',q:'',client:'',link:'',type:'',sort:'newest'};renderContractsHubBody();};}
   $$('#chubBody [data-chubstatus]').forEach(b=>b.onclick=()=>{CH_FILTER.status=b.dataset.chubstatus;renderContractsHubBody();});
   $('#chubNew').onclick=openNewContractPanel;
-  {const en=document.getElementById('chubEmptyNew');if(en)en.onclick=openNewContractPanel;}
-  {const er=document.getElementById('chubEmptyReset');
+  {const en=byId('chubEmptyNew');if(en)en.onclick=openNewContractPanel;}
+  {const er=byId('chubEmptyReset');
    if(er)er.onclick=()=>{CH_FILTER={status:'all',q:'',client:'',link:'',type:'',sort:'newest'};renderContractsHubBody();};}
   $$('#chubBody [data-chubopen]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.chubopen));
 }
@@ -221,20 +221,20 @@ function chubReadStandardFields(prefix,client){
     templateKey:CHD_TEMPLATE, clauseOverrides:CHD_OVERRIDES,
     clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,org:CHD_ORG||ORG_PROFILE||{},clientAddress:client.national_address_short,
     clientRepName:client.rep_name,clientRepTitle:client.rep_title,clientEmail:client.contact_email,clientPhone:client.contact_phone,
-    includesAdSpend:document.getElementById(prefix+'AdSpend').checked,
-    effectiveDate:document.getElementById(prefix+'Date').value,
-    contractValue:document.getElementById(prefix+'Value').value,
-    latePaymentCap:document.getElementById(prefix+'Value').value?Math.round(Number(document.getElementById(prefix+'Value').value)*0.03*100)/100:null,
-    specialTerms:document.getElementById(prefix+'Special').value,
-    durationMonths:(document.getElementById(prefix+'Duration')||{}).value||null,
-    endDate:(document.getElementById(prefix+'End')||{}).value||null,
-    autoRenew:!!((document.getElementById(prefix+'Renew')||{}).checked)
+    includesAdSpend:byId(prefix+'AdSpend').checked,
+    effectiveDate:byId(prefix+'Date').value,
+    contractValue:byId(prefix+'Value').value,
+    latePaymentCap:byId(prefix+'Value').value?Math.round(Number(byId(prefix+'Value').value)*0.03*100)/100:null,
+    specialTerms:byId(prefix+'Special').value,
+    durationMonths:(byId(prefix+'Duration')||{}).value||null,
+    endDate:(byId(prefix+'End')||{}).value||null,
+    autoRenew:!!((byId(prefix+'Renew')||{}).checked)
   };
 }
 function chubReadCustomFields(prefix,client){
   return {
-    title:document.getElementById(prefix+'Title').value,
-    body:document.getElementById(prefix+'Body').value,
+    title:byId(prefix+'Title').value,
+    body:byId(prefix+'Body').value,
     clientName:client.name,clientCr:client.cr_number,clientVat:client.vat_number,org:CHD_ORG||ORG_PROFILE||{},clientAddress:client.national_address_short,
     clientRepName:client.rep_name,clientRepTitle:client.rep_title,clientEmail:client.contact_email,clientPhone:client.contact_phone
   };
@@ -242,9 +242,9 @@ function chubReadCustomFields(prefix,client){
 async function chubRenderQR(elId,link){
   try{
     await ensureQR();
-    document.getElementById(elId).innerHTML=`<img src="${generateQRDataURL(link)}" alt="QR" style="width:150px;height:150px">`;
+    byId(elId).innerHTML=`<img src="${generateQRDataURL(link)}" alt="QR" style="width:150px;height:150px">`;
   }catch(e){
-    document.getElementById(elId).innerHTML='<span class="sa-hint">⚠ تعذّر توليد المعاينة: '+esc(e.message)+'</span>';
+    byId(elId).innerHTML='<span class="sa-hint">⚠ تعذّر توليد المعاينة: '+esc(e.message)+'</span>';
   }
 }
 
@@ -253,7 +253,7 @@ async function chubRenderQR(elId,link){
 // الاستبعاد لا يُزيح ترقيمًا أبدًا (البند يبقى برقمه بنص "غير منطبق")، والتحرير المباشر
 // يستبدل نص البند لهذا العقد وحده دون المساس بالنموذج الأصلي المشترك بين كل العقود.
 function chubRenderClauseEditor(boxId,onChange){
-  const box=document.getElementById(boxId);
+  const box=byId(boxId);
   if(!box)return;
   const tpl=(CONTRACT_TEMPLATES[CHD_TEMPLATE]||CONTRACT_TEMPLATES.alamaa_v1).tpl;
   if(!CHD_OVERRIDES.edited)CHD_OVERRIDES.edited={};
@@ -290,7 +290,7 @@ function chubRenderClauseEditor(boxId,onChange){
     const num=b.dataset.editclause;
     const sec=tpl.sections.find(x=>x.num===num);
     const ed=CHD_OVERRIDES.edited[num]||{};
-    const area=document.getElementById(boxId+'-edit');
+    const area=byId(boxId+'-edit');
     area.innerHTML=`<div class="sa-section" style="margin-top:10px;background:var(--soft-2)">
       <h4>تحرير البند ${esc(num)}</h4>
       <input id="${boxId}-etitle" value="${esc(ed.title||sec.title)}" style="width:100%;margin-bottom:8px;font-weight:700;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
@@ -301,14 +301,14 @@ function chubRenderClauseEditor(boxId,onChange){
         <button class="reqbtn" id="${boxId}-ecancel">إلغاء</button>
       </div></div>`;
     if(area.scrollIntoView)area.scrollIntoView({behavior:'smooth',block:'center'});
-    document.getElementById(boxId+'-ecancel').onclick=()=>{area.innerHTML='';};
-    document.getElementById(boxId+'-esave').onclick=()=>{
-      CHD_OVERRIDES.edited[num]={title:document.getElementById(boxId+'-etitle').value,
-        body:document.getElementById(boxId+'-ebody').value};
+    byId(boxId+'-ecancel').onclick=()=>{area.innerHTML='';};
+    byId(boxId+'-esave').onclick=()=>{
+      CHD_OVERRIDES.edited[num]={title:byId(boxId+'-etitle').value,
+        body:byId(boxId+'-ebody').value};
       area.innerHTML='';chubRenderClauseEditor(boxId,onChange);if(onChange)onChange();
       toast('طُبِّق التعديل على هذا العقد — النموذج الأصلي لم يتغيّر','ok');
     };
-    const rs=document.getElementById(boxId+'-ereset');
+    const rs=byId(boxId+'-ereset');
     if(rs)rs.onclick=()=>{delete CHD_OVERRIDES.edited[num];area.innerHTML='';
       chubRenderClauseEditor(boxId,onChange);if(onChange)onChange();};
   });
@@ -316,11 +316,11 @@ function chubRenderClauseEditor(boxId,onChange){
     CHD_OVERRIDES.added.splice(Number(b.dataset.delclause),1);
     chubRenderClauseEditor(boxId,onChange);if(onChange)onChange();
   });
-  document.getElementById(boxId+'-nadd').onclick=()=>{
-    const title=document.getElementById(boxId+'-ntitle').value.trim();
+  byId(boxId+'-nadd').onclick=()=>{
+    const title=byId(boxId+'-ntitle').value.trim();
     if(!title){toast('أدخل عنوان البند','warn');return;}
-    CHD_OVERRIDES.added.push({num:document.getElementById(boxId+'-nnum').value.trim()||null,
-      title,body:document.getElementById(boxId+'-nbody').value});
+    CHD_OVERRIDES.added.push({num:byId(boxId+'-nnum').value.trim()||null,
+      title,body:byId(boxId+'-nbody').value});
     chubRenderClauseEditor(boxId,onChange);if(onChange)onChange();
   };
 }
@@ -374,7 +374,7 @@ async function freshenContract(contractId,c){
 /** سجلُّ التدقيق — جلبٌ وعرض، والترميز في بانيه. */
 function bindAuditSection(contractId){
   (async()=>{
-    const box=document.getElementById('chdAudit');
+    const box=byId('chdAudit');
     if(!box)return;
     let rows=[];
     try{ rows=await fetchContractAudit(contractId); }
@@ -393,14 +393,14 @@ function bindAuditSection(contractId){
  */
 function bindAttachments(contractId,c,editable){
   const render=async()=>{
-    const box=document.getElementById('chdAttachments');
+    const box=byId('chdAttachments');
     if(!box)return;
     let atts=[];
     try{ atts=await fetchContractAttachments(contractId); }
     catch(e){ box.innerHTML='<p class="sa-hint">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
     box.innerHTML=contractAttachmentsHTML(c,atts,editable);
     if(!editable)return;
-    const el=id=>document.getElementById(id);
+    const el=id=>byId(id);
     el('chdAttAdd').onclick=async()=>{
       const label=el('chdAttLabel').value.trim(),url=el('chdAttUrl').value.trim();
       if(!label){toast('أدخل اسم المستند','warn');return;}
@@ -459,7 +459,7 @@ export function previewSource(c,{anySigned,isCustom}){
 }
 
 async function renderContractPreview(c,{anySigned,isCustom,client}){
-  const pv=document.getElementById('chdPreview'),ig=document.getElementById('chdIntegrity');
+  const pv=byId('chdPreview'),ig=byId('chdIntegrity');
   const src=previewSource(c,{anySigned,isCustom});
   if(src==='sealed'){
     pv.innerHTML=(c.sealed_body.kind==='custom'?renderCustomContractHTML(c.sealed_body):renderMergedContractHTML(c.sealed_body));
@@ -501,7 +501,7 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
   const STAGE=contractStage(c,{al,cl,anySigned,editable,canApprove});
   if(!KEEP_TAB)CHD_TAB=defaultContractTab(c,{anySigned,editable,cl});
 
-  const panel=document.getElementById('chubPanel');
+  const panel=byId('chubPanel');
   panel.innerHTML=contractPanelHTML(c,{STAGE,cl,anySigned,editable,isCustom,link,tab:CHD_TAB});
 
   // ===== نموذج العقد ومحرر البنود =====
@@ -516,7 +516,7 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
   // `chubRenderClauseEditor` أعلاه. بقي معرَّفًا بلا مستدعٍ واحد، ومستترًا:
   // حارس الأسماء الميتة كان يمسح **المستوى الأعلى** وحده فلا يرى ما يُصرَّح
   // داخل دالة. وقد امتدّ الحارس ليشمل التعشيش، فلن يتكرّر.
-  {const ts=document.getElementById('chdTemplate');
+  {const ts=byId('chdTemplate');
    if(ts)ts.onchange=()=>{CHD_TEMPLATE=ts.value;CHD_OVERRIDES.excluded=[];renderClauses();refreshPreview();};}
 
   bindAuditSection(contractId);
@@ -528,14 +528,14 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
   renderClauses();
   const watchIds=isCustom?['chdTitle','chdBody']:['chdValue','chdDate','chdAdSpend','chdSpecial'];
   if(editable)watchIds.forEach(id=>{
-    document.getElementById(id).addEventListener('input',refreshPreview);
-    document.getElementById(id).addEventListener('change',refreshPreview);
+    byId(id).addEventListener('input',refreshPreview);
+    byId(id).addEventListener('change',refreshPreview);
   });
 
   chubRenderQR('chdQrImg',link);
 
   if(panel.scrollIntoView)panel.scrollIntoView({behavior:'smooth',block:'start'});
-  document.getElementById('chdClose').onclick=()=>{panel.innerHTML='';};
+  byId('chdClose').onclick=()=>{panel.innerHTML='';};
   // تبديل التبويبات بلا إعادة بناء اللوحة — يحفظ حالة الحقول والمعاينة
   panel.querySelectorAll('[data-chdtab]').forEach(b=>b.onclick=()=>{
     CHD_TAB=b.dataset.chdtab;
@@ -556,7 +556,7 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
 async function openNewContractPanel(){
   const {data:allClients}=await sb.from('pmo_clients').select('id,name').order('name');
   const clients=allClients||[];
-  const panel=document.getElementById('chubPanel');
+  const panel=byId('chubPanel');
   panel.innerHTML=`<div class="chub-detail">
     <div class="chub-detail-hd"><h3>عقد جديد</h3><button class="reqbtn ms-auto" id="chnClose">✕ إغلاق</button></div>
     <p class="sa-hint">العقد كيان مستقل في المحفظة: يُنشأ هنا باسمه ورقمه الخاصَّين، بلا ربط بمشروع، والشريك اختياري. الربط بمشروع يحدث لاحقًا من داخل ذلك المشروع ← عقوده ← «🔗 ربط عقد قائم».</p>
@@ -604,7 +604,7 @@ async function openNewContractPanel(){
     </div>
   </div>`;
   if(panel.scrollIntoView)panel.scrollIntoView({behavior:'smooth',block:'start'});
-  document.getElementById('chnClose').onclick=()=>{panel.innerHTML='';};
+  byId('chnClose').onclick=()=>{panel.innerHTML='';};
 
   let currentClient={};
   CHD_TEMPLATE='alamaa_v1';
@@ -612,24 +612,24 @@ async function openNewContractPanel(){
   CHD_OVERRIDES={excluded:[],added:[],edited:{}};
   const typeOf=()=>document.querySelector('input[name="chnType"]:checked').value;
   const refreshPreview=()=>{
-    document.getElementById('chnPreview').innerHTML=typeOf()==='custom'
+    byId('chnPreview').innerHTML=typeOf()==='custom'
       ?renderCustomContractHTML(chubReadCustomFields('chd',currentClient))
       :renderMergedContractHTML(mergeContract(chubReadStandardFields('chd',currentClient)));
   };
   const applyTypeVisibility=()=>{
     const isCustom=typeOf()==='custom';
-    document.getElementById('chnStandardFields').style.display=isCustom?'none':'';
-    document.getElementById('chnCustomFields').style.display=isCustom?'':'none';
+    byId('chnStandardFields').style.display=isCustom?'none':'';
+    byId('chnCustomFields').style.display=isCustom?'':'none';
     refreshPreview();
   };
   document.querySelectorAll('input[name="chnType"]').forEach(r=>r.onchange=applyTypeVisibility);
-  {const ts=document.getElementById('chnTemplate');
+  {const ts=byId('chnTemplate');
    if(ts)ts.onchange=()=>{CHD_TEMPLATE=ts.value;CHD_OVERRIDES.excluded=[];CHD_OVERRIDES.edited={};
      chubRenderClauseEditor('chnClauses',refreshPreview);refreshPreview();};}
   chubRenderClauseEditor('chnClauses',refreshPreview);
 
   // الشريك اختياري تمامًا: اختياره يُثري المعاينة ببياناته فقط، وغيابه لا يمنع الإنشاء إطلاقًا
-  document.getElementById('chnClient').onchange=async(e)=>{
+  byId('chnClient').onchange=async(e)=>{
     const cid=e.target.value;
     if(!cid){currentClient={};refreshPreview();return;}
     const {data:clientRow}=await sb.from('pmo_clients').select('*').eq('id',cid).maybeSingle();
@@ -637,32 +637,32 @@ async function openNewContractPanel(){
     refreshPreview();
   };
   ['chdValue','chdDate','chdAdSpend','chdSpecial','chdTitle','chdBody'].forEach(id=>{
-    const el=document.getElementById(id);
+    const el=byId(id);
     if(!el)return;
     el.addEventListener('input',refreshPreview);
     el.addEventListener('change',refreshPreview);
   });
   refreshPreview();
 
-  document.getElementById('chnCreate').onclick=async()=>{
-    const cid=document.getElementById('chnClient').value||null;
+  byId('chnCreate').onclick=async()=>{
+    const cid=byId('chnClient').value||null;
     const type=typeOf();
-    const name=document.getElementById('chnName').value.trim();
+    const name=byId('chnName').value.trim();
     if(!name){toast('أدخل اسم العقد','warn');return;}
-    if(type==='custom'&&!document.getElementById('chdBody').value.trim()){toast('اكتب نص العقد أولًا','warn');return;}
-    const btn=document.getElementById('chnCreate');btn.disabled=true;
+    if(type==='custom'&&!byId('chdBody').value.trim()){toast('اكتب نص العقد أولًا','warn');return;}
+    const btn=byId('chnCreate');btn.disabled=true;
     try{
       const r=await createContractV2({
         scopeType:'client',projectId:null,baselineId:null,clientId:cid,clientRow:currentClient,
         contractType:type,
-        contractName:name,contractNumber:document.getElementById('chnNumber').value.trim()||null,
+        contractName:name,contractNumber:byId('chnNumber').value.trim()||null,
         templateKey:CHD_TEMPLATE,
-        customTitle:type==='custom'?document.getElementById('chdTitle').value:null,
-        customBody:type==='custom'?document.getElementById('chdBody').value:null,
-        includesAdSpend:type==='standard'?document.getElementById('chdAdSpend').checked:false,
-        effectiveDate:type==='standard'?document.getElementById('chdDate').value:null,
-        contractValue:type==='standard'?document.getElementById('chdValue').value:null,
-        specialTerms:type==='standard'?document.getElementById('chdSpecial').value:null
+        customTitle:type==='custom'?byId('chdTitle').value:null,
+        customBody:type==='custom'?byId('chdBody').value:null,
+        includesAdSpend:type==='standard'?byId('chdAdSpend').checked:false,
+        effectiveDate:type==='standard'?byId('chdDate').value:null,
+        contractValue:type==='standard'?byId('chdValue').value:null,
+        specialTerms:type==='standard'?byId('chdSpecial').value:null
       });
       if(r&&r.ok){
         // تعديلات البنود تُحفَظ فور الإنشاء (دالة الإنشاء لا تحملها) — فلا تُفقد إطلاقًا
@@ -670,10 +670,10 @@ async function openNewContractPanel(){
           ||Object.keys(CHD_OVERRIDES.edited||{}).length;
         if(hasOv&&type==='standard'){
           try{ await updateContract(r.id,{
-            includesAdSpend:document.getElementById('chdAdSpend').checked,
-            effectiveDate:document.getElementById('chdDate').value,
-            contractValue:document.getElementById('chdValue').value,
-            specialTerms:document.getElementById('chdSpecial').value,
+            includesAdSpend:byId('chdAdSpend').checked,
+            effectiveDate:byId('chdDate').value,
+            contractValue:byId('chdValue').value,
+            specialTerms:byId('chdSpecial').value,
             templateKey:CHD_TEMPLATE, clauseOverrides:CHD_OVERRIDES}); }catch(e){}
         }
         toast('أُنشئ العقد في المحفظة — اربطه بمشروع لاحقًا عند الحاجة','ok');panel.innerHTML='';
@@ -1176,15 +1176,15 @@ export function contractInstancesHTML(insts,clients){
 /** جلبُ النسخ وربطُ أزرارها — الأثر وحده، والترميز في بانيه. */
 function bindInstancesSection(contractId){
   (async()=>{
-    const box=document.getElementById('chdInstances');
+    const box=byId('chdInstances');
     if(!box)return;
     let insts=[];
     try{ insts=await fetchContractInstances(contractId); }catch(e){}
     const {data:allCl}=await sb.from('pmo_clients').select('id,name').order('name');
     box.innerHTML=contractInstancesHTML(insts,allCl);
     document.querySelectorAll('[data-openinst]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.openinst));
-    document.getElementById('chdAssignGo').onclick=async()=>{
-      const cid=document.getElementById('chdAssignClient').value;
+    byId('chdAssignGo').onclick=async()=>{
+      const cid=byId('chdAssignClient').value;
       if(!cid){toast('اختر الشريك','warn');return;}
       try{
         const r=await assignContractToClient(contractId,cid);
@@ -1193,8 +1193,8 @@ function bindInstancesSection(contractId){
         openContractDetailPanel(r.id);
       }catch(e){toast(e.message,'err');}
     };
-    const topBtn=document.getElementById('chdAssign');
-    if(topBtn)topBtn.onclick=()=>{const sel=document.getElementById('chdAssignClient');if(sel&&sel.scrollIntoView)sel.scrollIntoView({behavior:'smooth',block:'center'});};
+    const topBtn=byId('chdAssign');
+    if(topBtn)topBtn.onclick=()=>{const sel=byId('chdAssignClient');if(sel&&sel.scrollIntoView)sel.scrollIntoView({behavior:'smooth',block:'center'});};
   })();
 }
 
@@ -1246,7 +1246,7 @@ function bindContractPanel(ctx){
 
 /** ما يعرض ويقرأ: القائمة · فحص البريد · مسار الرسالة · الشهادة · النسخ · التصدير. */
 function bindPanelViews({c,contractId,panel,STAGE,client,editable,canApprove,isCustom}){
-  {const mb=document.getElementById('chdMore'),mm=document.getElementById('chdMoreMenu');
+  {const mb=byId('chdMore'),mm=byId('chdMoreMenu');
    if(mb&&mm){
      if(!STAGE.secondary.length)mb.style.display='none';
      const close=()=>{mm.hidden=true;mb.setAttribute('aria-expanded','false');};
@@ -1254,9 +1254,9 @@ function bindPanelViews({c,contractId,panel,STAGE,client,editable,canApprove,isC
      document.addEventListener('click',close);
      mm.querySelectorAll('.chub-more-item').forEach(b=>b.addEventListener('click',close));
    }}
-  {const mc=document.getElementById('chdMailCheck');
+  {const mc=byId('chdMailCheck');
    if(mc)mc.onclick=async()=>{
-     const box=document.getElementById('chdMailStatus');
+     const box=byId('chdMailStatus');
      box.innerHTML='<p class="sa-hint mt-6">جارٍ الفحص...</p>';
      try{
        const r=await checkEmailReady();
@@ -1268,7 +1268,7 @@ function bindPanelViews({c,contractId,panel,STAGE,client,editable,canApprove,isC
    };}
   // ===== مسار الرسالة: أُرسلت ← وصلت ← فُتحت ← نُقر ← وُقِّع =====
   (async()=>{
-    const box=document.getElementById('chdFunnel');
+    const box=byId('chdFunnel');
     if(!box)return;
     let f={};
     try{ f=await fetchContractFunnel(contractId); }
@@ -1281,7 +1281,7 @@ function bindPanelViews({c,contractId,panel,STAGE,client,editable,canApprove,isC
     const fmt=d=>d?new Date(d).toLocaleString('ar',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):null;
     const {steps,lastDone}=contractFunnelSteps(f);
     // حالة صلاحية الرابط — تظهر للمستخدم بدل أن يكتشفها من شكوى الشريك
-    const ls=document.getElementById('chdLinkState');
+    const ls=byId('chdLinkState');
     if(ls&&f.sent_at&&!f.signed_at){
       const v=contractLinkValidity(c,f.sent_at);
       ls.innerHTML=v.daysLeft>0
@@ -1290,7 +1290,7 @@ function bindPanelViews({c,contractId,panel,STAGE,client,editable,canApprove,isC
     }
     box.innerHTML=contractFunnelHTML(f,steps,lastDone,fmt);
   })();
-  {const ct=document.getElementById('chdCert');
+  {const ct=byId('chdCert');
    if(ct)ct.onclick=async()=>{
      let cert;
      try{ cert=await fetchSignatureCertificate(contractId); }catch(e){toast(e.message,'err');return;}
@@ -1302,7 +1302,7 @@ function bindPanelViews({c,contractId,panel,STAGE,client,editable,canApprove,isC
            +'<div>· التواقيع وأدلتها كاملة</div><div>· سجل الإجراءات</div></div>',
        confirmText:'متابعة'});
      if(!okc)return;
-     document.getElementById('contractPrint').innerHTML=signatureCertificateHTML(cert);
+     byId('contractPrint').innerHTML=signatureCertificateHTML(cert);
      runPrintSafely();
    };}
   // الأصل: عرض نسخه الحالية + إتاحة إسناده لشريك جديد (نسخة مستقلة)
@@ -1310,7 +1310,7 @@ function bindPanelViews({c,contractId,panel,STAGE,client,editable,canApprove,isC
     try{await navigator.clipboard.writeText(b.dataset.chdcopy);toast('نُسخ الرابط','ok');}
     catch(e){toast('انسخ الرابط يدويًا','warn');}
   });
-  {const exportBtn=document.getElementById('chdExport');
+  {const exportBtn=byId('chdExport');
    if(exportBtn)exportBtn.onclick=async()=>{
      // حوار تمهيدي: يوضّح ما سيُنتَج ويشرح الخطوة التالية قبل ظهور حوار المتصفح فجأة
      let atts=[];try{atts=await fetchContractAttachments(contractId);}catch(e){}
@@ -1336,15 +1336,15 @@ function bindPanelViews({c,contractId,panel,STAGE,client,editable,canApprove,isC
  * تكرار · اعتماد · حفظ وإلغاء. كل مسارٍ هنا يترك أثرًا في سجل التدقيق.
  */
 function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,isCustom}){
-  {const sendBtn=document.getElementById('chdSendBtn');
+  {const sendBtn=byId('chdSendBtn');
    if(sendBtn)sendBtn.onclick=async()=>{
-     const to=document.getElementById('chdSendTo').value.trim();
+     const to=byId('chdSendTo').value.trim();
      if(!isSendableEmail(to)){toast('أدخل بريدًا صحيحًا','warn');return;}
      sendBtn.disabled=true;const old=sendBtn.textContent;sendBtn.textContent='جارٍ الإرسال...';
      try{
        await sendContractEmail(c,to,c.send_count>0?'reminder':'invite');
        // حفظ البريد في ملف الشريك مرة واحدة — لا يُعاد إدخاله في أي عقد لاحق
-       const saveBox=document.getElementById('chdSaveEmail');
+       const saveBox=byId('chdSaveEmail');
        if(saveBox&&saveBox.checked&&c.client_id){
          try{ await saveClientEmail(c.client_id,to); }catch(e){}
        }
@@ -1353,7 +1353,7 @@ function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,i
      }catch(e){toast(e.message,'err');sendBtn.disabled=false;sendBtn.textContent=old;}
    };}
 
-  {const am=document.getElementById('chdAmend');
+  {const am=byId('chdAmend');
    if(am)am.onclick=async()=>{
      const r=await dialog({title:'ملحق تعديل',
        message:'يُنشأ ملحق مرقَّم مرتبط بهذا العقد، ينسخ بنوده ومرفقاته للتعديل — والعقد الأصلي يبقى ساريًا كما وُقِّع.',
@@ -1366,32 +1366,32 @@ function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,i
        await reloadContracts();renderContractsHubBody();openContractDetailPanel(d.id);
      }catch(e){toast(e.message,'err');}
    };}
-  {const ar=document.getElementById('chdArchive');
+  {const ar=byId('chdArchive');
    if(ar)ar.onclick=async()=>{
      if(!await confirmDialog('أرشفة العقد','يختفي من القائمة الرئيسية ويبقى قابلًا للاسترجاع.',false,'أرشفة'))return;
      try{ await archiveContract(contractId,false);toast('أُرشف العقد','ok');
        await reloadContracts();renderContractsHubBody();panel.innerHTML='';
      }catch(e){toast(e.message,'err');}
    };}
-  {const ua=document.getElementById('chdUnarchive');
+  {const ua=byId('chdUnarchive');
    if(ua)ua.onclick=async()=>{
      try{ await archiveContract(contractId,true);toast('استُرجع العقد','ok');
        await reloadContracts();renderContractsHubBody();openContractDetailPanel(contractId,true);
      }catch(e){toast(e.message,'err');}
    };}
-  {const sb2=document.getElementById('chdSignNow');
+  {const sb2=byId('chdSignNow');
    if(sb2)sb2.onclick=()=>{
-     const area=document.getElementById('chdSignArea');
+     const area=byId('chdSignArea');
      area.innerHTML=staffSignAreaHTML(c.contract_name);
-     const pad=mountSignaturePad(document.getElementById('chdSignPad'));
+     const pad=mountSignaturePad(byId('chdSignPad'));
      if(area.scrollIntoView)area.scrollIntoView({behavior:'smooth',block:'center'});
-     document.getElementById('chdSignCancel').onclick=()=>{area.innerHTML='';};
-     document.getElementById('chdSignConfirm').onclick=async()=>{
-       const name=document.getElementById('chdSignName').value.trim();
+     byId('chdSignCancel').onclick=()=>{area.innerHTML='';};
+     byId('chdSignConfirm').onclick=async()=>{
+       const name=byId('chdSignName').value.trim();
        if(!name){toast('أدخل اسم الموقِّع','warn');return;}
        const sig=pad.getData();
        if(!sig.ok){toast('ارسم توقيعك أو اكتب اسمك في لوحة التوقيع','warn');return;}
-       const btn=document.getElementById('chdSignConfirm');btn.disabled=true;
+       const btn=byId('chdSignConfirm');btn.disabled=true;
        try{
          const r=await signContractAsStaff(contractId,name,sig.data||('نصي: '+sig.typed));
          if(r&&r.ok){
@@ -1403,7 +1403,7 @@ function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,i
    };}
   if(!c.client_id&&!c.source_contract_id) bindInstancesSection(contractId);
   if(c.project_id){
-    document.getElementById('chdUnlink').onclick=async()=>{
+    byId('chdUnlink').onclick=async()=>{
       if(!await confirmDialog('فك الارتباط','سيبقى العقد موجودًا في محفظة العقود، لكنه لن يظهر بعد الآن كمرتبط بهذا المشروع.',false,'فك الارتباط'))return;
       try{
         const r=await unlinkContractFromProject(contractId);
@@ -1412,7 +1412,7 @@ function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,i
       }catch(e){toast('تعذّر فك الارتباط: '+e.message,'err');}
     };
   }
-  document.getElementById('chdDuplicate').onclick=async()=>{
+  byId('chdDuplicate').onclick=async()=>{
     const r=await dialog({title:'تكرار العقد',
       message:'ستُنشأ نسخة جديدة مستقلة بكل بيانات هذا العقد ومرفقاته، بلا شريك ولا مشروع — قابلة للتعديل والإسناد كأصل جديد.',
       fields:[{key:'name',label:'اسم النسخة الجديدة',value:(c.contract_name||'')+' (نسخة)'}],confirmText:'تكرار'});
@@ -1424,7 +1424,7 @@ function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,i
     }catch(e){toast(e.message,'err');}
   };
   if(canApprove){
-    document.getElementById('chdApprove').onclick=async()=>{
+    byId('chdApprove').onclick=async()=>{
       if(!await confirmDialog('اعتماد داخلي','بعد الاعتماد، يصبح هذا العقد قابلًا للإرسال والتوقيع من الطرفين. متابعة؟',false,'اعتماد'))return;
       await approveEscalation({
         approve:(reason,ack)=>approveContractInternal(contractId,reason,ack),
@@ -1441,12 +1441,12 @@ function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,i
     };
   }
   if(editable){
-    document.getElementById('chdSave').onclick=async()=>{
-      const btn=document.getElementById('chdSave');btn.disabled=true;
-      const nameNum={contractName:document.getElementById('chdName').value,contractNumber:document.getElementById('chdNumber').value};
+    byId('chdSave').onclick=async()=>{
+      const btn=byId('chdSave');btn.disabled=true;
+      const nameNum={contractName:byId('chdName').value,contractNumber:byId('chdNumber').value};
       try{
         if(isCustom){
-          await updateContract(contractId,Object.assign({customTitle:document.getElementById('chdTitle').value,customBody:document.getElementById('chdBody').value},nameNum));
+          await updateContract(contractId,Object.assign({customTitle:byId('chdTitle').value,customBody:byId('chdBody').value},nameNum));
         }else{
           await updateContract(contractId,Object.assign(chubReadStandardFields('chd',client),nameNum));
         }
@@ -1459,7 +1459,7 @@ function bindPanelActions({c,contractId,panel,STAGE,client,editable,canApprove,i
         openContractDetailPanel(contractId,true);
       }catch(e){toast(e.message,'err');btn.disabled=false;}
     };
-    document.getElementById('chdVoid').onclick=async()=>{
+    byId('chdVoid').onclick=async()=>{
       if(!await confirmDialog('إلغاء العقد','سيصبح هذا العقد ملغى ولا يمكن توقيعه بعد الآن.',true,'إلغاء العقد'))return;
       try{
         const r=await voidContract(contractId);

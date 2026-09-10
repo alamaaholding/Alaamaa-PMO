@@ -12,7 +12,7 @@
 import { hasAction, runAction } from './actions.js';
 import { ROLES_CACHE, addClientRequest, addComment, compute, decideCR, deleteClientRequest, deleteComment, dissolvePackage, fetchBaselineDiff, fetchCRs, fetchTracks, insertCR, loadAudit, loadClientRequests, loadComments, loadProject, markCRExecuted, moveTask, openImporter, openTimeline, refreshProjectCounts, resolveComment, saveNewBaseline, updateClientRequest, updateTaskFields, updateTrack } from './api.js';
 import { confirmDialog, dialog } from './app/dialogs.js';
-import { $, $$, AUDIT_ACTIONS, AUDIT_ENTITIES, I, PERMS, STATUS, TYPES, VIEW_ICONS, VIEW_TONE, auditTone, can, openCRs, preserveFocus, projTrackList, structuralUnlocked, trackMeta } from './config.js';
+import { $, $$, AUDIT_ACTIONS, AUDIT_ENTITIES, auditTone, byId, can, I, openCRs, PERMS, preserveFocus, projTrackList, STATUS, structuralUnlocked, trackMeta, TYPES, VIEW_ICONS, VIEW_TONE } from './config.js';
 import { emptyState } from './emptystate.js';
 import { D, isHoliday, isWorkday, isoLocal, wdBetween } from './engine.js';
 import { esc, fmt, fmtY } from './format.js';
@@ -131,15 +131,15 @@ function renderNow(){
   else if(getState('VIEW')==='cr'){host.innerHTML='<div class="hintbar exp-cr">📐 <b>طلبات تعديل الخطة:</b> تغييرات رسمية على بنود الخطة (مدد، تبعيات، إضافة/حذف). يقدّمها الشريك أو الفريق، ويعتمدها مكتب إدارة المشاريع — وتُطبَّق على الجدول بعد الموافقة.</div>'+vCR();bindCR();}
   else if(getState('VIEW')==='discuss'){
     host.innerHTML='<div id="discussWrap">'+skeleton('list',2)+'</div>';
-    loadComments(getState('PROJECT')._dbId).then(rows=>{const el=document.getElementById('discussWrap');if(el){el.innerHTML=vDiscuss(rows);bindDiscuss();}});
+    loadComments(getState('PROJECT')._dbId).then(rows=>{const el=byId('discussWrap');if(el){el.innerHTML=vDiscuss(rows);bindDiscuss();}});
   }
   else if(getState('VIEW')==='requests'){
     host.innerHTML='<div id="reqWrap">'+skeleton('list',2)+'</div>';
-    loadClientRequests(getState('PROJECT')._dbId).then(rows=>{const el=document.getElementById('reqWrap');if(el){el.innerHTML=vRequests(rows);bindRequests();}});
+    loadClientRequests(getState('PROJECT')._dbId).then(rows=>{const el=byId('reqWrap');if(el){el.innerHTML=vRequests(rows);bindRequests();}});
   }
   else if(getState('VIEW')==='audit'){
     host.innerHTML='<div class="hintbar">📋 <b>سجل المشروع:</b> آخر 60 تغييرًا على <b>هذا المشروع فقط</b> (الحالة، التقدّم، المدة، طلبات تعديل الخطة). للسجل الشامل لكل المشاريع والشركاء: «سجل المكتب» من شريط المحفظة.</div><div id="auditList">'+skeleton('panel',3)+'</div>';
-    loadAudit(getState('PROJECT')._dbId).then(rows=>{const el=document.getElementById('auditList');if(el)el.innerHTML=vAudit(rows);});
+    loadAudit(getState('PROJECT')._dbId).then(rows=>{const el=byId('auditList');if(el)el.innerHTML=vAudit(rows);});
   }
 }
 
@@ -245,10 +245,10 @@ function bindProjFilterBar(){
     const k=b.dataset.tfStatus; getState('TFILTER').statuses.has(k)?getState('TFILTER').statuses.delete(k):getState('TFILTER').statuses.add(k); writeHash(); render();});
   document.querySelectorAll('[data-tf-smart]').forEach(b=>b.onclick=()=>{
     const k=b.dataset.tfSmart; getState('TFILTER').smart.has(k)?getState('TFILTER').smart.delete(k):getState('TFILTER').smart.add(k); writeHash(); render();});
-  const tfs=document.getElementById('tfSearch');
+  const tfs=byId('tfSearch');
   if(tfs){tfs.oninput=()=>{getState('TFILTER').q=tfs.value;clearTimeout(tfs._t);tfs._t=setTimeout(()=>{writeHash();render();},300);};
     if(getState('TFILTER').q){setTimeout(()=>{tfs.focus();tfs.setSelectionRange(tfs.value.length,tfs.value.length);},0);}}
-  const tfc=document.getElementById('tfClear');
+  const tfc=byId('tfClear');
   if(tfc)tfc.onclick=()=>{setState('TFILTER', {phases:new Set(),statuses:new Set(),smart:new Set(),q:''});writeHash();render();};
   document.querySelectorAll('[data-pkgtoggle]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();
     const id=b.dataset.pkgtoggle;PKG_COLLAPSED.has(id)?PKG_COLLAPSED.delete(id):PKG_COLLAPSED.add(id);render();});
@@ -662,8 +662,8 @@ function baselineDeviation(BL){
 // ===== أسهم التبعيات (SVG كوعية بأسهم — معيار MS Project) =====
 let GLINKS_ON=true;try{GLINKS_ON=(localStorage.getItem('pmo_glinks')!=='0');}catch(_e){}
 function drawGanttLinks(){
-  const canvas=document.getElementById('gcanvas');if(!canvas)return;
-  const old=document.getElementById('glinks');if(old)old.remove();
+  const canvas=byId('gcanvas');if(!canvas)return;
+  const old=byId('glinks');if(old)old.remove();
   if(!GLINKS_ON)return;
   const bars={};const rowOrder={};let _ri=0;
   canvas.querySelectorAll('[data-gid]').forEach(b=>{bars[b.dataset.gid]=b;if(!(b.dataset.gid in rowOrder))rowOrder[b.dataset.gid]=_ri++;});
@@ -821,18 +821,18 @@ function vDiscuss(rows){
 }
 function bindDiscuss(){
   document.querySelectorAll('[data-gotask]').forEach(b=>b.onclick=()=>runAction('gotoTask', b.dataset.gotask));
-  const send=document.getElementById('dcSend');
+  const send=byId('dcSend');
   if(send)send.onclick=async()=>{
-    const body=document.getElementById('dcBody').value.trim();if(!body){toast('اكتب رسالة','warn');return;}
-    try{ await addComment(getState('PROJECT')._dbId, document.getElementById('dcKind').value, body, null); toast('أُرسلت','ok'); await refreshProjectCounts(); render(); }
+    const body=byId('dcBody').value.trim();if(!body){toast('اكتب رسالة','warn');return;}
+    try{ await addComment(getState('PROJECT')._dbId, byId('dcKind').value, body, null); toast('أُرسلت','ok'); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر الإرسال: '+e.message,'err'); }
   };
   document.querySelectorAll('[data-reply]').forEach(b=>b.onclick=()=>{
-    const box=document.getElementById('replyBox-'+b.dataset.reply);
+    const box=byId('replyBox-'+b.dataset.reply);
     if(box.innerHTML){box.innerHTML='';return;}
     box.innerHTML=`<div style="display:flex;gap:6px;margin-top:8px"><input id="rin-${b.dataset.reply}" placeholder="ردك..." style="flex:1;border:1.5px solid var(--line);border-radius:7px;padding:7px;font-family:inherit;font-size:.82rem"><button class="reqbtn gold" data-sendreply="${b.dataset.reply}">رد</button></div>`;
     box.querySelector('[data-sendreply]').onclick=async()=>{
-      const v=document.getElementById('rin-'+b.dataset.reply).value.trim();if(!v){return;}
+      const v=byId('rin-'+b.dataset.reply).value.trim();if(!v){return;}
       try{ await addComment(getState('PROJECT')._dbId,'comment',v,b.dataset.reply); toast('أُرسل الرد','ok'); await refreshProjectCounts(); render(); }
       catch(e){ toast('تعذّر: '+e.message,'err'); }
     };
@@ -912,13 +912,13 @@ function vRequests(rows){
   return explainer+composer+'<div class="crlist">'+cards+'</div>';
 }
 function bindRequests(){
-  const send=document.getElementById('rqSend');
+  const send=byId('rqSend');
   if(send)send.onclick=async()=>{
-    const title=document.getElementById('rqTitle').value.trim();
+    const title=byId('rqTitle').value.trim();
     if(!title){toast('اكتب عنوان الطلب','warn');return;}
-    const body=document.getElementById('rqBody').value.trim();
-    const dept=document.getElementById('rqDept').value;
-    const prio=document.getElementById('rqPrio').value;
+    const body=byId('rqBody').value.trim();
+    const dept=byId('rqDept').value;
+    const prio=byId('rqPrio').value;
     try{ await addClientRequest(getState('PROJECT')._dbId,title,body,dept,prio); toast('أُرسل الطلب','ok'); await refreshProjectCounts(); render(); }
     catch(e){ toast('تعذّر الإرسال: '+e.message,'err'); }
   };

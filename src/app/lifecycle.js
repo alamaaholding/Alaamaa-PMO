@@ -8,7 +8,7 @@
 import { registerAction } from '../actions.js';
 import { addHolidayRow, addTrack, checkIsOwner, delHolidayRow, deleteTrack, fetchArchivedProjects, fetchClientsByState, fetchHolidays, fetchLatestSnapshot, fetchProjectSlug, fetchProjectStaff, fetchTeamMembers, fetchTracks, insertClient, insertProjectForClient, loadClients, loadProject, openTrello, renameProject, reorderTracks, restorePlanSnapshot, rpcArchiveClient, rpcArchiveProject, rpcPauseProject, rpcPurgeClient, rpcPurgeProject, rpcRequestDeletion, rpcRequestProjectDeletion, rpcRestoreClient, rpcRestoreProject, rpcResumeProject, saveNewBaseline, savePlanSnapshot, saveProjectStaff, updateClientInfo, updateProjectSlug, updateTrack } from '../api.js';
 import { hideChrome } from '../chrome.js';
-import { $, $$, I, projTrackList, sb } from '../config.js';
+import { $, $$, byId, I, projTrackList, sb } from '../config.js';
 import { esc, todayISO } from '../format.js';
 import { registerScreen, showScreen } from '../screens.js';
 import { skeleton } from '../skeleton.js';
@@ -95,10 +95,10 @@ function projectMenuGroups(projectId,freshTrelloSync,freshLifecycleState){
   ];
 }
 export async function openProjectMenu(projectId, projectName){
-  document.getElementById('taskOverlay').style.display='flex';
-  document.getElementById('tkTitle').textContent='إجراءات المشروع: '+(projectName||'');
-  document.getElementById('tkTabs').innerHTML='';
-  document.getElementById('tkBody').innerHTML=skeleton('cards',1);
+  byId('taskOverlay').style.display='flex';
+  byId('tkTitle').textContent='إجراءات المشروع: '+(projectName||'');
+  byId('tkTabs').innerHTML='';
+  byId('tkBody').innerHTML=skeleton('cards',1);
   // جلب مباشر وحصري من القاعدة — الحقيقة الوحيدة المعتمَدة لهذه القيمة تحديدًا، بلا أي
   // اعتماد على حالة محفوظة في ذاكرة المتصفح مهما كان مصدرها أو مدى حداثتها المفترضة.
   let freshTrelloSync=undefined,freshLifecycleState=undefined;
@@ -108,7 +108,7 @@ export async function openProjectMenu(projectId, projectName){
     freshLifecycleState=data?(data.lifecycle_state||'active'):'active';
   }catch(e){freshTrelloSync=null;freshLifecycleState='active';}
   const groups=projectMenuGroups(projectId,freshTrelloSync,freshLifecycleState);
-  document.getElementById('tkBody').innerHTML=groups.map(g=>`
+  byId('tkBody').innerHTML=groups.map(g=>`
     <div class="pmenu-group${g.danger?' pmenu-danger':''}">
       <h4>${esc(g.title)}</h4>
       <div class="pmenu-grid">
