@@ -31,6 +31,8 @@ let CH_CONTRACTS=[],CH_FILTER={status:'all',q:'',client:'',link:'',type:'',sort:
  * **مدخل تحميل** يمكن للاختبار أن ينادَيه بدل أن يكتب في رابطة داخلية.
  */
 export async function reloadContracts(){ CH_CONTRACTS=await fetchAllContracts(); return CH_CONTRACTS; }
+/** نسخةٌ من القائمة المعروضة الآن — قراءةٌ فقط، لا تُسرِّب المرجع الداخليّ. */
+export function loadedContracts(){ return CH_CONTRACTS.slice(); }
 const CH_STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع الشريك',signed:'موقَّع بالكامل ✅',void:'ملغى'};
 
 async function renderContractsHub(){
@@ -324,32 +326,168 @@ function chubRenderClauseEditor(boxId,onChange){
 }
 
 // ===== لوحة تفصيلية موحّدة: تعرض/تعدّل عقدًا قائمًا (قياسيًا أو مخصَّصًا) =====
+/**
+ * إعادةُ جلبِ القائمة وانتزاعُ عقدٍ منها — الشكلُ الذي كان مكتوبًا مرّتين.
+ *
+ * و**غيابُ العقد من القائمة المُعادة يُبقي القديمة كما هي**: لا تُستبدَل
+ * `CH_CONTRACTS` بقائمةٍ لا تحوي ما نعرضه الآن، ولا يُستبدَل العقد بلا شيء.
+ * فجلبٌ ناقصٌ (سباقٌ، أو صلاحيةٌ تغيّرت أثناء الفتح) يترك اللوحة قائمةً على
+ * ما بين يديها بدل أن يُفرغها.
+ *
+ * و`fetchList` مِحقنٌ للاختبار وحده — الإنتاج لا يمرّره.
+ */
+export async function reloadOne(contractId,fetchList){
+  const fresh=await (fetchList||fetchAllContracts)();
+  const found=(fresh||[]).find(x=>x.id===contractId);
+  if(found){CH_CONTRACTS=fresh;return found;}
+  return null;
+}
+
+/**
+ * إنعاشُ العقد قبل عرضه — خطوتان، كلتاهما **صامتةٌ عند الفشل** عن قصد.
+ *
+ * ١. **الختم:** عقدٌ بلا نصٍّ مختوم يُختَم الآن. وهذا يشمل ما أُنشئ قبل إضافة
+ *    الختم — فلا يبقى عقدٌ معتمَدٌ غير قابلٍ للتوقيع، لأن التوقيع صار يشترط
+ *    نصًّا مختومًا.
+ * ٢. **بيانات الطرفين:** تُنعَش من الملفات الحيّة، فأيّ تعديلٍ على ملف علامة أو
+ *    ملف الشريك ينعكس فورًا.
+ *
+ * **والموقَّع مجمَّدٌ لا يُمسّ**، وكذلك الملغى. وهذا هو الضابط: الخطوتان
+ * مشروطتان بأن العقد غير ملغى، والثانية بألّا يكون عليه توقيعٌ **قبل** الختم —
+ * لا بعده. ولو قُرئ التوقيع بعد الجلب الأوّل لتغيّر المعنى في عقدٍ وُقِّع
+ * بين الخطوتين.
+ */
+async function freshenContract(contractId,c){
+  const hadSig=(c.signatures||[]).length>0;
+  if(!c.sealed_body&&c.status!=='void'){
+    try{ await sealContract(c); c=(await reloadOne(contractId))||c; }catch(e){}
+  }
+  if(!hadSig&&c.status!=='void'){
+    try{
+      const r=await refreshContractParties(contractId);
+      if(r&&r.refreshed) c=(await reloadOne(contractId))||c;
+    }catch(e){}
+  }
+  return c;
+}
+
+/** سجلُّ التدقيق — جلبٌ وعرض، والترميز في بانيه. */
+function bindAuditSection(contractId){
+  (async()=>{
+    const box=document.getElementById('chdAudit');
+    if(!box)return;
+    let rows=[];
+    try{ rows=await fetchContractAudit(contractId); }
+    catch(e){ box.innerHTML='<p class="sa-hint">تعذّر تحميل السجل</p>'; return; }
+    if(!rows.length){ box.innerHTML='<p class="sa-hint">لا إجراءات مسجَّلة بعد.</p>'; return; }
+    const who=id=>{const m=cachedTeamMembers().find(x=>x.id===id);return m?(m.full_name||m.email):'—';};
+    box.innerHTML=contractAuditHTML(rows,who);
+  })();
+}
+
+/**
+ * المرفقات: عرضٌ وإضافةٌ ورفعٌ وحذف.
+ *
+ * وحذفُ المرفوع يحذف **الملفَّ من التخزين أيضًا** — وإلا تراكمت ملفاتٌ يتيمة
+ * لا يشير إليها سجلٌّ ولا يراها أحد، وتبقى مع ذلك قابلةً للوصول برابطها.
+ */
+function bindAttachments(contractId,c,editable){
+  const render=async()=>{
+    const box=document.getElementById('chdAttachments');
+    if(!box)return;
+    let atts=[];
+    try{ atts=await fetchContractAttachments(contractId); }
+    catch(e){ box.innerHTML='<p class="sa-hint">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
+    box.innerHTML=contractAttachmentsHTML(c,atts,editable);
+    if(!editable)return;
+    const el=id=>document.getElementById(id);
+    el('chdAttAdd').onclick=async()=>{
+      const label=el('chdAttLabel').value.trim(),url=el('chdAttUrl').value.trim();
+      if(!label){toast('أدخل اسم المستند','warn');return;}
+      try{ await addContractAttachment(contractId,label,url,'link',null); toast('أُضيف المرفق','ok'); await render(); }
+      catch(e){toast(e.message,'err');}
+    };
+    el('chdAttUpload').onclick=async()=>{
+      const label=el('chdAttLabel').value.trim(),fEl=el('chdAttFile');
+      const file=fEl.files&&fEl.files[0];
+      if(!file){toast('اختر ملفًا أولًا','warn');return;}
+      if(file.size>25*1024*1024){toast('الملف أكبر من 25 م.ب','warn');return;}
+      const btn=el('chdAttUpload');btn.disabled=true;const t0=btn.textContent;
+      btn.textContent='جارٍ الرفع...';
+      try{
+        const info=await uploadContractFile(contractId,file);
+        await addContractAttachment(contractId,label||file.name,null,'file',null,info);
+        toast('رُفع المرفق','ok');fEl.value='';el('chdAttLabel').value='';
+        await render();
+      }catch(e){toast(e.message,'err');}
+      btn.disabled=false;btn.textContent=t0;
+    };
+    document.querySelectorAll('[data-delatt]').forEach(b=>b.onclick=async()=>{
+      try{
+        await deleteContractAttachment(b.dataset.delatt);
+        // الملف المرفوع يُحذف من التخزين أيضًا فلا تتراكم ملفات يتيمة
+        if(b.dataset.delpath)await deleteContractFile(b.dataset.delpath);
+        toast('حُذف المرفق','ok'); await render();
+      }catch(e){toast(e.message,'err');}
+    });
+    document.querySelectorAll('[data-openfile]').forEach(b=>b.onclick=async()=>{
+      try{ window.open(await contractFileURL(b.dataset.openfile),'_blank','noopener'); }
+      catch(e){toast(e.message,'err');}
+    });
+  };
+  render();
+}
+
+/**
+ * **مصدرُ نصّ المعاينة: ثلاثةٌ لا واحد.**
+ *
+ *   مختومٌ **وموقَّع**  ⇦ النصُّ المختوم حرفيًّا، لا مُعادَ توليده
+ *   مخصَّص              ⇦ يُبنى من حقلَي العنوان والمتن
+ *   نموذجيّ             ⇦ يُدمَج من الحقول والبنود
+ *
+ * والأوّل هو الضابط، وله **الأسبقية على المخصَّص**: العقد الموقَّع يُعرَض كما
+ * وُقِّع، ولو تغيّر النموذج أو بيانات الطرفين بعده. وإعادةُ توليده هنا تُري
+ * المستخدمَ نصًّا **لم يوقّعه أحد** — وهو أخطر ما قد تعرضه هذه اللوحة.
+ *
+ * والشرطان **مجتمعان**: ختمٌ بلا توقيعٍ ما زال قابلًا للتعديل، فيُعاد توليده
+ * كي تظهر تعديلاتُ المستخدم وهو يكتب.
+ */
+export function previewSource(c,{anySigned,isCustom}){
+  if(c&&c.sealed_body&&anySigned)return 'sealed';
+  if(isCustom)return 'custom';
+  return 'merged';
+}
+
+async function renderContractPreview(c,{anySigned,isCustom,client}){
+  const pv=document.getElementById('chdPreview'),ig=document.getElementById('chdIntegrity');
+  const src=previewSource(c,{anySigned,isCustom});
+  if(src==='sealed'){
+    pv.innerHTML=(c.sealed_body.kind==='custom'?renderCustomContractHTML(c.sealed_body):renderMergedContractHTML(c.sealed_body));
+    ig.innerHTML='<div class="ctr-integrity ok">🔒 نص مختوم في '+new Date(c.sealed_at).toLocaleDateString('ar')+' — هذا ما وُقِّع عليه حرفيًا</div>';
+    return;
+  }
+  if(src==='custom'){
+    pv.innerHTML=renderCustomContractHTML(chubReadCustomFields('chd',client));
+    return;
+  }
+  const data=chubReadStandardFields('chd',client);
+  pv.innerHTML=renderMergedContractHTML(mergeContract(data));
+  if(c.document_hash){
+    try{
+      const nowHash=await computeContractHash(data);
+      ig.innerHTML=(nowHash===c.document_hash||nowHash===c.sealed_hash)
+        ?'<div class="ctr-integrity ok">✅ النص مطابق تمامًا لما وُقِّع عليه</div>'
+        :'<div class="ctr-integrity warn">⚠ النص يختلف عمّا كان وقت الإنشاء</div>';
+    }catch(e){}
+  }
+}
+
 export async function openContractDetailPanel(contractId,KEEP_TAB){
   let c=CH_CONTRACTS.find(x=>x.id===contractId);
   if(!c)return;
   // العقد غير الموقَّع: بيانات الطرفين تُنعَش من الملفات الحيّة قبل العرض، فأي تعديل على
   // ملف علامة أو ملف الشريك ينعكس فورًا. الموقَّع مجمَّد ولا يُمسّ إطلاقًا.
-  const _anySig=(c.signatures||[]).length>0;
-  // عقد بلا ختم: يُختَم الآن — يشمل العقود المُنشأة قبل إضافة الختم، فلا يبقى عقد
-  // معتمَد غير قابل للتوقيع (التوقيع صار يشترط وجود نص مختوم).
-  if(!c.sealed_body&&c.status!=='void'){
-    try{
-      await sealContract(c);
-      const fresh=await fetchAllContracts();
-      const found=(fresh||[]).find(x=>x.id===contractId);
-      if(found){CH_CONTRACTS=fresh;c=found;}
-    }catch(e){}
-  }
-  if(!_anySig&&c.status!=='void'){
-    try{
-      const r=await refreshContractParties(contractId);
-      if(r&&r.refreshed){
-        const fresh=await fetchAllContracts();
-        const found=(fresh||[]).find(x=>x.id===contractId);
-        if(found){CH_CONTRACTS=fresh;c=found;}
-      }
-    }catch(e){}
-  }
+  c=await freshenContract(contractId,c);
   const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
   const anySigned=!!(al||cl);
   const editable=!anySigned&&c.status!=='void';
@@ -381,90 +519,11 @@ export async function openContractDetailPanel(contractId,KEEP_TAB){
   {const ts=document.getElementById('chdTemplate');
    if(ts)ts.onchange=()=>{CHD_TEMPLATE=ts.value;CHD_OVERRIDES.excluded=[];renderClauses();refreshPreview();};}
 
-  // ===== سجل تدقيق العقد =====
-  (async()=>{
-    const box=document.getElementById('chdAudit');
-    if(!box)return;
-    let rows=[];
-    try{ rows=await fetchContractAudit(contractId); }
-    catch(e){ box.innerHTML='<p class="sa-hint">تعذّر تحميل السجل</p>'; return; }
-    if(!rows.length){ box.innerHTML='<p class="sa-hint">لا إجراءات مسجَّلة بعد.</p>'; return; }
-    const who=id=>{const m=cachedTeamMembers().find(x=>x.id===id);return m?(m.full_name||m.email):'—';};
-    box.innerHTML=contractAuditHTML(rows,who);
-  })();
+  bindAuditSection(contractId);
 
-  // ===== المرفقات =====
-  const renderAttachments=async()=>{
-    const box=document.getElementById('chdAttachments');
-    if(!box)return;
-    let atts=[];
-    try{ atts=await fetchContractAttachments(contractId); }
-    catch(e){ box.innerHTML='<p class="sa-hint">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
-    box.innerHTML=contractAttachmentsHTML(c,atts,editable);
-    if(editable){
-      document.getElementById('chdAttAdd').onclick=async()=>{
-        const label=document.getElementById('chdAttLabel').value.trim();
-        const url=document.getElementById('chdAttUrl').value.trim();
-        if(!label){toast('أدخل اسم المستند','warn');return;}
-        try{ await addContractAttachment(contractId,label,url,'link',null); toast('أُضيف المرفق','ok'); await renderAttachments(); }
-        catch(e){toast(e.message,'err');}
-      };
-      document.getElementById('chdAttUpload').onclick=async()=>{
-        const label=document.getElementById('chdAttLabel').value.trim();
-        const fEl=document.getElementById('chdAttFile');
-        const file=fEl.files&&fEl.files[0];
-        if(!file){toast('اختر ملفًا أولًا','warn');return;}
-        if(file.size>25*1024*1024){toast('الملف أكبر من 25 م.ب','warn');return;}
-        const btn=document.getElementById('chdAttUpload');btn.disabled=true;const t0=btn.textContent;
-        btn.textContent='جارٍ الرفع...';
-        try{
-          const info=await uploadContractFile(contractId,file);
-          await addContractAttachment(contractId,label||file.name,null,'file',null,info);
-          toast('رُفع المرفق','ok');fEl.value='';document.getElementById('chdAttLabel').value='';
-          await renderAttachments();
-        }catch(e){toast(e.message,'err');}
-        btn.disabled=false;btn.textContent=t0;
-      };
-      document.querySelectorAll('[data-delatt]').forEach(b=>b.onclick=async()=>{
-        try{
-          await deleteContractAttachment(b.dataset.delatt);
-          // الملف المرفوع يُحذف من التخزين أيضًا فلا تتراكم ملفات يتيمة
-          if(b.dataset.delpath)await deleteContractFile(b.dataset.delpath);
-          toast('حُذف المرفق','ok'); await renderAttachments();
-        }catch(e){toast(e.message,'err');}
-      });
-      document.querySelectorAll('[data-openfile]').forEach(b=>b.onclick=async()=>{
-        try{ window.open(await contractFileURL(b.dataset.openfile),'_blank','noopener'); }
-        catch(e){toast(e.message,'err');}
-      });
-    }
-  };
-  renderAttachments();
+  bindAttachments(contractId,c,editable);
 
-  const refreshPreview=async()=>{
-    // عقد مختوم وموقَّع: يُعرَض نصه المختوم حرفيًا لا المُعاد توليده
-    if(c.sealed_body&&anySigned){
-      document.getElementById('chdPreview').innerHTML=
-        (c.sealed_body.kind==='custom'?renderCustomContractHTML(c.sealed_body):renderMergedContractHTML(c.sealed_body));
-      document.getElementById('chdIntegrity').innerHTML=
-        '<div class="ctr-integrity ok">🔒 نص مختوم في '+new Date(c.sealed_at).toLocaleDateString('ar')+' — هذا ما وُقِّع عليه حرفيًا</div>';
-      return;
-    }
-    if(isCustom){
-      document.getElementById('chdPreview').innerHTML=renderCustomContractHTML(chubReadCustomFields('chd',client));
-      return;
-    }
-    const data=chubReadStandardFields('chd',client);
-    document.getElementById('chdPreview').innerHTML=renderMergedContractHTML(mergeContract(data));
-    if(c.document_hash){
-      try{
-        const nowHash=await computeContractHash(data);
-        document.getElementById('chdIntegrity').innerHTML=(nowHash===c.document_hash||nowHash===c.sealed_hash)
-          ?'<div class="ctr-integrity ok">✅ النص مطابق تمامًا لما وُقِّع عليه</div>'
-          :'<div class="ctr-integrity warn">⚠ النص يختلف عمّا كان وقت الإنشاء</div>';
-      }catch(e){}
-    }
-  };
+  const refreshPreview=()=>renderContractPreview(c,{anySigned,isCustom,client});
   await refreshPreview();
   renderClauses();
   const watchIds=isCustom?['chdTitle','chdBody']:['chdValue','chdDate','chdAdSpend','chdSpecial'];
