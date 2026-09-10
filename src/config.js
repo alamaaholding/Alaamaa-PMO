@@ -31,6 +31,10 @@ export const STATUS={notstarted:'لم تبدأ',inprogress:'جارية',blocked:
 export const TYPES={task:'مهمة',milestone:'معلم',fixed:'ثابت',cont:'مستمر',package:'حزمة عمل'};
 export const ROLE_NAMES={pmo:'مكتب إدارة المشاريع',delivery:'الفريق',client:'الشريك'};
 export const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
+// أختٌ ثالثة: بحثٌ بالمعرّف. كان يُكتب `document.getElementById(...)` في ٢٤٣
+// موضعًا — وهي بلا معنًى زائدٍ على `byId`، وتُكلّف تسعةَ عشرَ محرفًا في كل
+// موضع. ولا تُستبدَل بـ`$('#id')`: ذاك يُفسِّر مُحدِّدَ CSS، وهذه لا تُفسِّر.
+export const byId=id=>document.getElementById(id);
 // D انتقلت إلى engine.js، و fmt/fmtY/todayISO/slugify/uniqueSlug إلى format.js
 // (الموجة W2). كلها تصل إلى هنا عبر globalThis من حزمة ESM التي تسبق هذا الملف
 // في ترتيب البناء.

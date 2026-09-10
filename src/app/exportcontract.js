@@ -15,7 +15,7 @@ import { loadScript, fetchBaselineById } from '../api.js';
 import { toast } from '../toast.js';
 import { dialog } from './dialogs.js';
 import { renderCustomContractHTML, renderMergedContractHTML, mergeContract } from './contracttemplate.js';
-import { projTrackList, TYPES } from '../config.js';
+import { byId, projTrackList, TYPES } from '../config.js';
 import { fmt, esc } from '../format.js';
 import { getState } from './state.js';
 
@@ -161,7 +161,7 @@ export async function buildContractDoc(baselineId,contract,attachments){
   }
 
   const today=new Date().toLocaleDateString('ar',{year:'numeric',month:'long',day:'numeric'});
-  const doc=document.getElementById('contractPrint');
+  const doc=byId('contractPrint');
   doc.innerHTML=`
     <section class="cx-cover">
       <div class="cx-cover-brand">علامة <span>· أثر دائم</span></div>

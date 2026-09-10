@@ -31,7 +31,7 @@
 // globalThis صراحةً: أمسكها no-undef هنا أول مرة يصير دقيقًا على هذا الملف، وكان
 // وصولها ضمنيًا عبر النطاق المشترك من قبل.
 import { getState, setState } from './app/state.js';
-import { sb, $, SUPABASE_URL, hasCompanyScope, canSeeProject, taskTopAncestor } from './config.js';
+import { $, byId, canSeeProject, hasCompanyScope, sb, SUPABASE_URL, taskTopAncestor } from './config.js';
 import { setHolidays, scheduleTasks, computeTracking, isoLocal } from './engine.js';
 import { slugify, uniqueSlug } from './format.js';
 import { toast } from './toast.js';
@@ -494,11 +494,11 @@ export async function deleteDelivery(id){const {error}=await sb.from('pmo_delive
 // مغلّفات كسولة
 export async function openTimeline(hostId,projectId){
   try{await loadScript('timeline.js?v='+globalThis.BUILD_V);await window.timelineRender(hostId,projectId);}
-  catch(e){const h=document.getElementById(hostId);if(h)h.innerHTML='<p class="pempty">تعذّر تحميل خط التسليمات</p>';}
+  catch(e){const h=byId(hostId);if(h)h.innerHTML='<p class="pempty">تعذّر تحميل خط التسليمات</p>';}
 }
 export async function openTimelinePortfolio(hostId){
   try{await loadScript('timeline.js?v='+globalThis.BUILD_V);await window.timelinePortfolio(hostId);}
-  catch(e){const h=document.getElementById(hostId);if(h)h.innerHTML='<p class="pempty">تعذّر التحميل</p>';}
+  catch(e){const h=byId(hostId);if(h)h.innerHTML='<p class="pempty">تعذّر التحميل</p>';}
 }
 
 // ===== حفظ أساس جديد (v2, v3...) من الجدولة الحالية =====

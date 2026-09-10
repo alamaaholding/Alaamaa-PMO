@@ -18,7 +18,7 @@
 
 import { deleteJobRole, fetchAutomationSettings, fetchCapacityTree, fetchContractsNeedingReminder, fetchOrgProfile, fetchPortfolio, openDOL, openTrello, renderPortfolioGantt, runSecurityAudit, saveDepartment, saveJobRole, updateAutomationSettings, updateOrgProfile } from '../api.js';
 import { hideChrome } from '../chrome.js';
-import { $, I, PROJECT_STATUS_DEFS, aggregateClientRows, renderStatusBadge, worstProjectStatus } from '../config.js';
+import { $, aggregateClientRows, byId, I, PROJECT_STATUS_DEFS, renderStatusBadge, worstProjectStatus } from '../config.js';
 import { esc } from '../format.js';
 import { registerScreen, showScreen } from '../screens.js';
 import { skeleton } from '../skeleton.js';
@@ -29,10 +29,10 @@ import { addNewClient, newProjectDialog, openClientMenu, openHolidaysManager, op
 import { getState, savePFilters, setState } from './state.js';
 
 async function openSecurityAudit(){
-  document.getElementById('taskOverlay').style.display='flex';
-  document.getElementById('tkTitle').textContent='فحص أمني';
-  document.getElementById('tkTabs').innerHTML='';
-  const body=document.getElementById('tkBody');
+  byId('taskOverlay').style.display='flex';
+  byId('tkTitle').textContent='فحص أمني';
+  byId('tkTabs').innerHTML='';
+  const body=byId('tkBody');
   body.innerHTML=skeleton('cards',1);
   const render=(r)=>{
     body.innerHTML=`
@@ -57,8 +57,8 @@ async function openSecurityAudit(){
         <button class="reqbtn" id="secRecheck">إعادة الفحص</button>
         ${r.leaked_count?'<button class="hbtn ok" id="secFix">🔧 سحب الإتاحة المتسرّبة</button>':''}
       </div>`;
-    document.getElementById('secRecheck').onclick=openSecurityAudit;
-    const fx=document.getElementById('secFix');
+    byId('secRecheck').onclick=openSecurityAudit;
+    const fx=byId('secFix');
     if(fx)fx.onclick=async()=>{
       fx.disabled=true;
       try{ const r2=await runSecurityAudit(true); toast('سُحبت الإتاحة عن '+r2.fixed+' دالة','ok'); render(r2); }
@@ -74,10 +74,10 @@ async function openSecurityAudit(){
 // الطاقة تُشتق من: عدد شاغلي المسمّى × البنود المتزامنة التي يحتملها الفرد. فيصبح ممكنًا
 // القول «مصمم الجرافيك فوق طاقته، يلزم مورد ثانٍ» بدل «فلان مشغول».
 async function openCapacityPanel(){
-  document.getElementById('taskOverlay').style.display='flex';
-  document.getElementById('tkTitle').textContent='الأقسام والمسمّيات الوظيفية';
-  document.getElementById('tkTabs').innerHTML='';
-  const body=document.getElementById('tkBody');
+  byId('taskOverlay').style.display='flex';
+  byId('tkTitle').textContent='الأقسام والمسمّيات الوظيفية';
+  byId('tkTabs').innerHTML='';
+  const body=byId('tkBody');
   body.innerHTML=skeleton('cards',1);
   let tree=[];
   try{ tree=await fetchCapacityTree(); }
@@ -143,8 +143,8 @@ async function openCapacityPanel(){
     try{ await saveJobRole(null,b.dataset.addrole,nm,1,2);toast('أُضيف','ok');reload(); }
     catch(e){toast(e.message,'err');}
   });
-  document.getElementById('capAddDept').onclick=async()=>{
-    const nm=(document.getElementById('capNewDept').value||'').trim();
+  byId('capAddDept').onclick=async()=>{
+    const nm=(byId('capNewDept').value||'').trim();
     if(!nm){toast('أدخل اسم القسم','warn');return;}
     try{ await saveDepartment(null,nm);toast('أُضيف القسم','ok');reload(); }
     catch(e){toast(e.message,'err');}
@@ -152,15 +152,15 @@ async function openCapacityPanel(){
 }
 
 async function openAutomationPanel(){
-  document.getElementById('taskOverlay').style.display='flex';
-  document.getElementById('tkTitle').textContent='أتمتة العقود';
-  document.getElementById('tkTabs').innerHTML='';
-  document.getElementById('tkBody').innerHTML=skeleton('cards',1);
+  byId('taskOverlay').style.display='flex';
+  byId('tkTitle').textContent='أتمتة العقود';
+  byId('tkTabs').innerHTML='';
+  byId('tkBody').innerHTML=skeleton('cards',1);
   let st={};
   try{ st=await fetchAutomationSettings(); }catch(e){
-    document.getElementById('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>';return; }
+    byId('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>';return; }
 
-  document.getElementById('tkBody').innerHTML=`
+  byId('tkBody').innerHTML=`
     <div class="${st.auto_reminders_enabled?'ctr-integrity ok':'chub-tpl-banner'} mb-14">
       ${st.auto_reminders_enabled
         ?'⚡ <b>التذكير التلقائي مُفعَّل</b> — تُرسَل رسائل لشركائك تلقائيًا وفق الإعدادات أدناه.'
@@ -182,9 +182,9 @@ async function openAutomationPanel(){
     <button class="hbtn" id="autoSave" style="background:var(--gold);border-color:var(--gold);margin-top:12px">حفظ الإعدادات</button>`;
 
   const preview=async()=>{
-    const box=document.getElementById('autoPreview');
+    const box=byId('autoPreview');
     try{
-      const q=await fetchContractsNeedingReminder(Number(document.getElementById('autoDays').value)||3);
+      const q=await fetchContractsNeedingReminder(Number(byId('autoDays').value)||3);
       box.innerHTML=q.length
         ?`<div class="chub-expiry-banner"><b>سيشمل التذكير حاليًا ${q.length} عقدًا:</b>
            ${q.slice(0,5).map(x=>`<div class="sa-hint">· ${esc(x.contract_name||'')} — ${esc(x.client_name||'—')} (مضى ${x.days_since} يومًا)</div>`).join('')}</div>`
@@ -192,35 +192,35 @@ async function openAutomationPanel(){
     }catch(e){box.innerHTML='';}
   };
   preview();
-  document.getElementById('autoDays').onchange=preview;
+  byId('autoDays').onchange=preview;
 
-  document.getElementById('autoSave').onclick=async()=>{
-    const on=document.getElementById('autoRem').checked;
+  byId('autoSave').onclick=async()=>{
+    const on=byId('autoRem').checked;
     if(on&&!st.auto_reminders_enabled){
       if(!await confirmDialog('تفعيل الإرسال التلقائي',
         'ستُرسَل رسائل تذكير لشركائك تلقائيًا دون تدخل منك في كل مرة. متأكد؟',false,'تفعيل'))return;
     }
-    const btn=document.getElementById('autoSave');btn.disabled=true;
+    const btn=byId('autoSave');btn.disabled=true;
     try{
       await updateAutomationSettings({auto_reminders_enabled:on,
-        reminder_after_days:Number(document.getElementById('autoDays').value)||3,
-        max_reminders:Number(document.getElementById('autoMax').value)||2});
+        reminder_after_days:Number(byId('autoDays').value)||3,
+        max_reminders:Number(byId('autoMax').value)||2});
       toast('حُفظت إعدادات الأتمتة','ok');openAutomationPanel();
     }catch(e){toast(e.message,'err');btn.disabled=false;}
   };
 }
 
 async function openOrgProfile(){
-  document.getElementById('taskOverlay').style.display='flex';
-  document.getElementById('tkTitle').textContent='الملف التعاقدي لعلامة';
-  document.getElementById('tkTabs').innerHTML='';
-  document.getElementById('tkBody').innerHTML=skeleton('cards',1);
+  byId('taskOverlay').style.display='flex';
+  byId('tkTitle').textContent='الملف التعاقدي لعلامة';
+  byId('tkTabs').innerHTML='';
+  byId('tkBody').innerHTML=skeleton('cards',1);
   let o={};
   try{ o=await fetchOrgProfile(true); }catch(e){
-    document.getElementById('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>';return; }
+    byId('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>';return; }
   const miss=['cr_number','vat_number','national_address','rep_name','rep_title','contact_email','contact_phone']
     .filter(k=>!o[k]);
-  document.getElementById('tkBody').innerHTML=`
+  byId('tkBody').innerHTML=`
     <p class="sa-hint mb-14">بيانات علامة بصفتها <b>الطرف الأول</b> في كل عقد — تُستورَد تلقائيًا عند إنشاء أي عقد جديد، وتُجمَّد داخله كلقطة فلا يتأثر أي عقد موقَّع سابقًا بأي تعديل هنا لاحقًا.</p>
     ${miss.length?`<div class="ch-warn-badge">⚠ بيانات غير مكتملة (${miss.length} حقول) — ستظهر كـ«—» في جدول أطراف العقد</div>`:''}
     <div class="sa-form fx-wrap">
@@ -234,18 +234,18 @@ async function openOrgProfile(){
       <input id="orgPhone" placeholder="رقم الجوال" value="${esc(o.contact_phone||'')}" style="flex:1;min-width:140px" dir="ltr">
       <button class="hbtn gold" id="orgSave">حفظ الملف</button>
     </div>`;
-  document.getElementById('orgSave').onclick=async()=>{
-    const btn=document.getElementById('orgSave');btn.disabled=true;
+  byId('orgSave').onclick=async()=>{
+    const btn=byId('orgSave');btn.disabled=true;
     try{
       const r=await updateOrgProfile({
-        legal_name:document.getElementById('orgName').value,
-        cr_number:document.getElementById('orgCr').value,
-        vat_number:document.getElementById('orgVat').value,
-        national_address:document.getElementById('orgAddr').value,
-        rep_name:document.getElementById('orgRep').value,
-        rep_title:document.getElementById('orgTitle').value,
-        contact_email:document.getElementById('orgEmail').value,
-        contact_phone:document.getElementById('orgPhone').value});
+        legal_name:byId('orgName').value,
+        cr_number:byId('orgCr').value,
+        vat_number:byId('orgVat').value,
+        national_address:byId('orgAddr').value,
+        rep_name:byId('orgRep').value,
+        rep_title:byId('orgTitle').value,
+        contact_email:byId('orgEmail').value,
+        contact_phone:byId('orgPhone').value});
       const n=(r&&r.contracts_refreshed)||0;
       toast(n?`حُفظ الملف — وانعكس على ${n} عقد غير موقَّع`:'حُفظ الملف التعاقدي لعلامة','ok');
       openOrgProfile();
@@ -254,10 +254,10 @@ async function openOrgProfile(){
 }
 
 async function openStatusLegend(){
-  document.getElementById('taskOverlay').style.display='flex';
-  document.getElementById('tkTitle').textContent='دليل حالات المشاريع';
-  document.getElementById('tkTabs').innerHTML='';
-  document.getElementById('tkBody').innerHTML=`
+  byId('taskOverlay').style.display='flex';
+  byId('tkTitle').textContent='دليل حالات المشاريع';
+  byId('tkTabs').innerHTML='';
+  byId('tkBody').innerHTML=`
     <p class="sa-hint" style="margin-bottom:16px">كل مشروع أو شريك في المحفظة يحمل شارة حالة واحدة توضّح وضعه الحالي بلمحة — هذا شرح كل شارة:</p>
     ${PROJECT_STATUS_DEFS.map(s=>`
       <div class="legend-row">

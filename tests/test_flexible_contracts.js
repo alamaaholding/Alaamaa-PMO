@@ -125,8 +125,11 @@ const wait=setInterval(()=>{
       !hub.includes('name="chnScope"')&&hub.includes('scopeType:\'client\'')],
     ['رسالة صريحة توضّح أن الربط بمشروع يحدث لاحقًا من داخل ذلك المشروع تحديدًا',
       hub.includes('الربط بمشروع يحدث لاحقًا من داخل ذلك المشروع')],
+    // الدعوى: الشريك **اختياري** — يُقرأ حرفيًّا وفراغُه يمضي `null` لا يمنع.
+    // وكان التأكيد يسمّي هجاء النداء (`document.getElementById`) فسقط حين صار
+    // `byId`. فصار يُطابق ما يهمّ: المعرّف، وأن الفراغ يصير عدمًا.
     ['الشريك اختياري صراحة في نموذج الإنشاء — لا يمنع الإنشاء',
-      hub.includes('الشريك (اختياري')&&hub.includes("document.getElementById('chnClient').value||null")],
+      hub.includes('الشريك (اختياري')&&/\('chnClient'\)\.value\|\|null/.test(hub)],
     ['اسم العقد إلزامي ورقمه تلقائي — هوية مستقلة لكل عقد',
       hub.includes("id=\"chnName\"")&&hub.includes("id=\"chnNumber\"")&&hub.includes("toast('أدخل اسم العقد'")],
     ['مرحلة "بانتظار الاعتماد" لا تظهر أبدًا لعقد عليه توقيع (كانت تُنتج قفلًا تامًا)',

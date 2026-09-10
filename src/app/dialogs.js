@@ -7,10 +7,11 @@
 // opts.html: HTML جاهز يُدرَج بين الرسالة والحقول (للمحتوى المُنسَّق كجدول الفروق).
 // يُبنى داخليًا فقط ولا يقبل مدخلات مستخدم خامًا.
 import { esc } from '../format.js';
+import { byId } from '../config.js';
 
 export function dialog(opts){ // {title, message, html, fields:[{key,label,value,type,placeholder,options}], confirmText, danger}
   return new Promise(resolve=>{
-    const ov=document.getElementById('dlgOverlay');
+    const ov=byId('dlgOverlay');
     const fieldsHtml=(opts.fields||[]).map(f=>{
       if(f.type==='select'){
         return `<label class="dlg-l">${esc(f.label)}<select class="dlg-i" data-k="${f.key}">${f.options.map(o=>`<option value="${o.v}" ${o.v===f.value?'selected':''}>${esc(o.t)}</option>`).join('')}</select></label>`;
@@ -20,7 +21,7 @@ export function dialog(opts){ // {title, message, html, fields:[{key,label,value
       }
       return `<label class="dlg-l">${esc(f.label)}<input class="dlg-i" data-k="${f.key}" type="${f.type||'text'}" value="${esc(f.value||'')}" placeholder="${esc(f.placeholder||'')}"></label>`;
     }).join('');
-    document.getElementById('dlgBox').innerHTML=`
+    byId('dlgBox').innerHTML=`
       <div class="rqhd"><h3 id="dlgTitle">${esc(opts.title||'')}</h3><button id="dlgX" aria-label="إغلاق" class="rq-x">✕</button></div>
       <div style="padding:18px">
         ${opts.message?`<p style="font-size:.86rem;color:var(--muted);margin-bottom:14px;line-height:1.7;white-space:pre-line">${esc(opts.message)}</p>`:''}
@@ -31,11 +32,11 @@ export function dialog(opts){ // {title, message, html, fields:[{key,label,value
           <button class="hbtn" id="dlgCancel" style="background:#fff;color:var(--ink);border-color:var(--line);padding:9px 20px">إلغاء</button>
         </div>
       </div>`;
-    const box=document.getElementById('dlgBox');
+    const box=byId('dlgBox');
     box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');box.setAttribute('aria-labelledby','dlgTitle');
     ov.style.display='flex';
     const prevFocus=document.activeElement;
-    const first=document.querySelector('#dlgBox .dlg-i')||document.getElementById('dlgOk');if(first)setTimeout(()=>first.focus(),50);
+    const first=document.querySelector('#dlgBox .dlg-i')||byId('dlgOk');if(first)setTimeout(()=>first.focus(),50);
     const close=val=>{ov.style.display='none';document.removeEventListener('keydown',keyH,true);if(prevFocus&&prevFocus.focus)prevFocus.focus();resolve(val);};
     const collect=()=>{ if(!opts.fields||!opts.fields.length)return true; const o={}; document.querySelectorAll('#dlgBox .dlg-i').forEach(i=>o[i.dataset.k]=i.value.trim()); return o; };
     // لوحة المفاتيح: Escape يغلق، Tab محبوس داخل الحوار
@@ -50,9 +51,9 @@ export function dialog(opts){ // {title, message, html, fields:[{key,label,value
       }
     };
     document.addEventListener('keydown',keyH,true);
-    document.getElementById('dlgOk').onclick=()=>close(collect());
-    document.getElementById('dlgCancel').onclick=()=>close(null);
-    document.getElementById('dlgX').onclick=()=>close(null);
+    byId('dlgOk').onclick=()=>close(collect());
+    byId('dlgCancel').onclick=()=>close(null);
+    byId('dlgX').onclick=()=>close(null);
     ov.onclick=e=>{if(e.target.id==='dlgOverlay')close(null);};
     document.querySelectorAll('#dlgBox .dlg-i').forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter'&&i.tagName!=='TEXTAREA'){e.preventDefault();close(collect());}}));
   });

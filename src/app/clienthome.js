@@ -10,7 +10,7 @@
 
 import { cachedTeamMembers, ensureMembersCache, fetchAllStaffAccess, fetchPortfolio, grantStaffAccess, renderPortfolioGantt, revokeStaffAccess, updateClientProfile, updateClientSlug } from '../api.js';
 import { hideChrome } from '../chrome.js';
-import { $, $$, I, aggregateClientRows, computeProjectStatus, renderStatusBadge } from '../config.js';
+import { $, $$, aggregateClientRows, byId, computeProjectStatus, I, renderStatusBadge } from '../config.js';
 import { emptyState } from '../emptystate.js';
 import { esc } from '../format.js';
 import { registerScreen, showScreen } from '../screens.js';
@@ -163,10 +163,10 @@ function openClientSettings(stats,access){
   if(!stats){toast('لا تزال بيانات الشريك قيد التحميل — لحظة واحدة','warn');return;}
   const c=stats.c;
   const missingFields=['cr_number','vat_number','national_address_short','rep_name','rep_title','contact_email','contact_phone'].filter(k=>!c[k]);
-  document.getElementById('taskOverlay').style.display='flex';
-  document.getElementById('tkTitle').textContent='إعدادات الشريك: '+c.name;
-  document.getElementById('tkTabs').innerHTML='';
-  document.getElementById('tkBody').innerHTML=`
+  byId('taskOverlay').style.display='flex';
+  byId('tkTitle').textContent='إعدادات الشريك: '+c.name;
+  byId('tkTabs').innerHTML='';
+  byId('tkBody').innerHTML=`
     <div class="sa-section">
       <h4>الرابط الدائم <span class="sa-hint">رابط صفحة هذا الشريك — يمكنك تخصيصه ليكون واضحًا وسهل المشاركة بدل معرّف طويل</span></h4>
       <div class="sa-form">
@@ -191,9 +191,9 @@ function openClientSettings(stats,access){
       </div>
     </div>`;
 
-  document.getElementById('cpSlugSave').onclick=async()=>{
-    const btn=document.getElementById('cpSlugSave');btn.disabled=true;
-    const raw=document.getElementById('cpSlug').value.trim();
+  byId('cpSlugSave').onclick=async()=>{
+    const btn=byId('cpSlugSave');btn.disabled=true;
+    const raw=byId('cpSlug').value.trim();
     try{
       const clean=await updateClientSlug(stats.cid,raw);
       c.slug=clean;
@@ -201,19 +201,19 @@ function openClientSettings(stats,access){
       openClientSettings(stats,access);
     }catch(e){toast(e.message,'err');btn.disabled=false;}
   };
-  document.getElementById('cpSave').onclick=async()=>{
-    const btn=document.getElementById('cpSave');btn.disabled=true;
-    const vals={cr_number:document.getElementById('cpCr').value.trim(),vat_number:document.getElementById('cpVat').value.trim(),
-      national_address_short:document.getElementById('cpAddr').value.trim(),rep_name:document.getElementById('cpRepName').value.trim(),
-      rep_title:document.getElementById('cpRepTitle').value.trim(),
-      contact_email:document.getElementById('cpEmail').value.trim(),
-      contact_phone:document.getElementById('cpPhone').value.trim()};
+  byId('cpSave').onclick=async()=>{
+    const btn=byId('cpSave');btn.disabled=true;
+    const vals={cr_number:byId('cpCr').value.trim(),vat_number:byId('cpVat').value.trim(),
+      national_address_short:byId('cpAddr').value.trim(),rep_name:byId('cpRepName').value.trim(),
+      rep_title:byId('cpRepTitle').value.trim(),
+      contact_email:byId('cpEmail').value.trim(),
+      contact_phone:byId('cpPhone').value.trim()};
     try{
       await updateClientProfile(stats.cid,vals);
       Object.assign(c,vals);
       toast('حُفظ الملف التعاقدي','ok');
       openClientSettings(stats,access);
-      const setBtn=document.getElementById('chSettings');
+      const setBtn=byId('chSettings');
       const missing2=['cr_number','vat_number','national_address_short','rep_name','rep_title'].filter(k=>!c[k]);
       if(setBtn)setBtn.innerHTML='⚙ إعدادات الشريك'+(missing2.length?' <span class="ch-set-warn">'+missing2.length+'</span>':'');
     }catch(e){toast('تعذّر الحفظ: '+e.message,'err');btn.disabled=false;}

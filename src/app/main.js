@@ -8,7 +8,7 @@
 
 // ===== إغلاق موحّد للنوافذ: data-close بدل onclick سطري =====
 // سبب النشأة: أربع نوافذ كانت تغلق بـ
-//   onclick="document.getElementById('holOverlay').style.display='none'"
+//   onclick="byId('holOverlay').style.display='none'"
 // مكتوبًا في الترميز. وله ثمنان: تكرار المنطق نفسه في كل نافذة، و**فرض
 // script-src 'unsafe-inline'** على أي CSP مستقبلية — وهي الطبقة الدفاعية
 // الثانية الغائبة اليوم (AUDIT §د-١). معالج مفوَّض واحد يغطي كل نافذة حالية
@@ -21,7 +21,7 @@
 
 import { convertLead, fetchAuditLog, fetchPortfolio, loadClients, loadLeads, loadProject, openTimelinePortfolio, resolveClientLink, resolveProjectLink, rpcApproveContract } from '../api.js';
 import { hideChrome, showChrome } from '../chrome.js';
-import { $, $$, AUDIT_ACTIONS, AUDIT_ENTITIES, I, PERMS, ROLE_NAMES } from '../config.js';
+import { $, $$, AUDIT_ACTIONS, AUDIT_ENTITIES, byId, I, PERMS, ROLE_NAMES } from '../config.js';
 import { D } from '../engine.js';
 import { esc, fmt, fmtY } from '../format.js';
 import { bindNotificationCenter } from '../notifications.js';
@@ -41,7 +41,7 @@ import { getState, setState } from './state.js';
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-close]');
   if (!b) return;
-  const ov = document.getElementById(b.dataset.close);
+  const ov = byId(b.dataset.close);
   if (ov) ov.style.display = 'none';
 });
 
@@ -230,8 +230,8 @@ window.addEventListener('hashchange',async()=>{
 // إغلاق لوحة البند: زر، نقر على الخلفية، ومفتاح Esc
 (function bindTaskOverlayChrome(){
   const wire=()=>{
-    const ov=document.getElementById('taskOverlay');if(!ov)return;
-    const cl=document.getElementById('tkClose');if(cl)cl.onclick=closeTaskPanel;
+    const ov=byId('taskOverlay');if(!ov)return;
+    const cl=byId('tkClose');if(cl)cl.onclick=closeTaskPanel;
     ov.addEventListener('click',e=>{if(e.target===ov)closeTaskPanel();});
     document.addEventListener('keydown',e=>{
       if(e.key==='Escape'&&ov.style.display==='flex')closeTaskPanel();});
