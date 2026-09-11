@@ -93,11 +93,17 @@ console.log('\n▸ `.hidden` ليست بديلًا عن style="display:none"');
   for (const d of ['src', 'src/app']) for (const f of fs.readdirSync(d)) {
     if (!f.endsWith('.js') || f === 'qrgen.js') continue;
     const s = fs.readFileSync(`${d}/${f}`, 'utf8');
-    // كل عنصر يحمل class="hidden" وله id
-    for (const m of s.matchAll(/<[a-z]+[^>]*\bid="([^"]+)"[^>]*class="[^"]*\bhidden\b[^"]*"[^>]*>/g)) {
+    // كل عنصر يحمل صنفَ إخفاء وله id. والصنفان معًا: `hidden` (بـ!important)
+    // و`is-hidden` (بلا) — وكلاهما يحمل الخطر نفسه: **قراءةٌ لا تتبع الكتابة**.
+    for (const m of s.matchAll(/<[a-z]+[^>]*\bid="([^"]+)"[^>]*class="[^"]*(?<![\w-])(?:is-)?hidden(?![\w-])[^"]*"[^>]*>/g)) {
       const id = m[1];
       // هل يُكتَب display عليه لاحقًا — مباشرةً أو عبر متغيّر مُلتقَط؟
-      const direct = new RegExp(`getElementById\\('${id}'\\)\\.style\\.display|#${id}'\\)\\.style\\.display`).test(s);
+      //
+      // و`byId(` هنا ليست زينة: إدخالُها في دفعةٍ سابقة **أعمى هذا الحارس
+      // صامتًا** — أحدَ عشرَ موضعًا صارت تكتب `byId('x').style.display` ولا
+      // يراها نمطُ `getElementById`. لم ينكسر شيءٌ حينها (لا يحمل أيٌّ منها صنفَ
+      // إخفاء)، لكن الحارسَ كان قد فقد نصفَ بصره بلا إخفاقٍ واحد.
+      const direct = new RegExp(`(?:getElementById|byId)\\('${id}'\\)\\.style\\.display|#${id}'\\)\\.style\\.display`).test(s);
       const capt = [...s.matchAll(new RegExp(`(\\w+)\\s*=\\s*\\$\\('#${id}'\\)`, 'g'))]
         .some(c => new RegExp(`(?<![\\w.$])${c[1]}\\.style\\.display`).test(s));
       if (direct || capt) offenders.push(`${f}:#${id}`);
@@ -113,7 +119,9 @@ console.log('\n▸ `.hidden` ليست بديلًا عن style="display:none"');
   // معروف فيه لا يُستغَلّ.)
   const allSrc = ['src', 'src/app'].flatMap(d => fs.readdirSync(d)
     .filter(f => f.endsWith('.js') && f !== 'qrgen.js').map(f => fs.readFileSync(`${d}/${f}`, 'utf8'))).join('\n');
-  const hidden = [...allSrc.matchAll(/id="([\w]+)"[^>]*class="[^"]*\bhidden\b/g)].map(m => m[1]);
+  // و`\b` وحدها تلتقط `is-hidden` (الشرطة محرفٌ غير كلميّ)، فتخلط صنفين.
+  // الحدُّ هنا يستثني الشرطة صراحةً: `hidden` وحدها لا `is-hidden`.
+  const hidden = [...allSrc.matchAll(/id="([\w]+)"[^>]*class="[^"]*(?<![\w-])hidden(?![\w-])/g)].map(m => m[1]);
   t('وعددها خمسة كما قِيس', new Set(hidden).size === 5, [...new Set(hidden)].join(' '));
 }
 
