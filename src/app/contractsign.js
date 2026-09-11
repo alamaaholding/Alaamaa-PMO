@@ -163,7 +163,7 @@ export function publicSignHTML(d,{contractHtml,integrityBadge,alamaaSig,clientSi
           <div class="pub-otp">
             <b>🔐 تحقق من هويتك</b>
             <p class="sa-hint pub-otp-hint">سيصلك رمز من ست خانات على بريد جهة الاتصال المسجَّلة لدينا. لا يُرسَل لأي بريد آخر.</p>
-            <div class="row-8 wrap">
+            <div class="row-8 fx-wrap">
               <button class="reqbtn" id="pubOtpSend">إرسال رمز التحقق</button>
               <input id="pubOtp" inputmode="numeric" maxlength="6" placeholder="------" dir="ltr"
                 style="flex:1;min-width:120px;border:1.5px solid var(--line);border-radius:8px;padding:10px;
@@ -294,7 +294,7 @@ async function refreshContractPanel(){
   byId('tkBody').innerHTML=`
     <div class="sa-section mb-14">
       <h4>عقود هذا المشروع <span class="sa-hint">العقد كيان مستقل في محفظة العقود — اربط عقدًا قائمًا بدل إنشاء واحد جديد في كل مرة</span></h4>
-      <div class="row-8 wrap">
+      <div class="row-8 fx-wrap">
         <button class="hbtn gold" id="ctLinkExisting">🔗 ربط عقد قائم بهذا المشروع</button>
         <button class="reqbtn" id="ctGoHub">+ إنشاء عقد جديد (إدارة العقود)</button>
       </div>

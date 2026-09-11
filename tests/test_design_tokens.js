@@ -199,6 +199,24 @@ t('الصنف .barclient يعرّف التخطيط المرن', /\.barclient\{[^
   // والاسم المتصادم تحديدًا لا يعود
   t('.wrap تبقى حاوية عرض الصفحة وحدها',
     /^\.wrap\{max-width:1500px/m.test(css) && !/^\.wrap\{flex-wrap/m.test(css));
+
+  // ═══ والاستعمالُ كذلك، لا التعريف وحده ═══
+  //
+  // الحارسُ أعلاه يمسك **إعادة تعريف** الاسم. وقد وقعتُ في نصفه الآخر: وسمتُ
+  // عنصرين بـ`class="row-8 wrap"` **بلا تعريفٍ جديد** — فورثا حاويةَ عرض
+  // الصفحة (١٥٠٠ بكسل وحشوها) بدل `flex-wrap`. ولا تعريفَ أُعيد، فلا شيء
+  // يشتكي. والاسم الصحيح `fx-wrap` موجودٌ منذ W4 وموثَّقٌ في مكانه.
+  //
+  // فالقاعدة: **لا قالبٌ في JS يبعث `wrap` مجرَّدةً.** حاوياتُ الصفحة الأربع
+  // في index.html وحدها.
+  const uses = [];
+  for (const d of ['src', 'src/app']) for (const f of require('fs').readdirSync(d)) {
+    if (!f.endsWith('.js')) continue;
+    const src = require('fs').readFileSync(`${d}/${f}`, 'utf8');
+    for (const m of src.matchAll(/class="([^"]*)"/g))
+      if (m[1].split(/\s+/).includes('wrap')) uses.push(`${f}:${m[1]}`);
+  }
+  t('ولا قالبٌ في JS يبعث «wrap» مجرَّدةً', uses.length === 0, uses.join(' · '));
 }
 
 console.log('\nنجح ' + ok + ' · فشل ' + fail);

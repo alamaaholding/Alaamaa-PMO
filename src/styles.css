@@ -1652,3 +1652,50 @@ tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
    العقد، ولوحةُ التوقيع بنمطيها.) */
 .stack-gap{margin-top:10px}
 .stack-gap-lg{margin-top:14px}
+
+/* ═══ W6 · مفرداتُ إدارة العقود — ثلاثةٌ وخمسون نمطًا سطريًّا خرجت هنا ═══
+   حقولُ النماذج كانت تُعيد السطر نفسه ستَّ مرّاتٍ بفروقٍ في الارتفاع وحده،
+   فصارت أسرةً: أساسٌ وتنويعات. والباقي مفرداتٌ صغيرة تُعاد في كل شاشة. */
+.chub-ta{width:100%;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px}
+.chub-ta.tall{min-height:220px;line-height:1.7}
+.chub-ta.mid{min-height:180px;line-height:1.7}
+.chub-ta.short{min-height:70px}
+.chub-ta.tiny{min-height:60px}
+.chub-inp{width:100%;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px}
+.chub-readonly{width:100%;font-size:.72rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2)}
+.chub-list-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft)}
+.qr-box{width:150px;height:150px}
+.pill-xs{padding:2px 8px;font-size:.7rem}
+.btn-gold{background:var(--gold);border-color:var(--gold)}
+.btn-blue{background:var(--blue-bg);border-color:var(--blue)}
+/* مفرداتٌ عامّة */
+.f1{flex:1}
+.bold{font-weight:700}
+.mono{font-family:monospace}
+.nowrap{white-space:nowrap}
+.pointer{cursor:pointer}
+.underline{text-decoration:underline}
+.ltr{direction:ltr}
+.self-center{align-self:center}
+.soft-bg{background:var(--soft-2)}
+.c-crit{color:var(--crit)}
+.c-blue{color:var(--blue)}
+.row-5{display:flex;gap:5px;align-items:center}
+.mt-4{margin-top:4px}
+.mb-6{margin-bottom:6px}
+.mb-12{margin-bottom:12px}
+.my-8-6{margin:8px 0 6px}
+.fs-60{font-size:.6rem}
+.fs-72{font-size:.72rem}
+.fs-74{font-size:.74rem}
+.fs-78{font-size:.78rem}
+.w-full{width:100%}
+.w-150{width:150px}
+.w-220{width:220px}
+.mw-130{min-width:130px}
+.mw-140{min-width:140px}
+.mw-150{min-width:150px}
+.mw-180{min-width:180px}
+.mw-200{min-width:200px}
+.mw-220{min-width:220px}
+.mw-240{min-width:240px}
