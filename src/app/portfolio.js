@@ -18,7 +18,7 @@
 
 import { deleteJobRole, fetchAutomationSettings, fetchCapacityTree, fetchContractsNeedingReminder, fetchOrgProfile, fetchPortfolio, openDOL, openTrello, renderPortfolioGantt, runSecurityAudit, saveDepartment, saveJobRole, updateAutomationSettings, updateOrgProfile } from '../api.js';
 import { hideChrome } from '../chrome.js';
-import { $, aggregateClientRows, byId, I, PROJECT_STATUS_DEFS, renderStatusBadge, worstProjectStatus } from '../config.js';
+import { $, $$, aggregateClientRows, byId, I, PROJECT_STATUS_DEFS, renderStatusBadge, worstProjectStatus } from '../config.js';
 import { esc } from '../format.js';
 import { registerScreen, showScreen } from '../screens.js';
 import { skeleton } from '../skeleton.js';
@@ -329,12 +329,12 @@ async function renderPortfolio(){
   const chipsBar=portfolioChipsHTML(portfolioActiveChips(view));
 
   $('#host').querySelector('.hintbar').insertAdjacentHTML('afterend',filterBar+chipsBar);
-  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{setState('PFILTER', b.dataset.filter);savePFilters();writePortfolioHash();renderPortfolio();});
-  document.querySelectorAll('[data-alertfilter]').forEach(b=>b.onclick=()=>{
+  $$('[data-filter]').forEach(b=>b.onclick=()=>{setState('PFILTER', b.dataset.filter);savePFilters();writePortfolioHash();renderPortfolio();});
+  $$('[data-alertfilter]').forEach(b=>b.onclick=()=>{
     const k=b.dataset.alertfilter; if(getState('PALERTS').has(k))getState('PALERTS').delete(k);else getState('PALERTS').add(k);
     savePFilters();writePortfolioHash();renderPortfolio();});
   const pSortEl=$('#pSort'); if(pSortEl)pSortEl.onchange=()=>{setState('PSORT', pSortEl.value);savePFilters();writePortfolioHash();renderPortfolio();};
-  document.querySelectorAll('[data-rmchip]').forEach(b=>b.onclick=()=>{
+  $$('[data-rmchip]').forEach(b=>b.onclick=()=>{
     const k=b.dataset.rmchip;
     if(k==='status')setState('PFILTER', 'all'); else if(k==='search')setState('PSEARCH', ''); else if(k.startsWith('alert:'))getState('PALERTS').delete(k.split(':')[1]);
     savePFilters();writePortfolioHash();renderPortfolio();});
@@ -369,19 +369,19 @@ async function renderPortfolio(){
   }
 
   // التفاعل: ترويسة الشركة — تفتح صفحة الشريك الموحّدة دائمًا (لوحة قيادة + مشاريعه + خططه + فريقه)
-  document.querySelectorAll('[data-toggle]').forEach(el=>el.onclick=async(e)=>{
+  $$('[data-toggle]').forEach(el=>el.onclick=async(e)=>{
     if(e.target.closest('[data-cmenu]'))return;
     const cid=el.dataset.toggle;
     await showScreen('clienthome', cid);
   });
   // نقرة على مشروع داخل التوسيع
-  document.querySelectorAll('[data-openproj]').forEach(el=>el.onclick=async(e)=>{
+  $$('[data-openproj]').forEach(el=>el.onclick=async(e)=>{
     e.stopPropagation();
     setState('CID', el.dataset.cid); setState('PID', el.dataset.openproj); await showScreen('project');
   });
-  document.querySelectorAll('[data-cmenu]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openClientMenu(b.dataset.cmenu);});
-  document.querySelectorAll('[data-pmenu]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openProjectMenu(b.dataset.pmenu,b.dataset.pname);});
-  document.querySelectorAll('[data-addproj]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();newProjectDialog(b.dataset.addproj);});
+  $$('[data-cmenu]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openClientMenu(b.dataset.cmenu);});
+  $$('[data-pmenu]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openProjectMenu(b.dataset.pmenu,b.dataset.pname);});
+  $$('[data-addproj]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();newProjectDialog(b.dataset.addproj);});
 }
 
 // ===== تسجيل الشاشة في السجلّ (src/screens.js) =====

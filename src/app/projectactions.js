@@ -41,7 +41,7 @@
 
 import { registerAction } from '../actions.js';
 import { addClientAccess, addTask, compute, deleteRequirement, deleteTask, fetchClientAccess, insertRequirement, loadProject, removeClientAccess, setDependencies, updateProjectStart, updateRequirement } from '../api.js';
-import { $, PERMS, TYPES, can, preserveFocus, projTrackList, sb, trackMeta } from '../config.js';
+import { $, $$, can, PERMS, preserveFocus, projTrackList, sb, trackMeta, TYPES } from '../config.js';
 import { esc } from '../format.js';
 import { toast, toastUndo } from '../toast.js';
 import { undoable } from '../undo.js';
@@ -63,7 +63,7 @@ export function focusTask(ref){
     const sel='[data-id="'+(window.CSS&&CSS.escape?CSS.escape(ref):ref)+'"]';
     const el=document.querySelector('#host '+sel)||document.querySelector('#host [data-grow="'+ref+'"]');
     if(!el)return;
-    document.querySelectorAll('.row-focus').forEach(x=>x.classList.remove('row-focus'));
+    $$('.row-focus').forEach(x=>x.classList.remove('row-focus'));
     el.classList.add('row-focus');
     if(el.scrollIntoView)el.scrollIntoView({behavior:'smooth',block:'center'});
   },60);
@@ -101,11 +101,11 @@ export async function openAccess(){
 async function renderAccessList(){
   const {data,error}=await fetchClientAccess(getState('CID'));
   const list=$('#accList');
-  if(error){list.innerHTML='<p style="color:var(--crit);font-size:.82rem">تعذّر التحميل: '+esc(error.message)+'</p>';return;}
-  if(!data||!data.length){list.innerHTML='<p class="empty" style="color:var(--muted);font-style:italic;font-size:.85rem">لا إيميلات مضافة بعد.</p>';return;}
-  list.innerHTML=data.map(a=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:7px">
-    <span style="font-size:.86rem">${esc(a.email)}</span>
-    <button class="hbtn" data-rm="${a.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc;padding:4px 10px">إزالة</button></div>`).join('');
+  if(error){list.innerHTML='<p class="c-crit fs-82">تعذّر التحميل: '+esc(error.message)+'</p>';return;}
+  if(!data||!data.length){list.innerHTML='<p class="empty c-muted italic fs-85">لا إيميلات مضافة بعد.</p>';return;}
+  list.innerHTML=data.map(a=>`<div class="pa-row">
+    <span class="fs-86">${esc(a.email)}</span>
+    <button class="hbtn btn-danger-soft" data-rm="${a.id}">إزالة</button></div>`).join('');
   list.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{
     await removeClientAccess(b.dataset.rm);await renderAccessList();
   });
@@ -132,16 +132,16 @@ function renderReqs(){
     const ow=Object.keys(OWN).map(k=>`<option value="${k}" ${k===r.owner?'selected':''}>${OWN[k]}</option>`).join('');
     const extra=(r._state==='overdue'&&r._late)?(' +'+r._late+'ي'):'';
     return `<tr data-i="${i}">
-      <td><input class="rq" data-rf="desc" value="${esc(r.desc)}" ${dis} style="min-width:140px;text-align:right"></td>
+      <td><input class="rq mw-140 ta-right" data-rf="desc" value="${esc(r.desc)}" ${dis}></td>
       <td><select class="rq" data-rf="owner" ${dis}>${ow}</select></td>
-      <td><input class="rq" type="number" min="0" data-rf="sla" value="${r.sla||0}" ${dis} style="width:46px"></td>
-      <td><input class="rq" type="date" data-rf="requested" value="${r.requested||''}" ${dis} style="width:120px"></td>
-      <td><input class="rq" type="date" data-rf="received" value="${r.received||''}" ${dis} style="width:120px"></td>
-      <td style="text-align:center"><input class="rq" type="checkbox" data-rf="blocking" ${r.blocking?'checked':''} ${dis}></td>
+      <td><input class="rq w-46" type="number" min="0" data-rf="sla" value="${r.sla||0}" ${dis}></td>
+      <td><input class="rq w-120" type="date" data-rf="requested" value="${r.requested||''}" ${dis}></td>
+      <td><input class="rq w-120" type="date" data-rf="received" value="${r.received||''}" ${dis}></td>
+      <td class="ta-center"><input class="rq" type="checkbox" data-rf="blocking" ${r.blocking?'checked':''} ${dis}></td>
       <td><span class="rstate ${r._state||'notrequested'}">${ST[r._state]||'—'}${extra}</span></td>
       ${canEdit?`<td><button class="ib txt-crit" data-rdel="${i}" aria-label="حذف هذا المتطلب">✕</button></td>`:''}</tr>`;
   }).join('');
-  $('#reqTbl').innerHTML=`<thead><tr><th>المتطلب</th><th>الجهة</th><th>SLA</th><th>الطلب</th><th>الاستلام</th><th>حاجز</th><th>الحالة</th>${canEdit?'<th></th>':''}</tr></thead><tbody>${rows||'<tr><td colspan="8" style="color:var(--muted);padding:12px">لا متطلبات.</td></tr>'}</tbody>`;
+  $('#reqTbl').innerHTML=`<thead><tr><th>المتطلب</th><th>الجهة</th><th>SLA</th><th>الطلب</th><th>الاستلام</th><th>حاجز</th><th>الحالة</th>${canEdit?'<th></th>':''}</tr></thead><tbody>${rows||'<tr><td class="c-muted p-12" colspan="8">لا متطلبات.</td></tr>'}</tbody>`;
   $('#reqAdd').style.display=canEdit?'':'none';
   if(!canEdit)return;
   $('#reqTbl').querySelectorAll('[data-rf]').forEach(inp=>inp.addEventListener('change',async()=>{
@@ -262,9 +262,9 @@ function renderDeps(){
   const opts=getState('PROJECT').tasks.filter(t=>t.id!==DEP_TASK.id&&!dependents.has(t.id));
   const xmap={};(DEP_TASK.depsX||[]).forEach(x=>{xmap[x.ref]=x;});
   $('#depList').innerHTML=opts.map(t=>{const on=current.has(t.id),x=xmap[t.id]||{type:'FS',lag:0};
-    return `<div class="dep-row" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;font-size:.84rem">
+    return `<div class="dep-row pa-row tight">
     <input type="checkbox" data-dep="${esc(t.id)}" ${on?'checked':''} id="dp_${esc(t.id)}">
-    <label for="dp_${esc(t.id)}" style="cursor:pointer;flex:1;display:flex;align-items:center;gap:8px"><span class="idcell" style="--tc:${trackMeta(t.track).color}">${esc(t.id)}</span> ${esc(t.name)}</label>
+    <label class="pointer f1 row-8 items-center" for="dp_${esc(t.id)}"><span class="idcell" style="--tc:${trackMeta(t.track).color}">${esc(t.id)}</span> ${esc(t.name)}</label>
     <select data-deptype="${esc(t.id)}" class="dep-type" aria-label="نوع التبعية" ${on?'':'disabled'}>
       <option value="FS" ${x.type==='FS'?'selected':''}>بعد انتهاء (FS)</option>
       <option value="SS" ${x.type==='SS'?'selected':''}>مع بداية (SS)</option>
@@ -272,7 +272,7 @@ function renderDeps(){
     </select>
     <input type="number" data-deplag="${esc(t.id)}" class="dep-lag" value="${x.lag||0}" title="إزاحة بأيام العمل (سالبة=تداخل)" aria-label="الإزاحة" ${on?'':'disabled'}>
   </div>`;}).join('')||'<p class="empty">لا بنود متاحة.</p>';
-  document.querySelectorAll('#depList [data-dep]').forEach(cb=>cb.onchange=()=>{
+  $$('#depList [data-dep]').forEach(cb=>cb.onchange=()=>{
     const r=cb.dataset.dep;
     const s=document.querySelector(`[data-deptype="${r}"]`),l=document.querySelector(`[data-deplag="${r}"]`);
     if(s)s.disabled=!cb.checked;if(l)l.disabled=!cb.checked;});
@@ -325,7 +325,7 @@ function printProject(mode){
 {const _el=$('#reqClose'); if(_el)_el.onclick=()=>{$('#reqOverlay').style.display='none';render();};}
 {const _el=$('#reqOverlay'); if(_el)_el.onclick=e=>{if(e.target.id==='reqOverlay'){$('#reqOverlay').style.display='none';render();}};}
 {const _el=$('#depSave'); if(_el)_el.onclick=async()=>{
-  const links=[...document.querySelectorAll('#depList [data-dep]:checked')].map(c=>{
+  const links=[...$$('#depList [data-dep]:checked')].map(c=>{
     const ref=c.dataset.dep;const t=getState('PROJECT').tasks.find(x=>x.id===ref);if(!t)return null;
     const s=document.querySelector(`[data-deptype="${ref}"]`),l=document.querySelector(`[data-deplag="${ref}"]`);
     return {db:t._dbId,type:(s&&s.value)||'FS',lag:parseInt((l&&l.value)||'0',10)||0};

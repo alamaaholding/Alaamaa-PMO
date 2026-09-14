@@ -16,7 +16,7 @@ import { mergeContract, renderCustomContractHTML, renderMergedContractHTML } fro
 import { confirmDialog } from './dialogs.js';
 import { buildContractDoc } from './exportcontract.js';
 import { getState } from './state.js';
-import { byId } from '../config.js';
+import { $$, byId } from '../config.js';
 export function mountSignaturePad(container){
   container.innerHTML=`
     <div class="sig-tabs">
@@ -25,7 +25,7 @@ export function mountSignaturePad(container){
     </div>
     <div id="sigDrawWrap"><canvas id="sigCanvas" width="480" height="160"></canvas>
       <button type="button" class="reqbtn mt-6" id="sigClear">مسح</button></div>
-    <div id="sigTypeWrap" style="display:none">
+    <div id="sigTypeWrap" class="is-hidden">
       <input id="sigTypeName" placeholder="اكتب اسمك هنا كتوقيع" style="width:100%;font-size:1.4rem;font-family:'Segoe Script',cursive;
         border:1.5px solid var(--line);border-radius:8px;padding:14px;text-align:center">
     </div>`;
@@ -48,13 +48,13 @@ export function mountSignaturePad(container){
   container.querySelectorAll('[data-sigmode]').forEach(b=>b.onclick=()=>{
     container.querySelectorAll('[data-sigmode]').forEach(x=>x.classList.remove('active'));b.classList.add('active');
     const draw=b.dataset.sigmode==='draw';
-    container.querySelector('#sigDrawWrap').style.display=draw?'':'none';
-    container.querySelector('#sigTypeWrap').style.display=draw?'none':'';
+    container.querySelector('#sigDrawWrap').classList.toggle('is-hidden',!draw);
+    container.querySelector('#sigTypeWrap').classList.toggle('is-hidden',draw);
   });
   return {
     getData(){
       const typed=container.querySelector('#sigTypeName').value.trim();
-      const typeMode=container.querySelector('#sigTypeWrap').style.display!=='none';
+      const typeMode=!container.querySelector('#sigTypeWrap').classList.contains('is-hidden');
       if(typeMode)return typed?{ok:true,data:null,typed}:{ok:false};
       return hasDrawn?{ok:true,data:canvas.toDataURL('image/png'),typed:null}:{ok:false};
     }
@@ -83,9 +83,6 @@ export async function renderPublicSign(token){
   const fullySigned=d.status==='signed';
   const isCustom=d.contract_type==='custom';
 
-  const sigRow=(label,s)=>s?`<div class="pubsig-row"><b>${label}</b><span>${esc(s.name)} · ${new Date(s.signed_at).toLocaleString('ar')}</span></div>`
-    :`<div class="pubsig-row pubsig-pending"><b>${label}</b><span>بانتظار التوقيع</span></div>`;
-
   const mergeData={
     clientName:d.client_name,clientCr:d.client_cr,clientVat:d.client_vat,org:d.org||{},clientAddress:d.client_address,
     clientRepName:d.client_rep_name,clientRepTitle:d.client_rep_title,
@@ -109,7 +106,25 @@ export async function renderPublicSign(token){
     }catch(e){}
   }
 
-  byId('publicSign').innerHTML=`
+  byId('publicSign').innerHTML=publicSignHTML(d,{contractHtml,integrityBadge,
+    alamaaSig,clientSig,clientSigned,fullySigned});
+  bindPublicSign(token);
+}
+/**
+ * ترميزُ صفحة التوقيع العامّة — **الشاشة الوحيدة خارج تسجيل الدخول**.
+ *
+ * وثلاثةُ فروقٍ فيها تُقرأ من الحالة لا من الصلاحية، لأن قارئها بلا حساب:
+ *
+ *   موقَّعٌ بالكامل ⇦ اطّلاعٌ ونسبةُ إنجاز، بلا حقول
+ *   وقّع الشريك    ⇦ انتظارُ علامة، والنصُّ **مطويّ** (قرأه فعلًا)
+ *   لم يوقّع       ⇦ النصُّ **مفتوح** بالضرورة، ثم حقولُ التوقيع
+ *
+ * والطيُّ ليس زينة: من لم يوقّع بعد يجب أن يرى النصّ مفتوحًا أمامه.
+ */
+export function publicSignHTML(d,{contractHtml,integrityBadge,alamaaSig,clientSig,clientSigned,fullySigned}){
+  const sigRow=(label,s)=>s?`<div class="pubsig-row"><b>${label}</b><span>${esc(s.name)} · ${new Date(s.signed_at).toLocaleString('ar')}</span></div>`
+    :`<div class="pubsig-row pubsig-pending"><b>${label}</b><span>بانتظار التوقيع</span></div>`;
+  return `
     <div class="pubsign-wrap"><div class="pubsign-card">
       <div class="pubsign-brand">علامة <span>· أثر دائم</span></div>
       <h2>${fullySigned?'العقد موقَّع من الطرفين':'توقيع العقد'}</h2>
@@ -134,21 +149,21 @@ export async function renderPublicSign(token){
         <p class="pubsign-note">✅ عقد ساري ومكتمل التوقيع من الطرفين — هذه النسخة للاطّلاع فقط ولا يمكن التعديل عليها.</p>
         <div class="pubsign-progress">
           <div><b>نسبة إنجاز المشروع حتى الآن</b><span>${d.progress_pct}%</span></div>
-          <div class="trk-bar"><div class="trk-bar-fill" style="width:${d.progress_pct}%;background:var(--ok)"></div></div>
+          <div class="trk-bar"><div class="trk-bar-fill ok-fill" style="--pct:${d.progress_pct}%"></div></div>
         </div>
-        <button class="hbtn" id="pubGoLogin" style="background:var(--gold);border-color:var(--gold);width:100%;margin-top:16px">
+        <button class="hbtn pubsign-cta" id="pubGoLogin">
           لرؤية تفاصيل سير العمل الكاملة — سجّل الدخول
         </button>`
       :(clientSigned?`<p class="pubsign-note">وقّعتَ بالفعل — بانتظار توقيع علامة لإكمال العقد.</p>`:`
-        <div class="sa-section" style="margin-top:18px;text-align:right">
-          <h4 style="margin-bottom:10px">التوقيع</h4>
-          <input id="pubName" placeholder="الاسم الكامل *" style="width:100%;margin-bottom:8px;border:1.5px solid var(--line);border-radius:8px;padding:10px">
-          <input id="pubEmail" type="email" placeholder="البريد الإلكتروني (اختياري)" style="width:100%;margin-bottom:12px;border:1.5px solid var(--line);border-radius:8px;padding:10px">
+        <div class="sa-section pubsign-signbox">
+          <h4 class="mb-10">التوقيع</h4>
+          <input id="pubName" placeholder="الاسم الكامل *" class="pubsign-input gap-sm">
+          <input id="pubEmail" type="email" placeholder="البريد الإلكتروني (اختياري)" class="pubsign-input gap-md">
           ${d.client_contact_email?`
           <div class="pub-otp">
             <b>🔐 تحقق من هويتك</b>
-            <p class="sa-hint" style="margin:4px 0 8px">سيصلك رمز من ست خانات على بريد جهة الاتصال المسجَّلة لدينا. لا يُرسَل لأي بريد آخر.</p>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <p class="sa-hint pub-otp-hint">سيصلك رمز من ست خانات على بريد جهة الاتصال المسجَّلة لدينا. لا يُرسَل لأي بريد آخر.</p>
+            <div class="row-8 fx-wrap">
               <button class="reqbtn" id="pubOtpSend">إرسال رمز التحقق</button>
               <input id="pubOtp" inputmode="numeric" maxlength="6" placeholder="------" dir="ltr"
                 style="flex:1;min-width:120px;border:1.5px solid var(--line);border-radius:8px;padding:10px;
@@ -157,12 +172,35 @@ export async function renderPublicSign(token){
             <div id="pubOtpMsg"></div>
           </div>`:''}
           <div id="pubSigPad"></div>
-          <button class="hbtn" id="pubSignBtn" style="background:var(--gold);border-color:var(--gold);width:100%;margin-top:14px">أوافق وأوقّع</button>
+          <button class="hbtn pubsign-cta tight" id="pubSignBtn">أوافق وأوقّع</button>
           <p class="pubsign-legal">بالضغط على «أوافق وأوقّع»، أنت تقرّ بموافقتك على محتوى هذا العقد كما هو معروض أعلاه.
             سيُسجَّل اسمك ووقت التوقيع كتوثيق لهذه الموافقة.</p>
         </div>`)}
     </div></div>`;
+}
 
+/**
+ * رسالةُ فشل التوقيع — لكل رمزٍ رسالتُه، **ولا رمزَ يمرّ بلا رسالة**.
+ *
+ * وقارئُ هذه الصفحة بلا حساب ولا سجلّ ولا أحدٍ يسأله: الرسالة هي كلُّ ما بين
+ * يديه. فرمزٌ مجهول يُترجَم إلى «تعذّر التوقيع» لا إلى فراغ.
+ *
+ * و`otp_wrong` وحده يحمل عددًا: المحاولاتُ الباقية. وغيابُه لا يُنتج
+ * «بقيت undefined محاولات».
+ */
+export function signFailureMessage(r){
+  const msgs={already_signed:'تم توقيع هذا العقد من قبل الشريك بالفعل.',
+    archived:'انتهت صلاحية هذا الرابط.',void:'أُلغي هذا العقد.',name_required:'الاسم مطلوب.',
+    not_sealed:'العقد غير جاهز للتوقيع بعد — تواصل مع علامة.',
+    otp_required:'أرسل رمز التحقق لبريدك ثم أدخله قبل التوقيع.',
+    otp_expired:'انتهت صلاحية الرمز — اطلب رمزًا جديدًا.',
+    otp_locked:'تجاوزت عدد المحاولات — اطلب رمزًا جديدًا.',
+    otp_wrong:'الرمز غير صحيح'+(r&&r.left!=null?` — بقيت ${r.left} محاولات`:'')+'.'};
+  return msgs[r&&r.error]||'تعذّر التوقيع';
+}
+
+/** ربطُ حقول الصفحة: رمزُ التحقق، ولوحةُ التوقيع، والإرسال. */
+function bindPublicSign(token){
   const golf=byId('pubGoLogin');if(golf)golf.onclick=()=>{location.hash='';location.reload();};
   {const ob=byId('pubOtpSend');
    if(ob)ob.onclick=async()=>{
@@ -170,12 +208,12 @@ export async function renderPublicSign(token){
      ob.disabled=true;const t0=ob.textContent;ob.textContent='جارٍ الإرسال...';
      try{
        const r=await requestSigningOTP(token);
-       msg.innerHTML='<div class="ctr-integrity ok" style="margin-top:8px;font-size:.78rem">✅ أُرسل الرمز إلى '+esc(r.masked||'بريدك المسجَّل')+' — صالح لعشر دقائق</div>';
+       msg.innerHTML='<div class="ctr-integrity ok otp-msg">✅ أُرسل الرمز إلى '+esc(r.masked||'بريدك المسجَّل')+' — صالح لعشر دقائق</div>';
        let left=45;ob.textContent='إعادة الإرسال ('+left+')';
        const tick=setInterval(()=>{left--;if(left<=0){clearInterval(tick);ob.disabled=false;ob.textContent=t0;}
          else ob.textContent='إعادة الإرسال ('+left+')';},1000);
      }catch(e){
-       msg.innerHTML='<div class="ctr-integrity warn" style="margin-top:8px;font-size:.78rem">⚠ '+esc(e.message)+'</div>';
+       msg.innerHTML='<div class="ctr-integrity warn otp-msg">⚠ '+esc(e.message)+'</div>';
        ob.disabled=false;ob.textContent=t0;
      }
    };}
@@ -194,24 +232,18 @@ export async function renderPublicSign(token){
         const r=await signContractPublic(token,name,email,s.data||('نصي: '+s.typed),otpEl?otpEl.value.trim():null);
         if(r&&r.ok){toast('تم توثيق توقيعك بنجاح','ok');renderPublicSign(token);}
         else{
-          const msgs={already_signed:'تم توقيع هذا العقد من قبل الشريك بالفعل.',
-            archived:'انتهت صلاحية هذا الرابط.',void:'أُلغي هذا العقد.',name_required:'الاسم مطلوب.',
-            not_sealed:'العقد غير جاهز للتوقيع بعد — تواصل مع علامة.',
-            otp_required:'أرسل رمز التحقق لبريدك ثم أدخله قبل التوقيع.',
-            otp_expired:'انتهت صلاحية الرمز — اطلب رمزًا جديدًا.',
-            otp_locked:'تجاوزت عدد المحاولات — اطلب رمزًا جديدًا.',
-            otp_wrong:'الرمز غير صحيح'+(r&&r.left!=null?` — بقيت ${r.left} محاولات`:'')+'.'};
-          toast(msgs[r&&r.error]||'تعذّر التوقيع','err');btn.disabled=false;btn.textContent='أوافق وأوقّع';
+          toast(signFailureMessage(r),'err');btn.disabled=false;btn.textContent='أوافق وأوقّع';
         }
       }catch(e){toast('تعذّر التوقيع: '+e.message,'err');btn.disabled=false;btn.textContent='أوافق وأوقّع';}
     };
   }
 }
+
 function pubSignError(msg,withLogin){
-  byId('publicSign').innerHTML=`<div class="pubsign-wrap"><div class="pubsign-card" style="text-align:center">
+  byId('publicSign').innerHTML=`<div class="pubsign-wrap"><div class="pubsign-card pubsign-err">
     <div class="pubsign-brand">علامة <span>· أثر دائم</span></div>
-    <p style="margin-top:20px;font-size:1.05rem">${esc(msg)}</p>
-    ${withLogin?`<button class="hbtn" id="pubErrLogin" style="background:var(--gold);border-color:var(--gold);margin-top:16px">تسجيل الدخول</button>`:''}
+    <p class="pubsign-lead">${esc(msg)}</p>
+    ${withLogin?`<button class="hbtn ct-err-login" id="pubErrLogin">تسجيل الدخول</button>`:''}
   </div></div>`;
   const b=byId('pubErrLogin');if(b)b.onclick=()=>{location.hash='';location.reload();};
 }
@@ -230,52 +262,89 @@ async function refreshContractPanel(){
   let list;
   try{ list=await fetchContractsForProject(getState('PROJECT')._dbId); }
   catch(e){ byId('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
-  const STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع الشريك',signed:'موقَّع بالكامل ✅',void:'ملغى'};
-  const rows=list.map(c=>{
-    const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
-    const link=location.origin+location.pathname+'#/sign/'+c.token;
-    const cEmail=(getState('CLIENTS').find(x=>x.id===getState('CID'))||{}).contact_email||'';
-    const mailHref=signInviteMailto(cEmail,getState('PROJECT').name,link);
-    return `<div style="padding:14px 0;border-bottom:1px solid var(--line)">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <b>${esc(c.baseline_label)}</b><span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${STL[c.status]||c.status}</span>
-      </div>
-      <div class="sa-hint" style="margin:6px 0">علامة: ${al?esc(al.name)+' — '+new Date(al.signed_at).toLocaleDateString('ar'):'لم توقّع بعد'}
-        · الشريك: ${cl?esc(cl.name)+' — '+new Date(cl.signed_at).toLocaleDateString('ar'):'لم يوقّع بعد'}
-        · ${c.includes_ad_spend?'يشمل إنفاقًا إعلانيًا':'بلا إنفاق إعلاني'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}</div>
-      <div class="ctr-link-badge">🔒 الرابط والرمز أدناه خاصّان بـ<b>${esc((getState('CLIENTS').find(x=>x.id===getState('CID'))||{}).name||'هذا الشريك')}</b> حصرًا — لتوقيع هذا العقد تحديدًا، لا يصلح لغيره</div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <input readonly value="${link}" style="flex:1;min-width:220px;font-size:.75rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2)">
-        <button class="reqbtn" data-copylink="${link}">نسخ الرابط</button>
-        <a class="reqbtn" href="${mailHref}" style="text-decoration:none;display:inline-flex;align-items:center">📧 إرسال بالبريد</a>
-        <button class="reqbtn" data-exportqr="${c.id}">📄 تصدير PDF بـ QR (العقد كاملًا + الخطة)</button>
-        <button class="reqbtn" data-viewtext="${c.id}">عرض نص العقد الكامل</button>
-        ${!al?`<button class="reqbtn ok" data-signalamaa="${c.id}">توقيع علامة الآن</button>`:''}
-        ${(c.status!=='signed'&&c.status!=='void')?`<button class="reqbtn" data-voidcontract="${c.id}" style="color:var(--crit);border-color:var(--crit-bg)">🗑 إلغاء العقد</button>`:''}
-        <button class="reqbtn" data-unlink="${c.id}">🔓 فك الارتباط بهذا المشروع</button>
-      </div>
-      <div id="ctText-${c.id}" style="display:none;margin-top:10px"></div>
-    </div>`;
-  }).join('')||'<p class="empty">لا عقود بعد.</p>';
-
   const clientC=getState('CLIENTS').find(x=>x.id===getState('CID'))||{};
+  const rows=list.map(c=>projectContractRowHTML(c,{
+    clientName:clientC.name,clientEmail:clientC.contact_email,projectName:getState('PROJECT').name,
+  })).join('')||'<p class="empty">لا عقود بعد.</p>';
+
   byId('tkBody').innerHTML=`
     <div class="sa-section mb-14">
       <h4>عقود هذا المشروع <span class="sa-hint">العقد كيان مستقل في محفظة العقود — اربط عقدًا قائمًا بدل إنشاء واحد جديد في كل مرة</span></h4>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div class="row-8 fx-wrap">
         <button class="hbtn gold" id="ctLinkExisting">🔗 ربط عقد قائم بهذا المشروع</button>
         <button class="reqbtn" id="ctGoHub">+ إنشاء عقد جديد (إدارة العقود)</button>
       </div>
-      <div id="ctLinkPicker" style="display:none;margin-top:14px"></div>
+      <div id="ctLinkPicker" class="is-hidden stack-gap-lg"></div>
     </div>
     ${rows}
     <div id="ctSignArea"></div>`;
 
+  bindProjectContracts(list,clientC);
+}
+
+
+/** حالاتُ العقد بالعربية — مصدرٌ واحد لصفّ المشروع. */
+const STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع الشريك',signed:'موقَّع بالكامل ✅',void:'ملغى'};
+
+/**
+ * صفُّ عقدٍ مرتبطٍ بمشروع.
+ *
+ * وأزرارُه ليست ثابتة: **«توقيع علامة» يظهر ما لم توقّع علامة بعد**،
+ * و**«إلغاء العقد» يختفي عن الموقَّع والملغى** — فالموقَّع مرجعٌ قانونيّ ساري.
+ * وبقيّةُ الأزرار تظهر دائمًا لأنها لا تُغيّر حالة.
+ *
+ * وسياقُ الشريك والمشروع يُمرَّر ولا يُقرأ من الحالة العامّة: البانيةُ تُختبَر
+ * بلا شاشةٍ ولا حالة.
+ */
+export function projectContractRowHTML(c,{clientName,clientEmail,projectName}){
+
+  const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
+  const link=location.origin+location.pathname+'#/sign/'+c.token;
+  const mailHref=signInviteMailto(clientEmail||'',projectName,link);
+  return `<div class="ct-row">
+    <div class="ct-row-hd">
+      <b>${esc(c.baseline_label)}</b><span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${STL[c.status]||c.status}</span>
+    </div>
+    <div class="sa-hint ct-row-sub">علامة: ${al?esc(al.name)+' — '+new Date(al.signed_at).toLocaleDateString('ar'):'لم توقّع بعد'}
+      · الشريك: ${cl?esc(cl.name)+' — '+new Date(cl.signed_at).toLocaleDateString('ar'):'لم يوقّع بعد'}
+      · ${c.includes_ad_spend?'يشمل إنفاقًا إعلانيًا':'بلا إنفاق إعلاني'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}</div>
+    <div class="ctr-link-badge">🔒 الرابط والرمز أدناه خاصّان بـ<b>${esc(clientName||'هذا الشريك')}</b> حصرًا — لتوقيع هذا العقد تحديدًا، لا يصلح لغيره</div>
+    <div class="ct-row-acts">
+      <input readonly value="${link}" class="ct-link-field">
+      <button class="reqbtn" data-copylink="${link}">نسخ الرابط</button>
+      <a class="reqbtn ct-mail-btn" href="${mailHref}">📧 إرسال بالبريد</a>
+      <button class="reqbtn" data-exportqr="${c.id}">📄 تصدير PDF بـ QR (العقد كاملًا + الخطة)</button>
+      <button class="reqbtn" data-viewtext="${c.id}">عرض نص العقد الكامل</button>
+      ${!al?`<button class="reqbtn ok" data-signalamaa="${c.id}">توقيع علامة الآن</button>`:''}
+      ${(c.status!=='signed'&&c.status!=='void')?`<button class="reqbtn" data-voidcontract="${c.id}" class="reqbtn ct-void-btn">🗑 إلغاء العقد</button>`:''}
+      <button class="reqbtn" data-unlink="${c.id}">🔓 فك الارتباط بهذا المشروع</button>
+    </div>
+    <div id="ctText-${c.id}" class="is-hidden stack-gap"></div>
+  </div>`;
+}
+
+/**
+ * مُنتقي العقود غير المرتبطة.
+ *
+ * و`has_client` فارقٌ يُقال صراحةً: عقدٌ **بلا شريك** أصلًا (🆓) غيرُ عقدٍ
+ * لشريكٍ لم يُربَط بمشروع. وبينهما فرقٌ في ما يحدث عند الربط.
+ */
+export function unlinkedContractsHTML(list){
+  return (list||[]).map(u=>`
+    <div class="ct-pick-row">
+      <div><span class="chub-num">${esc(u.contract_number||'—')}</span> <b>${esc(u.contract_name||u.custom_title||'عقد بلا اسم')}</b>
+        <span class="sa-hint">${u.contract_value?' · '+Number(u.contract_value).toLocaleString('ar')+' ر.س':''}${u.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}${u.has_client?'':' · 🆓 عقد مستقل بلا شريك'}</span></div>
+      <button class="reqbtn" data-linkbl="${u.id}">ربط بهذا المشروع</button>
+    </div>`).join('');
+}
+
+/** ربطُ أزرار عقود المشروع — نسخٌ وتصديرٌ وتوقيعٌ وإلغاءٌ وفكُّ ارتباط. */
+function bindProjectContracts(list,clientC){
   byId('ctGoHub').onclick=()=>showScreen('contractshub');
   byId('ctLinkExisting').onclick=async()=>{
     const picker=byId('ctLinkPicker');
-    const show=picker.style.display==='none';
-    picker.style.display=show?'':'none';
+    const show=picker.classList.contains('is-hidden');
+    picker.classList.toggle('is-hidden',!show);
     if(!show)return;
     picker.innerHTML=skeleton('list',1);
     let unlinked;
@@ -285,13 +354,8 @@ async function refreshContractPanel(){
       picker.innerHTML='<p class="sa-hint">لا عقود غير مرتبطة لهذا الشريك حاليًا. أنشئ عقدًا جديدًا بنطاق «الشريك كاملًا» من إدارة العقود، ثم اربطه هنا لاحقًا.</p>';
       return;
     }
-    picker.innerHTML=unlinked.map(u=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line-soft)">
-        <div><span class="chub-num">${esc(u.contract_number||'—')}</span> <b>${esc(u.contract_name||u.custom_title||'عقد بلا اسم')}</b>
-          <span class="sa-hint">${u.contract_value?' · '+Number(u.contract_value).toLocaleString('ar')+' ر.س':''}${u.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}${u.has_client?'':' · 🆓 عقد مستقل بلا شريك'}</span></div>
-        <button class="reqbtn" data-linkbl="${u.id}">ربط بهذا المشروع</button>
-      </div>`).join('');
-    document.querySelectorAll('[data-linkbl]').forEach(b=>b.onclick=async()=>{
+    picker.innerHTML=unlinkedContractsHTML(unlinked);
+    $$('[data-linkbl]').forEach(b=>b.onclick=async()=>{
       const blSel=getState('PROJECT').baselines[getState('PROJECT').baselines.length-1];
       if(!blSel){toast('لا توجد لقطة (Baseline) لهذا المشروع','warn');return;}
       try{
@@ -301,11 +365,11 @@ async function refreshContractPanel(){
       }catch(e){toast('تعذّر الربط: '+e.message,'err');}
     });
   };
-  document.querySelectorAll('[data-viewtext]').forEach(b=>b.onclick=async()=>{
+  $$('[data-viewtext]').forEach(b=>b.onclick=async()=>{
     const c=list.find(x=>x.id===b.dataset.viewtext);
     const box=byId('ctText-'+c.id);
-    const show=box.style.display==='none';
-    box.style.display=show?'':'none';
+    const show=box.classList.contains('is-hidden');
+    box.classList.toggle('is-hidden',!show);
     if(!show)return;
     const mergeData={
       clientName:clientC.name,clientCr:c.client_cr,clientAddress:c.client_address,clientRepName:c.client_rep_name,
@@ -323,7 +387,7 @@ async function refreshContractPanel(){
     }
     box.innerHTML=integrityBadge+renderMergedContractHTML(mergeContract(mergeData));
   });
-  document.querySelectorAll('[data-voidcontract]').forEach(b=>b.onclick=async()=>{
+  $$('[data-voidcontract]').forEach(b=>b.onclick=async()=>{
     if(!await confirmDialog('إلغاء العقد','سيصبح هذا العقد ملغى ولا يمكن توقيعه بعد الآن. لا يمكن التراجع عن هذا الإجراء.',true,'إلغاء العقد'))return;
     try{
       const r=await voidContract(b.dataset.voidcontract);
@@ -332,7 +396,7 @@ async function refreshContractPanel(){
     }catch(e){toast('تعذّر الإلغاء: '+e.message,'err');}
   });
 
-  document.querySelectorAll('[data-unlink]').forEach(b=>b.onclick=async()=>{
+  $$('[data-unlink]').forEach(b=>b.onclick=async()=>{
     if(!await confirmDialog('فك الارتباط','سيبقى العقد موجودًا في محفظة العقود، لكنه لن يظهر هنا كمرتبط بهذا المشروع بعد الآن. يمكن ربطه بمشروع آخر لاحقًا.',false,'فك الارتباط'))return;
     try{
       const r=await unlinkContractFromProject(b.dataset.unlink);
@@ -340,11 +404,11 @@ async function refreshContractPanel(){
       else toast((r&&r.error)||'تعذّر فك الارتباط','err');
     }catch(e){toast('تعذّر فك الارتباط: '+e.message,'err');}
   });
-  document.querySelectorAll('[data-copylink]').forEach(b=>b.onclick=async()=>{
+  $$('[data-copylink]').forEach(b=>b.onclick=async()=>{
     try{await navigator.clipboard.writeText(b.dataset.copylink);toast('نُسخ الرابط','ok');}
     catch(e){toast('انسخ الرابط يدويًا من الحقل','warn');}
   });
-  document.querySelectorAll('[data-exportqr]').forEach(b=>b.onclick=async()=>{
+  $$('[data-exportqr]').forEach(b=>b.onclick=async()=>{
     const c=list.find(x=>x.id===b.dataset.exportqr);
     if(!c){toast('العقد غير موجود','err');return;}
     b.disabled=true;const old=b.textContent;b.textContent='جارٍ التحضير...';
@@ -352,10 +416,10 @@ async function refreshContractPanel(){
     catch(e){ toast('تعذّر التصدير: '+e.message,'err'); }
     b.disabled=false;b.textContent=old;
   });
-  document.querySelectorAll('[data-signalamaa]').forEach(b=>b.onclick=()=>{
+  $$('[data-signalamaa]').forEach(b=>b.onclick=()=>{
     const cid=b.dataset.signalamaa;
     const area=byId('ctSignArea');
-    area.innerHTML='<div class="sa-section"><h4>توقيع علامة</h4><input id="ctStaffName" placeholder="اسمك الكامل" style="width:100%;margin-bottom:10px;border:1.5px solid var(--line);border-radius:8px;padding:9px"><div id="ctStaffPad"></div><button class="hbtn" id="ctStaffSign" style="background:var(--ok);border-color:var(--ok);color:#fff;width:100%;margin-top:12px">توقيع وتأكيد</button></div>';
+    area.innerHTML='<div class="sa-section"><h4>توقيع علامة</h4><input id="ctStaffName" placeholder="اسمك الكامل" class="ct-staff-name"><div id="ctStaffPad"></div><button class="hbtn ct-staff-sign" id="ctStaffSign">توقيع وتأكيد</button></div>';
     const sig=mountSignaturePad(byId('ctStaffPad'));
     byId('ctStaffSign').onclick=async()=>{
       const name=byId('ctStaffName').value.trim();

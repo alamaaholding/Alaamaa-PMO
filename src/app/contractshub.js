@@ -136,7 +136,7 @@ function renderContractsHubBody(){
         <div class="chub-stat"><b>${totalValue?totalValue.toLocaleString('ar'):'—'}</b><span>إجمالي القيمة (ر.س)</span></div>
       </div>
       <div class="chub-filters">
-        <input id="chubSearch" placeholder="🔍 ابحث باسم العقد أو رقمه أو الشريك أو المشروع..." value="${esc(CH_FILTER.q)}" style="flex:1;min-width:220px">
+        <input class="f1 mw-220" id="chubSearch" placeholder="🔍 ابحث باسم العقد أو رقمه أو الشريك أو المشروع..." value="${esc(CH_FILTER.q)}">
         <div class="chub-status-pills">
           ${['all','pending_alamaa','pending_client','signed','void'].map(s=>
             `<button class="chub-pill ${CH_FILTER.status===s?'active':''}" data-chubstatus="${s}">${s==='all'?'الكل':CH_STL[s]} <span>${counts[s]||0}</span></button>`).join('')}
@@ -144,16 +144,16 @@ function renderContractsHubBody(){
         <button class="hbtn gold" id="chubNew">+ عقد جديد</button>
       </div>
       <div class="chub-filters mt-10">
-        <select id="chubClient" style="min-width:150px"><option value="">كل الشركاء</option>
+        <select class="mw-150" id="chubClient"><option value="">كل الشركاء</option>
           ${clients.map(([id,n])=>`<option value="${id}" ${CH_FILTER.client===id?'selected':''}>${esc(n)}</option>`).join('')}</select>
-        <select id="chubLink" style="min-width:150px">
+        <select class="mw-150" id="chubLink">
           ${[['','كل الارتباطات'],['linked','مرتبط بمشروع'],['unlinked','غير مرتبط'],
              ['template','أصل (قالب) بلا شريك'],['amendment','ملاحق تعديل']].map(([v,t])=>
             `<option value="${v}" ${CH_FILTER.link===v?'selected':''}>${t}</option>`).join('')}</select>
-        <select id="chubType" style="min-width:130px">
+        <select class="mw-130" id="chubType">
           ${[['','كل الأنواع'],['standard','قياسي'],['custom','نص مخصَّص']].map(([v,t])=>
             `<option value="${v}" ${CH_FILTER.type===v?'selected':''}>${t}</option>`).join('')}</select>
-        <select id="chubSort" style="min-width:140px">
+        <select class="mw-140" id="chubSort">
           ${[['newest','الأحدث أولًا'],['value','الأعلى قيمة'],['ending','الأقرب انتهاءً'],['name','أبجديًا']].map(([v,t])=>
             `<option value="${v}" ${CH_FILTER.sort===v?'selected':''}>${t}</option>`).join('')}</select>
         ${(CH_FILTER.client||CH_FILTER.link||CH_FILTER.type||CH_FILTER.q||CH_FILTER.status!=='all')
@@ -172,8 +172,8 @@ function renderContractsHubBody(){
     try{exp=await fetchExpiringContracts();}catch(e){}
     try{rem=await fetchContractsNeedingReminder(3);}catch(e){}
     if(rem.length){
-      box.innerHTML=`<div class="chub-expiry-banner" style="background:var(--blue-bg);border-color:var(--blue)">
-        <b style="color:var(--blue)">🔔 عقود مُرسَلة ولم تُوقَّع بعد (${rem.length})</b>
+      box.innerHTML=`<div class="chub-expiry-banner btn-blue">
+        <b class="c-blue">🔔 عقود مُرسَلة ولم تُوقَّع بعد (${rem.length})</b>
         ${rem.map(x=>`<div class="chd-att-row">
           <span><span class="chub-num">${esc(x.contract_number||'—')}</span> <b>${esc(x.contract_name||'')}</b>
             <span class="sa-hint"> · ${esc(x.client_name||'—')} · مضى ${x.days_since} يومًا على آخر إرسال (${x.sends} مرة)</span></span>
@@ -188,7 +188,7 @@ function renderContractsHubBody(){
       ${exp.map(x=>`<div class="chd-att-row">
         <span><span class="chub-num">${esc(x.contract_number||'—')}</span> <b>${esc(x.contract_name||'')}</b>
           <span class="sa-hint"> · ${esc(x.client_name||'—')} · ${
-            x.expired?'<span style="color:var(--crit);font-weight:700">انتهى في '+new Date(x.end_date).toLocaleDateString('ar')+'</span>'
+            x.expired?'<span class="c-crit bold">انتهى في '+new Date(x.end_date).toLocaleDateString('ar')+'</span>'
             :'يتبقّى '+x.days_left+' يومًا (ينتهي '+new Date(x.end_date).toLocaleDateString('ar')+')'}${
             x.auto_renew?' · 🔄 تجديد تلقائي':''}</span></span>
         <button class="reqbtn" data-chubopen="${x.id}">فتح ←</button>
@@ -242,7 +242,7 @@ function chubReadCustomFields(prefix,client){
 async function chubRenderQR(elId,link){
   try{
     await ensureQR();
-    byId(elId).innerHTML=`<img src="${generateQRDataURL(link)}" alt="QR" style="width:150px;height:150px">`;
+    byId(elId).innerHTML=`<img class="qr-box" src="${generateQRDataURL(link)}" alt="QR">`;
   }catch(e){
     byId(elId).innerHTML='<span class="sa-hint">⚠ تعذّر توليد المعاينة: '+esc(e.message)+'</span>';
   }
@@ -265,12 +265,12 @@ function chubRenderClauseEditor(boxId,onChange){
         const ed=CHD_OVERRIDES.edited[sec.num];
         return `<div class="chd-clause ${off?'chd-clause-off':''}">
           <input type="checkbox" data-clause="${sec.num}" ${off?'':'checked'}>
-          <span style="flex:1">${esc(sec.num)}. ${esc((ed&&ed.title)||sec.title)}${ed?' <span class="chub-type-tag">محرَّر</span>':''}</span>
-          <button class="reqbtn" data-editclause="${sec.num}" style="padding:2px 8px;font-size:.7rem">تحرير</button>
+          <span class="f1">${esc(sec.num)}. ${esc((ed&&ed.title)||sec.title)}${ed?' <span class="chub-type-tag">محرَّر</span>':''}</span>
+          <button class="reqbtn pill-xs" data-editclause="${sec.num}">تحرير</button>
         </div>`;}).join('')}
     </div>
     <div id="${boxId}-edit"></div>
-    ${CHD_OVERRIDES.added.length?`<div class="mt-12"><b style="font-size:.85rem">بنود مضافة:</b>
+    ${CHD_OVERRIDES.added.length?`<div class="mt-12"><b class="fs-85">بنود مضافة:</b>
       ${CHD_OVERRIDES.added.map((a,i)=>`<div class="chd-att-row"><span>${esc(a.num||'')} ${esc(a.title)}</span>
         <button class="reqbtn txt-crit" data-delclause="${i}">حذف</button></div>`).join('')}</div>`:''}
     <div class="sa-form mt-12 fx-wrap">
@@ -278,7 +278,7 @@ function chubRenderClauseEditor(boxId,onChange){
       <input id="${boxId}-ntitle" placeholder="عنوان البند الجديد" class="grow-160">
       <button class="reqbtn" id="${boxId}-nadd">إضافة بند</button>
     </div>
-    <textarea id="${boxId}-nbody" placeholder="نص البند الجديد..." style="width:100%;min-height:60px;margin-top:8px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px"></textarea>`;
+    <textarea class="chub-ta tiny mt-8" id="${boxId}-nbody" placeholder="نص البند الجديد..."></textarea>`;
 
   box.querySelectorAll('[data-clause]').forEach(cb=>cb.onchange=()=>{
     const num=cb.dataset.clause;
@@ -291,10 +291,10 @@ function chubRenderClauseEditor(boxId,onChange){
     const sec=tpl.sections.find(x=>x.num===num);
     const ed=CHD_OVERRIDES.edited[num]||{};
     const area=byId(boxId+'-edit');
-    area.innerHTML=`<div class="sa-section" style="margin-top:10px;background:var(--soft-2)">
+    area.innerHTML=`<div class="sa-section mt-10 soft-bg">
       <h4>تحرير البند ${esc(num)}</h4>
-      <input id="${boxId}-etitle" value="${esc(ed.title||sec.title)}" style="width:100%;margin-bottom:8px;font-weight:700;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
-      <textarea id="${boxId}-ebody" style="width:100%;min-height:180px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px;line-height:1.7">${esc(ed.body!=null?ed.body:(sec.body||''))}</textarea>
+      <input class="chub-inp bold mb-8" id="${boxId}-etitle" value="${esc(ed.title||sec.title)}">
+      <textarea class="chub-ta mid" id="${boxId}-ebody">${esc(ed.body!=null?ed.body:(sec.body||''))}</textarea>
       <div class="row-8 mt-10">
         <button class="hbtn gold" id="${boxId}-esave">تطبيق على هذا العقد</button>
         ${CHD_OVERRIDES.edited[num]?`<button class="reqbtn" id="${boxId}-ereset">استعادة نص النموذج الأصلي</button>`:''}
@@ -422,7 +422,7 @@ function bindAttachments(contractId,c,editable){
       }catch(e){toast(e.message,'err');}
       btn.disabled=false;btn.textContent=t0;
     };
-    document.querySelectorAll('[data-delatt]').forEach(b=>b.onclick=async()=>{
+    $$('[data-delatt]').forEach(b=>b.onclick=async()=>{
       try{
         await deleteContractAttachment(b.dataset.delatt);
         // الملف المرفوع يُحذف من التخزين أيضًا فلا تتراكم ملفات يتيمة
@@ -430,7 +430,7 @@ function bindAttachments(contractId,c,editable){
         toast('حُذف المرفق','ok'); await render();
       }catch(e){toast(e.message,'err');}
     });
-    document.querySelectorAll('[data-openfile]').forEach(b=>b.onclick=async()=>{
+    $$('[data-openfile]').forEach(b=>b.onclick=async()=>{
       try{ window.open(await contractFileURL(b.dataset.openfile),'_blank','noopener'); }
       catch(e){toast(e.message,'err');}
     });
@@ -567,17 +567,17 @@ async function openNewContractPanel(){
     </div>
 
     <div class="sa-form mt-12 fx-wrap">
-      <input id="chnName" placeholder="اسم العقد *" style="flex:1;min-width:200px;font-weight:700">
-      <input id="chnNumber" placeholder="رقم العقد (تلقائي إن تُرك فارغًا)" style="width:220px;font-family:monospace" dir="ltr">
+      <input class="f1 mw-200 bold" id="chnName" placeholder="اسم العقد *">
+      <input class="w-220 mono" id="chnNumber" placeholder="رقم العقد (تلقائي إن تُرك فارغًا)" dir="ltr">
     </div>
     <div class="sa-form mt-10">
       <select id="chnClient"><option value="">الشريك (اختياري — يمكن تحديده لاحقًا عند الربط بمشروع)</option>${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
     </div>
     <div id="chnRest" class="mt-14">
       <div id="chnStandardFields">
-        <div class="sa-form" style="flex-wrap:wrap;margin-bottom:10px">
-          <label style="font-size:.85rem;font-weight:700;align-self:center">نموذج العقد:</label>
-          <select id="chnTemplate" style="flex:1;min-width:240px">${Object.values(CONTRACT_TEMPLATES).map(t=>
+        <div class="sa-form fx-wrap mb-10">
+          <label class="fs-85 bold self-center">نموذج العقد:</label>
+          <select class="f1 mw-240" id="chnTemplate">${Object.values(CONTRACT_TEMPLATES).map(t=>
             `<option value="${t.key}">${esc(t.label)}</option>`).join('')}</select>
         </div>
         <div class="sa-form fx-wrap">
@@ -585,17 +585,17 @@ async function openNewContractPanel(){
           <input id="chdDate" type="date" value="${new Date().toISOString().slice(0,10)}">
           <label class="row-6 fs-85"><input type="checkbox" id="chdAdSpend"> يشمل إدارة إنفاق إعلاني</label>
         </div>
-        <textarea id="chdSpecial" placeholder="شروط إضافية خاصة بهذا العقد (اختياري)" style="width:100%;min-height:70px;margin-top:10px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px"></textarea>
-        <div class="sa-section" style="margin-top:14px;background:var(--soft-2)">
+        <textarea class="chub-ta short mt-10" id="chdSpecial" placeholder="شروط إضافية خاصة بهذا العقد (اختياري)"></textarea>
+        <div class="sa-section mt-14 soft-bg">
           <h4>📋 بنود العقد <span class="sa-hint">استبعد بندًا، أو حرّر نصه، أو أضف بندًا — لهذا العقد وحده</span></h4>
           <div id="chnClauses"></div>
         </div>
       </div>
-      <div id="chnCustomFields" style="display:none">
-        <input id="chdTitle" placeholder="عنوان العقد" style="width:100%;margin-bottom:10px;font-weight:700;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
-        <textarea id="chdBody" placeholder="اكتب نص العقد الكامل هنا..." style="width:100%;min-height:220px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px;line-height:1.7"></textarea>
+      <div class="is-hidden" id="chnCustomFields">
+        <input class="chub-inp bold mb-10" id="chdTitle" placeholder="عنوان العقد">
+        <textarea class="chub-ta tall" id="chdBody" placeholder="اكتب نص العقد الكامل هنا..."></textarea>
       </div>
-      <button class="hbtn" id="chnCreate" style="background:var(--gold);border-color:var(--gold);margin-top:10px">إنشاء العقد</button>
+      <button class="hbtn btn-gold mt-10" id="chnCreate">إنشاء العقد</button>
       <p class="sa-hint mt-6">سينشأ بحالة «بانتظار الاعتماد الداخلي» — لن يصبح قابلًا للإرسال أو التوقيع قبل اعتماده.</p>
       <details class="pubsign-fulltext mt-14" open>
         <summary>📄 معاينة نص العقد الكامل (حيّة — بمحتوى ونص هذا العقد تحديدًا)</summary>
@@ -622,7 +622,7 @@ async function openNewContractPanel(){
     byId('chnCustomFields').style.display=isCustom?'':'none';
     refreshPreview();
   };
-  document.querySelectorAll('input[name="chnType"]').forEach(r=>r.onchange=applyTypeVisibility);
+  $$('input[name="chnType"]').forEach(r=>r.onchange=applyTypeVisibility);
   {const ts=byId('chnTemplate');
    if(ts)ts.onchange=()=>{CHD_TEMPLATE=ts.value;CHD_OVERRIDES.excluded=[];CHD_OVERRIDES.edited={};
      chubRenderClauseEditor('chnClauses',refreshPreview);refreshPreview();};}
@@ -833,16 +833,16 @@ export function contractPanelHTML(c,{STAGE,cl,anySigned,editable,isCustom,link,t
     <div class="chub-pane" data-pane="terms" ${tab==='terms'?'':'hidden'}>
       <div class="chub-fields-box">
         ${editable?`
-        <div class="sa-form" style="flex-wrap:wrap;margin-bottom:12px">
-          <input id="chdName" placeholder="اسم العقد" value="${esc(c.contract_name||'')}" style="flex:1;min-width:180px;font-weight:700">
-          <input id="chdNumber" placeholder="رقم العقد" value="${esc(c.contract_number||'')}" style="width:150px;font-family:monospace" dir="ltr">
+        <div class="sa-form fx-wrap mb-12">
+          <input class="f1 mw-180 bold" id="chdName" placeholder="اسم العقد" value="${esc(c.contract_name||'')}">
+          <input class="w-150 mono" id="chdNumber" placeholder="رقم العقد" value="${esc(c.contract_number||'')}" dir="ltr">
         </div>`:`
         <input id="chdName" type="hidden" value="${esc(c.contract_name||'')}">
         <input id="chdNumber" type="hidden" value="${esc(c.contract_number||'')}">`}
         ${isCustom?`
           ${editable?`
-          <input id="chdTitle" placeholder="عنوان العقد" value="${esc(c.custom_title||'')}" style="width:100%;margin-bottom:10px;font-weight:700;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
-          <textarea id="chdBody" placeholder="نص العقد الكامل..." style="width:100%;min-height:220px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px;line-height:1.7">${esc(c.custom_body||'')}</textarea>
+          <input class="chub-inp bold mb-10" id="chdTitle" placeholder="عنوان العقد" value="${esc(c.custom_title||'')}">
+          <textarea class="chub-ta tall" id="chdBody" placeholder="نص العقد الكامل...">${esc(c.custom_body||'')}</textarea>
           <div class="row-8 mt-10">
             <button class="hbtn gold" id="chdSave">📌 حفظ وتثبيت التعديلات</button>
           </div>`:`
@@ -852,14 +852,14 @@ export function contractPanelHTML(c,{STAGE,cl,anySigned,editable,isCustom,link,t
         `:`
         ${editable?`
         <div class="sa-form fx-wrap">
-          <input id="chdValue" type="number" placeholder="قيمة العقد (ر.س)" value="${c.contract_value||''}" style="width:150px">
+          <input class="w-150" id="chdValue" type="number" placeholder="قيمة العقد (ر.س)" value="${c.contract_value||''}">
           <input id="chdDate" type="date" title="تاريخ السريان" value="${c.effective_date||''}">
           <input id="chdDuration" type="number" min="1" placeholder="المدة (أشهر)" value="${c.duration_months||''}" class="w-130">
           <input id="chdEnd" type="date" title="تاريخ الانتهاء" value="${c.end_date||''}">
           <label class="row-6 fs-85"><input type="checkbox" id="chdRenew" ${c.auto_renew?'checked':''}> تجديد تلقائي</label>
           <label class="row-6 fs-85"><input type="checkbox" id="chdAdSpend" ${c.includes_ad_spend?'checked':''}> يشمل إدارة إنفاق إعلاني</label>
         </div>
-        <textarea id="chdSpecial" placeholder="شروط إضافية خاصة بهذا العقد (اختياري)" style="width:100%;min-height:70px;margin-top:10px;font-family:inherit;border:1.5px solid var(--line);border-radius:8px;padding:10px">${esc(c.special_terms||'')}</textarea>
+        <textarea class="chub-ta short mt-10" id="chdSpecial" placeholder="شروط إضافية خاصة بهذا العقد (اختياري)">${esc(c.special_terms||'')}</textarea>
         <div class="row-8 mt-10">
           <button class="hbtn gold" id="chdSave">📌 حفظ وتثبيت التعديلات</button>
         </div>`:`
@@ -876,7 +876,7 @@ export function contractPanelHTML(c,{STAGE,cl,anySigned,editable,isCustom,link,t
     ${(!isCustom&&editable)?`
     <div class="sa-section mt-14">
       <h4>📋 نموذج العقد وبنوده <span class="sa-hint">اختر النموذج، واستبعد أو أضف بنودًا لهذا العقد تحديدًا</span></h4>
-      <div class="sa-form" style="margin-bottom:12px">
+      <div class="sa-form mb-12">
         <select id="chdTemplate">${Object.values(CONTRACT_TEMPLATES).map(t=>
           `<option value="${t.key}" ${(c.template_key||'alamaa_v1')===t.key?'selected':''}>${esc(t.label)}</option>`).join('')}</select>
       </div>
@@ -896,8 +896,8 @@ export function contractPanelHTML(c,{STAGE,cl,anySigned,editable,isCustom,link,t
       <div class="chub-qr-box">
         <div id="chdQrImg" class="chub-qr-loading">⏳ يُولَّد رمز QR...</div>
         <p class="sa-hint">رمز خاص بعقد ${esc(c.client_name)} — يحيل حصرًا لصفحة توقيع هذا العقد</p>
-        <input readonly value="${link}" style="width:100%;font-size:.72rem;border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--soft-2);margin-top:6px">
-        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <input class="chub-readonly mt-6" readonly value="${link}">
+        <div class="row-6 fx-wrap mt-8">
           <button class="reqbtn" data-chdcopy="${link}">نسخ الرابط</button>
         </div>
         ${(c.internal_approved&&c.status!=='void')?`
@@ -905,11 +905,11 @@ export function contractPanelHTML(c,{STAGE,cl,anySigned,editable,isCustom,link,t
           <div id="chdFunnel"><p class="sa-hint">جارٍ تحميل حالة الإرسال...</p></div>
         <div id="chdLinkState"></div>
           ${!cl?`
-          <input id="chdSendTo" type="email" placeholder="بريد الشريك" value="${esc(c.client_contact_email||'')}" dir="ltr" style="width:100%;margin:8px 0 6px">
-          ${!c.client_contact_email&&c.client_id?'<label class="sa-hint" style="display:flex;gap:5px;align-items:center;margin-bottom:6px"><input type="checkbox" id="chdSaveEmail" checked> احفظه في ملف الشريك (فلا يُعاد إدخاله)</label>':''}
+          <input class="w-full my-8-6" id="chdSendTo" type="email" placeholder="بريد الشريك" value="${esc(c.client_contact_email||'')}" dir="ltr">
+          ${!c.client_contact_email&&c.client_id?'<label class="sa-hint row-5 mb-6"><input type="checkbox" id="chdSaveEmail" checked> احفظه في ملف الشريك (فلا يُعاد إدخاله)</label>':''}
           <button class="hbtn gold wide" id="chdSendBtn">
             ${c.send_count>0?'🔔 إرسال تذكير':'📧 إرسال للشريك'}</button>`:''}
-          <button class="reqbtn" id="chdMailCheck" style="width:100%;margin-top:6px;font-size:.72rem">🔍 فحص جاهزية الإرسال</button>
+          <button class="reqbtn w-full mt-6 fs-72" id="chdMailCheck">🔍 فحص جاهزية الإرسال</button>
           <div id="chdMailStatus"></div>
         </div>`:''}
       </div>
@@ -1008,7 +1008,7 @@ export function signatureCertificateHTML(cert){
       ${(cert.attachments||[]).length?`<div class="cx-annex-hd">الملاحق وبصماتها</div>
       <table class="cx-table"><thead><tr><th>الملحق</th><th>النوع</th><th>بصمة المحتوى</th></tr></thead><tbody>
         ${cert.attachments.map(a=>`<tr><td>${esc(a.label)}</td><td>${a.kind==='file'?'ملف مرفوع':'رابط'}</td>
-          <td style="font-size:.6rem;direction:ltr">${esc(a.hash||'—')}</td></tr>`).join('')}
+          <td class="fs-60 ltr">${esc(a.hash||'—')}</td></tr>`).join('')}
       </tbody></table>`:''}
 
       <div class="cx-annex-hd">رابعًا — التواقيع وأدلتها</div>
@@ -1043,7 +1043,7 @@ export function signatureCertificateHTML(cert){
 export function contractFunnelHTML(f,steps,lastDone,fmt){
   return `
       <div class="chd-funnel">
-        ${f.bounced_at?`<div class="ctr-integrity warn" style="font-size:.74rem;margin-bottom:8px">
+        ${f.bounced_at?`<div class="ctr-integrity warn fs-74 mb-8">
           ⚠ ارتدّت الرسالة${f.bounce_reason?' — '+esc(f.bounce_reason):''} — تحقّق من صحة البريد</div>`:''}
         ${steps.map((s,i)=>{
           const done=!!s.at, current=(i===lastDone+1&&!done);
@@ -1075,23 +1075,23 @@ export function contractAttachmentsHTML(c,atts,editable){
     <div class="chd-att-row">
       <span>${a.kind==='file'?'📎':'🔗'} <b>${esc(a.label)}</b>
         ${a.file_size?`<span class="sa-hint"> · ${(a.file_size/1024).toFixed(0)} ك.ب</span>`:''}
-        ${a.storage_path?` <button class="reqbtn" data-openfile="${esc(a.storage_path)}" style="padding:2px 8px;font-size:.7rem">فتح الملف</button>`
-          :(a.url?` <a href="${esc(a.url)}" target="_blank" rel="noopener" class="sa-hint" style="text-decoration:underline">فتح الرابط</a>`:'')}</span>
+        ${a.storage_path?` <button class="reqbtn pill-xs" data-openfile="${esc(a.storage_path)}">فتح الملف</button>`
+          :(a.url?` <a href="${esc(a.url)}" target="_blank" rel="noopener" class="sa-hint underline">فتح الرابط</a>`:'')}</span>
       ${editable?`<button class="reqbtn txt-crit" data-delatt="${a.id}" data-delpath="${esc(a.storage_path||'')}">حذف</button>`:''}
     </div>`).join(''):(planAtt?'':'<p class="sa-hint">لا مرفقات إضافية بعد.</p>'))
     +(editable?`
     <div class="sa-form mt-12 fx-wrap">
       <input id="chdAttLabel" placeholder="اسم المستند (مثال: كشف الأسعار)" class="grow-160">
-      <input id="chdAttFile" type="file" style="flex:1;min-width:180px;font-size:.78rem">
+      <input class="f1 mw-180 fs-78" id="chdAttFile" type="file">
       <button class="reqbtn ok" id="chdAttUpload">⬆ رفع الملف</button>
     </div>
     <p class="sa-hint mt-6">الملف يُحفَظ في مساحة علامة الخاصة ويُقفَل مع العقد عند التوقيع — لا ينكسر ولا يتغيّر بعده. الحد 25 م.ب.</p>
-    <details class="mt-8"><summary class="sa-hint" style="cursor:pointer">أو أضف رابطًا خارجيًا بدل الرفع</summary>
-      <div class="sa-form" style="margin-top:8px;flex-wrap:wrap">
-        <input id="chdAttUrl" placeholder="https://..." style="flex:1;min-width:200px" dir="ltr">
+    <details class="mt-8"><summary class="sa-hint pointer">أو أضف رابطًا خارجيًا بدل الرفع</summary>
+      <div class="sa-form mt-8 fx-wrap">
+        <input class="f1 mw-200" id="chdAttUrl" placeholder="https://..." dir="ltr">
         <button class="reqbtn" id="chdAttAdd">إضافة رابط</button>
       </div>
-      <p class="sa-hint" style="margin-top:4px">⚠ الرابط الخارجي قد ينكسر أو يتغيّر بعد التوقيع — الرفع أأمن.</p>
+      <p class="sa-hint mt-4">⚠ الرابط الخارجي قد ينكسر أو يتغيّر بعد التوقيع — الرفع أأمن.</p>
     </details>`
     :'<p class="sa-hint mt-8">🔒 لا يمكن تعديل مرفقات عقد وقّع عليه طرف.</p>');
 }
@@ -1120,7 +1120,7 @@ export function contractAuditHTML(rows,who){
       <div class="chd-att-row">
         <span><b>${esc(AUDIT_ACTIONS[r.action]||r.action)}</b>
           ${r.new_value?`<span class="sa-hint"> · ${esc(auditChangeSummary(r.new_value))}</span>`:''}</span>
-        <span class="sa-hint" style="white-space:nowrap">${esc(who(r.user_id))} · ${
+        <span class="sa-hint nowrap">${esc(who(r.user_id))} · ${
           new Date(r.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'})}</span>
       </div>`).join('');
 }
@@ -1136,9 +1136,9 @@ export function isSendableEmail(s){
 
 /** لوحة توقيع علامة داخل اللوحة — ترميزٌ خالص، لا قراءة من DOM ولا كتابة فيه. */
 export function staffSignAreaHTML(contractName){
-  return `<div class="sa-section" style="background:var(--soft-2)">
+  return `<div class="sa-section soft-bg">
        <h4>توقيع علامة على «${esc(contractName||'')}»</h4>
-       <input id="chdSignName" placeholder="اسم الموقِّع عن علامة" style="width:100%;margin-bottom:10px;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px">
+       <input class="chub-inp mb-10" id="chdSignName" placeholder="اسم الموقِّع عن علامة">
        <div id="chdSignPad"></div>
        <div class="row-8 mt-10">
          <button class="hbtn ok" id="chdSignConfirm">اعتماد التوقيع</button>
@@ -1160,7 +1160,7 @@ export function contractInstancesHTML(insts,clients){
         <div class="sa-section mb-14">
           <h4>النسخ المُنشأة من هذا الأصل <span class="sa-hint">(${list.length})</span></h4>
           ${list.length?list.map(i=>`
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft)">
+            <div class="chub-list-row">
               <div><span class="chub-num">${esc(i.contract_number||'—')}</span> <b>${esc(i.client_name||'—')}</b>
                 <span class="sa-hint"> · ${CH_STL[i.status]||i.status}${i.project_name?' · 📁 '+esc(i.project_name):''}${i.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}</span></div>
               <button class="reqbtn" data-openinst="${i.id}">فتح ←</button>
@@ -1182,7 +1182,7 @@ function bindInstancesSection(contractId){
     try{ insts=await fetchContractInstances(contractId); }catch(e){}
     const {data:allCl}=await sb.from('pmo_clients').select('id,name').order('name');
     box.innerHTML=contractInstancesHTML(insts,allCl);
-    document.querySelectorAll('[data-openinst]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.openinst));
+    $$('[data-openinst]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.openinst));
     byId('chdAssignGo').onclick=async()=>{
       const cid=byId('chdAssignClient').value;
       if(!cid){toast('اختر الشريك','warn');return;}
@@ -1306,7 +1306,7 @@ function bindPanelViews({c,contractId,panel,STAGE,client,editable,canApprove,isC
      runPrintSafely();
    };}
   // الأصل: عرض نسخه الحالية + إتاحة إسناده لشريك جديد (نسخة مستقلة)
-  document.querySelectorAll('[data-chdcopy]').forEach(b=>b.onclick=async()=>{
+  $$('[data-chdcopy]').forEach(b=>b.onclick=async()=>{
     try{await navigator.clipboard.writeText(b.dataset.chdcopy);toast('نُسخ الرابط','ok');}
     catch(e){toast('انسخ الرابط يدويًا','warn');}
   });
