@@ -262,35 +262,11 @@ async function refreshContractPanel(){
   let list;
   try{ list=await fetchContractsForProject(getState('PROJECT')._dbId); }
   catch(e){ byId('tkBody').innerHTML='<p class="empty">تعذّر التحميل: '+esc(e.message)+'</p>'; return; }
-  const STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع الشريك',signed:'موقَّع بالكامل ✅',void:'ملغى'};
-  const rows=list.map(c=>{
-    const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
-    const link=location.origin+location.pathname+'#/sign/'+c.token;
-    const cEmail=(getState('CLIENTS').find(x=>x.id===getState('CID'))||{}).contact_email||'';
-    const mailHref=signInviteMailto(cEmail,getState('PROJECT').name,link);
-    return `<div class="ct-row">
-      <div class="ct-row-hd">
-        <b>${esc(c.baseline_label)}</b><span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${STL[c.status]||c.status}</span>
-      </div>
-      <div class="sa-hint ct-row-sub">علامة: ${al?esc(al.name)+' — '+new Date(al.signed_at).toLocaleDateString('ar'):'لم توقّع بعد'}
-        · الشريك: ${cl?esc(cl.name)+' — '+new Date(cl.signed_at).toLocaleDateString('ar'):'لم يوقّع بعد'}
-        · ${c.includes_ad_spend?'يشمل إنفاقًا إعلانيًا':'بلا إنفاق إعلاني'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}</div>
-      <div class="ctr-link-badge">🔒 الرابط والرمز أدناه خاصّان بـ<b>${esc((getState('CLIENTS').find(x=>x.id===getState('CID'))||{}).name||'هذا الشريك')}</b> حصرًا — لتوقيع هذا العقد تحديدًا، لا يصلح لغيره</div>
-      <div class="ct-row-acts">
-        <input readonly value="${link}" class="ct-link-field">
-        <button class="reqbtn" data-copylink="${link}">نسخ الرابط</button>
-        <a class="reqbtn ct-mail-btn" href="${mailHref}">📧 إرسال بالبريد</a>
-        <button class="reqbtn" data-exportqr="${c.id}">📄 تصدير PDF بـ QR (العقد كاملًا + الخطة)</button>
-        <button class="reqbtn" data-viewtext="${c.id}">عرض نص العقد الكامل</button>
-        ${!al?`<button class="reqbtn ok" data-signalamaa="${c.id}">توقيع علامة الآن</button>`:''}
-        ${(c.status!=='signed'&&c.status!=='void')?`<button class="reqbtn" data-voidcontract="${c.id}" class="reqbtn ct-void-btn">🗑 إلغاء العقد</button>`:''}
-        <button class="reqbtn" data-unlink="${c.id}">🔓 فك الارتباط بهذا المشروع</button>
-      </div>
-      <div id="ctText-${c.id}" class="is-hidden stack-gap"></div>
-    </div>`;
-  }).join('')||'<p class="empty">لا عقود بعد.</p>';
-
   const clientC=getState('CLIENTS').find(x=>x.id===getState('CID'))||{};
+  const rows=list.map(c=>projectContractRowHTML(c,{
+    clientName:clientC.name,clientEmail:clientC.contact_email,projectName:getState('PROJECT').name,
+  })).join('')||'<p class="empty">لا عقود بعد.</p>';
+
   byId('tkBody').innerHTML=`
     <div class="sa-section mb-14">
       <h4>عقود هذا المشروع <span class="sa-hint">العقد كيان مستقل في محفظة العقود — اربط عقدًا قائمًا بدل إنشاء واحد جديد في كل مرة</span></h4>
@@ -303,6 +279,67 @@ async function refreshContractPanel(){
     ${rows}
     <div id="ctSignArea"></div>`;
 
+  bindProjectContracts(list,clientC);
+}
+
+
+/** حالاتُ العقد بالعربية — مصدرٌ واحد لصفّ المشروع. */
+const STL={draft:'مسودة',pending_alamaa:'بانتظار توقيع علامة',pending_client:'بانتظار توقيع الشريك',signed:'موقَّع بالكامل ✅',void:'ملغى'};
+
+/**
+ * صفُّ عقدٍ مرتبطٍ بمشروع.
+ *
+ * وأزرارُه ليست ثابتة: **«توقيع علامة» يظهر ما لم توقّع علامة بعد**،
+ * و**«إلغاء العقد» يختفي عن الموقَّع والملغى** — فالموقَّع مرجعٌ قانونيّ ساري.
+ * وبقيّةُ الأزرار تظهر دائمًا لأنها لا تُغيّر حالة.
+ *
+ * وسياقُ الشريك والمشروع يُمرَّر ولا يُقرأ من الحالة العامّة: البانيةُ تُختبَر
+ * بلا شاشةٍ ولا حالة.
+ */
+export function projectContractRowHTML(c,{clientName,clientEmail,projectName}){
+
+  const al=c.signatures.find(s=>s.party==='alamaa'),cl=c.signatures.find(s=>s.party==='client');
+  const link=location.origin+location.pathname+'#/sign/'+c.token;
+  const mailHref=signInviteMailto(clientEmail||'',projectName,link);
+  return `<div class="ct-row">
+    <div class="ct-row-hd">
+      <b>${esc(c.baseline_label)}</b><span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${STL[c.status]||c.status}</span>
+    </div>
+    <div class="sa-hint ct-row-sub">علامة: ${al?esc(al.name)+' — '+new Date(al.signed_at).toLocaleDateString('ar'):'لم توقّع بعد'}
+      · الشريك: ${cl?esc(cl.name)+' — '+new Date(cl.signed_at).toLocaleDateString('ar'):'لم يوقّع بعد'}
+      · ${c.includes_ad_spend?'يشمل إنفاقًا إعلانيًا':'بلا إنفاق إعلاني'}${c.contract_value?' · '+Number(c.contract_value).toLocaleString('ar')+' ر.س':''}</div>
+    <div class="ctr-link-badge">🔒 الرابط والرمز أدناه خاصّان بـ<b>${esc(clientName||'هذا الشريك')}</b> حصرًا — لتوقيع هذا العقد تحديدًا، لا يصلح لغيره</div>
+    <div class="ct-row-acts">
+      <input readonly value="${link}" class="ct-link-field">
+      <button class="reqbtn" data-copylink="${link}">نسخ الرابط</button>
+      <a class="reqbtn ct-mail-btn" href="${mailHref}">📧 إرسال بالبريد</a>
+      <button class="reqbtn" data-exportqr="${c.id}">📄 تصدير PDF بـ QR (العقد كاملًا + الخطة)</button>
+      <button class="reqbtn" data-viewtext="${c.id}">عرض نص العقد الكامل</button>
+      ${!al?`<button class="reqbtn ok" data-signalamaa="${c.id}">توقيع علامة الآن</button>`:''}
+      ${(c.status!=='signed'&&c.status!=='void')?`<button class="reqbtn" data-voidcontract="${c.id}" class="reqbtn ct-void-btn">🗑 إلغاء العقد</button>`:''}
+      <button class="reqbtn" data-unlink="${c.id}">🔓 فك الارتباط بهذا المشروع</button>
+    </div>
+    <div id="ctText-${c.id}" class="is-hidden stack-gap"></div>
+  </div>`;
+}
+
+/**
+ * مُنتقي العقود غير المرتبطة.
+ *
+ * و`has_client` فارقٌ يُقال صراحةً: عقدٌ **بلا شريك** أصلًا (🆓) غيرُ عقدٍ
+ * لشريكٍ لم يُربَط بمشروع. وبينهما فرقٌ في ما يحدث عند الربط.
+ */
+export function unlinkedContractsHTML(list){
+  return (list||[]).map(u=>`
+    <div class="ct-pick-row">
+      <div><span class="chub-num">${esc(u.contract_number||'—')}</span> <b>${esc(u.contract_name||u.custom_title||'عقد بلا اسم')}</b>
+        <span class="sa-hint">${u.contract_value?' · '+Number(u.contract_value).toLocaleString('ar')+' ر.س':''}${u.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}${u.has_client?'':' · 🆓 عقد مستقل بلا شريك'}</span></div>
+      <button class="reqbtn" data-linkbl="${u.id}">ربط بهذا المشروع</button>
+    </div>`).join('');
+}
+
+/** ربطُ أزرار عقود المشروع — نسخٌ وتصديرٌ وتوقيعٌ وإلغاءٌ وفكُّ ارتباط. */
+function bindProjectContracts(list,clientC){
   byId('ctGoHub').onclick=()=>showScreen('contractshub');
   byId('ctLinkExisting').onclick=async()=>{
     const picker=byId('ctLinkPicker');
@@ -317,12 +354,7 @@ async function refreshContractPanel(){
       picker.innerHTML='<p class="sa-hint">لا عقود غير مرتبطة لهذا الشريك حاليًا. أنشئ عقدًا جديدًا بنطاق «الشريك كاملًا» من إدارة العقود، ثم اربطه هنا لاحقًا.</p>';
       return;
     }
-    picker.innerHTML=unlinked.map(u=>`
-      <div class="ct-pick-row">
-        <div><span class="chub-num">${esc(u.contract_number||'—')}</span> <b>${esc(u.contract_name||u.custom_title||'عقد بلا اسم')}</b>
-          <span class="sa-hint">${u.contract_value?' · '+Number(u.contract_value).toLocaleString('ar')+' ر.س':''}${u.internal_approved?' · ✅ معتمد':' · ⏳ بانتظار الاعتماد'}${u.has_client?'':' · 🆓 عقد مستقل بلا شريك'}</span></div>
-        <button class="reqbtn" data-linkbl="${u.id}">ربط بهذا المشروع</button>
-      </div>`).join('');
+    picker.innerHTML=unlinkedContractsHTML(unlinked);
     $$('[data-linkbl]').forEach(b=>b.onclick=async()=>{
       const blSel=getState('PROJECT').baselines[getState('PROJECT').baselines.length-1];
       if(!blSel){toast('لا توجد لقطة (Baseline) لهذا المشروع','warn');return;}

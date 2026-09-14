@@ -1699,3 +1699,18 @@ tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
 .mw-200{min-width:200px}
 .mw-220{min-width:220px}
 .mw-240{min-width:240px}
+/* ═══ W6 · إجراءاتُ المشروع ═══ */
+.pa-row{display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:7px}
+.pa-row.tight{justify-content:flex-start;gap:9px;padding:8px 11px;margin-bottom:6px;font-size:.84rem}
+/* زرُّ خطرٍ هادئ: أرضيةٌ ورقيّة ونصٌّ حَرِج — الحدُّ رمزٌ لا لونٌ خامّ */
+.btn-danger-soft{background:var(--paper);color:var(--crit);border-color:var(--crit-bg);padding:4px 10px}
+.items-center{align-items:center}
+.italic{font-style:italic}
+.c-muted{color:var(--muted)}
+.p-12{padding:12px}
+.ta-right{text-align:right}
+.ta-center{text-align:center}
+.fs-82{font-size:.82rem}
+.fs-86{font-size:.86rem}
+.w-46{width:46px}
+.w-120{width:120px}

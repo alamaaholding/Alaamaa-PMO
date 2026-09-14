@@ -191,6 +191,60 @@ const wait=setInterval(()=>{
       page({},{integrityBadge:'<div class="ctr-integrity warn">تنبيه</div>'}).includes('ctr-integrity warn')],
   ];
 
+  // ═══ صفُّ عقدٍ مرتبطٍ بمشروع: أزرارُه تتبع الحالة ═══
+  //
+  // و«الموقَّع مرجعٌ قانونيّ ساري» ليست عبارةً في تعليق: زرُّ الإلغاء يجب أن
+  // **يختفي** عنه وعن الملغى. وزرُّ «توقيع علامة» يختفي متى وقّعت علامة.
+  const ROW = w.projectContractRowHTML;
+  const RC = (o={}) => Object.assign({id:'k1',token:'tok',baseline_label:'لقطة',
+    status:'draft',signatures:[],includes_ad_spend:false}, o);
+  const CTX = {clientName:'سنام',clientEmail:'a@b.co',projectName:'هوية'};
+  const row = (o={}) => ROW(RC(o), CTX);
+  const contract_rows = [
+    ['المسودة: الإلغاء متاح', row().includes('data-voidcontract="k1"')],
+    ['والموقَّع لا يُلغى', !row({status:'signed'}).includes('data-voidcontract')],
+    ['والملغى لا يُلغى ثانيةً', !row({status:'void'}).includes('data-voidcontract')],
+    ['وتوقيعُ علامة متاحٌ قبل توقيعها',
+      row().includes('data-signalamaa="k1"')],
+    ['ويختفي بعده',
+      !row({signatures:[{party:'alamaa',name:'م',signed_at:'2026-01-01'}]}).includes('data-signalamaa')],
+    // وأزرارٌ لا تُغيّر حالةً تبقى في كل الأحوال.
+    ['والتصديرُ وفكُّ الارتباط يبقيان للموقَّع',
+      row({status:'signed'}).includes('data-exportqr="k1"')
+        && row({status:'signed'}).includes('data-unlink="k1"')],
+    // والرابطُ يحمل الرمز، والتحذيرُ يقول إنه لهذا الشريك حصرًا.
+    ['والرابط يحمل رمز العقد', row().includes('#/sign/tok')],
+    ['وتحذيرُ الخصوصية يسمّي الشريك',
+      row().includes('سنام') && /حصرًا/.test(row())],
+    ['وغيابُ اسم الشريك لا يُفرغ التحذير',
+      ROW(RC(), {projectName:'هوية'}).includes('هذا الشريك')],
+    // والحالةُ معرَّبة، والتوقيعان يُقالان بحالتيهما.
+    ['والحالة معرَّبة لا خامًّا', row().includes('مسودة') && !row().includes('>draft<')],
+    ['وغيرُ الموقَّع يُقال صراحةً',
+      (row().match(/لم توقّع بعد|لم يوقّع بعد/g)||[]).length===2],
+    // ومُدخَلاتُ الشريك تُهرَّب.
+    ['واسمُ اللقطة يُهرَّب', !row({baseline_label:'<b>x</b>'}).includes('<b>x</b>')],
+    ['واسمُ الشريك كذلك',
+      !ROW(RC(),{clientName:'<i>y</i>',projectName:'ه'}).includes('<i>y</i>')],
+  ];
+
+  // ═══ مُنتقي العقود غير المرتبطة ═══
+  const UN = w.unlinkedContractsHTML;
+  const unlinked_rows = [
+    ['كلُّ عقدٍ زرُّ ربطٍ يحمل معرّفه',
+      UN([{id:'u1',contract_name:'ع',internal_approved:true,has_client:true}]).includes('data-linkbl="u1"')],
+    // و«بلا شريك» فارقٌ يُقال: عقدٌ مستقلٌّ غيرُ عقدِ شريكٍ لم يُربَط بعد.
+    ['والعقد بلا شريك يُعلَّم',
+      UN([{id:'u1',has_client:false}]).includes('بلا شريك')],
+    ['وعقدُ الشريك لا يُعلَّم', !UN([{id:'u1',has_client:true}]).includes('بلا شريك')],
+    ['وغيرُ المعتمَد يُعلَّم بانتظار الاعتماد',
+      UN([{id:'u1',has_client:true}]).includes('بانتظار الاعتماد')],
+    ['وبلا اسمٍ لا يظهر فراغ',
+      UN([{id:'u1',has_client:true}]).includes('عقد بلا اسم')],
+    ['واسمُه يُهرَّب', !UN([{id:'u1',contract_name:'<s>z</s>'}]).includes('<s>z</s>')],
+    ['وقائمةٌ معدومة لا ترمي', typeof UN(null)==='string'],
+  ];
+
   // ═══ دعوة التوقيع — نصٌّ يخرج من المنصّة إلى بريد شريك ═══
   const M=(to,proj,link)=>w.signInviteMailto(to,proj,link);
   const m=M('a@b.co','هوية','https://pmo.example/#/sign/tok');
@@ -223,6 +277,8 @@ const wait=setInterval(()=>{
     ...gate,
     ...fail_msgs,
     ...html_states,
+    ...contract_rows,
+    ...unlinked_rows,
     ...invite,
     ['الغلاف لم يعد يستخدم 100vh (وحدة شاشة لا معنى لها في الطباعة)',
       !/\.cx-cover\{min-height:100vh/.test(css)],
