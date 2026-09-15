@@ -496,6 +496,88 @@ console.log('\n▸ اللوحة تُفتح فعلًا وتُربَط — بصم�
     t('وغيابُ الاسم لا يرمي', typeof staffSignAreaHTML(undefined) === 'string');
   }
 
+  // ═══ قائمةُ المحفظة: الصفّ والحالةُ الفارغة والشريط ═══
+  const { contractRowHTML, hubEmptyHTML, hubHasFilter, hubToolbarHTML,
+          HUB_FILTER_DEFAULT } = w;
+  const ST = { tone: 'ok', label: 'جاهز' };
+  const C = (o = {}) => Object.assign({ id: 'k1', contract_number: 'C-1',
+    contract_name: 'عقد', status: 'draft' }, o);
+  const R = (o = {}) => contractRowHTML(C(o), ST);
+
+  // تحذيرُ الانتهاء شرطان **مجتمعان**: موقَّعٌ، وثلاثون يومًا أو أقلّ.
+  // فعقدٌ غيرُ موقَّعٍ لا «ينتهي»، ولا معنى لتحذيرٍ عنه.
+  t('الموقَّع القريب من الانتهاء يُحذَّر',
+    R({ status: 'signed', end_date: '2026-02-01', days_left: 5 }).includes('ينتهي خلال 5'));
+  t('والمنتهي يُقال «انتهى» لا عددًا سالبًا',
+    R({ status: 'signed', end_date: '2026-01-01', days_left: -3 }).includes('انتهى')
+      && !R({ status: 'signed', end_date: '2026-01-01', days_left: -3 }).includes('-3'));
+  t('وغيرُ الموقَّع لا يُحذَّر ولو قرُب',
+    !R({ status: 'draft', end_date: '2026-02-01', days_left: 5 }).includes('chub-row-warn'));
+  t('والبعيدُ لا يُحذَّر',
+    !R({ status: 'signed', end_date: '2027-01-01', days_left: 90 }).includes('chub-row-warn'));
+  eq('وحدُّ الثلاثين داخلٌ لا خارج',
+    R({ status: 'signed', end_date: '2026-02-01', days_left: 30 }).includes('chub-row-warn'), true);
+
+  // الشاراتُ تقتصر على ما يغيّر القرار.
+  t('النص المخصَّص يُعلَّم', R({ contract_type: 'custom' }).includes('نص مخصَّص'));
+  t('والأصل يُعلَّم بعدد نسخه', R({ instance_count: 3 }).includes('أصل · 3 نسخة'));
+  t('وأصلٌ بلا نسخ يُعلَّم بلا عدد',
+    R({ instance_count: 0 }).includes('>أصل<'));
+  t('والنسخة تسمّي أصلها', R({ source_contract_id: 's1', source_name: 'الأمّ' }).includes('نسخة من الأمّ'));
+  t('والملحق يحمل رقمه', R({ amends_contract_id: 'a1', amendment_no: 2 }).includes('ملحق 2'));
+  t('وذو الملاحق يُعلَّم بعددها', R({ amendment_count: 4 }).includes('4 ملحق'));
+  // وغيابُ الإسناد يُقال، لا يُترك فراغًا.
+  t('وغيرُ المُسنَد يُقال صراحةً',
+    R().includes('غير مُسنَد لشريك') && R().includes('غير مرتبط بمشروع'));
+  t('واسمُ العقد يُهرَّب', !R({ contract_name: '<b>x</b>' }).includes('<b>x</b>'));
+  t('واسمُ الأصل كذلك',
+    !R({ source_contract_id: 's1', source_name: '<i>y</i>' }).includes('<i>y</i>'));
+
+  // الحالةُ الفارغة: حالتان لا واحدة.
+  t('بفلترٍ: تدعو إلى المسح',
+    hubEmptyHTML(true).includes('chubEmptyReset') && !hubEmptyHTML(true).includes('chubEmptyNew'));
+  t('وبلا فلتر: تدعو إلى إنشاء أوّل عقد',
+    hubEmptyHTML(false).includes('chubEmptyNew') && !hubEmptyHTML(false).includes('chubEmptyReset'));
+  t('ونصّاهما مختلفان',
+    /لا عقود تطابق هذا الفلتر/.test(hubEmptyHTML(true))
+      && /لا عقود في المحفظة بعد/.test(hubEmptyHTML(false)));
+
+  // ومُستفهِمُ الفلتر مصدرٌ واحد للقرارين — كان مكتوبًا مرّتين.
+  t('الافتراضي ليس فلترًا', hubHasFilter(HUB_FILTER_DEFAULT) === false);
+  t('وكلُّ حقلٍ يُفعّله وحده',
+    [{ q: 'س' }, { client: 'c' }, { link: 'linked' }, { type: 'custom' }, { status: 'signed' }]
+      .every(o => hubHasFilter(Object.assign({}, HUB_FILTER_DEFAULT, o)) === true));
+  t('و«الكل» ليست فلترًا', hubHasFilter({ status: 'all' }) === false);
+  t('وغيابُ الكائن لا يرمي', hubHasFilter(undefined) === false);
+
+  // والشريط: المؤشرات من المعروض، والحالة الظاهرة تُعلَّم.
+  const BAR = (f, o = {}) => hubToolbarHTML(Object.assign({
+    counts: { all: 9, signed: 2, pending_alamaa: 1, pending_client: 3 },
+    shown: 4, total: 9, totalValue: 5000, clients: [['c1', 'سنام']], f }, o));
+  {
+    const h = BAR(HUB_FILTER_DEFAULT);
+    t('المعروض والكل يُقالان معًا', h.includes('>4<') && h.includes('معروض من 9'));
+    t('وبانتظار التوقيع مجموعُ الطرفين', h.includes('>4</b><span>بانتظار توقيع'));
+    t('وقيمةٌ صفرية تُعرَض شرطةً لا صفرًا',
+      BAR(HUB_FILTER_DEFAULT, { totalValue: 0 }).includes('>—<'));
+    t('والافتراضي يُعلِّم «الكل» والأحدث',
+      /chub-pill active" data-chubstatus="all"/.test(h) && h.includes('value="newest" selected'));
+    t('ولا زرَّ مسحٍ بلا فلتر', !h.includes('chubReset'));
+  }
+  {
+    const h = BAR(Object.assign({}, HUB_FILTER_DEFAULT, { status: 'signed', sort: 'value' }));
+    t('والحالة المُختارة تُعلَّم وحدها',
+      /chub-pill active" data-chubstatus="signed"/.test(h)
+        && !/chub-pill active" data-chubstatus="all"/.test(h));
+    t('والترتيب المُختار كذلك',
+      h.includes('value="value" selected') && !h.includes('value="newest" selected'));
+    t('وزرُّ المسح يظهر مع الفلتر', h.includes('chubReset'));
+  }
+  t('واسمُ الشريك يُهرَّب في القائمة',
+    !BAR(HUB_FILTER_DEFAULT, { clients: [['c1', '<s>z</s>']] }).includes('<s>z</s>'));
+  t('ونصُّ البحث يُهرَّب',
+    !BAR(Object.assign({}, HUB_FILTER_DEFAULT, { q: '"><img src=x>' })).includes('"><img src=x>'));
+
   console.log(`\nنجح ${ok} · فشل ${fail}`);
   process.exit(fail ? 1 : 0);
 })();
