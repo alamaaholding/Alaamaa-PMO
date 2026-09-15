@@ -21,7 +21,30 @@ import { confirmDialog, dialog } from './dialogs.js';
 import { buildContractDoc, ensureQR, generateQRDataURL, runPrintSafely } from './exportcontract.js';
 import { getState, setState } from './state.js';
 
-let CH_CONTRACTS=[],CH_FILTER={status:'all',q:'',client:'',link:'',type:'',sort:'newest'};
+/**
+ * الفلاتر عند الصفر — مصدرٌ واحد: كان هذا الكائن مكتوبًا في موضعين.
+ *
+ * **وموضعُ تعريفه ليس تفصيلًا.** كتبتُه أوّلًا **بعد** سطر `CH_FILTER` أدناه،
+ * فصار `Object.assign({},undefined)` = `{}`. ولا خطأ: esbuild يُخرج `var` لا
+ * `const` (المُعرِّفات تبقى كما هي — قرارٌ في build.py)، فالرفعُ يُعطي
+ * `undefined` بدل أن يرمي. والنتيجة شريطُ فلاتر **لا يُعلِّم ترتيبًا ولا
+ * حالة** بينما القائمة تحته مرتَّبةٌ فعلًا. ومرّت الاختبارات كلُّها.
+ */
+export const HUB_FILTER_DEFAULT={status:'all',q:'',client:'',link:'',type:'',sort:'newest'};
+
+/**
+ * هل ثمّة فلترٌ مُفعَّل؟
+ *
+ * وكان هذا الشرطُ مكتوبًا **مرّتين** بالحقول الخمسة نفسها: مرّةً ليقرّر أيّ
+ * حالةٍ فارغة تُعرَض، ومرّةً ليقرّر أيظهر زرُّ المسح. وأيُّ حقلٍ يُضاف لاحقًا
+ * كان سيُنسى في إحداهما — فتظهر «لا نتائج لهذا الفلتر» بلا زرٍّ يمسحه.
+ */
+export function hubHasFilter(f){
+  if(!f)return false;
+  return !!(f.q||f.client||f.link||f.type||(f.status&&f.status!=='all'));
+}
+
+let CH_CONTRACTS=[],CH_FILTER=Object.assign({},HUB_FILTER_DEFAULT);
 
 /**
  * إعادة تحميل قائمة العقود من المصدر.
@@ -70,101 +93,108 @@ function rowStage(c){
   return {label:'مكتمل',tone:'done'};
 }
 
-function renderContractsHubBody(){
-  const counts={all:CH_CONTRACTS.length};
-  ['pending_alamaa','pending_client','signed','void'].forEach(s=>{counts[s]=CH_CONTRACTS.filter(c=>c.status===s).length;});
-
-  const filtered=filterContracts(CH_CONTRACTS,CH_FILTER);
-  // مؤشرات سريعة تُبنى من المعروض فعليًا لا من الكل
-  const totalValue=filtered.reduce((s2,c)=>s2+(Number(c.contract_value)||0),0);
-  const clients=[...new Map(CH_CONTRACTS.filter(c=>c.client_id).map(c=>[c.client_id,c.client_name])).entries()];
-
-  const rows=filtered.map(c=>{
-    const st=rowStage(c);
-    // الصف يجيب على ثلاثة أسئلة بالترتيب: أي عقد؟ مع من؟ وما الخطوة التالية؟
-    // الشارات تقتصر على ما يغيّر القرار — لا كل ما يمكن عرضه (كانت تصل لسبع شارات).
-    const tags=[];
-    if(c.contract_type==='custom')tags.push('<span class="chub-type-tag">نص مخصَّص</span>');
-    if(!c.client_id&&!c.source_contract_id)
-      tags.push(`<span class="chub-type-tag chub-tpl-tag">أصل${c.instance_count>0?' · '+c.instance_count+' نسخة':''}</span>`);
-    if(c.source_contract_id)tags.push(`<span class="chub-type-tag chub-copy-tag">نسخة من ${esc(c.source_name||'أصل')}</span>`);
-    if(c.amends_contract_id)tags.push(`<span class="chub-type-tag chub-amd-tag">ملحق ${c.amendment_no}</span>`);
-    if(c.amendment_count>0)tags.push(`<span class="chub-type-tag chub-amd-tag">${c.amendment_count} ملحق</span>`);
-    return `<div class="chub-row" data-chubopen="${c.id}" role="button" tabindex="0"
-        aria-label="${esc((c.contract_name||'عقد')+' — '+st.label)}">
-      <span class="chub-row-dot ${st.tone}" aria-hidden="true"></span>
-      <div class="chub-row-main">
-        <div class="chub-row-hd">
-          <span class="chub-num">${esc(c.contract_number||'—')}</span>
-          <b>${esc(c.contract_name||'عقد بلا اسم')}</b>
-          ${tags.join('')}
-        </div>
-        <div class="chub-row-meta">
-          <span>${c.client_name?esc(c.client_name):'غير مُسنَد لشريك'}</span>
-          <span>${c.project_name?esc(c.project_name):'غير مرتبط بمشروع'}</span>
-          ${c.contract_value?`<span class="chub-row-val">${Number(c.contract_value).toLocaleString('ar')} ر.س</span>`:''}
-          ${c.end_date&&c.days_left!=null&&c.days_left<=30&&c.status==='signed'
-            ?`<span class="chub-row-warn">${c.days_left<0?'انتهى':'ينتهي خلال '+c.days_left+' يومًا'}</span>`:''}
-        </div>
+/**
+ * صفُّ العقد في القائمة — يجيب على ثلاثة أسئلةٍ بالترتيب: **أيّ عقد؟ مع من؟
+ * وما الخطوة التالية؟**
+ *
+ * والشاراتُ تقتصر على ما **يغيّر القرار** لا كلّ ما يمكن عرضه (كانت تصل إلى
+ * سبع). وتحذيرُ الانتهاء له شرطان **مجتمعان**: موقَّعٌ، وثلاثون يومًا أو أقلّ —
+ * فعقدٌ غيرُ موقَّعٍ لا «ينتهي»، ولا معنى لتحذيرٍ عنه.
+ */
+export function contractRowHTML(c,st){
+  // الصف يجيب على ثلاثة أسئلة بالترتيب: أي عقد؟ مع من؟ وما الخطوة التالية؟
+  // الشارات تقتصر على ما يغيّر القرار — لا كل ما يمكن عرضه (كانت تصل لسبع شارات).
+  const tags=[];
+  if(c.contract_type==='custom')tags.push('<span class="chub-type-tag">نص مخصَّص</span>');
+  if(!c.client_id&&!c.source_contract_id)
+    tags.push(`<span class="chub-type-tag chub-tpl-tag">أصل${c.instance_count>0?' · '+c.instance_count+' نسخة':''}</span>`);
+  if(c.source_contract_id)tags.push(`<span class="chub-type-tag chub-copy-tag">نسخة من ${esc(c.source_name||'أصل')}</span>`);
+  if(c.amends_contract_id)tags.push(`<span class="chub-type-tag chub-amd-tag">ملحق ${c.amendment_no}</span>`);
+  if(c.amendment_count>0)tags.push(`<span class="chub-type-tag chub-amd-tag">${c.amendment_count} ملحق</span>`);
+  return `<div class="chub-row" data-chubopen="${c.id}" role="button" tabindex="0"
+      aria-label="${esc((c.contract_name||'عقد')+' — '+st.label)}">
+    <span class="chub-row-dot ${st.tone}" aria-hidden="true"></span>
+    <div class="chub-row-main">
+      <div class="chub-row-hd">
+        <span class="chub-num">${esc(c.contract_number||'—')}</span>
+        <b>${esc(c.contract_name||'عقد بلا اسم')}</b>
+        ${tags.join('')}
       </div>
-      <span class="chub-row-next ${st.tone}">${st.label}</span>
-    </div>`;
-  }).join('')||(()=>{
-    const hasFilter=CH_FILTER.q||CH_FILTER.client||CH_FILTER.link||CH_FILTER.type||CH_FILTER.status!=='all';
-    // حالة فارغة موجّهة: تفرّق بين «لا نتائج لهذا الفلتر» و«لا عقود بعد إطلاقًا»
-    return hasFilter
-      ? `<div class="chub-empty">
-           <div class="chub-empty-icon" aria-hidden="true">🔍</div>
-           <b>لا عقود تطابق هذا الفلتر</b>
-           <p>جرّب توسيع البحث أو امسح الفلاتر لعرض كل العقود.</p>
-           <button class="reqbtn" id="chubEmptyReset">✕ مسح الفلاتر</button>
-         </div>`
-      : `<div class="chub-empty">
-           <div class="chub-empty-icon" aria-hidden="true">📄</div>
-           <b>لا عقود في المحفظة بعد</b>
-           <p>ابدأ بإنشاء عقد — يُنشأ مستقلًا باسمه ورقمه، وتربطه بمشروع أو تُسنده لشريك لاحقًا.</p>
-           <button class="hbtn gold" id="chubEmptyNew">+ إنشاء أول عقد</button>
-         </div>`;
-  })();
+      <div class="chub-row-meta">
+        <span>${c.client_name?esc(c.client_name):'غير مُسنَد لشريك'}</span>
+        <span>${c.project_name?esc(c.project_name):'غير مرتبط بمشروع'}</span>
+        ${c.contract_value?`<span class="chub-row-val">${Number(c.contract_value).toLocaleString('ar')} ر.س</span>`:''}
+        ${c.end_date&&c.days_left!=null&&c.days_left<=30&&c.status==='signed'
+          ?`<span class="chub-row-warn">${c.days_left<0?'انتهى':'ينتهي خلال '+c.days_left+' يومًا'}</span>`:''}
+      </div>
+    </div>
+    <span class="chub-row-next ${st.tone}">${st.label}</span>
+  </div>`;
+}
 
-  $('#chubBody').innerHTML=`
+/**
+ * الحالةُ الفارغة — **حالتان لا واحدة**.
+ *
+ * «لا نتائج لهذا الفلتر» غيرُ «لا عقود بعد إطلاقًا»: الأولى تدعو إلى **مسح
+ * الفلتر**، والثانية إلى **إنشاء أوّل عقد**. وخلطُهما يدعو من لديه مئةُ عقدٍ
+ * إلى إنشاء أوّلها، أو يترك من لا عقدَ لديه يبحث عن فلترٍ يمسحه.
+ */
+export function hubEmptyHTML(hasFilter){
+  // حالة فارغة موجّهة: تفرّق بين «لا نتائج لهذا الفلتر» و«لا عقود بعد إطلاقًا»
+  return hasFilter
+    ? `<div class="chub-empty">
+         <div class="chub-empty-icon" aria-hidden="true">🔍</div>
+         <b>لا عقود تطابق هذا الفلتر</b>
+         <p>جرّب توسيع البحث أو امسح الفلاتر لعرض كل العقود.</p>
+         <button class="reqbtn" id="chubEmptyReset">✕ مسح الفلاتر</button>
+       </div>`
+    : `<div class="chub-empty">
+         <div class="chub-empty-icon" aria-hidden="true">📄</div>
+         <b>لا عقود في المحفظة بعد</b>
+         <p>ابدأ بإنشاء عقد — يُنشأ مستقلًا باسمه ورقمه، وتربطه بمشروع أو تُسنده لشريك لاحقًا.</p>
+         <button class="hbtn gold" id="chubEmptyNew">+ إنشاء أول عقد</button>
+       </div>`;
+}
+
+/** شريطُ المؤشرات والفلاتر — والمؤشرات تُحسب من **المعروض** لا من الكل. */
+export function hubToolbarHTML({counts,shown,total,totalValue,clients,f}){
+  return `
     <div class="sa-section">
       <div class="chub-stats">
-        <div class="chub-stat"><b>${filtered.length}</b><span>معروض من ${CH_CONTRACTS.length}</span></div>
+        <div class="chub-stat"><b>${shown}</b><span>معروض من ${total}</span></div>
         <div class="chub-stat"><b>${counts.signed||0}</b><span>موقَّع بالكامل</span></div>
         <div class="chub-stat"><b>${(counts.pending_alamaa||0)+(counts.pending_client||0)}</b><span>بانتظار توقيع</span></div>
         <div class="chub-stat"><b>${totalValue?totalValue.toLocaleString('ar'):'—'}</b><span>إجمالي القيمة (ر.س)</span></div>
       </div>
       <div class="chub-filters">
-        <input class="f1 mw-220" id="chubSearch" placeholder="🔍 ابحث باسم العقد أو رقمه أو الشريك أو المشروع..." value="${esc(CH_FILTER.q)}">
+        <input class="f1 mw-220" id="chubSearch" placeholder="🔍 ابحث باسم العقد أو رقمه أو الشريك أو المشروع..." value="${esc(f.q)}">
         <div class="chub-status-pills">
           ${['all','pending_alamaa','pending_client','signed','void'].map(s=>
-            `<button class="chub-pill ${CH_FILTER.status===s?'active':''}" data-chubstatus="${s}">${s==='all'?'الكل':CH_STL[s]} <span>${counts[s]||0}</span></button>`).join('')}
+            `<button class="chub-pill ${f.status===s?'active':''}" data-chubstatus="${s}">${s==='all'?'الكل':CH_STL[s]} <span>${counts[s]||0}</span></button>`).join('')}
         </div>
         <button class="hbtn gold" id="chubNew">+ عقد جديد</button>
       </div>
       <div class="chub-filters mt-10">
         <select class="mw-150" id="chubClient"><option value="">كل الشركاء</option>
-          ${clients.map(([id,n])=>`<option value="${id}" ${CH_FILTER.client===id?'selected':''}>${esc(n)}</option>`).join('')}</select>
+          ${clients.map(([id,n])=>`<option value="${id}" ${f.client===id?'selected':''}>${esc(n)}</option>`).join('')}</select>
         <select class="mw-150" id="chubLink">
           ${[['','كل الارتباطات'],['linked','مرتبط بمشروع'],['unlinked','غير مرتبط'],
              ['template','أصل (قالب) بلا شريك'],['amendment','ملاحق تعديل']].map(([v,t])=>
-            `<option value="${v}" ${CH_FILTER.link===v?'selected':''}>${t}</option>`).join('')}</select>
+            `<option value="${v}" ${f.link===v?'selected':''}>${t}</option>`).join('')}</select>
         <select class="mw-130" id="chubType">
           ${[['','كل الأنواع'],['standard','قياسي'],['custom','نص مخصَّص']].map(([v,t])=>
-            `<option value="${v}" ${CH_FILTER.type===v?'selected':''}>${t}</option>`).join('')}</select>
+            `<option value="${v}" ${f.type===v?'selected':''}>${t}</option>`).join('')}</select>
         <select class="mw-140" id="chubSort">
           ${[['newest','الأحدث أولًا'],['value','الأعلى قيمة'],['ending','الأقرب انتهاءً'],['name','أبجديًا']].map(([v,t])=>
-            `<option value="${v}" ${CH_FILTER.sort===v?'selected':''}>${t}</option>`).join('')}</select>
-        ${(CH_FILTER.client||CH_FILTER.link||CH_FILTER.type||CH_FILTER.q||CH_FILTER.status!=='all')
-          ?'<button class="reqbtn" id="chubReset">✕ مسح الفلاتر</button>':''}
+            `<option value="${v}" ${f.sort===v?'selected':''}>${t}</option>`).join('')}</select>
+        ${hubHasFilter(f)?'<button class="reqbtn" id="chubReset">✕ مسح الفلاتر</button>':''}
       </div>
     </div>
-    <div id="chubExpiring"></div>
-    <div class="sa-section chub-list">${rows}</div>
   `;
+}
 
-  // تنبيهات انتهاء/تجديد العقود السارية
+/** لافتاتُ ما يحتاج انتباهًا: مُرسَلٌ لم يُوقَّع، وسارٍ يقترب انتهاؤه. */
+function bindHubExpiring(){
   (async()=>{
     const box=byId('chubExpiring');
     if(!box)return;
@@ -196,6 +226,26 @@ function renderContractsHubBody(){
     </div>`;
     box.querySelectorAll('[data-chubopen]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.chubopen));
   })();
+}
+
+function renderContractsHubBody(){
+  const counts={all:CH_CONTRACTS.length};
+  ['pending_alamaa','pending_client','signed','void'].forEach(s=>{counts[s]=CH_CONTRACTS.filter(c=>c.status===s).length;});
+
+  const filtered=filterContracts(CH_CONTRACTS,CH_FILTER);
+  // مؤشرات سريعة تُبنى من المعروض فعليًا لا من الكل
+  const totalValue=filtered.reduce((s2,c)=>s2+(Number(c.contract_value)||0),0);
+  const clients=[...new Map(CH_CONTRACTS.filter(c=>c.client_id).map(c=>[c.client_id,c.client_name])).entries()];
+
+  const rows=filtered.map(c=>contractRowHTML(c,rowStage(c))).join('')
+    ||hubEmptyHTML(hubHasFilter(CH_FILTER));
+
+  $('#chubBody').innerHTML=hubToolbarHTML({counts,shown:filtered.length,
+    total:CH_CONTRACTS.length,totalValue,clients,f:CH_FILTER})
+    +'<div id="chubExpiring"></div>'
+    +`<div class="sa-section chub-list">${rows}</div>`;
+
+  bindHubExpiring();
 
   $('#chubSearch').oninput=e=>{CH_FILTER.q=e.target.value;renderContractsHubBody();};
   [['chubClient','client'],['chubLink','link'],['chubType','type'],['chubSort','sort']].forEach(([id,key])=>{
@@ -203,12 +253,12 @@ function renderContractsHubBody(){
     if(el)el.onchange=()=>{CH_FILTER[key]=el.value;renderContractsHubBody();};
   });
   {const rs=byId('chubReset');
-   if(rs)rs.onclick=()=>{CH_FILTER={status:'all',q:'',client:'',link:'',type:'',sort:'newest'};renderContractsHubBody();};}
+   if(rs)rs.onclick=()=>{CH_FILTER=Object.assign({},HUB_FILTER_DEFAULT);renderContractsHubBody();};}
   $$('#chubBody [data-chubstatus]').forEach(b=>b.onclick=()=>{CH_FILTER.status=b.dataset.chubstatus;renderContractsHubBody();});
   $('#chubNew').onclick=openNewContractPanel;
   {const en=byId('chubEmptyNew');if(en)en.onclick=openNewContractPanel;}
   {const er=byId('chubEmptyReset');
-   if(er)er.onclick=()=>{CH_FILTER={status:'all',q:'',client:'',link:'',type:'',sort:'newest'};renderContractsHubBody();};}
+   if(er)er.onclick=()=>{CH_FILTER=Object.assign({},HUB_FILTER_DEFAULT);renderContractsHubBody();};}
   $$('#chubBody [data-chubopen]').forEach(b=>b.onclick=()=>openContractDetailPanel(b.dataset.chubopen));
 }
 
