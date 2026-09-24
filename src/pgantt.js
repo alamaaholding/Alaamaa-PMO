@@ -25,7 +25,7 @@ async function pganttOpen(clientId,mount){
   const embedded=!!mount;
   if(!embedded){
     SCREEN='pgantt';
-    $('#hProject').innerHTML='<span class="ctx-dot" style="background:var(--blue)"></span>الخط الزمني الشامل — '+(clientId?'هذا الشريك':'كل المشاريع');
+    $('#hProject').innerHTML='<span class="ctx-dot busy"></span>الخط الزمني الشامل — '+(clientId?'هذا الشريك':'كل المشاريع');
     $('#barClient').style.display='none';hideChrome();
     $('#host').innerHTML='<div class="hintbar"><button class="reqbtn" id="backP">↩ '+(clientId?'ملف الشريك':'المحفظة')+'</button><span class="ms-auto">رؤية شاملة لكل المشاريع النشطة. اضغط أي مشروع للدخول إليه.</span></div><div id="pgWrap">'+skeleton('panel',3)+'</div>';
     $('#backP').onclick=clientId?(()=>showScreen('clienthome', clientId)):()=>showScreen('portfolio');

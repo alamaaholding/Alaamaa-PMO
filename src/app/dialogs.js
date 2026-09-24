@@ -23,13 +23,13 @@ export function dialog(opts){ // {title, message, html, fields:[{key,label,value
     }).join('');
     byId('dlgBox').innerHTML=`
       <div class="rqhd"><h3 id="dlgTitle">${esc(opts.title||'')}</h3><button id="dlgX" aria-label="إغلاق" class="rq-x">✕</button></div>
-      <div style="padding:18px">
-        ${opts.message?`<p style="font-size:.86rem;color:var(--muted);margin-bottom:14px;line-height:1.7;white-space:pre-line">${esc(opts.message)}</p>`:''}
+      <div class="p-18">
+        ${opts.message?`<p class="dlg-msg">${esc(opts.message)}</p>`:''}
         ${opts.html||''}
         ${fieldsHtml}
-        <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-start">
+        <div class="row-10 mt-18 jc-start">
           <button class="hbtn" id="dlgOk" style="background:${opts.danger?'var(--crit)':'var(--gold)'};border-color:${opts.danger?'var(--crit)':'var(--gold)'};padding:9px 20px">${esc(opts.confirmText||'تأكيد')}</button>
-          <button class="hbtn" id="dlgCancel" style="background:#fff;color:var(--ink);border-color:var(--line);padding:9px 20px">إلغاء</button>
+          <button class="hbtn btn-plain bordered p-9-20" id="dlgCancel">إلغاء</button>
         </div>
       </div>`;
     const box=byId('dlgBox');

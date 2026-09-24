@@ -95,7 +95,7 @@ async function qjGo(item){
 }
 function bindQJump(){
   const wrap=$('#qjumpWrap');if(!wrap||wrap._bound)return;wrap._bound=true;
-  wrap.style.display=(getState('ROLE')==='pmo'||getState('ROLE')==='delivery')?'':'none';
+  wrap.classList.toggle('is-hidden',!(getState('ROLE')==='pmo'||getState('ROLE')==='delivery'));
   if(getState('ROLE')!=='pmo'&&getState('ROLE')!=='delivery')return;
   const input=$('#qjumpInput'),list=$('#qjumpList');
   input.addEventListener('focus',async()=>{if(!QJ_INDEX.length)await refreshQJIndex();qjRender(input.value);});
@@ -130,7 +130,7 @@ export async function startApp(){
   $('#roleChip').textContent=ROLE_NAMES[getState('ROLE')];
   bindQJump();
   $('#dataDate').value=getState('DATA_DATE');$('#dataDate').onchange=e=>{setState('DATA_DATE', e.target.value);if(getState('SCREEN')==='project')render();else showScreen('portfolio');};
-  if(!getState('CLIENTS').length){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا توجد مشاريع متاحة لحسابك بعد.</p>';hideChrome();return;}
+  if(!getState('CLIENTS').length){$('#host').innerHTML='<p class="p-30 ta-center c-muted">لا توجد مشاريع متاحة لحسابك بعد.</p>';hideChrome();return;}
   // الفلاتر من الرابط قبل أي تصيير: تطبيقها بعده يعني وميضًا يعرض المحفظة
   // كاملة ثم يصفّيها — والمستخدم يرى شاشة لم يطلبها للحظة.
   applyHashFilters();
@@ -308,10 +308,10 @@ async function renderLeads(){
   box.innerHTML=leads.map(l=>{
     const conv=l._converted;
     const date=l.submitted_at?new Date(l.submitted_at).toLocaleDateString('ar'):'';
-    return `<div class="crcard" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-      <div style="flex:1;min-width:200px">
-        <b style="font-size:.95rem">${esc(l.company_name||'(بلا اسم شركة)')}</b>
-        <div style="font-size:.8rem;color:var(--muted)">${esc(l.contact_name||'')}${l.contact_email?' · '+esc(l.contact_email):''}${date?' · '+date:''}</div>
+    return `<div class="crcard row-14 items-center fx-wrap">
+      <div class="f1 mw-200">
+        <b class="fs-95">${esc(l.company_name||'(بلا اسم شركة)')}</b>
+        <div class="fs-80 c-muted">${esc(l.contact_name||'')}${l.contact_email?' · '+esc(l.contact_email):''}${date?' · '+date:''}</div>
       </div>
       <span class="crstate ${conv?'approved':'pending'}">${conv?'محوّل لمشروع':(esc(l.status||'جديد'))}</span>
       ${conv?'':`<button class="reqbtn gold" data-convert="${l.id}" data-name="${esc(l.company_name||'')}">تحويل لمشروع</button>`}
@@ -407,9 +407,9 @@ function buildReport(){
     <div class="kpi crit"><b>${crit}</b><span>على المسار الحرج</span></div>
   </div>
   <h2>المعالم</h2>
-  <table>${miles.map(m=>`<tr><td>◆ ${esc(m.t.name.replace('معلم: ',''))}</td><td style="text-align:left;font-weight:700">${fmt(m.ef)}/${new Date(m.ef).getFullYear()}</td></tr>`).join('')||'<tr><td>لا معالم</td></tr>'}</table>
-  ${delayed.length?`<h2>البنود المتأخرة (${delayed.length})</h2><table>${delayed.map(x=>`<tr><td>${esc(x.t.id)} — ${esc(x.t.name)}</td><td class="del-${x.d}" style="text-align:left;font-weight:700">${x.d==='client'?'بانتظار الشريك':'على فريق علامة'}</td></tr>`).join('')}</table>`:''}
-  ${pendingReqs.length?`<h2>متطلبات معلّقة من الشريك (${pendingReqs.length})</h2><table>${pendingReqs.map(x=>`<tr><td>${esc(x.r.desc)}</td><td style="text-align:left"><span class="badge">${esc(x.t.id)} · SLA ${x.r.sla}ي</span></td></tr>`).join('')}</table>`:''}
+  <table>${miles.map(m=>`<tr><td>◆ ${esc(m.t.name.replace('معلم: ',''))}</td><td class="ta-left bold">${fmt(m.ef)}/${new Date(m.ef).getFullYear()}</td></tr>`).join('')||'<tr><td>لا معالم</td></tr>'}</table>
+  ${delayed.length?`<h2>البنود المتأخرة (${delayed.length})</h2><table>${delayed.map(x=>`<tr><td>${esc(x.t.id)} — ${esc(x.t.name)}</td><td class="del-${x.d} ta-left bold">${x.d==='client'?'بانتظار الشريك':'على فريق علامة'}</td></tr>`).join('')}</table>`:''}
+  ${pendingReqs.length?`<h2>متطلبات معلّقة من الشريك (${pendingReqs.length})</h2><table>${pendingReqs.map(x=>`<tr><td>${esc(x.r.desc)}</td><td class="ta-left"><span class="badge">${esc(x.t.id)} · SLA ${x.r.sla}ي</span></td></tr>`).join('')}</table>`:''}
   <div class="foot">علامة · منصّة حوكمة المشاريع — تقرير مُولّد آليًا · ${getState('PROJECT').name}</div>
   </body></html>`;
   const w=window.open('','_blank');

@@ -17,9 +17,9 @@ async function dolOpen(){
     await dialog(DOL_INTRO);
   }
   SCREEN='dol';
-  $('#hProject').innerHTML='<span class="ctx-dot" style="background:var(--crit)"></span>طبقة تشغيل القرار — DOL Console';
+  $('#hProject').innerHTML='<span class="ctx-dot blocked"></span>طبقة تشغيل القرار — DOL Console';
   $('#barClient').style.display='none';hideChrome();
-  $('#backPortfolio').style.display='';
+  $('#backPortfolio').classList.remove('is-hidden');
   $('#host').innerHTML='<div id="dolWrap">'+skeleton('cards',2)+'</div>';
   await loadDOL();
   renderDOL();
@@ -34,11 +34,11 @@ function renderDOL(){
   const ops=DOL_DECISIONS.filter(d=>d.decision_type==='operational');
   const opsByGate={};ops.forEach(o=>{(opsByGate[o.parent_gate_id]=opsByGate[o.parent_gate_id]||[]).push(o);});
 
-  const toolbar=`<div class="lockbar" style="border-inline-start-color:var(--crit)">
+  const toolbar=`<div class="lockbar bis-crit">
     <span>الحوكمة:</span>
-    ${ROLE==='pmo'?'<button class="reqbtn" id="dolAddGate" style="background:var(--crit);border-color:var(--crit);color:#fff">+ بوابة قرار</button>':''}
+    ${ROLE==='pmo'?'<button class="reqbtn btn-crit" id="dolAddGate">+ بوابة قرار</button>':''}
     <span class="sub-note">البوابات تضع الحدود · القرارات التشغيلية تعمل داخلها · الانحراف يُقيَّم آليًا.</span>
-    <button class="reqbtn" id="dolHelp" style="background:#fff;color:var(--ink);margin-inline-start:auto" aria-label="شرح طبقة القرار">؟ عن الطبقة</button>
+    <button class="reqbtn btn-plain ms-auto" id="dolHelp" aria-label="شرح طبقة القرار">؟ عن الطبقة</button>
   </div>`;
 
   let body='';
@@ -64,7 +64,7 @@ function renderDOL(){
           </div>
         </div>
         ${g.rationale?`<div class="gate-rationale">${esc(g.rationale)}</div>`:''}
-        ${bChips?`<div class="gate-bounds">${bChips}</div>`:'<div class="gate-bounds"><span style="color:var(--muted);font-size:.76rem">بلا حدود منظّمة</span></div>'}
+        ${bChips?`<div class="gate-bounds">${bChips}</div>`:'<div class="gate-bounds"><span class="c-muted fs-76">بلا حدود منظّمة</span></div>'}
         ${b.text?`<div class="gate-btext">${esc(b.text)}</div>`:''}
         <div class="gate-ops">${children}</div>
       </div>`;
@@ -82,9 +82,9 @@ function opCard(o){
   return `<div class="op-card">
     <span class="dec-type" style="background:${DEC_TCLR.operational};font-size:.66rem">تشغيلي</span>
     <b>${esc(o.title)}</b>
-    <span class="crstate ${o.status==='approved'?'approved':o.status==='executed'?'approved':'pending'}" style="font-size:.66rem">${DEC_STATUS[o.status]}</span>
+    <span class="crstate ${o.status==='approved'?'approved':o.status==='executed'?'approved':'pending'} fs-66">${DEC_STATUS[o.status]}</span>
     ${badge}
-    ${ROLE==='pmo'?`<button class="ib" data-deldec="${o.id}" style="color:var(--crit);margin-inline-start:auto">${I.trash}</button>`:''}
+    ${ROLE==='pmo'?`<button class="ib c-crit ms-auto" data-deldec="${o.id}">${I.trash}</button>`:''}
   </div>`;
 }
 

@@ -60,4 +60,4 @@ function showDenied(){showLogin();$('#denied').classList.remove('hidden');}
 {const _out=async()=>{await sb.auth.signOut();location.reload();};
  const _a=$('#signout'), _b=$('#signoutDenied');
  if(_a)_a.onclick=_out; if(_b)_b.onclick=_out;}
-{const _el=$('#backPortfolio'); if(_el)_el.onclick=async()=>{ await showScreen('portfolio'); _el.style.display='none'; };}
+{const _el=$('#backPortfolio'); if(_el)_el.onclick=async()=>{ await showScreen('portfolio'); _el.classList.add('is-hidden'); };}

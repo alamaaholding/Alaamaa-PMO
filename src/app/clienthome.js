@@ -30,8 +30,8 @@ async function renderClientHome(clientId){
   writeClientHash(clientId);
   $('#host').innerHTML=`
     <div class="hintbar"><button class="reqbtn" id="chBack" aria-label="العودة للمحفظة">↩ المحفظة</button>
-      <button class="reqbtn" id="chMenu" style="margin-inline-start:8px" aria-haspopup="true" aria-label="إجراءات الشريك">⋮ إجراءات الشريك</button>
-      <button class="reqbtn" id="chSettings" style="margin-inline-start:8px" aria-label="إعدادات الشريك">⚙ إعدادات الشريك</button>
+      <button class="reqbtn ms-8" id="chMenu" aria-haspopup="true" aria-label="إجراءات الشريك">⋮ إجراءات الشريك</button>
+      <button class="reqbtn ms-8" id="chSettings" aria-label="إعدادات الشريك">⚙ إعدادات الشريك</button>
       <span class="ms-auto">ملف الشريك الكامل: لوحة قيادة مجمَّعة، كل مشاريعه، خططه، وفريقه — في مكان واحد.</span></div>
     <div id="chBody">${skeleton('list',1)}
       ${skeleton('cards',1)}
@@ -121,7 +121,7 @@ function renderCHBody(stats,access){
       <div class="sa-form mb-14">
         <select id="chMember">${memberOpts}</select>
         <select id="chScope"><option value="client">كل مشاريع هذا الشريك</option>${projOpts?'<option value="project">مشروع بعينه:</option>':''}</select>
-        <select id="chProj" style="display:none">${projOpts}</select>
+        <select class="is-hidden" id="chProj">${projOpts}</select>
         <select id="chLevel"><option value="view">عرض فقط</option><option value="edit">عرض وتعديل</option></select>
         <button class="hbtn gold" id="chGrant">منح</button>
       </div>
@@ -131,7 +131,8 @@ function renderCHBody(stats,access){
   $$('#chBody [data-openp]').forEach(b=>b.onclick=async()=>{setState('CID', stats.cid);setState('PID', b.dataset.openp);await showScreen('project');});
   const nb=$('#chNewProj');if(nb)nb.onclick=()=>newProjectDialog(stats.cid);
   const scopeSel=$('#chScope'),projSel=$('#chProj');
-  if(scopeSel)scopeSel.onchange=()=>{projSel.style.display=(scopeSel.value==='project')?'':'none';};
+  // الإخفاءُ صنفٌ، فالإظهارُ إزالتُه — لا إزالةُ أسلوبٍ سطريٍّ لا وجود له
+  if(scopeSel)scopeSel.onchange=()=>{projSel.classList.toggle('is-hidden',scopeSel.value!=='project');};
   const gb=$('#chGrant');
   if(gb)gb.onclick=async()=>{
     const memberId=$('#chMember').value,scopeType=scopeSel.value,level=$('#chLevel').value;
@@ -170,8 +171,8 @@ function openClientSettings(stats,access){
     <div class="sa-section">
       <h4>الرابط الدائم <span class="sa-hint">رابط صفحة هذا الشريك — يمكنك تخصيصه ليكون واضحًا وسهل المشاركة بدل معرّف طويل</span></h4>
       <div class="sa-form">
-        <span style="color:var(--muted);font-size:.82rem;white-space:nowrap">${location.origin}${location.pathname}#/c/</span>
-        <input id="cpSlug" value="${esc(c.slug||'')}" placeholder="مثال: sanam" style="flex:1;min-width:140px;font-family:monospace" dir="ltr">
+        <span class="c-muted fs-82 nowrap">${location.origin}${location.pathname}#/c/</span>
+        <input class="f1 mw-140 mono" id="cpSlug" value="${esc(c.slug||'')}" placeholder="مثال: sanam" dir="ltr">
         <button class="hbtn gold" id="cpSlugSave">حفظ الرابط</button>
       </div>
       <p class="sa-hint mt-6">حروف لاتينية وأرقام وشرطات فقط — يُنظَّف تلقائيًا. أي رابط سبق مشاركته يبقى يعمل دائمًا حتى بعد التغيير.</p>
@@ -182,10 +183,10 @@ function openClientSettings(stats,access){
       <div class="sa-form fx-wrap">
         <input id="cpCr" placeholder="رقم السجل التجاري" value="${esc(c.cr_number||'')}" class="grow-160">
         <input id="cpVat" placeholder="الرقم الضريبي (VAT)" value="${esc(c.vat_number||'')}" class="grow-160">
-        <input id="cpAddr" placeholder="العنوان الوطني المختصر" value="${esc(c.national_address_short||'')}" style="flex:1;min-width:180px">
+        <input class="f1 mw-180" id="cpAddr" placeholder="العنوان الوطني المختصر" value="${esc(c.national_address_short||'')}">
         <input id="cpRepName" placeholder="اسم الممثل المفوَّض" value="${esc(c.rep_name||'')}" class="grow-160">
-        <input id="cpRepTitle" placeholder="صفته" value="${esc(c.rep_title||'')}" style="flex:1;min-width:140px">
-        <input id="cpEmail" placeholder="البريد الرسمي (يظهر في العقد)" value="${esc(c.contact_email||'')}" style="flex:1;min-width:180px" dir="ltr">
+        <input class="f1 mw-140" id="cpRepTitle" placeholder="صفته" value="${esc(c.rep_title||'')}">
+        <input class="f1 mw-180" id="cpEmail" placeholder="البريد الرسمي (يظهر في العقد)" value="${esc(c.contact_email||'')}" dir="ltr">
         <input id="cpPhone" placeholder="رقم الجوال (يظهر في العقد)" value="${esc(c.contact_phone||'')}" class="grow-150" dir="ltr">
         <button class="hbtn gold" id="cpSave">حفظ الملف</button>
       </div>

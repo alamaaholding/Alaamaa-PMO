@@ -146,9 +146,9 @@ function renderWorkloadBody(){
         <div class="chub-stat"><b style="color:${strained.length?'var(--crit)':'var(--ok)'}">${strained.length}</b><span>مسمّى يحتاج موردًا</span></div>
       </div>
       <div class="chub-filters">
-        <label style="font-size:.8rem;align-self:center">الطاقة اليومية (بند/يوم)</label>
-        <input id="wlCap" type="number" min="1" max="20" value="${WL_CAP}" style="width:80px">
-        <select id="wlWeeks" style="min-width:120px">
+        <label class="fs-80 self-center">الطاقة اليومية (بند/يوم)</label>
+        <input class="w-80" id="wlCap" type="number" min="1" max="20" value="${WL_CAP}">
+        <select class="mw-120" id="wlWeeks">
           ${[4,8,12,16].map(n=>`<option value="${n}" ${WL_WEEKS===n?'selected':''}>${n} أسابيع</option>`).join('')}
         </select>
         <span class="wl-legend ms-auto">
@@ -160,7 +160,7 @@ function renderWorkloadBody(){
 
     ${strained.length?`<div class="chub-expiry-banner">
       <b>👥 ${strained.length} مسمّى وظيفي فوق طاقته</b>
-      <p class="sa-hint" style="margin:2px 0 8px">الطاقة = عدد الشاغلين × الحمل المحتمل للفرد. الفجوة تُحسب من أسوأ يوم في المدى المعروض.</p>
+      <p class="sa-hint my-2-8">الطاقة = عدد الشاغلين × الحمل المحتمل للفرد. الفجوة تُحسب من أسوأ يوم في المدى المعروض.</p>
       ${strained.slice(0,6).map(b=>`<div class="chd-att-row">
         <span><b>${esc(b.role.department)} · ${esc(b.role.name)}</b>
           <span class="sa-hint"> · ذروة ${b.peak} بند مقابل طاقة ${b.role.capacity}
@@ -170,7 +170,7 @@ function renderWorkloadBody(){
       </div>`).join('')}
     </div>`:''}
 
-    ${RP.unassigned.count?`<div class="chub-expiry-banner" style="background:var(--soft-2);border-color:var(--line)">
+    ${RP.unassigned.count?`<div class="chub-expiry-banner soft-bg bordered">
       <b>◻ ${RP.unassigned.count} بند بلا مسمّى مُسنَد</b>
       <p class="sa-hint">هذه البنود لا تُحتسب في ضغط أي مسمّى — أسنِدها من عمود «المسمّى» في جدول المشروع ليكتمل حساب الطاقة.</p>
     </div>`:''}

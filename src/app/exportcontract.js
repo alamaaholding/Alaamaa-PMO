@@ -156,7 +156,7 @@ export async function buildContractDoc(baselineId,contract,attachments){
   if(links.length){
     attachHtml=`<div class="cx-annex-hd">ملحق — مستندات مرفقة</div>
       <section class="cx-page"><table class="cx-table"><thead><tr><th>المستند</th><th>الرابط</th></tr></thead><tbody>
-      ${links.map(a=>`<tr><td>${esc(a.label)}</td><td style="direction:ltr;font-size:.7rem">${esc(a.url)}</td></tr>`).join('')}
+      ${links.map(a=>`<tr><td>${esc(a.label)}</td><td class="ltr fs-70">${esc(a.url)}</td></tr>`).join('')}
       </tbody></table></section>`;
   }
 

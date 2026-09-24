@@ -31,7 +31,7 @@
 <div id="app" class="hidden">
 <header><div class="wrap"><div class="htop">
   <div class="brand"><div class="eb">علامة · أثر دائم — حوكمة المشاريع</div><h1 id="hProject">—</h1></div>
-  <div class="qjump-wrap" id="qjumpWrap" style="display:none">
+  <div class="qjump-wrap is-hidden" id="qjumpWrap">
     <button class="qjump-x" id="qjumpClose" aria-label="إغلاق البحث">✕</button>
     <input id="qjumpInput" class="qjump-in" placeholder="🔍 قفز سريع لشريك أو مشروع…" autocomplete="off" aria-label="قفز سريع لشريك أو مشروع">
     <div id="qjumpList" class="qjump-list" role="listbox" hidden></div>
@@ -40,7 +40,7 @@
     <button class="hbtn qjump-btn" id="qjumpBtn" aria-label="بحث عن شريك أو مشروع" aria-expanded="false">🔍</button>
     <button class="hbtn theme-btn" id="themeBtn" aria-label="المظهر">◐</button>
     <button class="hbtn ntf-btn" id="ntfBtn" aria-label="مركز الإشعارات" aria-haspopup="dialog">🔔<span class="ntf-badge" id="ntfBadge" hidden>0</span></button>
-    <button class="hbtn" id="backPortfolio" style="display:none">▸ المحفظة</button>
+    <button class="hbtn is-hidden" id="backPortfolio">▸ المحفظة</button>
     <span class="usr">مرحبًا <b id="uName">—</b></span>
     <span class="rolechip" id="roleChip">—</span>
     <button class="hbtn" id="signout">خروج</button>
@@ -51,10 +51,10 @@
   <div id="barClient" class="barclient">
     <span class="tg"><span title="التاريخ الذي تُحسب عنده حالة التقدم والتأخير">تاريخ الحالة (اليوم):</span> <input type="date" id="dataDate" aria-label="تاريخ الحالة"></span>
     <span class="lifebadge" id="lifeBadge">—</span>
-    <button class="hbtn gold" id="manageAccess" style="display:none">إدارة وصول الشريك</button>
-    <button class="hbtn ghost" id="projMenuBtn" style="display:none">إجراءات المشروع</button>
+    <button class="hbtn gold is-hidden" id="manageAccess">إدارة وصول الشريك</button>
+    <button class="hbtn ghost is-hidden" id="projMenuBtn">إجراءات المشروع</button>
     <button class="hbtn ghost" id="exportReport">تصدير تقرير</button>
-    <button class="hbtn ok" id="approveContract" style="display:none">اعتماد العقد + تثبيت الأساس</button>
+    <button class="hbtn ok is-hidden" id="approveContract">اعتماد العقد + تثبيت الأساس</button>
     <span class="hintbar ms-auto" id="roleHint"></span>
   </div>
   <div class="kpis" id="kpisRow">
