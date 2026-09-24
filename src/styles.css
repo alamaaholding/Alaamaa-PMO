@@ -1,7 +1,7 @@
 /* منصّة علامة — نظام التصميم: تباعد 4px · طبقات ظلال · تباين WCAG · كل الأصناف محفوظة */
 :root{
   --gold:#C8A06B;--gold-dark:#a9824f;--cream:#FAF7F2;--ink:#1A1A1A;--paper:#fff;
-  --line:#E9DEC9;--line-soft:#F0E8D8;--muted:#6b5c43;
+  --line:#E9DEC9;--line-soft:#F0E8D8;--status-idle:#cbbfa6;--muted:#6b5c43;
   /* نص/أيقونة فوق سطح ملوّن أو داكن (رأس، شارة، شريط جانت) — يبقى أبيض في كل
      السمات، بخلاف --paper الذي هو سطح الصفحة وينقلب مع الوضع الداكن. الفصل بينهما
      شرط تقني للوضع الداكن: كلاهما كان #fff حرفيًا فلا يمكن تمييزهما آليًا. */
@@ -114,12 +114,13 @@
   --e4:0 20px 50px rgba(0,0,0,.66);
   --ring:0 0 0 3px rgba(212,174,125,.45);
   color-scheme:dark;
+  --status-idle:#5a5044;
 }
 @media(prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     --cream:#141311; --paper:#1c1a17; --paper-2:#201e1a; --paper-alt:#232019;
     --ink:#ece6da; --muted:#a89b84;
-    --line:#3a3428; --line-soft:#2b271f; --line-doc:#3a3428;
+    --line:#3a3428; --status-idle:#5a5044;--line-soft:#2b271f; --line-doc:#3a3428;
     --soft:#26231d; --soft-2:#201e19; --t0:#ece6da;
     --gold:#d4ae7d; --gold-dark:#c8a06b; --gold-deep:#e0c091; --gold-cont:#c99a72;
     --crit:#e07a5f; --crit-bg:#3a221c; --crit-2:#e59b6a;
@@ -1687,7 +1688,6 @@ tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
 .mb-12{margin-bottom:12px}
 .my-8-6{margin:8px 0 6px}
 .fs-60{font-size:.6rem}
-.fs-72{font-size:.72rem}
 .fs-74{font-size:.74rem}
 .fs-78{font-size:.78rem}
 .w-full{width:100%}
@@ -1720,3 +1720,32 @@ tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
 .mb-16{margin-bottom:16px}
 .w-90{width:90px}
 .mw-170{min-width:170px}
+/* ═══ W6 · مفرداتُ لوحة المشروع — ثمانيةٌ وثلاثون نمطًا سطريًّا خرجت هنا ═══ */
+.btn-warn{background:var(--warn);border-color:var(--warn);color:var(--on-solid)}
+.btn-ink{background:var(--solid);border-color:var(--solid);color:var(--on-solid)}
+.btn-blue-solid{background:var(--blue);border-color:var(--blue);color:var(--on-solid)}
+.btn-plain{background:var(--paper);color:var(--ink)}
+/* نقاطُ دليل الحالات — كانت ألوانًا سطرية فلا تُحصى ولا تنقلب */
+.dot.idle{background:var(--status-idle)}
+.dot.busy{background:var(--blue)}
+.dot.blocked{background:var(--crit)}
+.dot.done{background:var(--ok)}
+.g-overlay{position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none}
+.pos-static{position:static}
+.pos-rel{position:relative}
+.row-10{display:flex;gap:10px}
+.center{justify-content:center}
+.p-14{padding:14px}
+.p-20{padding:20px}
+.p-30{padding:30px}
+.m-0{margin:0}
+.ms-6{margin-inline-start:6px}
+.fw-400{font-weight:400}
+.fs-76{font-size:.76rem}
+.fs-80{font-size:.8rem}
+.fs-90{font-size:.9rem}
+.bis-ok{border-inline-start-color:var(--ok)}
+.bis-line{border-inline-start-color:var(--line)}
+.v-inp{width:100%;border:1.5px solid var(--line);border-radius:7px;padding:9px;font-family:inherit}
+.v-inp.f1{width:auto;flex:1}
+.v-inp.sm{padding:7px;font-size:.82rem}

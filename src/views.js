@@ -39,7 +39,7 @@ const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS P
 // ثمّة حقل مركَّز أو بقي العنصر المُمرَّر مفصولًا عن DOM بعد إعادة البناء، لا تفعل شيئًا.
 export function render(){ preserveFocus(renderNow); }
 function renderNow(){
-  if(!getState('PROJECT')){$('#host').innerHTML='<p style="padding:30px;text-align:center;color:var(--muted)">لا يوجد مشروع لهذا الشريك.</p>';return;}
+  if(!getState('PROJECT')){$('#host').innerHTML='<p class="p-30 ta-center c-muted">لا يوجد مشروع لهذا الشريك.</p>';return;}
   $('#backPortfolio').style.display=(getState('ROLE')!=='client')?'':'none';
   $('#manageAccess').style.display=(getState('ROLE')==='pmo')?'':'none';
   const pmb=$('#projMenuBtn');if(pmb)pmb.style.display=(getState('ROLE')==='pmo')?'':'none';
@@ -90,7 +90,7 @@ function renderNow(){
     const canBuild=can('editStruct');
     host.innerHTML=`<div class="empty-cta"><div class="ico">${I.clipboard}</div><h3>لا توجد خطة بعد لهذا المشروع</h3>
       <p>${canBuild?'ابدأ ببناء خطة المشروع بإضافة أول بند، ثم عرّف المسارات والتبعيات.':'لم تُبنَ خطة هذا المشروع بعد. سيظهر المحتوى فور إعدادها من فريق إدارة المشاريع.'}</p>
-      ${canBuild?`<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px"><button id="emptyImport" class="hbtn blue">${I.upload} استيراد خطة من Excel</button><button id="emptyAdd" class="hbtn ok">+ إضافة أول بند</button></div>`:''}</div>`;
+      ${canBuild?`<div class="row-10 center fx-wrap mt-6"><button id="emptyImport" class="hbtn blue">${I.upload} استيراد خطة من Excel</button><button id="emptyAdd" class="hbtn ok">+ إضافة أول بند</button></div>`:''}</div>`;
     const ea=$('#emptyAdd');if(ea)ea.onclick=()=>{setState('VIEW', 'table');runAction('addTask');};
     const ei=$('#emptyImport');if(ei)ei.onclick=openImporter;
     return;
@@ -325,7 +325,7 @@ function vTable(){
         <td><span class="pkg-pct">${k?k.dispPct:0}%</span></td>
         <td>${pdelay}</td>
         <td>—</td>
-        <td style="font-size:.74rem;color:var(--muted)">تجميعي — يُشتق من أبنائه</td>
+        <td class="fs-74 c-muted">تجميعي — يُشتق من أبنائه</td>
         ${editStruct?`<td><button class="ib txt-crit" data-del="${esc(t.id)}" title="حذف الحزمة (يصعد أبناؤها للمستوى الأعلى)" aria-label="حذف الحزمة">${I.trash}</button></td>`:''}
       </tr>`;
       return;
@@ -341,7 +341,7 @@ function vTable(){
       ? `<select class="cell" data-f="type">${Object.keys(TYPES).map(x=>`<option value="${x}" ${x===t.type?'selected':''}>${TYPES[x]}</option>`).join('')}</select>`
       : TYPES[t.type];
     const depCount=(t.deps||[]).length;
-    const editCol=editStruct?`<td style="white-space:nowrap"><button class="reqbtn" data-deps="${esc(t.id)}" title="التبعيات" aria-label="تحرير التبعيات">${I.link} ${depCount||''}</button> <button class="ib txt-crit" data-del="${esc(t.id)}" title="حذف" aria-label="حذف البند">${I.trash}</button></td>`:'';
+    const editCol=editStruct?`<td class="nowrap"><button class="reqbtn" data-deps="${esc(t.id)}" title="التبعيات" aria-label="تحرير التبعيات">${I.link} ${depCount||''}</button> <button class="ib txt-crit" data-del="${esc(t.id)}" title="حذف" aria-label="حذف البند">${I.trash}</button></td>`:'';
     rows+=`<tr data-id="${esc(t.id)}" class="${r.critical?'crit':''}" ${editStruct&&t.type!=='cont'?`draggable="true" data-dragtask="${esc(t.id)}"`:''}>
       <td><button class="idcell idbtn" data-tkopen="${esc(t.id)}" title="فتح لوحة البند" style="--tc:${tc}">${esc(t.id)}${r.critical?'<span class="critdot"></span>':''}</button></td>
       <td class="${t.parent?'child-cell':''}">${t.parent?'<span class="tree-ind" aria-hidden="true">└</span>':''}${nameCell}</td>
@@ -371,13 +371,13 @@ function vTable(){
   const crWin=(getState('PROJECT').status==='baselined'&&structuralUnlocked())?`
     <div class="lockbar cr-window-bar">
       <span>🔓 نافذة تنفيذ تغيير معتمَد</span>
-      <span style="font-weight:400;font-size:.78rem;color:var(--muted)">
+      <span class="fw-400 fs-78 c-muted">
         الخطة مثبّتة، لكن ${openCRs().length} طلب تعديل معتمَد بانتظار التنفيذ — أدوات البناء مفتوحة مؤقتًا.
         بعد تنفيذ التعديل، علّم الطلب «نُفِّذ» من تبويب «طلبات تعديل الخطة» ثم ثبّت أساسًا جديدًا.</span>
-      <button class="reqbtn" id="goCRTab" style="background:var(--warn);border-color:var(--warn);color:#fff">↗ طلبات التعديل</button>
+      <button class="reqbtn btn-warn" id="goCRTab">↗ طلبات التعديل</button>
     </div>`:'';
-  const addBar=crWin+(editStruct?`<div class="lockbar" style="border-inline-start-color:var(--ok)"><span>أداة بناء الخطة:</span><button class="reqbtn ok" id="addTaskBtn">+ إضافة بند</button><button class="reqbtn" id="importXlsxBtn" style="background:var(--blue);border-color:var(--blue);color:#fff">${I.upload} استيراد من Excel</button>${getState('ROLE')==='pmo'?'<button class="reqbtn" id="tracksBtn" style="background:var(--ink);border-color:var(--ink);color:#fff">إدارة المراحل</button>':''}<span class="sub-note">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'');
-  const printBtn=`<div class="lockbar" style="border-inline-start-color:var(--line)"><button class="hbtn print-btn" id="printTableBtn">🖨 طباعة الجدول</button><span class="sub-note">تُطبع كل مرحلة في صفحة، والأعمدة مصغّرة للقراءة.</span></div>`;
+  const addBar=crWin+(editStruct?`<div class="lockbar bis-ok"><span>أداة بناء الخطة:</span><button class="reqbtn ok" id="addTaskBtn">+ إضافة بند</button><button class="reqbtn btn-blue-solid" id="importXlsxBtn">${I.upload} استيراد من Excel</button>${getState('ROLE')==='pmo'?'<button class="reqbtn btn-ink" id="tracksBtn">إدارة المراحل</button>':''}<span class="sub-note">المعرّف فريد (مثل B10). أو استورد خطة كاملة من ملف Excel.</span></div>`:'');
+  const printBtn=`<div class="lockbar bis-line"><button class="hbtn print-btn" id="printTableBtn">🖨 طباعة الجدول</button><span class="sub-note">تُطبع كل مرحلة في صفحة، والأعمدة مصغّرة للقراءة.</span></div>`;
   if(MOBILE)return addBar+projFilterBar()+vCards(editStruct,editProg);
   return addBar+printBtn+projFilterBar()+`<div class="tablewrap"><table id="tbl"><thead><tr><th>المعرف</th><th>الاسم</th><th>النوع</th><th>مدة</th><th>بداية</th><th>نهاية</th><th>الحالة</th><th>تقدّم</th><th>التأخير</th><th>متطلبات</th><th>المسمّى</th><th>المخرج</th>${editHead}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
@@ -505,7 +505,7 @@ function inlineTrackEdit(key,td){
     <input type="color" class="gie-c" value="${tr.color}" aria-label="لون المرحلة">
     <input class="gie-n" value="${esc(tr.name)}" aria-label="اسم المرحلة">
     <button class="reqbtn gie-s gold">حفظ</button>
-    <button class="reqbtn gie-x" style="background:#fff;color:var(--ink)">إلغاء</button></span>`;
+    <button class="reqbtn gie-x btn-plain">إلغاء</button></span>`;
   td.querySelector('.gie-x').onclick=()=>render();
   td.querySelector('.gie-s').onclick=async()=>{
     const name=td.querySelector('.gie-n').value.trim();
@@ -519,7 +519,7 @@ function inlineTrackEdit(key,td){
   n.onkeydown=(e)=>{if(e.key==='Enter')td.querySelector('.gie-s').click();if(e.key==='Escape')render();};
 }
 
-function gToolbar(){return `<div class="gctrl"><div class="hintbar" style="margin:0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div>${(getState('PROJECT').baselines&&getState('PROJECT').baselines.length)?`<select id="blSel" class="pfsort fs-72" aria-label="اختيار الأساس">${getState('PROJECT').baselines.map((b,i)=>`<option value="${b.id}" ${(!GBASE&&i===getState('PROJECT').baselines.length-1)||GBASE===b.id?'selected':''}>${esc(b.label||("الأساس "+(i+1)))}</option>`).join('')}</select>`:''}<div class="gscale ms-auto" role="group" aria-label="مقياس الزمن"><button class="gsc" data-scale="day">يوم</button><button class="gsc" data-scale="week">أسبوع</button><button class="gsc" data-scale="month">شهر</button><button class="gsc" data-scale="quarter">ربع</button></div><button class="hbtn print-btn" id="printGanttBtn">🖨 طباعة الجانت</button><button class="zb gcrit-btn" id="gcritToggle" title="المسار الحرج: عادي ← إبراز ← إخفاء" aria-label="عرض المسار الحرج">◆ حرج</button><div class="zoom"><button class="zb" id="glToggle" title="إظهار/إخفاء روابط التبعية" aria-label="روابط التبعية">⇄</button><button class="zb" id="zfit" title="ملاءمة العرض للشاشة" aria-label="ملاءمة العرض">⤢</button><button class="zb" id="zout" title="تصغير المخطط" aria-label="تصغير المخطط">−</button><button class="zb" id="zin" title="تكبير المخطط" aria-label="تكبير المخطط">+</button></div></div>`;}
+function gToolbar(){return `<div class="gctrl"><div class="hintbar m-0">الزمن من اليمين للأقدم · لون النقطة=الحالة · الخط الأزرق=اليوم · الشريط الرفيع=الأساس المعتمد.</div>${(getState('PROJECT').baselines&&getState('PROJECT').baselines.length)?`<select id="blSel" class="pfsort fs-72" aria-label="اختيار الأساس">${getState('PROJECT').baselines.map((b,i)=>`<option value="${b.id}" ${(!GBASE&&i===getState('PROJECT').baselines.length-1)||GBASE===b.id?'selected':''}>${esc(b.label||("الأساس "+(i+1)))}</option>`).join('')}</select>`:''}<div class="gscale ms-auto" role="group" aria-label="مقياس الزمن"><button class="gsc" data-scale="day">يوم</button><button class="gsc" data-scale="week">أسبوع</button><button class="gsc" data-scale="month">شهر</button><button class="gsc" data-scale="quarter">ربع</button></div><button class="hbtn print-btn" id="printGanttBtn">🖨 طباعة الجانت</button><button class="zb gcrit-btn" id="gcritToggle" title="المسار الحرج: عادي ← إبراز ← إخفاء" aria-label="عرض المسار الحرج">◆ حرج</button><div class="zoom"><button class="zb" id="glToggle" title="إظهار/إخفاء روابط التبعية" aria-label="روابط التبعية">⇄</button><button class="zb" id="zfit" title="ملاءمة العرض للشاشة" aria-label="ملاءمة العرض">⤢</button><button class="zb" id="zout" title="تصغير المخطط" aria-label="تصغير المخطط">−</button><button class="zb" id="zin" title="تكبير المخطط" aria-label="تكبير المخطط">+</button></div></div>`;}
 // ===== مقياس الزمن متعدد المستويات (يوم/أسبوع/شهر/ربع) =====
 let GSCALE='week';try{const _gs=localStorage.getItem('pmo_gscale');if(_gs)GSCALE=_gs;}catch(_e){}
 const GSCALE_PX={day:30,week:16,month:6,quarter:3};
@@ -606,8 +606,8 @@ function vGantt(){
   </div>`;
   return projFilterBar()+baselineDeviation(BL)+legend+`<div class="gantt ${GCRIT==='focus'?'crit-focus':(GCRIT==='hidden'?'crit-hidden':'')}"><div class="gscroll"><div style="min-width:${280+W}px">
     <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${HD.top}${HD.bot}</div></div>
-    <div id="gcanvas" style="position:relative"><div style="position:absolute;right:280px;left:0;top:0;bottom:0;pointer-events:none">${HD.wkends}${HD.grid}${today}</div>${rows}</div></div></div>
-    <div class="glegend"><span><span class="di"></span>معلم</span><span><span class="ci"></span>حرج</span>${BL?'<span><i class="blleg"></i>الأساس المعتمد</span>':''}<span><span class="dot" style="background:#cbbfa6"></span>لم تبدأ</span><span><span class="dot" style="background:var(--blue)"></span>جارية</span><span><span class="dot" style="background:var(--crit)"></span>متوقفة</span><span><span class="dot" style="background:var(--ok)"></span>مكتملة ✓</span><span><i class="tleg cl"></i>تأخير بانتظار الشريك</span><span><i class="tleg al"></i>تأخير علامة</span><span><i class="wkleg"></i>عطلة الأسبوع</span><span><i class="lkleg">⟵</i>رابط تبعية</span></div></div>`;
+    <div class="pos-rel" id="gcanvas"><div class="g-overlay">${HD.wkends}${HD.grid}${today}</div>${rows}</div></div></div>
+    <div class="glegend"><span><span class="di"></span>معلم</span><span><span class="ci"></span>حرج</span>${BL?'<span><i class="blleg"></i>الأساس المعتمد</span>':''}<span><span class="dot idle"></span>لم تبدأ</span><span><span class="dot busy"></span>جارية</span><span><span class="dot blocked"></span>متوقفة</span><span><span class="dot done"></span>مكتملة ✓</span><span><i class="tleg cl"></i>تأخير بانتظار الشريك</span><span><i class="tleg al"></i>تأخير علامة</span><span><i class="wkleg"></i>عطلة الأسبوع</span><span><i class="lkleg">⟵</i>رابط تبعية</span></div></div>`;
 }
 
 // ===== منحنى S: المخطط تراكميًا من CPM + نقطة المكتسب الحالية =====
@@ -751,7 +751,7 @@ function vDeliv(){
 // نغمة الحدث في السجل: أخضر للاعتماد/الاسترجاع، أحمر للحذف/الرفض، محايد لغيرها
 // auditTone انتقلت إلى config.js — بجوار AUDIT_ACTIONS و AUDIT_ENTITIES، فهي ثالثتهما.
 function vAudit(rows){
-  if(!rows||!rows.length)return '<p class="empty" style="padding:20px;text-align:center">لا تغييرات مسجّلة بعد.</p>';
+  if(!rows||!rows.length)return '<p class="empty p-20 ta-center">لا تغييرات مسجّلة بعد.</p>';
   // القاموس موحّد مع سجل المكتب (AUDIT_ACTIONS في config.js) — لا تعريف محلي مكرّر
   const ACT=AUDIT_ACTIONS,ENT=AUDIT_ENTITIES;
   // خريطة معرّف البند → اسمه (للعرض المفهوم)
@@ -774,10 +774,10 @@ function vAudit(rows){
     const target=t?(esc(t.id)+' — '+esc(t.name)):(ENT[a.entity]||a.entity||'—');
     const when=new Date(a.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
     return `<tr>
-      <td style="white-space:nowrap;font-size:.76rem;color:var(--muted)">${when}</td>
+      <td class="nowrap fs-76 c-muted">${when}</td>
       <td><span class="crstate ${auditTone(a.action)} fs-70">${act}</span></td>
       <td>${target}</td>
-      <td style="font-size:.8rem;color:#4a4233">${detail}</td>
+      <td class="fs-80 c-muted">${detail}</td>
     </tr>`;
   }).join('');
   return `<div class="dwrap"><table class="dtbl"><thead><tr><th>الوقت</th><th>الإجراء</th><th>العنصر</th><th>التغيير</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
@@ -800,18 +800,18 @@ function vDiscuss(rows){
     return `<div class="crcard" style="${isReply?'margin-inline-start:28px;border-inline-start:3px solid var(--line)':''}">
       <div class="crhd">
         <span><span class="crstate" style="background:color-mix(in srgb,${KCLR[c.kind]} 14%,#fff);color:${KCLR[c.kind]};font-size:.7rem">${KIND[c.kind]}</span>
-          <b style="font-size:.82rem;margin-inline-start:6px">${esc(c.author_email||'—')}</b>
-          <span style="font-size:.7rem;color:var(--muted)">· ${ROLE_AR[c.author_role]||''}</span></span>
-        <span style="display:flex;gap:8px;align-items:center">${resBadge}<small style="color:var(--muted)">${when}</small></span>
+          <b class="fs-82 ms-6">${esc(c.author_email||'—')}</b>
+          <span class="fs-70 c-muted">· ${ROLE_AR[c.author_role]||''}</span></span>
+        <span class="row-8 items-center">${resBadge}<small class="c-muted">${when}</small></span>
       </div>
       <div class="crbody">${esc(c.body)}${tkChip?'<br>'+tkChip:''}</div>
-      <div class="cract">${resBtn}<button class="reqbtn fs-72" data-reply="${c.id}" aria-label="الرد على تعليق ${esc((c.body||'').slice(0,30))}">رد</button>${(getState('ROLE')==='pmo'||c.author_id===getState('USER').id)?`<button class="reqbtn" data-delc="${c.id}" aria-label="حذف التعليق" style="font-size:.72rem;color:var(--crit)">حذف</button>`:''}</div>
+      <div class="cract">${resBtn}<button class="reqbtn fs-72" data-reply="${c.id}" aria-label="الرد على تعليق ${esc((c.body||'').slice(0,30))}">رد</button>${(getState('ROLE')==='pmo'||c.author_id===getState('USER').id)?`<button class="reqbtn fs-72 c-crit" data-delc="${c.id}" aria-label="حذف التعليق">حذف</button>`:''}</div>
       <div id="replyBox-${c.id}"></div>
     </div>`;
   };
   let thread=roots.map(c=>bubble(c,false)+childrenOf(c.id).map(ch=>bubble(ch,true)).join('')).join('');
-  if(!roots.length)thread='<p class="empty" style="padding:14px">لا نقاش بعد — ابدأ بأول تعليق أو سؤال.</p>';
-  const composer=`<div class="crform" style="position:static;margin-bottom:16px">
+  if(!roots.length)thread='<p class="empty p-14">لا نقاش بعد — ابدأ بأول تعليق أو سؤال.</p>';
+  const composer=`<div class="crform pos-static mb-16">
     <h4>إضافة للنقاش</h4>
     <select id="dcKind"><option value="comment">تعليق</option><option value="question">سؤال</option><option value="suggestion">مقترح</option></select>
     <textarea id="dcBody" placeholder="اكتب رسالتك..."></textarea>
@@ -830,7 +830,7 @@ function bindDiscuss(){
   $$('[data-reply]').forEach(b=>b.onclick=()=>{
     const box=byId('replyBox-'+b.dataset.reply);
     if(box.innerHTML){box.innerHTML='';return;}
-    box.innerHTML=`<div style="display:flex;gap:6px;margin-top:8px"><input id="rin-${b.dataset.reply}" placeholder="ردك..." style="flex:1;border:1.5px solid var(--line);border-radius:7px;padding:7px;font-family:inherit;font-size:.82rem"><button class="reqbtn gold" data-sendreply="${b.dataset.reply}">رد</button></div>`;
+    box.innerHTML=`<div class="row-6 mt-8"><input class="v-inp f1 sm" id="rin-${b.dataset.reply}" placeholder="ردك..."><button class="reqbtn gold" data-sendreply="${b.dataset.reply}">رد</button></div>`;
     box.querySelector('[data-sendreply]').onclick=async()=>{
       const v=byId('rin-'+b.dataset.reply).value.trim();if(!v){return;}
       try{ await addComment(getState('PROJECT')._dbId,'comment',v,b.dataset.reply); toast('أُرسل الرد','ok'); await refreshProjectCounts(); render(); }
@@ -875,26 +875,26 @@ function vRequests(rows){
   const explainer='<div class="hintbar exp-rq">🛎 <b>طلبات الخدمة:</b> احتياجات تشغيلية تُوجَّه لقسم مختص (تسويق، تقني، استراتيجية…) — مثل تصميم أو محتوى أو دعم. <b>لا تعدّل الخطة</b>؛ لتعديل الخطة استخدم «طلبات تعديل الخطة».</div>';
   const ROLE_AR={pmo:'إدارة المشاريع',delivery:'الفريق',client:'الشريك'};
   // نموذج تقديم طلب
-  const composer=`<div class="crform" style="position:static;margin-bottom:16px">
+  const composer=`<div class="crform pos-static mb-16">
     <h4>${getState('ROLE')==='client'?'تقديم طلب جديد':'تسجيل طلب نيابة عن الشريك'}</h4>
-    <input id="rqTitle" placeholder="عنوان الطلب (مثل: تصميم إعلان لعرض رمضان)" style="width:100%;border:1.5px solid var(--line);border-radius:7px;padding:9px;font-family:inherit;margin-bottom:8px">
+    <input class="v-inp mb-8" id="rqTitle" placeholder="عنوان الطلب (مثل: تصميم إعلان لعرض رمضان)">
     <textarea id="rqBody" placeholder="تفاصيل الطلب..." class="mb-8"></textarea>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+    <div class="row-8 fx-wrap mb-8">
       <select id="rqDept"><option value="marketing">التسويق</option><option value="tech">التقني</option><option value="strategy">الاستراتيجية</option><option value="consulting">الاستشارات</option><option value="other">أخرى</option></select>
       <select id="rqPrio"><option value="normal">أولوية عادية</option><option value="low">منخفضة</option><option value="high">عالية</option><option value="urgent">عاجلة</option></select>
     </div>
     <button class="hbtn gold wide" id="rqSend">إرسال الطلب</button>
   </div>`;
-  if(!rows.length) return composer+'<p class="empty" style="padding:14px">لا طلبات بعد.</p>';
+  if(!rows.length) return composer+'<p class="empty p-14">لا طلبات بعد.</p>';
   const cards=rows.map(r=>{
     const when=new Date(r.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
     // أزرار إدارة الحالة (للطاقم فقط)
     const statusBtns=isStaff?`<div class="rq-statusbtns">${Object.keys(REQ_STATUS_AR).map(s=>`<button class="rq-sbtn ${r.status===s?'active':''}" data-setstatus="${r.id}" data-s="${s}" style="--sc:${REQ_STATUS_CLR[s]}">${REQ_STATUS_AR[s]}</button>`).join('')}</div>`:'';
     const assignBtn=isStaff?`<button class="reqbtn fs-72" data-assign="${r.id}" data-cur="${esc(r.assigned_to||'')}">${r.assigned_to?'إعادة الإسناد':'إسناد'}</button>`:'';
-    const delBtn=(getState('ROLE')==='pmo'||r.created_by===getState('USER').id)?`<button class="reqbtn" data-delreq="${r.id}" style="font-size:.72rem;color:var(--crit)">حذف</button>`:'';
+    const delBtn=(getState('ROLE')==='pmo'||r.created_by===getState('USER').id)?`<button class="reqbtn fs-72 c-crit" data-delreq="${r.id}">حذف</button>`:'';
     return `<div class="crcard rq-card" style="border-inline-start:3px solid ${REQ_STATUS_CLR[r.status]}">
       <div class="crhd">
-        <span><b style="font-size:.9rem">${esc(r.title)}</b>
+        <span><b class="fs-90">${esc(r.title)}</b>
           <span class="rq-badge" style="background:color-mix(in srgb,${REQ_STATUS_CLR[r.status]} 14%,#fff);color:${REQ_STATUS_CLR[r.status]}">${REQ_STATUS_AR[r.status]}</span></span>
         <span style="font-size:.7rem;color:${PRIO_CLR[r.priority]};font-weight:700">${PRIO_AR[r.priority]}</span>
       </div>
@@ -1057,7 +1057,7 @@ function vCR(){
     const kd=CR_KIND[c.kind]||{t:c.kind,auto:false};
     // زر الموافقة يقول بصدق ما سيفعله النظام فعلًا
     const apText=kd.auto?'موافقة وتطبيق':'موافقة (تنفيذ يدوي)';
-    const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn ok" data-ap="${c.id}">${apText}</button><button class="hbtn" data-rj="${c.id}" style="background:#fff;color:var(--crit);border-color:#e8c4bc">رفض</button></div>`:'';
+    const actions=(canApprove&&c.status==='pending')?`<div class="cract"><button class="hbtn ok" data-ap="${c.id}">${apText}</button><button class="hbtn btn-danger-soft" data-rj="${c.id}">رفض</button></div>`:'';
     // تنبيه تنفيذ معلّق: وافق عليه ولم يُطبَّق آليًا ⇒ الخطة لم تتغيّر بعد
     const awaitingExec=(c.status==='approved'&&!kd.auto&&!c.executed_at);
     const pendingExec=awaitingExec?`<div class="cr-pendexec">⚠ معتمد — الخطة لم تتغيّر تلقائيًا. أدوات بناء الخطة مفتوحة الآن في تبويب «الجدول» لتنفيذه.</div>
@@ -1072,7 +1072,7 @@ function vCR(){
       <div class="crhd"><span class="crid">${esc(c.id.slice(0,12))}</span><span class="crstate ${stcls}">${sttxt}</span></div>
       <div class="crbody"><b>البند:</b> ${esc(c.task_ref||'—')}${t?' — '+esc(t.name):''} · <b>النوع:</b> ${kd.t}${c.new_value?' · <b>القيمة:</b> '+esc(c.new_value):''}<br><b>المبرر:</b> ${esc(c.reason||'—')}<br><small>${new Date(c.created_at).toLocaleDateString('ar')}</small>${c.decision_note?'<br><small>القرار: '+esc(c.decision_note)+'</small>':''}${goto?'<br>'+goto:''}</div>
       <div class="cr-modewrap">${kd.auto?crAutoNote:crManualNote}</div>${pendingExec}${doneExec}${actions}</div>`;
-  }).join(''):'<p class="empty" style="color:var(--muted);font-style:italic">لا طلبات تغيير.</p>';
+  }).join(''):'<p class="empty c-muted italic">لا طلبات تغيير.</p>';
   return `<div class="crwrap">${form}<div class="crlist">${list}</div></div>`;
 }
 
