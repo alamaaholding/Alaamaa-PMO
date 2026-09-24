@@ -75,8 +75,8 @@ function renderSABody(){
     <div class="sa-section">
       <h4>إضافة عضو فريق <span class="sa-hint">يشترط أن يكون قد سجّل دخوله مرة واحدة على الأقل عبر Google على المنصة — عندها فقط يمكن ربط بريده. اطلب منه تسجيل الدخول أولًا ثم أعد المحاولة هنا.</span></h4>
       <div class="sa-form">
-        <input id="saNewEmail" type="email" placeholder="البريد الإلكتروني" style="flex:1;min-width:200px;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-family:inherit">
-        <input id="saNewName" placeholder="الاسم (اختياري)" style="border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-family:inherit">
+        <input class="sa-inp f1 mw-200" id="saNewEmail" type="email" placeholder="البريد الإلكتروني">
+        <input class="sa-inp" id="saNewName" placeholder="الاسم (اختياري)">
         <select id="saNewRole"><option value="manager">فريق (manager)</option><option value="admin">إدارة كاملة (admin)</option></select>
         <button class="hbtn ok" id="saAddMember">إضافة</button>
       </div>
@@ -91,9 +91,9 @@ function renderSABody(){
           <option value="client">شريك بعينه (كل مشاريعه)</option>
           <option value="project">مشروع بعينه</option>
         </select>
-        <select id="saScopeValue" style="display:none">${deptOpts}</select>
-        <select id="saScopeClient" style="display:none">${clientOpts}</select>
-        <select id="saScopeProject" style="display:none">${projOpts}</select>
+        <select class="is-hidden" id="saScopeValue">${deptOpts}</select>
+        <select class="is-hidden" id="saScopeClient">${clientOpts}</select>
+        <select class="is-hidden" id="saScopeProject">${projOpts}</select>
         <select id="saLevel"><option value="view">عرض فقط</option><option value="edit">عرض وتعديل</option></select>
         <button class="hbtn gold" id="saGrant">منح</button>
       </div>
@@ -108,10 +108,11 @@ function renderSABody(){
     </div>`;
 
   const stEl=$('#saScopeType'),svEl=$('#saScopeValue'),spEl=$('#saScopeProject'),scEl=$('#saScopeClient');
+  // ثلاثةُ حقولٍ يظهر منها **واحدٌ** بحسب النطاق — والإخفاءُ صنفٌ لا أسلوب
   stEl.onchange=()=>{
-    svEl.style.display=(stEl.value==='department')?'':'none';
-    scEl.style.display=(stEl.value==='client')?'':'none';
-    spEl.style.display=(stEl.value==='project')?'':'none';
+    svEl.classList.toggle('is-hidden',stEl.value!=='department');
+    scEl.classList.toggle('is-hidden',stEl.value!=='client');
+    spEl.classList.toggle('is-hidden',stEl.value!=='project');
   };
   const amb=$('#saAddMember');
   if(amb)amb.onclick=async()=>{

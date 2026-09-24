@@ -157,7 +157,7 @@ function tkTalk(){
   }).join('');
   return `<p class="tkhint">نقاش مرتبط بهذا البند تحديدًا — ويظهر أيضًا في تبويب «النقاش» العام.</p>
     ${list||'<p class="empty">لا نقاش على هذا البند بعد.</p>'}
-    <div class="crform" style="position:static;margin-top:14px">
+    <div class="crform pos-static mt-14">
       <select id="tkKind"><option value="comment">تعليق</option><option value="question">سؤال</option><option value="suggestion">مقترح</option></select>
       <textarea id="tkBodyIn" placeholder="اكتب رسالتك حول هذا البند..."></textarea>
       <button class="hbtn gold wide" id="tkSend">إرسال</button>

@@ -26,8 +26,7 @@ export function mountSignaturePad(container){
     <div id="sigDrawWrap"><canvas id="sigCanvas" width="480" height="160"></canvas>
       <button type="button" class="reqbtn mt-6" id="sigClear">مسح</button></div>
     <div id="sigTypeWrap" class="is-hidden">
-      <input id="sigTypeName" placeholder="اكتب اسمك هنا كتوقيع" style="width:100%;font-size:1.4rem;font-family:'Segoe Script',cursive;
-        border:1.5px solid var(--line);border-radius:8px;padding:14px;text-align:center">
+      <input id="sigTypeName" placeholder="اكتب اسمك هنا كتوقيع" class="sig-typed">
     </div>`;
   const canvas=container.querySelector('#sigCanvas'),ctx=canvas.getContext('2d');
   ctx.strokeStyle='#1A1A1A';ctx.lineWidth=2.4;ctx.lineCap='round';ctx.lineJoin='round';
@@ -166,8 +165,7 @@ export function publicSignHTML(d,{contractHtml,integrityBadge,alamaaSig,clientSi
             <div class="row-8 fx-wrap">
               <button class="reqbtn" id="pubOtpSend">إرسال رمز التحقق</button>
               <input id="pubOtp" inputmode="numeric" maxlength="6" placeholder="------" dir="ltr"
-                style="flex:1;min-width:120px;border:1.5px solid var(--line);border-radius:8px;padding:10px;
-                       font-family:monospace;font-size:1.1rem;letter-spacing:6px;text-align:center">
+                class="otp-input">
             </div>
             <div id="pubOtpMsg"></div>
           </div>`:''}

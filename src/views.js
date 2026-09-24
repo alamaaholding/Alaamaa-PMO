@@ -40,10 +40,10 @@ const VIEW_LABELS={dashboard:'لوحة القيادة',table:'الجدول (MS P
 export function render(){ preserveFocus(renderNow); }
 function renderNow(){
   if(!getState('PROJECT')){$('#host').innerHTML='<p class="p-30 ta-center c-muted">لا يوجد مشروع لهذا الشريك.</p>';return;}
-  $('#backPortfolio').style.display=(getState('ROLE')!=='client')?'':'none';
-  $('#manageAccess').style.display=(getState('ROLE')==='pmo')?'':'none';
-  const pmb=$('#projMenuBtn');if(pmb)pmb.style.display=(getState('ROLE')==='pmo')?'':'none';
-  $('#approveContract').style.display=(getState('ROLE')==='pmo'&&getState('PROJECT').status!=='baselined')?'':'none';
+  $('#backPortfolio').classList.toggle('is-hidden',getState('ROLE')==='client');
+  $('#manageAccess').classList.toggle('is-hidden',getState('ROLE')!=='pmo');
+  const pmb=$('#projMenuBtn');if(pmb)pmb.classList.toggle('is-hidden',getState('ROLE')!=='pmo');
+  $('#approveContract').classList.toggle('is-hidden',!(getState('ROLE')==='pmo'&&getState('PROJECT').status!=='baselined'));
   $('#roleHint').textContent=(typeof getState('IS_OWNER')!=='undefined'&&getState('IS_OWNER'))?'مالك المنصة — سلطة كاملة':(can('editStruct')?'لديك صلاحية تعديل الخطة':(can('editProg')?'يمكنك تحديث الحالة والتقدم':'عرض فقط'));
   compute();
   const _c=getState('CLIENTS').find(x=>x.id===getState('CID'));

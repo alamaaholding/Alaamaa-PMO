@@ -52,7 +52,7 @@ function _tlHtml(ctx){
     const on=_TL_SRCFILTER.has(k);
     return `<button class="tfchip tl-srcf ${on?'':''}" data-tlsrc="${k}" aria-pressed="${on}" style="--tc:${DELIV_SRC[k].c}">${esc(DELIV_SRC[k].t)}</button>`;
   }).join('');
-  const addBtn=isProject?`<button class="hbtn" id="tlAdd" style="background:var(--gold);border-color:var(--gold);margin-inline-start:auto">+ إضافة حدث</button>`:'';
+  const addBtn=isProject?`<button class="hbtn btn-gold ms-auto" id="tlAdd">+ إضافة حدث</button>`:'';
   const toolbar=`<div class="tl-toolbar"><span class="tfacet-lbl">المصدر:</span>${srcChips}${addBtn}</div>`;
 
   // تطبيق الفلتر

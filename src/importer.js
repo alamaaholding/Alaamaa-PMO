@@ -269,7 +269,7 @@ function renderImpPreview(p){
   const warns=p.warnings.length
     ? `<div class="imp-warn"><b>ملاحظات (${p.warnings.length}):</b><ul>${p.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul></div>`
     : '<div class="imp-ok">لا تحذيرات — الملف سليم.</div>';
-  const sample=p.tasks.slice(0,6).map(t=>`<tr><td>${esc(t.ref)}</td><td>${t.parent?'<span style="color:var(--muted)">└ </span>':''}${esc(t.name)}</td><td>${esc(t.track)}</td><td>${TYPES[t.type]||t.type}</td><td>${t.duration||'—'}</td><td>${esc(t.deps.join('، ')||'—')}</td></tr>`).join('');
+  const sample=p.tasks.slice(0,6).map(t=>`<tr><td>${esc(t.ref)}</td><td>${t.parent?'<span class="c-muted">└ </span>':''}${esc(t.name)}</td><td>${esc(t.track)}</td><td>${TYPES[t.type]||t.type}</td><td>${t.duration||'—'}</td><td>${esc(t.deps.join('، ')||'—')}</td></tr>`).join('');
   const phaseChips=(p.phases&&p.phases.length)
     ? `<div class="imp-phases"><b>المراحل المكتشفة (${p.phases.length}):</b> ${p.phases.map(ph=>`<span class="imp-phase" style="--pc:${ph.color}">${esc(ph.key)} ${esc(ph.name)}</span>`).join('')}</div>`
     : '';

@@ -1749,3 +1749,27 @@ tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
 .v-inp{width:100%;border:1.5px solid var(--line);border-radius:7px;padding:9px;font-family:inherit}
 .v-inp.f1{width:auto;flex:1}
 .v-inp.sm{padding:7px;font-size:.82rem}
+/* ═══ W6 · ما تبقّى من الأنماط الثابتة — خمسةٌ وأربعون موضعًا ═══ */
+.btn-crit{background:var(--crit);border-color:var(--crit);color:var(--on-solid)}
+.bordered{border-color:var(--line)}
+.p-9-20{padding:9px 20px}
+.p-18{padding:18px}
+.bis-crit{border-inline-start-color:var(--crit)}
+.dlg-msg{font-size:.86rem;color:var(--muted);margin-bottom:14px;line-height:1.7;white-space:pre-line}
+.sa-inp{border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-family:inherit}
+.sa-inp.f1{flex:1}
+.row-14{display:flex;gap:14px}
+.jc-start{justify-content:flex-start}
+.mt-18{margin-top:18px}
+.ms-8{margin-inline-start:8px}
+.my-2-8{margin:2px 0 8px}
+.ta-left{text-align:left}
+.fs-66{font-size:.66rem}
+.fs-95{font-size:.95rem}
+.w-80{width:80px}
+.mw-120{min-width:120px}
+.mxw-160{max-width:160px}
+.sig-typed{width:100%;font-size:1.4rem;font-family:'Segoe Script',cursive;
+  border:1.5px solid var(--line);border-radius:8px;padding:14px;text-align:center}
+.otp-input{flex:1;min-width:120px;border:1.5px solid var(--line);border-radius:8px;padding:10px;
+  font-family:monospace;font-size:1.1rem;letter-spacing:6px;text-align:center}

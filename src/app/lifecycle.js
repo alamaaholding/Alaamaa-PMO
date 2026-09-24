@@ -447,7 +447,7 @@ export async function renderArchived(){
   if(arch.length){
     html+='<h4 class="arch-sec">مؤرشفة</h4>';
     arch.forEach(c=>{
-      html+=`<div class="arch-row"><div><b>${c.name}</b><span class="arch-badge">مؤرشف</span></div><div class="arch-acts"><button class="hbtn ghost" data-restore="${c.id}">استرجاع</button><button class="hbtn" data-del="${c.id}" style="background:var(--warn);border-color:var(--warn)">طلب حذف</button></div></div>`;
+      html+=`<div class="arch-row"><div><b>${c.name}</b><span class="arch-badge">مؤرشف</span></div><div class="arch-acts"><button class="hbtn ghost" data-restore="${c.id}">استرجاع</button><button class="hbtn btn-warn" data-del="${c.id}">طلب حذف</button></div></div>`;
     });
   }
   if(aprojs.length){
@@ -465,7 +465,7 @@ export async function renderArchived(){
     if(parch.length){
       html+='<h4 class="arch-sec">مشاريع مؤرشفة</h4>';
       parch.forEach(p=>{
-        html+=`<div class="arch-row"><div><b>${esc(p.name)}</b><span class="arch-badge">${esc(cname(p.client_id))}</span><span class="arch-badge">مؤرشف</span></div><div class="arch-acts"><button class="hbtn ghost" data-prestore="${p.id}">استرجاع</button><button class="hbtn" data-pdel="${p.id}" style="background:var(--warn);border-color:var(--warn)">طلب حذف</button></div></div>`;
+        html+=`<div class="arch-row"><div><b>${esc(p.name)}</b><span class="arch-badge">${esc(cname(p.client_id))}</span><span class="arch-badge">مؤرشف</span></div><div class="arch-acts"><button class="hbtn ghost" data-prestore="${p.id}">استرجاع</button><button class="hbtn btn-warn" data-pdel="${p.id}">طلب حذف</button></div></div>`;
       });
     }
   }
@@ -534,7 +534,7 @@ export async function openHolidaysManager(){
       ${rows.map(h=>`<div class="hol-row"><b>${esc(h.name)}</b><span>${h.hdate}</span><button class="ib txt-crit" data-holdel="${h.id}" aria-label="حذف">🗑</button></div>`).join('')||'<p class="pempty">لا عطلات مسجلة.</p>'}
       <div class="hol-row new">
         <input id="holName" placeholder="اسم العطلة" class="trk-name">
-        <input id="holDate" type="date" class="trk-name" style="max-width:160px">
+        <input id="holDate" type="date" class="trk-name mxw-160">
         <button class="hbtn ok" id="holAdd">+ إضافة</button>
       </div>`;
     body.querySelectorAll('[data-holdel]').forEach(b=>b.onclick=async()=>{
