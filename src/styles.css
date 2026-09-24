@@ -210,7 +210,8 @@ body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--cr
 .chub-pill span{color:inherit;opacity:.7;margin-inline-start:3px}
 .chub-pill.active{background:var(--solid);color:var(--on-solid);border-color:var(--solid)}
 .chub-hd-actions{display:flex;align-items:center;gap:8px;margin-inline-start:auto}
-.chub-primary{font-weight:800;padding:9px 18px;white-space:nowrap}
+.chub-primary{font-weight:800;padding:9px 18px;white-space:nowrap;
+  background:var(--pc);border-color:var(--pc);color:var(--on-solid)}
 .chub-more{position:relative}
 .chub-more>button{font-size:1.1rem;line-height:1;padding:7px 12px}
 .chub-more-menu{position:absolute;inset-inline-end:0;top:calc(100% + 6px);z-index:40;min-width:230px;
@@ -1714,3 +1715,8 @@ tr.grp:hover .grp-edit,.grp-edit:focus-visible{opacity:1}
 .fs-86{font-size:.86rem}
 .w-46{width:46px}
 .w-120{width:120px}
+/* ═══ W6 · مفرداتٌ إضافية (المحفظة) ═══ */
+.mt-16{margin-top:16px}
+.mb-16{margin-bottom:16px}
+.w-90{width:90px}
+.mw-170{min-width:170px}
