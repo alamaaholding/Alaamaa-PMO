@@ -85,7 +85,7 @@ function renderCHBody(stats,access){
       return `<button class="ch-pcard" data-openp="${r.project_id}" aria-label="فتح مشروع ${esc(r.project_name||'')}">
         <div class="ch-pname">${esc(r.project_name)}</div>
         <div class="ch-pmeta">${renderStatusBadge(st)}</div>
-        <div class="trk-bar mt-8"><div class="trk-bar-fill" style="width:${pct}%;background:var(--ok)"></div></div>
+        <div class="trk-bar mt-8"><div class="trk-bar-fill" data-css="width:${pct}%;background:var(--ok)"></div></div>
         <div class="ch-ppct">${pct}% · ${r.total_tasks} بند</div>
       </button>`;
     }).join('');

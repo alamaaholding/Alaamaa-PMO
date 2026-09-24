@@ -96,9 +96,9 @@ function PG_RENDER(rows,minD,maxD,mountId){
   const LIFE={proposal:'مقترح',negotiation:'تفاوض',approved:'معتمد',active:'نشط',closed:'مغلق'};
   // رأس المحور (أشهر)
   let axisHtml='';
-  weeks.forEach(wk=>{ axisHtml+=`<div class="pg-week" style="inset-inline-start:${pct(wk)}%">${wk.getDate()}/${wk.getMonth()+1}</div>`; });
+  weeks.forEach(wk=>{ axisHtml+=`<div class="pg-week" data-css="inset-inline-start:${pct(wk)}%">${wk.getDate()}/${wk.getMonth()+1}</div>`; });
   // خط اليوم
-  const todayLine=(today>=minD&&today<=maxD)?`<div class="pg-today" style="inset-inline-start:${pct(today)}%" title="اليوم"></div>`:'';
+  const todayLine=(today>=minD&&today<=maxD)?`<div class="pg-today" data-css="inset-inline-start:${pct(today)}%" title="اليوم"></div>`:'';
 
   // صفوف المشاريع
   let rowsHtml='';
@@ -108,17 +108,17 @@ function PG_RENDER(rows,minD,maxD,mountId){
     const fmt=d=>`${d.getDate()}/${d.getMonth()+1}`;
     rowsHtml+=`<div class="pg-row" data-open="${r.pid}">
       <div class="pg-label">
-        <div class="pg-client"><span class="pg-dot" style="background:${r.color}" title="لون تعريفي لهذا الشريك"></span>${esc(r.client)}</div>
+        <div class="pg-client"><span class="pg-dot" data-css="background:${r.color}" title="لون تعريفي لهذا الشريك"></span>${esc(r.client)}</div>
         <div class="pg-pname">${esc(r.name)}</div>
         <div class="pg-meta">${r.tasks} بند · ${r.milestones} معالم · ${LIFE[r.lifecycle]||''}</div>
       </div>
       <div class="pg-track">
-        <div class="pg-bar" style="inset-inline-start:${left}%;width:${width}%;background:${clr}">
-          <div class="pg-bar-fill" style="width:${r.pct}%"></div>
+        <div class="pg-bar" data-css="inset-inline-start:${left}%;width:${width}%;background:${clr}">
+          <div class="pg-bar-fill" data-css="width:${r.pct}%"></div>
           <span class="pg-bar-txt">${(_tm&&_tm.name)||PHASE_NAMES[r.curPhase]||''} · ${r.pct}%</span>
         </div>
-        <span class="pg-date pg-date-s" style="inset-inline-start:${left}%">${fmt(r.start)}</span>
-        <span class="pg-date pg-date-e" style="inset-inline-start:${Math.min(96,pct(r.end))}%">${fmt(r.end)}</span>
+        <span class="pg-date pg-date-s" data-css="inset-inline-start:${left}%">${fmt(r.start)}</span>
+        <span class="pg-date pg-date-e" data-css="inset-inline-start:${Math.min(96,pct(r.end))}%">${fmt(r.end)}</span>
       </div>
     </div>`;
   });
@@ -130,7 +130,7 @@ function PG_RENDER(rows,minD,maxD,mountId){
   rows.forEach(r=>{const tm=r.trk&&r.trk[r.curPhase];if(tm&&!legendPhases[r.curPhase])legendPhases[r.curPhase]=tm;});
   mountEl.innerHTML=`
     <div class="pg-legend">
-      ${Object.values(legendPhases).map(v=>`<span class="pg-leg"><i style="background:${v.color}"></i>${esc(v.name)}</span>`).join('')}
+      ${Object.values(legendPhases).map(v=>`<span class="pg-leg"><i data-css="background:${v.color}"></i>${esc(v.name)}</span>`).join('')}
       <span class="pg-leg"><i class="pg-leg-today"></i>اليوم</span>
     </div>
     <div class="pg-chart">

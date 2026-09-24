@@ -148,7 +148,7 @@ export function publicSignHTML(d,{contractHtml,integrityBadge,alamaaSig,clientSi
         <p class="pubsign-note">✅ عقد ساري ومكتمل التوقيع من الطرفين — هذه النسخة للاطّلاع فقط ولا يمكن التعديل عليها.</p>
         <div class="pubsign-progress">
           <div><b>نسبة إنجاز المشروع حتى الآن</b><span>${d.progress_pct}%</span></div>
-          <div class="trk-bar"><div class="trk-bar-fill ok-fill" style="--pct:${d.progress_pct}%"></div></div>
+          <div class="trk-bar"><div class="trk-bar-fill ok-fill" data-css="--pct:${d.progress_pct}%"></div></div>
         </div>
         <button class="hbtn pubsign-cta" id="pubGoLogin">
           لرؤية تفاصيل سير العمل الكاملة — سجّل الدخول

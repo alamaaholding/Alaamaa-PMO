@@ -281,11 +281,16 @@ t('دالة الحلّ معرَّفة',/async function dissolvePackage/.test(api
   // ═══ قسمُ الشركاء بلا مشاريع: مطويٌّ افتراضيًّا ═══
   const SEC = W.portfolioEmptySectionHTML;
   const E = [{ cid: 'e1', c: { name: 'خالٍ', color: '#222' } }];
+  // كان الطيُّ يُكتَب `style="display:none|flex"` سطريًّا. صار صنفًا (W6)،
+  // والقدرةُ هي هي — فالحارس يتبع القدرة لا صيغتها: مخفيٌّ حين مطويّ، ظاهرٌ
+  // حين مفتوح. وربطُ الصنف بالإخفاء يُثبَت من الورقة نفسها لا يُفترَض.
+  t('صنفُ الإخفاء يعني الإخفاء فعلًا في الورقة', /\.is-hidden\{display:none\}/.test(css));
+  t('وسطحُ القسم مرنٌ افتراضًا', /\.empty-sec-body\{display:flex/.test(css));
   t('مطويّ: مخفيٌّ وسهمُه لأسفل',
-    SEC(E, false).includes('display:none') && SEC(E, false).includes('▾')
+    /class="empty-sec-body[^"]*\bis-hidden\b/.test(SEC(E, false)) && SEC(E, false).includes('▾')
       && SEC(E, false).includes('aria-expanded="false"'));
   t('ومفتوح: ظاهرٌ وسهمُه لأعلى',
-    SEC(E, true).includes('display:flex') && SEC(E, true).includes('▴')
+    !/\bis-hidden\b/.test(SEC(E, true)) && SEC(E, true).includes('▴')
       && SEC(E, true).includes('aria-expanded="true"'));
   t('وكلُّ شريكٍ زرٌّ يحمل معرّفه', SEC(E, true).includes('data-newproj="e1"'));
   t('والعدد معروضٌ في الترويسة', SEC(E, false).includes('es-n">1<'));

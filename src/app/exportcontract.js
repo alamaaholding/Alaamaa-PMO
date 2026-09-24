@@ -142,7 +142,7 @@ export async function buildContractDoc(baselineId,contract,attachments){
       const rows=byPhase[p.key].map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.name)}</td><td>${TYPES[x.type]||x.type}</td>
         <td>${x.type==='milestone'?'—':(x.duration||0)+' يوم'}</td><td>${x.ES}</td><td>${x.EF}</td></tr>`).join('');
       return `<section class="cx-page">
-        <div class="cx-phase-hd" style="--pc:${p.color}"><span></span>${esc(p.name)}</div>
+        <div class="cx-phase-hd" data-css="--pc:${p.color}"><span></span>${esc(p.name)}</div>
         <table class="cx-table"><thead><tr><th>المعرّف</th><th>الاسم</th><th>النوع</th><th>المدة</th><th>البداية</th><th>النهاية</th></tr></thead>
         <tbody>${rows}</tbody></table>
       </section>`;

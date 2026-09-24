@@ -602,7 +602,7 @@ console.log('\n▸ اللوحة تُفتح فعلًا وتُربَط — بصم�
   // كان سطريًّا فلا يُحصى ولا ينقلب في الوضع الداكن.
   {
     const hub = fs.readFileSync('src/app/contractshub.js', 'utf8');
-    t('لون الإجراء الأساسيّ يمرّ خاصّيةً مخصَّصة', hub.includes('style="--pc:${STAGE.primary.color}"'));
+    t('لون الإجراء الأساسيّ يمرّ خاصّيةً مخصَّصة', hub.includes('data-css="--pc:${STAGE.primary.color}"'));
     // التعليقُ يشرح ما أُصلح فيذكر `#fff` — والعدُّ الساذج يلتقط النثر. يُفحَص
     // الكود وحده. (وهذا سادسُ فحصٍ في الموجة يلتقط شرحَه بدل ما يقصده.)
     const code = hub.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');

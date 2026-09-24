@@ -264,7 +264,7 @@ function renderDeps(){
   $('#depList').innerHTML=opts.map(t=>{const on=current.has(t.id),x=xmap[t.id]||{type:'FS',lag:0};
     return `<div class="dep-row pa-row tight">
     <input type="checkbox" data-dep="${esc(t.id)}" ${on?'checked':''} id="dp_${esc(t.id)}">
-    <label class="pointer f1 row-8 items-center" for="dp_${esc(t.id)}"><span class="idcell" style="--tc:${trackMeta(t.track).color}">${esc(t.id)}</span> ${esc(t.name)}</label>
+    <label class="pointer f1 row-8 items-center" for="dp_${esc(t.id)}"><span class="idcell" data-css="--tc:${trackMeta(t.track).color}">${esc(t.id)}</span> ${esc(t.name)}</label>
     <select data-deptype="${esc(t.id)}" class="dep-type" aria-label="نوع التبعية" ${on?'':'disabled'}>
       <option value="FS" ${x.type==='FS'?'selected':''}>بعد انتهاء (FS)</option>
       <option value="SS" ${x.type==='SS'?'selected':''}>مع بداية (SS)</option>
