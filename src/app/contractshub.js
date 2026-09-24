@@ -837,14 +837,21 @@ export function defaultContractTab(c,{anySigned,editable,cl}){
  * و`tab` يُمرَّر ولا يُقرأ من `CHD_TAB` مباشرةً — وهو ما يجعلها خالصة: نفس
  * المُدخَل يُنتج نفس المُخرَج بلا اعتمادٍ على حالة الوحدة.
  */
-export function contractPanelHTML(c,{STAGE,cl,anySigned,editable,isCustom,link,tab}){
+/**
+ * ترويسةُ لوحة العقد ولافتةُ مرحلته.
+ *
+ * ولونُ الإجراء الأساسيّ يمرّ **خاصّيةً مخصَّصة** لا أسلوبًا كاملًا: كان
+ * `color:#fff` مكتوبًا فيه خامًّا — فلا يُحصى (لأنه سطريّ) ولا ينقلب في الوضع
+ * الداكن. والنصُّ على أرضيةٍ ملوّنة ثابتة رمزُه `--on-solid`.
+ */
+function panelHeaderHTML(c,STAGE){
   return `<div class="chub-detail">
     <div class="chub-detail-hd">
       <h3>${esc(c.contract_name||'عقد بلا اسم')} <span class="chub-num">${esc(c.contract_number||'—')}</span></h3>
       <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
       <div class="chub-hd-actions">
         ${STAGE.primary?`<button class="hbtn chub-primary" id="${STAGE.primary.id}"
-           style="background:${STAGE.primary.color};border-color:${STAGE.primary.color};color:#fff">${STAGE.primary.label}</button>`:''}
+           style="--pc:${STAGE.primary.color}">${STAGE.primary.label}</button>`:''}
         <div class="chub-more">
           <button class="reqbtn" id="chdMore" aria-haspopup="true" aria-expanded="false" aria-label="إجراءات أخرى" title="إجراءات أخرى">⋯</button>
           <div class="chub-more-menu" id="chdMoreMenu" hidden>
@@ -864,23 +871,31 @@ export function contractPanelHTML(c,{STAGE,cl,anySigned,editable,isCustom,link,t
         `<span class="chub-note ${n.tone||''}">${n.text}</span>`).join('')}</div>`:''}
     </div>
     <div id="chdSignArea"></div>
-    ${(!c.client_id&&!c.source_contract_id)?'<div id="chdInstances"></div>':''}
+    ${(!c.client_id&&!c.source_contract_id)?'<div id="chdInstances"></div>':''}`;
+}
 
-    <div class="chub-tabs" role="tablist" aria-label="أقسام العقد">
-      ${[['overview','نظرة عامة'],['terms','الشروط والبنود'],['attach','الملاحق'],
-         ['send','الإرسال والتوقيع'],['log','السجل']].map(([k,t2])=>
-        `<button class="chub-tab ${tab===k?'active':''}" role="tab" data-chdtab="${k}">${t2}</button>`).join('')}
-    </div>
+/**
+ * «لم يعد قابلًا للتعديل» — ومصدرُ المنع يُقال، لا يُترك للتخمين.
+ *
+ * وكان النصُّ مكتوبًا **مرّتين حرفًا بحرف**: مرّةً في فرع العقد المخصَّص ومرّةً
+ * في فرع القياسيّ. وهما حالتان لسببٍ واحد، فصارتا نصًّا واحدًا.
+ *
+ * و`anySigned` هو الفارق: **موقَّعٌ** يُقفَل لأنه التزامٌ قائم، و**ملغًى** يُقفَل
+ * لأنه لم يعد شيئًا. وكلاهما يُحيل إلى المخرج نفسه: عقدٌ جديد.
+ */
+export function lockedNoticeHTML(anySigned){
+  return `<p class="sa-hint">🔒 عقد ${anySigned?'وقّع عليه طرف على الأقل':'ملغى'} — لم يعد قابلًا للتعديل. لتغييره، ألغِ هذا العقد وأنشئ عقدًا جديدًا.</p>`;
+}
 
-    <div class="chub-pane" data-pane="overview" ${tab==='overview'?'':'hidden'}>
-      <details class="pubsign-fulltext" open>
-        <summary>📄 نص العقد كما سيراه الشريك ${editable?'(يتحدّث فورًا مع أي تعديل)':''}</summary>
-        <div id="chdPreview"></div>
-      </details>
-      <div id="chdIntegrity"></div>
-    </div>
-
-    <div class="chub-pane" data-pane="terms" ${tab==='terms'?'':'hidden'}>
+/**
+ * لوحةُ الشروط والبنود.
+ *
+ * وحقولُها **لا تختفي حين يُقفَل العقد، بل تصير مخفيّة** (`type="hidden"` أو
+ * صنفُ إخفاء). وهذا مقصود: قارئُ النصّ يقرؤها من DOM عند بناء المعاينة
+ * والتجزئة، فحذفُها يكسر عرضَ العقد الموقَّع لا يحميه.
+ */
+function panelTermsPaneHTML(c,{editable,isCustom,anySigned,tab}){
+  return `<div class="chub-pane" data-pane="terms" ${tab==='terms'?'':'hidden'}>
       <div class="chub-fields-box">
         ${editable?`
         <div class="sa-form fx-wrap mb-12">
@@ -898,7 +913,7 @@ export function contractPanelHTML(c,{STAGE,cl,anySigned,editable,isCustom,link,t
           </div>`:`
           <input id="chdTitle" type="hidden" value="${esc(c.custom_title||'')}">
           <textarea id="chdBody" class="hidden">${esc(c.custom_body||'')}</textarea>
-          <p class="sa-hint">🔒 عقد ${anySigned?'وقّع عليه طرف على الأقل':'ملغى'} — لم يعد قابلًا للتعديل. لتغييره، ألغِ هذا العقد وأنشئ عقدًا جديدًا.</p>`}
+          ${lockedNoticeHTML(anySigned)}`}
         `:`
         ${editable?`
         <div class="sa-form fx-wrap">
@@ -918,7 +933,7 @@ export function contractPanelHTML(c,{STAGE,cl,anySigned,editable,isCustom,link,t
         <input id="chdRenew" type="checkbox" ${c.auto_renew?'checked':''} class="hidden">
         <input id="chdAdSpend" type="checkbox" ${c.includes_ad_spend?'checked':''} class="hidden">
         <textarea id="chdSpecial" class="hidden">${esc(c.special_terms||'')}</textarea>
-        <p class="sa-hint">🔒 عقد ${anySigned?'وقّع عليه طرف على الأقل':'ملغى'} — لم يعد قابلًا للتعديل. لتغييره، ألغِ هذا العقد وأنشئ عقدًا جديدًا.</p>`}
+        ${lockedNoticeHTML(anySigned)}`}
         `}
       </div>
     </div>
@@ -932,16 +947,12 @@ export function contractPanelHTML(c,{STAGE,cl,anySigned,editable,isCustom,link,t
       </div>
       <div id="chdClauses"></div>
     </div>`:''}
-    </div>
+    </div>`;
+}
 
-    <div class="chub-pane" data-pane="attach" ${tab==='attach'?'':'hidden'}>
-      <div class="sa-section">
-        <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للشريك في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
-        <div id="chdAttachments">${skeleton('panel',1)}</div>
-      </div>
-    </div>
-
-    <div class="chub-pane" data-pane="send" ${tab==='send'?'':'hidden'}>
+/** لوحةُ الإرسال والتوقيع: رمزُ QR، والرابط، ومسارُ الرسالة. */
+function panelSendPaneHTML(c,{cl,link,tab}){
+  return `<div class="chub-pane" data-pane="send" ${tab==='send'?'':'hidden'}>
     <div class="chub-detail-grid">
       <div class="chub-qr-box">
         <div id="chdQrImg" class="chub-qr-loading">⏳ يُولَّد رمز QR...</div>
@@ -963,7 +974,35 @@ export function contractPanelHTML(c,{STAGE,cl,anySigned,editable,isCustom,link,t
           <div id="chdMailStatus"></div>
         </div>`:''}
       </div>
+    </div>`;
+}
+
+export function contractPanelHTML(c,{STAGE,cl,anySigned,editable,isCustom,link,tab}){
+  return panelHeaderHTML(c,STAGE)+`
+    <div class="chub-tabs" role="tablist" aria-label="أقسام العقد">
+      ${[['overview','نظرة عامة'],['terms','الشروط والبنود'],['attach','الملاحق'],
+         ['send','الإرسال والتوقيع'],['log','السجل']].map(([k,t2])=>
+        `<button class="chub-tab ${tab===k?'active':''}" role="tab" data-chdtab="${k}">${t2}</button>`).join('')}
     </div>
+
+    <div class="chub-pane" data-pane="overview" ${tab==='overview'?'':'hidden'}>
+      <details class="pubsign-fulltext" open>
+        <summary>📄 نص العقد كما سيراه الشريك ${editable?'(يتحدّث فورًا مع أي تعديل)':''}</summary>
+        <div id="chdPreview"></div>
+      </details>
+      <div id="chdIntegrity"></div>
+    </div>
+
+    ${panelTermsPaneHTML(c,{editable,isCustom,anySigned,tab})}
+
+    <div class="chub-pane" data-pane="attach" ${tab==='attach'?'':'hidden'}>
+      <div class="sa-section">
+        <h4>📎 الملاحق والمرفقات <span class="sa-hint">تظهر للشريك في صفحة التوقيع، وتُدرَج في تصدير PDF</span></h4>
+        <div id="chdAttachments">${skeleton('panel',1)}</div>
+      </div>
+    </div>
+
+    ${panelSendPaneHTML(c,{cl,link,tab})}
 
     <div class="chub-pane" data-pane="log" ${tab==='log'?'':'hidden'}>
       <div class="sa-section">

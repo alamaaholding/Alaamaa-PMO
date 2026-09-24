@@ -53,7 +53,7 @@ async function openSecurityAudit(){
         ${r.duplicate_count?'<p class="sa-hint mt-6">نسخة قديمة قد تتجاوز حواجز النسخة الجديدة — تحتاج حذفًا يدويًا مدروسًا.</p>':''}
       </div>
       <p class="sa-hint mt-10">آخر فحص: ${new Date(r.checked_at).toLocaleString('ar')}</p>
-      <div style="display:flex;gap:8px;margin-top:12px">
+      <div class="row-8 mt-12">
         <button class="reqbtn" id="secRecheck">إعادة الفحص</button>
         ${r.leaked_count?'<button class="hbtn ok" id="secFix">🔧 سحب الإتاحة المتسرّبة</button>':''}
       </div>`;
@@ -87,7 +87,7 @@ async function openCapacityPanel(){
   const totalHeads=tree.reduce((s2,d)=>s2+(d.roles||[]).reduce((a,r)=>a+(r.headcount||0),0),0);
 
   body.innerHTML=`
-    <p class="sa-hint" style="margin-bottom:12px">الإسناد يقع على <b>المسمّى</b> لا الشخص — فالمكتب يعنيه أن المسمّى محمَّل فوق طاقته لا من ينفّذ. الطاقة = عدد الشاغلين × البنود المتزامنة للفرد.</p>
+    <p class="sa-hint mb-12">الإسناد يقع على <b>المسمّى</b> لا الشخص — فالمكتب يعنيه أن المسمّى محمَّل فوق طاقته لا من ينفّذ. الطاقة = عدد الشاغلين × البنود المتزامنة للفرد.</p>
     <div class="chub-stats mb-14">
       <div class="chub-stat"><b>${tree.length}</b><span>قسم</span></div>
       <div class="chub-stat"><b>${tree.reduce((a,d)=>a+(d.roles||[]).length,0)}</b><span>مسمّى</span></div>
@@ -170,16 +170,16 @@ async function openAutomationPanel(){
       <label class="chub-choice"><input type="checkbox" id="autoRem" ${st.auto_reminders_enabled?'checked':''}>
         تفعيل التذكير التلقائي للعقود غير الموقَّعة</label>
     </div>
-    <div class="sa-form" style="flex-wrap:wrap;margin-top:10px">
+    <div class="sa-form fx-wrap mt-10">
       <label class="fs-85 self-center">يُذكَّر بعد</label>
-      <input id="autoDays" type="number" min="1" max="30" value="${st.reminder_after_days||3}" style="width:90px">
+      <input class="w-90" id="autoDays" type="number" min="1" max="30" value="${st.reminder_after_days||3}">
       <label class="fs-85 self-center">أيام · بحد أقصى</label>
-      <input id="autoMax" type="number" min="1" max="5" value="${st.max_reminders||2}" style="width:90px">
+      <input class="w-90" id="autoMax" type="number" min="1" max="5" value="${st.max_reminders||2}">
       <label class="fs-85 self-center">تذكيرات لكل عقد</label>
     </div>
     <p class="sa-hint mt-10">الحدّ الأقصى يمنع إزعاج الشريك — بعد استنفاده يتوقف التذكير التلقائي ويبقى اليدوي متاحًا.</p>
     <div id="autoPreview" class="mt-14"></div>
-    <button class="hbtn" id="autoSave" style="background:var(--gold);border-color:var(--gold);margin-top:12px">حفظ الإعدادات</button>`;
+    <button class="hbtn btn-gold mt-12" id="autoSave">حفظ الإعدادات</button>`;
 
   const preview=async()=>{
     const box=byId('autoPreview');
@@ -224,14 +224,14 @@ async function openOrgProfile(){
     <p class="sa-hint mb-14">بيانات علامة بصفتها <b>الطرف الأول</b> في كل عقد — تُستورَد تلقائيًا عند إنشاء أي عقد جديد، وتُجمَّد داخله كلقطة فلا يتأثر أي عقد موقَّع سابقًا بأي تعديل هنا لاحقًا.</p>
     ${miss.length?`<div class="ch-warn-badge">⚠ بيانات غير مكتملة (${miss.length} حقول) — ستظهر كـ«—» في جدول أطراف العقد</div>`:''}
     <div class="sa-form fx-wrap">
-      <input id="orgName" placeholder="الاسم النظامي" value="${esc(o.legal_name||'علامة')}" style="flex:1;min-width:180px;font-weight:700">
+      <input class="f1 mw-180 bold" id="orgName" placeholder="الاسم النظامي" value="${esc(o.legal_name||'علامة')}">
       <input id="orgCr" placeholder="رقم السجل التجاري" value="${esc(o.cr_number||'')}" class="grow-150">
       <input id="orgVat" placeholder="الرقم الضريبي (VAT)" value="${esc(o.vat_number||'')}" class="grow-150">
-      <input id="orgAddr" placeholder="العنوان الوطني" value="${esc(o.national_address||'')}" style="flex:1;min-width:170px">
+      <input class="f1 mw-170" id="orgAddr" placeholder="العنوان الوطني" value="${esc(o.national_address||'')}">
       <input id="orgRep" placeholder="اسم الممثل المفوَّض" value="${esc(o.rep_name||'')}" class="grow-160">
-      <input id="orgTitle" placeholder="صفته" value="${esc(o.rep_title||'')}" style="flex:1;min-width:130px">
-      <input id="orgEmail" placeholder="البريد الرسمي" value="${esc(o.contact_email||'')}" style="flex:1;min-width:170px" dir="ltr">
-      <input id="orgPhone" placeholder="رقم الجوال" value="${esc(o.contact_phone||'')}" style="flex:1;min-width:140px" dir="ltr">
+      <input class="f1 mw-130" id="orgTitle" placeholder="صفته" value="${esc(o.rep_title||'')}">
+      <input class="f1 mw-170" id="orgEmail" placeholder="البريد الرسمي" value="${esc(o.contact_email||'')}" dir="ltr">
+      <input class="f1 mw-140" id="orgPhone" placeholder="رقم الجوال" value="${esc(o.contact_phone||'')}" dir="ltr">
       <button class="hbtn gold" id="orgSave">حفظ الملف</button>
     </div>`;
   byId('orgSave').onclick=async()=>{
@@ -258,13 +258,13 @@ async function openStatusLegend(){
   byId('tkTitle').textContent='دليل حالات المشاريع';
   byId('tkTabs').innerHTML='';
   byId('tkBody').innerHTML=`
-    <p class="sa-hint" style="margin-bottom:16px">كل مشروع أو شريك في المحفظة يحمل شارة حالة واحدة توضّح وضعه الحالي بلمحة — هذا شرح كل شارة:</p>
+    <p class="sa-hint mb-16">كل مشروع أو شريك في المحفظة يحمل شارة حالة واحدة توضّح وضعه الحالي بلمحة — هذا شرح كل شارة:</p>
     ${PROJECT_STATUS_DEFS.map(s=>`
       <div class="legend-row">
         ${renderStatusBadge(s)}
         <span class="legend-desc">${esc(legendDescOf(s.key))}</span>
       </div>`).join('')}
-    <p class="sa-hint" style="margin-top:16px">للشريك الذي لديه أكثر من مشروع، تُعرض شارة <b>أسوأ حالة</b> بين كل مشاريعه — فمشروع واحد متوقف يكفي لتظهر الشارة الحمراء على بطاقة الشريك كاملة، حتى لو كانت بقية مشاريعه سليمة.</p>`;
+    <p class="sa-hint mt-16">للشريك الذي لديه أكثر من مشروع، تُعرض شارة <b>أسوأ حالة</b> بين كل مشاريعه — فمشروع واحد متوقف يكفي لتظهر الشارة الحمراء على بطاقة الشريك كاملة، حتى لو كانت بقية مشاريعه سليمة.</p>`;
 }
 function legendDescOf(key){
   return {
