@@ -54,7 +54,14 @@ t('اللوحة تستشير قرار التبويب لا تُعيد كتابت�
   hub.includes('CHD_TAB=defaultContractTab(c,'));
 t('التبديل بلا إعادة بناء — يحفظ حالة الحقول والمعاينة',
   hub.includes("panel.querySelectorAll('.chub-pane').forEach")&&!hub.includes('CHD_TAB=b.dataset.chdtab;renderContract'));
-t('الحفظ يُعيد الفتح على نفس التبويب لا يقفز للبداية',hub.includes('openContractDetailPanel(contractId,true)'));
+// الدعوى: الحفظ يُعيد الفتح على **نفس التبويب**. وقد صارت تمرّ عبر خاتمةٍ
+// واحدة (`afterWrite`) بعد أن كانت مكتوبةً إحدى عشرة مرّة — فسقط التأكيد
+// الذي يسمّي النداء القديم حرفًا بحرف. والدعوى حلقتان: الحافظُ يطلب الإبقاء،
+// والخاتمةُ تُمرّره. (والتبويبُ الافتراضي لا يُستشار إلا عند غيابه — مُثبَتٌ أعلاه.)
+t('الحفظ يطلب الإبقاء على التبويب',
+  /toast\('حُفظت التعديلات وثُبِّتت','ok'\);\s*await afterWrite\(\{open:contractId,keepTab:true\}\)/.test(hub));
+t('والخاتمةُ تُمرّر الطلب إلى فاتح اللوحة',
+  hub.includes('openContractDetailPanel(open,!!keepTab)'));
 t('المعاينة صعدت للواجهة (نظرة عامة) بدل قاع الصفحة',
   hub.indexOf('data-pane="overview"')<hub.indexOf('data-pane="log"'));
 t('السجل انتقل لآخر تبويب (مرجع نادر الاستخدام)',

@@ -609,6 +609,36 @@ console.log('\n▸ اللوحة تُفتح فعلًا وتُربَط — بصم�
     t('ولا #fff خامّ في لوحة العقد', !/color:#fff/.test(code));
   }
 
+  // ═══ حمولةُ الإنشاء: النوعُ يقرّر أيّ الحقول تُرسَل ═══
+  //
+  // المخصَّصُ يحمل عنوانَه ومتنَه ولا يحمل قيمةً ولا تاريخًا؛ والقياسيُّ عكسُه.
+  // وإرسالُ حقول النوع الآخر لا يرمي — تُخزَّن صامتةً ثم تظهر في عقدٍ لا تخصّها.
+  const PAY = w.newContractPayload;
+  const ARGS = {name:'عقد',cid:'c1',currentClient:{id:'c1'},number:' N-1 ',template:'alamaa_v1',
+    title:'عنوان',body:'متن',adSpend:true,date:'2026-01-01',value:'5000',special:'شرط'};
+  const P = t2 => PAY(Object.assign({type:t2}, ARGS));
+  {
+    const std = P('standard');
+    t('القياسيّ يحمل حقولَه', std.effectiveDate==='2026-01-01' && std.contractValue==='5000'
+      && std.specialTerms==='شرط' && std.includesAdSpend===true);
+    t('ولا يحمل عنوانًا ولا متنًا', std.customTitle===null && std.customBody===null);
+  }
+  {
+    const cus = P('custom');
+    t('والمخصَّص يحمل عنوانه ومتنه', cus.customTitle==='عنوان' && cus.customBody==='متن');
+    t('ولا يحمل قيمةً ولا تاريخًا ولا شروطًا',
+      cus.effectiveDate===null && cus.contractValue===null && cus.specialTerms===null);
+    // العلمُ يسقط إلى false لا null: إنّه علمٌ لا قيمة.
+    t('والإنفاقُ الإعلانيّ علمٌ فيسقط إلى false', cus.includesAdSpend===false);
+  }
+  t('ورقمُ العقد يُقَصّ', P('standard').contractNumber==='N-1');
+  t('وفراغُه يصير عدمًا — فيُولَّد تلقائيًّا',
+    PAY(Object.assign({type:'standard'}, ARGS, {number:'   '})).contractNumber===null);
+  t('وغيابُ الشريك يصير عدمًا لا فراغًا',
+    PAY(Object.assign({type:'standard'}, ARGS, {cid:''})).clientId===null);
+  t('والنطاق «شريك» دائمًا بلا مشروع', 
+    ['standard','custom'].every(x => P(x).scopeType==='client' && P(x).projectId===null));
+
   console.log(`\nنجح ${ok} · فشل ${fail}`);
   process.exit(fail ? 1 : 0);
 })();
