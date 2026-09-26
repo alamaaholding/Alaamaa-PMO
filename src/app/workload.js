@@ -141,9 +141,9 @@ function renderWorkloadBody(){
     <div class="sa-section">
       <div class="chub-stats">
         <div class="chub-stat"><b>${peak}</b><span>أعلى حمل في يوم</span></div>
-        <div class="chub-stat"><b style="color:${over.length?'var(--crit)':'var(--ok)'}">${over.length}</b><span>يوم فوق الطاقة</span></div>
+        <div class="chub-stat"><b data-css="color:${over.length?'var(--crit)':'var(--ok)'}">${over.length}</b><span>يوم فوق الطاقة</span></div>
         <div class="chub-stat"><b>${projects.length}</b><span>مشروع نشط</span></div>
-        <div class="chub-stat"><b style="color:${strained.length?'var(--crit)':'var(--ok)'}">${strained.length}</b><span>مسمّى يحتاج موردًا</span></div>
+        <div class="chub-stat"><b data-css="color:${strained.length?'var(--crit)':'var(--ok)'}">${strained.length}</b><span>مسمّى يحتاج موردًا</span></div>
       </div>
       <div class="chub-filters">
         <label class="fs-80 self-center">الطاقة اليومية (بند/يوم)</label>
@@ -185,8 +185,8 @@ function renderWorkloadBody(){
             <span class="sa-hint">${esc(b.role.department)}</span>
             <span class="wl-role-util ${b.util>100?'over':(b.util>=75?'high':'ok')}">${b.util}%</span>
           </div>
-          <div class="wl-bar"><i style="width:${Math.min(100,b.util)}%"></i>
-            ${b.util>100?`<u style="width:${Math.min(60,b.util-100)}%"></u>`:''}</div>
+          <div class="wl-bar"><i data-css="width:${Math.min(100,b.util)}%"></i>
+            ${b.util>100?`<u data-css="width:${Math.min(60,b.util-100)}%"></u>`:''}</div>
           <div class="sa-hint">ذروة ${b.peak} · طاقة ${b.role.capacity} · ${b.role.headcount} شاغل
             ${b.gap>0?` · <b class="txt-crit">يلزم +${b.gap}</b>`:''}</div>
         </div>`).join('')}</div>`
@@ -251,7 +251,7 @@ function wlShowDay(key,cal){
       ${items.length>WL_CAP?`<div class="ctr-integrity warn">⚠ يتجاوز الطاقة المحدَّدة (${WL_CAP}) بـ${items.length-WL_CAP} بند — راجع التوزيع أو أعد جدولة ما يمكن تأجيله.</div>`:''}
       ${Object.entries(byProject).map(([proj,list])=>`
         <div class="wl-proj">
-          <b style="--pc:${list[0].color}">${esc(proj)}</b>
+          <b data-css="--pc:${list[0].color}">${esc(proj)}</b>
           <span class="sa-hint">${list.length} بند</span>
           <div class="wl-tasks">${list.map(x=>
             `<span class="wl-task ${x.critical?'crit':''}">${esc(x.task)} — ${esc(x.name)}${x.critical?' ◆':''}</span>`).join('')}</div>

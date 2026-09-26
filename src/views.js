@@ -12,6 +12,7 @@
 import { hasAction, runAction } from './actions.js';
 import { ROLES_CACHE, addClientRequest, addComment, compute, decideCR, deleteClientRequest, deleteComment, dissolvePackage, fetchBaselineDiff, fetchCRs, fetchTracks, insertCR, loadAudit, loadClientRequests, loadComments, loadProject, markCRExecuted, moveTask, openImporter, openTimeline, refreshProjectCounts, resolveComment, saveNewBaseline, updateClientRequest, updateTaskFields, updateTrack } from './api.js';
 import { confirmDialog, dialog } from './app/dialogs.js';
+import { applyDataCss } from './dcss.js';
 import { $, $$, AUDIT_ACTIONS, AUDIT_ENTITIES, auditTone, byId, can, I, openCRs, PERMS, preserveFocus, projTrackList, STATUS, structuralUnlocked, trackMeta, TYPES, VIEW_ICONS, VIEW_TONE } from './config.js';
 import { emptyState } from './emptystate.js';
 import { D, isHoliday, isWorkday, isoLocal, wdBetween } from './engine.js';
@@ -47,7 +48,7 @@ function renderNow(){
   $('#roleHint').textContent=(typeof getState('IS_OWNER')!=='undefined'&&getState('IS_OWNER'))?'مالك المنصة — سلطة كاملة':(can('editStruct')?'لديك صلاحية تعديل الخطة':(can('editProg')?'يمكنك تحديث الحالة والتقدم':'عرض فقط'));
   compute();
   const _c=getState('CLIENTS').find(x=>x.id===getState('CID'));
-  $('#hProject').innerHTML=(_c?`<span class="ctx-dot" style="background:${_c.color}"></span>`:'')+esc(getState('PROJECT').name);
+  $('#hProject').innerHTML=(_c?`<span class="ctx-dot" data-css="background:${_c.color}"></span>`:'')+esc(getState('PROJECT').name);
   const lifeMap={proposal:['مقترح — قيد النقاش','proposal'],negotiation:['قيد التفاوض','proposal'],approved:['معتمد','active'],active:['نشط','active'],closed:['مغلق',''],lost:['ملغى','']};
   const lm=lifeMap[getState('PROJECT').lifecycle]||['—',''];$('#lifeBadge').textContent=lm[0];$('#lifeBadge').className='lifebadge '+lm[1];
   const tasks=getState('PROJECT').tasks;
@@ -166,10 +167,10 @@ function vDashboard(){
   const alerts=[];creqs.filter(x=>x.r._state==='overdue').forEach(x=>alerts.push(['client','متطلب متأخر من الشريك: '+x.r.desc+' ('+x.t.id+')'+(x.r._late?' +'+x.r._late+'ي':''),x.t.id]));
   tasks.filter(t=>T[t.id].delay==='alamah').forEach(t=>alerts.push(['alamah','تأخير على فريق علامة: '+t.id+' — '+t.name,t.id]));
   tasks.filter(t=>T[t.id].blocked).forEach(t=>alerts.push(['blocked','بند متوقف: '+t.id+' — '+t.name,t.id]));
-  const tl=t=>`<li><button class="tlink" data-tkopen="${esc(t.id)}"><span class="tgw" style="--tc:${trackMeta(t.track).color}">${esc(t.id)}</span> ${esc(t.name)} <em>${fmt(S.R[t.id].ES)}–${fmt(S.R[t.id].EF)}</em> <span class="ministat s-${T[t.id].effStatus}">${STATUS[T[t.id].effStatus]}</span></button></li>`;
+  const tl=t=>`<li><button class="tlink" data-tkopen="${esc(t.id)}"><span class="tgw" data-css="--tc:${trackMeta(t.track).color}">${esc(t.id)}</span> ${esc(t.name)} <em>${fmt(S.R[t.id].ES)}–${fmt(S.R[t.id].EF)}</em> <span class="ministat s-${T[t.id].effStatus}">${STATUS[T[t.id].effStatus]}</span></button></li>`;
   const card=(l,v,c)=>`<div class="dcard ${c||''}"><b>${v}</b><span>${l}</span></div>`;
   let h=`<div class="dgrid">${card('نسبة الإنجاز',pct+'%','ok')}${card('مكتملة',done)}${card('جارية',inprog,'blue')}${card('متبقية',total-done)}${card('متوقفة',blocked,'crit')}${card('متطلبات مطلوبة',creqs.length,'warn')}</div>
-  <div class="dprog"><div class="dprog-fill" style="width:${pct}%"></div></div>
+  <div class="dprog"><div class="dprog-fill" data-css="width:${pct}%"></div></div>
   <div class="dcols">
     <div class="dbox"><h4>مهام اليوم (${today.length})</h4><ul class="tlist">${today.length?today.map(tl).join(''):emptyState({wrap:'li',icon:'☀️',title:'لا مهام مجدولة اليوم',hint:'لا بند تبدأ أو تنتهي نافذته اليوم — راجع الجدول لمعرفة القادم.'})}</ul></div>
     <div class="dbox"><h4>مهام هذا الأسبوع (${week.length})</h4><ul class="tlist">${week.length?week.map(tl).join(''):emptyState({wrap:'li',icon:'📅',title:'لا مهام هذا الأسبوع',hint:'الأسبوع خالٍ من البنود النشطة — قد تكون الخطة تبدأ لاحقًا أو اكتملت مرحلتها.'})}</ul></div>
@@ -223,7 +224,7 @@ function visibleTasks(){
 function projFilterBar(){
   const _lv=getState('PROJECT').tasks.filter(t=>t.type!=='package');
   const total=_lv.length, shown=filteredTasks().length;
-  const phaseChips=projTrackList().map(x=>`<button class="tfchip" data-tf-phase="${x.key}" style="--tc:${x.color}" aria-pressed="${getState('TFILTER').phases.has(x.key)}">${esc(x.name)}</button>`).join('');
+  const phaseChips=projTrackList().map(x=>`<button class="tfchip" data-tf-phase="${x.key}" data-css="--tc:${x.color}" aria-pressed="${getState('TFILTER').phases.has(x.key)}">${esc(x.name)}</button>`).join('');
   const stAr={notstarted:'لم تبدأ',inprogress:'جارية',blocked:'متوقفة',done:'مكتملة'};
   const statusChips=Object.keys(stAr).map(k=>`<button class="tfchip st-${k}" data-tf-status="${k}" aria-pressed="${getState('TFILTER').statuses.has(k)}">${stAr[k]}</button>`).join('');
   const smartChips=[['critical','حرجة فقط'],['late','متأخرة'],['client','بانتظار الشريك']]
@@ -315,7 +316,7 @@ function vTable(){
       const kidsN=getState('PROJECT').tasks.filter(x=>x.parent===t.id).length;
       const pdelay=k&&k.delay==='client'?'<span class="delay client">الشريك</span>':(k&&k.delay==='alamah'?'<span class="delay alamah">علامة</span>':'<span class="delay none">—</span>');
       rows+=`<tr data-id="${esc(t.id)}" class="row-pkg ${r&&r.critical?'crit':''}" ${editStruct?`data-droppkg="${esc(t.id)}"`:''}>
-        <td><button class="pkg-tg" data-pkgtoggle="${esc(t.id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'فتح':'طي'} الحزمة">${collapsed?'◂':'▾'}</button><span class="idcell" style="--tc:${tc}">${esc(t.id)}</span></td>
+        <td><button class="pkg-tg" data-pkgtoggle="${esc(t.id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'فتح':'طي'} الحزمة">${collapsed?'◂':'▾'}</button><span class="idcell" data-css="--tc:${tc}">${esc(t.id)}</span></td>
         <td class="pkg-name">${esc(t.name)} <span class="pkg-n">${kidsN} بند</span>${editStruct?`<button class="pkg-dissolve" data-dissolve="${esc(t.id)}" title="حلّ الحزمة مع بقاء بنودها">⊘ حلّ</button>`:''}</td>
         <td>حزمة عمل</td>
         <td><span class="dt">${r?r.dur:0}</span></td>
@@ -343,7 +344,7 @@ function vTable(){
     const depCount=(t.deps||[]).length;
     const editCol=editStruct?`<td class="nowrap"><button class="reqbtn" data-deps="${esc(t.id)}" title="التبعيات" aria-label="تحرير التبعيات">${I.link} ${depCount||''}</button> <button class="ib txt-crit" data-del="${esc(t.id)}" title="حذف" aria-label="حذف البند">${I.trash}</button></td>`:'';
     rows+=`<tr data-id="${esc(t.id)}" class="${r.critical?'crit':''}" ${editStruct&&t.type!=='cont'?`draggable="true" data-dragtask="${esc(t.id)}"`:''}>
-      <td><button class="idcell idbtn" data-tkopen="${esc(t.id)}" title="فتح لوحة البند" style="--tc:${tc}">${esc(t.id)}${r.critical?'<span class="critdot"></span>':''}</button></td>
+      <td><button class="idcell idbtn" data-tkopen="${esc(t.id)}" title="فتح لوحة البند" data-css="--tc:${tc}">${esc(t.id)}${r.critical?'<span class="critdot"></span>':''}</button></td>
       <td class="${t.parent?'child-cell':''}">${t.parent?'<span class="tree-ind" aria-hidden="true">└</span>':''}${nameCell}</td>
       <td>${typeCell}</td>
       <td><input class="cell inum" type="number" min="0" data-f="duration" value="${t.duration||0}" ${durDis}></td>
@@ -394,12 +395,12 @@ function vCards(editStruct,editProg){
       out+=`<div class="tcard pkg ${r&&r.critical?'crit':''}" data-id="${esc(t.id)}">
         <div class="tc-top">
           <button class="pkg-tg" data-pkgtoggle="${esc(t.id)}" aria-expanded="${!collapsed}">${collapsed?'◂':'▾'}</button>
-          <span class="idcell" style="--tc:${tc}">${esc(t.id)}</span>
+          <span class="idcell" data-css="--tc:${tc}">${esc(t.id)}</span>
           <span class="tc-name"><b>${esc(t.name)}</b></span>
           <span class="pkg-pct">${k?k.dispPct:0}%</span>
         </div>
         <div class="tc-meta"><span>${r?fmt(r.ES):'—'} ← ${r?fmt(r.EF):'—'}</span><span>${kidsN} بند</span><span class="ministat s-${k?k.effStatus:'notstarted'}">${STATUS[k?k.effStatus:'notstarted']}</span></div>
-        <div class="pbar mini"><div class="pbar-fill" style="width:${k?k.dispPct:0}%"></div></div>
+        <div class="pbar mini"><div class="pbar-fill" data-css="width:${k?k.dispPct:0}%"></div></div>
       </div>`;
       return;
     }
@@ -413,12 +414,12 @@ function vCards(editStruct,editProg){
     if(t.type==='milestone')badges.push('<span class="tc-b ms">◆ معلم</span>');
     out+=`<div class="tcard ${r&&r.critical?'crit':''} ${t.parent?'child':''}" data-id="${esc(t.id)}">
       <div class="tc-top">
-        <span class="idcell" style="--tc:${tc}">${esc(t.id)}</span>
+        <span class="idcell" data-css="--tc:${tc}">${esc(t.id)}</span>
         <span class="tc-name">${esc(t.name)}</span>
       </div>
       ${badges.length?`<div class="tc-badges">${badges.join('')}</div>`:''}
       <div class="tc-meta"><span>${fmt(r.ES)} ← ${fmt(r.EF)}</span><span>${t.type==='cont'?'مستمر':(t.duration||0)+' ي'}</span></div>
-      ${t.type!=='milestone'?`<div class="tc-prog"><div class="pbar mini"><div class="pbar-fill" style="width:${pct}%"></div></div><span>${pct}%</span></div>`:''}
+      ${t.type!=='milestone'?`<div class="tc-prog"><div class="pbar mini"><div class="pbar-fill" data-css="width:${pct}%"></div></div><span>${pct}%</span></div>`:''}
       <div class="tc-acts">
         <select class="st st-${k.effStatus}" data-f="status" ${editProg?'':'disabled'}>${sopt}</select>
         <button class="reqbtn" data-tkopen="${esc(t.id)}">⛶ لوحة البند</button>
@@ -526,34 +527,34 @@ const GSCALE_PX={day:30,week:16,month:6,quarter:3};
 const _MNAR=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 function ganttScaleHeader(lo,hi,off,px,scale,fmt){
   const oneDay=86400000;let top='',bot='',grid='',wkends='';
-  const T=(x,w,t)=>`<div class="mhead" style="right:${x}px;width:${w}px">${t}</div>`;
+  const T=(x,w,t)=>`<div class="mhead" data-css="right:${x}px;width:${w}px">${t}</div>`;
   if(scale==='day'){
     let d=new Date(lo);
     while(d<=hi){const nx=new Date(d.getFullYear(),d.getMonth()+1,1);const se=nx>hi?hi:new Date(nx-oneDay);const days=Math.round((se-d)/oneDay)+1;top+=T(off(d)*px,days*px,_MNAR[d.getMonth()]+' '+d.getFullYear());d=nx;}
     let dd=new Date(lo);
     while(dd<=hi){const g=dd.getDay(),iso=isoLocal(dd),hol=isHoliday(iso),we=(g===5||g===6)||hol;
-      if(hol)wkends+=`<div class="wkend hol" style="right:${off(dd)*px}px;width:${px}px" title="${(window.HOLIDAY_NAMES&&window.HOLIDAY_NAMES[iso])||'عطلة'}"></div>`;
-      bot+=`<div class="dhead${we?' we':''}${hol?' hd':''}" title="${hol?((window.HOLIDAY_NAMES&&window.HOLIDAY_NAMES[iso])||'عطلة'):''}" style="right:${off(dd)*px}px;width:${px}px">${dd.getDate()}</div>`;if(dd.getDay()===0)grid+=`<div class="vg" style="right:${off(dd)*px}px"></div>`;if(we)wkends+=`<div class="wkend" style="right:${off(dd)*px}px;width:${px}px"></div>`;dd=new Date(dd.getTime()+oneDay);}
+      if(hol)wkends+=`<div class="wkend hol" data-css="right:${off(dd)*px}px;width:${px}px" title="${(window.HOLIDAY_NAMES&&window.HOLIDAY_NAMES[iso])||'عطلة'}"></div>`;
+      bot+=`<div class="dhead${we?' we':''}${hol?' hd':''}" title="${hol?((window.HOLIDAY_NAMES&&window.HOLIDAY_NAMES[iso])||'عطلة'):''}" data-css="right:${off(dd)*px}px;width:${px}px">${dd.getDate()}</div>`;if(dd.getDay()===0)grid+=`<div class="vg" data-css="right:${off(dd)*px}px"></div>`;if(we)wkends+=`<div class="wkend" data-css="right:${off(dd)*px}px;width:${px}px"></div>`;dd=new Date(dd.getTime()+oneDay);}
   }else if(scale==='month'){
     let q=new Date(lo.getFullYear(),Math.floor(lo.getMonth()/3)*3,1);
     while(q<=hi){const qs=q<lo?lo:q;const nq=new Date(q.getFullYear(),q.getMonth()+3,1);const qe=nq>hi?hi:new Date(nq-oneDay);const w=Math.round((qe-qs)/oneDay)+1;top+=T(off(qs)*px,w*px,'الربع '+(Math.floor(q.getMonth()/3)+1)+' — '+q.getFullYear());q=nq;}
     let m=new Date(lo.getFullYear(),lo.getMonth(),1);
-    while(m<=hi){const ms=m<lo?lo:m;const nm=new Date(m.getFullYear(),m.getMonth()+1,1);const me=nm>hi?hi:new Date(nm-oneDay);const w=Math.round((me-ms)/oneDay)+1;bot+=`<div class="whead" style="right:${off(ms)*px}px;width:${w*px}px"><b>${_MNAR[m.getMonth()]}</b></div>`;grid+=`<div class="vg" style="right:${off(ms)*px}px"></div>`;m=nm;}
+    while(m<=hi){const ms=m<lo?lo:m;const nm=new Date(m.getFullYear(),m.getMonth()+1,1);const me=nm>hi?hi:new Date(nm-oneDay);const w=Math.round((me-ms)/oneDay)+1;bot+=`<div class="whead" data-css="right:${off(ms)*px}px;width:${w*px}px"><b>${_MNAR[m.getMonth()]}</b></div>`;grid+=`<div class="vg" data-css="right:${off(ms)*px}px"></div>`;m=nm;}
   }else if(scale==='quarter'){
     let y=new Date(lo.getFullYear(),0,1);
     while(y<=hi){const ys=y<lo?lo:y;const ny=new Date(y.getFullYear()+1,0,1);const ye=ny>hi?hi:new Date(ny-oneDay);const w=Math.round((ye-ys)/oneDay)+1;top+=T(off(ys)*px,w*px,''+y.getFullYear());y=ny;}
     let q=new Date(lo.getFullYear(),Math.floor(lo.getMonth()/3)*3,1);
-    while(q<=hi){const qs=q<lo?lo:q;const nq=new Date(q.getFullYear(),q.getMonth()+3,1);const qe=nq>hi?hi:new Date(nq-oneDay);const w=Math.round((qe-qs)/oneDay)+1;bot+=`<div class="whead" style="right:${off(qs)*px}px;width:${w*px}px"><b>ربع ${Math.floor(q.getMonth()/3)+1}</b></div>`;grid+=`<div class="vg" style="right:${off(qs)*px}px"></div>`;q=nq;}
+    while(q<=hi){const qs=q<lo?lo:q;const nq=new Date(q.getFullYear(),q.getMonth()+3,1);const qe=nq>hi?hi:new Date(nq-oneDay);const w=Math.round((qe-qs)/oneDay)+1;bot+=`<div class="whead" data-css="right:${off(qs)*px}px;width:${w*px}px"><b>ربع ${Math.floor(q.getMonth()/3)+1}</b></div>`;grid+=`<div class="vg" data-css="right:${off(qs)*px}px"></div>`;q=nq;}
   }else{ // week (افتراضي)
     let d=new Date(lo);
     while(d<=hi){const nx=new Date(d.getFullYear(),d.getMonth()+1,1);const se=nx>hi?hi:new Date(nx-oneDay);const days=Math.round((se-d)/oneDay)+1;top+=T(off(d)*px,days*px,_MNAR[d.getMonth()]+' '+d.getFullYear());d=nx;}
     let wk=new Date(lo),wi=1;
-    while(wk<=hi){bot+=`<div class="whead" style="right:${off(wk)*px}px;width:${7*px}px"><b>أسبوع ${wi}</b><s>${fmt(wk)}</s></div>`;grid+=`<div class="vg" style="right:${off(wk)*px}px"></div>`;wk=new Date(wk.getTime()+7*oneDay);wi++;}
+    while(wk<=hi){bot+=`<div class="whead" data-css="right:${off(wk)*px}px;width:${7*px}px"><b>أسبوع ${wi}</b><s>${fmt(wk)}</s></div>`;grid+=`<div class="vg" data-css="right:${off(wk)*px}px"></div>`;wk=new Date(wk.getTime()+7*oneDay);wi++;}
     let wd=new Date(lo);
     while(wd<=hi){const g=wd.getDay(),iso=isoLocal(wd);
-      if(isHoliday(iso)){wkends+=`<div class="wkend hol" style="right:${off(wd)*px}px;width:${px}px" title="${(window.HOLIDAY_NAMES&&window.HOLIDAY_NAMES[iso])||'عطلة'}"></div>`;wd=new Date(wd.getTime()+oneDay);continue;}
-      if(g===5){wkends+=`<div class="wkend" style="right:${off(wd)*px}px;width:${2*px}px"></div>`;wd=new Date(wd.getTime()+2*oneDay);continue;}
-      if(g===6){wkends+=`<div class="wkend" style="right:${off(wd)*px}px;width:${px}px"></div>`;}wd=new Date(wd.getTime()+oneDay);}
+      if(isHoliday(iso)){wkends+=`<div class="wkend hol" data-css="right:${off(wd)*px}px;width:${px}px" title="${(window.HOLIDAY_NAMES&&window.HOLIDAY_NAMES[iso])||'عطلة'}"></div>`;wd=new Date(wd.getTime()+oneDay);continue;}
+      if(g===5){wkends+=`<div class="wkend" data-css="right:${off(wd)*px}px;width:${2*px}px"></div>`;wd=new Date(wd.getTime()+2*oneDay);continue;}
+      if(g===6){wkends+=`<div class="wkend" data-css="right:${off(wd)*px}px;width:${px}px"></div>`;}wd=new Date(wd.getTime()+oneDay);}
   }
   return {top,bot,grid,wkends};
 }
@@ -562,7 +563,7 @@ function vGantt(){
   const lo=start<dd?start:dd,hi=end>dd?end:dd,totalDays=Math.round((hi-lo)/oneDay)+3,W=totalDays*getState('PX');
   const off=d=>Math.round((new Date(d)-lo)/oneDay);
   const HD=ganttScaleHeader(lo,hi,off,getState('PX'),GSCALE,fmt);
-  const today=`<div class="today" style="right:${off(dd)*getState('PX')}px"><span>اليوم ${fmt(dd)}</span></div>`;
+  const today=`<div class="today" data-css="right:${off(dd)*getState('PX')}px"><span>اليوم ${fmt(dd)}</span></div>`;
   const BL=getState('PROJECT').baseline?getState('PROJECT').baseline.snapshot:null;let rows='',last=null; const _fg=visibleTasks();
   _fg.forEach(t=>{const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color;
     if(t.track!==last){last=t.track;rows+=`<div class="grow grp"><div class="glbl">${trackMeta(t.track).code} — ${esc(trackMeta(t.track).name)}</div><div class="glane"></div></div>`;}
@@ -574,25 +575,25 @@ function vGantt(){
       :(r.slack!=null&&r.slack>0?` | فائض ${r.slack} يوم عمل قبل أن يؤثّر على تاريخ التسليم`:''));
     const tip=`${esc(t.name)} — ${fmt(r.ES)}–${fmt(r.EF)} | ${STATUS[k.effStatus]}${overdue?` | متأخر ${lateDays} يوم عمل`:''}${slackTip}`;
     let lane='';
-    if(BL&&BL[t.id]&&t.type!=='milestone'){const bo=off(D(BL[t.id].ES)),bl=Math.max(1,Math.round((D(BL[t.id].EF)-D(BL[t.id].ES))/oneDay)+1);lane+=`<div class="blbar" style="right:${bo*getState('PX')}px;width:${bl*getState('PX')}px"></div>`;}
+    if(BL&&BL[t.id]&&t.type!=='milestone'){const bo=off(D(BL[t.id].ES)),bl=Math.max(1,Math.round((D(BL[t.id].EF)-D(BL[t.id].ES))/oneDay)+1);lane+=`<div class="blbar" data-css="right:${bo*getState('PX')}px;width:${bl*getState('PX')}px"></div>`;}
     if(t.type==='package'){
       const len=Math.max(1,Math.round((new Date(r.EF)-new Date(r.ES))/oneDay)+1),wpx=len*getState('PX');
-      lane+=`<div class="gpkg ${r.critical?'crit':''}" data-gid="${esc(t.id)}" style="right:${o*getState('PX')}px;width:${wpx}px;--pc:${tc}" title="${tip}"></div>`;
-      rows+=`<div class="grow row-gpkg" data-grow="${esc(t.id)}"><div class="glbl"><button class="pkg-tg" data-pkgtoggle="${esc(t.id)}" aria-expanded="${!PKG_COLLAPSED.has(t.id)}">${PKG_COLLAPSED.has(t.id)?'◂':'▾'}</button><span class="gw" style="--tc:${tc}">${esc(t.id)}</span><b>${esc(t.name)}</b></div><div class="glane">${lane}</div></div>`;
+      lane+=`<div class="gpkg ${r.critical?'crit':''}" data-gid="${esc(t.id)}" data-css="right:${o*getState('PX')}px;width:${wpx}px;--pc:${tc}" title="${tip}"></div>`;
+      rows+=`<div class="grow row-gpkg" data-grow="${esc(t.id)}"><div class="glbl"><button class="pkg-tg" data-pkgtoggle="${esc(t.id)}" aria-expanded="${!PKG_COLLAPSED.has(t.id)}">${PKG_COLLAPSED.has(t.id)?'◂':'▾'}</button><span class="gw" data-css="--tc:${tc}">${esc(t.id)}</span><b>${esc(t.name)}</b></div><div class="glane">${lane}</div></div>`;
       return;
     }
-    if(t.type==='milestone')lane+=`<div class="gmile ${r.critical?'crit':''} ${overdue?'late':''}" data-gid="${esc(t.id)}" style="right:${o*getState('PX')-7}px" title="${tip}"><span class="md">◆</span><span class="ml">${esc(t.id)}</span>${overdue?`<span class="ml lt">+${lateDays}ي</span>`:''}</div>`;
+    if(t.type==='milestone')lane+=`<div class="gmile ${r.critical?'crit':''} ${overdue?'late':''}" data-gid="${esc(t.id)}" data-css="right:${o*getState('PX')-7}px" title="${tip}"><span class="md">◆</span><span class="ml">${esc(t.id)}</span>${overdue?`<span class="ml lt">+${lateDays}ي</span>`:''}</div>`;
     else{const len=Math.max(1,Math.round((new Date(r.EF)-new Date(r.ES))/oneDay)+1),wpx=len*getState('PX');const cls=(t.type==='cont')?'cont':k.effStatus;const prog=t.type==='cont'?0:((k&&k.dispPct)||t.progress||0);
-      const fill=(k.effStatus==='inprogress'&&prog>0)?`<div class="fill" style="width:${prog}%"></div>`:'';
+      const fill=(k.effStatus==='inprogress'&&prog>0)?`<div class="fill" data-css="width:${prog}%"></div>`:'';
       const durTxt=(t.type==='cont')?'مستمر':(t.duration+' ي'+(prog?' · '+prog+'%':''));const inside=wpx>56;
-      const durEl=inside?`<div class="gdur inside" style="right:${o*getState('PX')+6}px">${durTxt}</div>`:(overdue?'':`<div class="gdur" style="right:${(o+len)*getState('PX')+4}px">${durTxt}</div>`);
+      const durEl=inside?`<div class="gdur inside" data-css="right:${o*getState('PX')+6}px">${durTxt}</div>`:(overdue?'':`<div class="gdur" data-css="right:${(o+len)*getState('PX')+4}px">${durTxt}</div>`);
       let tail='';
       if(overdue){
         const to=o+len,tl=Math.max(1,off(dd)-to);
-        tail=`<div class="gtail ${who}" style="right:${to*getState('PX')}px;width:${tl*getState('PX')}px" title="امتداد التأخير حتى اليوم"></div><div class="glate ${who}" style="right:${(to+tl)*getState('PX')+5}px">${who==='client'?'بانتظار الشريك':'متأخر'} +${lateDays}ي</div>`;
+        tail=`<div class="gtail ${who}" data-css="right:${to*getState('PX')}px;width:${tl*getState('PX')}px" title="امتداد التأخير حتى اليوم"></div><div class="glate ${who}" data-css="right:${(to+tl)*getState('PX')+5}px">${who==='client'?'بانتظار الشريك':'متأخر'} +${lateDays}ي</div>`;
       }
-      lane+=`<div class="gbar ${cls} ${r.critical?'crit':''} ${overdue?'late late-'+who:''}" data-gid="${esc(t.id)}" style="right:${o*getState('PX')}px;width:${wpx}px;background:${tc}" title="${tip}">${fill}</div>${tail}${durEl}`;}
-    rows+=`<div class="grow" data-grow="${esc(t.id)}"><div class="glbl ${t.parent?'gchild':''}" role="button" tabindex="0" data-tkopen="${esc(t.id)}" aria-label="لوحة البند ${esc(t.id)} — ${esc(t.name)}"><span class="sdot ${k.effStatus}"></span><span class="gw" style="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
+      lane+=`<div class="gbar ${cls} ${r.critical?'crit':''} ${overdue?'late late-'+who:''}" data-gid="${esc(t.id)}" data-css="right:${o*getState('PX')}px;width:${wpx}px;background:${tc}" title="${tip}">${fill}</div>${tail}${durEl}`;}
+    rows+=`<div class="grow" data-grow="${esc(t.id)}"><div class="glbl ${t.parent?'gchild':''}" role="button" tabindex="0" data-tkopen="${esc(t.id)}" aria-label="لوحة البند ${esc(t.id)} — ${esc(t.name)}"><span class="sdot ${k.effStatus}"></span><span class="gw" data-css="--tc:${tc}">${esc(t.wbs||t.id)}</span>${esc(t.name)}</div><div class="glane">${lane}</div></div>`;});
   const lateN=visibleTasks().filter(t=>{const k=getState('TRACK')[t.id];return k&&k.delay&&t.status!=='done';}).length;
   const critN=visibleTasks().filter(t=>getState('SCHED').R[t.id]&&getState('SCHED').R[t.id].critical).length;
   const legend=`<div class="g-legend">
@@ -601,11 +602,11 @@ function vGantt(){
     <span><i class="lta"></i>متأخر — على علامة</span>
     <span><i class="cr"></i>حرج</span>
     <span><i class="dn"></i>مكتمل</span>
-    <span style="margin-inline-start:auto;font-weight:700;color:${lateN?'var(--crit)':'var(--muted)'}">
+    <span data-css="margin-inline-start:auto;font-weight:700;color:${lateN?'var(--crit)':'var(--muted)'}">
       ${lateN?lateN+' بند متأخر':'لا تأخير'} · ${critN} على المسار الحرج</span>
   </div>`;
-  return projFilterBar()+baselineDeviation(BL)+legend+`<div class="gantt ${GCRIT==='focus'?'crit-focus':(GCRIT==='hidden'?'crit-hidden':'')}"><div class="gscroll"><div style="min-width:${280+W}px">
-    <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" style="width:${W}px">${HD.top}${HD.bot}</div></div>
+  return projFilterBar()+baselineDeviation(BL)+legend+`<div class="gantt ${GCRIT==='focus'?'crit-focus':(GCRIT==='hidden'?'crit-hidden':'')}"><div class="gscroll"><div data-css="min-width:${280+W}px">
+    <div class="thead"><div class="corner"><span>حزمة العمل</span><span class="dir">الأقدم ← الأحدث</span></div><div class="tl" data-css="width:${W}px">${HD.top}${HD.bot}</div></div>
     <div class="pos-rel" id="gcanvas"><div class="g-overlay">${HD.wkends}${HD.grid}${today}</div>${rows}</div></div></div>
     <div class="glegend"><span><span class="di"></span>معلم</span><span><span class="ci"></span>حرج</span>${BL?'<span><i class="blleg"></i>الأساس المعتمد</span>':''}<span><span class="dot idle"></span>لم تبدأ</span><span><span class="dot busy"></span>جارية</span><span><span class="dot blocked"></span>متوقفة</span><span><span class="dot done"></span>مكتملة ✓</span><span><i class="tleg cl"></i>تأخير بانتظار الشريك</span><span><i class="tleg al"></i>تأخير علامة</span><span><i class="wkleg"></i>عطلة الأسبوع</span><span><i class="lkleg">⟵</i>رابط تبعية</span></div></div>`;
 }
@@ -665,6 +666,11 @@ function drawGanttLinks(){
   const canvas=byId('gcanvas');if(!canvas)return;
   const old=byId('glinks');if(old)old.remove();
   if(!GLINKS_ON)return;
+  // هذه الدالة **تقيس** (`getBoundingClientRect`) في النبضة نفسها التي أُسند
+  // فيها `innerHTML`، فلا تنتظر مهمة المُراقِب الدقيقة. فتُطبَّق الهندسة
+  // صراحةً أولًا — وإلا قِيست أشرطةٌ بلا `right` ولا `width` فرُسمت الأسهم
+  // كلها فوق بعضها عند الصفر. والتطبيق متماثل فلا يضرّه تكرار المُراقِب بعده.
+  applyDataCss(canvas);
   const bars={};const rowOrder={};let _ri=0;
   canvas.querySelectorAll('[data-gid]').forEach(b=>{bars[b.dataset.gid]=b;if(!(b.dataset.gid in rowOrder))rowOrder[b.dataset.gid]=_ri++;});
   const cr=canvas.getBoundingClientRect();
@@ -744,7 +750,7 @@ function bindGanttHover(){
 function vDeliv(){
   const S=getState('SCHED'),T=getState('TRACK');let rows='';
   getState('PROJECT').tasks.forEach(t=>{if(!t.deliverable)return;const r=S.R[t.id],k=T[t.id],tc=trackMeta(t.track).color,isM=t.type==='milestone';
-    rows+=`<tr class="${isM?'m':''}"><td style="font-weight:${isM?700:500}">${isM?'◆ ':''}${esc(t.deliverable)}</td><td><span class="idcell" style="--tc:${tc}">${esc(t.id)}</span> ${esc(t.name)}</td><td><span class="pill" style="background:${tc}">${esc(trackMeta(t.track).name)}</span></td><td>${fmt(r.EF)}/${new Date(r.EF).getFullYear()}</td><td><span class="ministat s-${k.effStatus}">${STATUS[k.effStatus]}</span></td></tr>`;});
+    rows+=`<tr class="${isM?'m':''}"><td data-css="font-weight:${isM?700:500}">${isM?'◆ ':''}${esc(t.deliverable)}</td><td><span class="idcell" data-css="--tc:${tc}">${esc(t.id)}</span> ${esc(t.name)}</td><td><span class="pill" data-css="background:${tc}">${esc(trackMeta(t.track).name)}</span></td><td>${fmt(r.EF)}/${new Date(r.EF).getFullYear()}</td><td><span class="ministat s-${k.effStatus}">${STATUS[k.effStatus]}</span></td></tr>`;});
   return `<div class="dwrap"><table class="dtbl"><thead><tr><th>المخرج</th><th>البند</th><th>المسار</th><th>التسليم المتوقع</th><th>الحالة</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
@@ -797,9 +803,9 @@ function vDiscuss(rows){
     // تعليق مرتبط ببند: يظهر هنا أيضًا مع إشارة وانتقال — لا يختفي في لوحة البند
     const tk=c.task_id?getState('PROJECT').tasks.find(t=>t._dbId===c.task_id):null;
     const tkChip=tk?`<button class="lnk fs-70" data-gotask="${esc(tk.id)}">↗ على البند ${esc(tk.id)}</button>`:'';
-    return `<div class="crcard" style="${isReply?'margin-inline-start:28px;border-inline-start:3px solid var(--line)':''}">
+    return `<div class="crcard" data-css="${isReply?'margin-inline-start:28px;border-inline-start:3px solid var(--line)':''}">
       <div class="crhd">
-        <span><span class="crstate" style="background:color-mix(in srgb,${KCLR[c.kind]} 14%,#fff);color:${KCLR[c.kind]};font-size:.7rem">${KIND[c.kind]}</span>
+        <span><span class="crstate" data-css="background:color-mix(in srgb,${KCLR[c.kind]} 14%,#fff);color:${KCLR[c.kind]};font-size:.7rem">${KIND[c.kind]}</span>
           <b class="fs-82 ms-6">${esc(c.author_email||'—')}</b>
           <span class="fs-70 c-muted">· ${ROLE_AR[c.author_role]||''}</span></span>
         <span class="row-8 items-center">${resBadge}<small class="c-muted">${when}</small></span>
@@ -889,14 +895,14 @@ function vRequests(rows){
   const cards=rows.map(r=>{
     const when=new Date(r.created_at).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
     // أزرار إدارة الحالة (للطاقم فقط)
-    const statusBtns=isStaff?`<div class="rq-statusbtns">${Object.keys(REQ_STATUS_AR).map(s=>`<button class="rq-sbtn ${r.status===s?'active':''}" data-setstatus="${r.id}" data-s="${s}" style="--sc:${REQ_STATUS_CLR[s]}">${REQ_STATUS_AR[s]}</button>`).join('')}</div>`:'';
+    const statusBtns=isStaff?`<div class="rq-statusbtns">${Object.keys(REQ_STATUS_AR).map(s=>`<button class="rq-sbtn ${r.status===s?'active':''}" data-setstatus="${r.id}" data-s="${s}" data-css="--sc:${REQ_STATUS_CLR[s]}">${REQ_STATUS_AR[s]}</button>`).join('')}</div>`:'';
     const assignBtn=isStaff?`<button class="reqbtn fs-72" data-assign="${r.id}" data-cur="${esc(r.assigned_to||'')}">${r.assigned_to?'إعادة الإسناد':'إسناد'}</button>`:'';
     const delBtn=(getState('ROLE')==='pmo'||r.created_by===getState('USER').id)?`<button class="reqbtn fs-72 c-crit" data-delreq="${r.id}">حذف</button>`:'';
-    return `<div class="crcard rq-card" style="border-inline-start:3px solid ${REQ_STATUS_CLR[r.status]}">
+    return `<div class="crcard rq-card" data-css="border-inline-start:3px solid ${REQ_STATUS_CLR[r.status]}">
       <div class="crhd">
         <span><b class="fs-90">${esc(r.title)}</b>
-          <span class="rq-badge" style="background:color-mix(in srgb,${REQ_STATUS_CLR[r.status]} 14%,#fff);color:${REQ_STATUS_CLR[r.status]}">${REQ_STATUS_AR[r.status]}</span></span>
-        <span style="font-size:.7rem;color:${PRIO_CLR[r.priority]};font-weight:700">${PRIO_AR[r.priority]}</span>
+          <span class="rq-badge" data-css="background:color-mix(in srgb,${REQ_STATUS_CLR[r.status]} 14%,#fff);color:${REQ_STATUS_CLR[r.status]}">${REQ_STATUS_AR[r.status]}</span></span>
+        <span data-css="font-size:.7rem;color:${PRIO_CLR[r.priority]};font-weight:700">${PRIO_AR[r.priority]}</span>
       </div>
       <div class="rq-tags">
         <span class="rq-tag">القسم: ${DEPT_AR[r.department]}</span>
@@ -969,7 +975,7 @@ function vClientDash(){
     else if(!currentFound){state='current';currentFound=true;}
     const clr=trackMeta(k).color;
     const pdone=pt.filter(t=>t.status==='done').length;
-    return `<div class="cd-phase ${state}" style="--pc:${clr}">
+    return `<div class="cd-phase ${state}" data-css="--pc:${clr}">
       <div class="cd-phase-dot">${state==='done'?'✓':(state==='current'?'●':'')}</div>
       <div class="cd-phase-name">${name}</div>
       <div class="cd-phase-sub">${state==='done'?'مكتملة':(state==='current'?`جارية · ${pdone}/${pt.length}`:'قادمة')}</div>
@@ -1005,7 +1011,7 @@ function vClientDash(){
       <div class="cd-prog">
         <div class="cd-prog-num">${pct}<small>%</small></div>
         <div class="cd-prog-lbl">نسبة الإنجاز</div>
-        <div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div>
+        <div class="pbar"><div class="pbar-fill" data-css="width:${pct}%"></div></div>
         <div class="cd-prog-sub">${done} من ${real.length} بندًا</div>
       </div>
     </div>

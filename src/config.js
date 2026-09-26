@@ -191,7 +191,7 @@ export function worstProjectStatus(rows){
   return worst;
 }
 export function renderStatusBadge(s,extraClass){
-  return `<span class="pstatus-badge ${extraClass||''}" style="--sc:${s.color};--sbg:${s.bg}" title="${esc(s.label)}"><i class="pstatus-dot" style="background:${s.color}"></i>${esc(s.label)}</span>`;
+  return `<span class="pstatus-badge ${extraClass||''}" data-css="--sc:${s.color};--sbg:${s.bg}" title="${esc(s.label)}"><i class="pstatus-dot" data-css="background:${s.color}"></i>${esc(s.label)}</span>`;
 }
 // تُستخدم من شبكة المحفظة وصفحة الشريك المخصَّصة كليهما؛ لا حساب مكرّر في مكانين
 // (بالضبط الخلل الذي عالجناه سابقًا في مطابقة المراحل — نفس المبدأ هنا).
@@ -246,23 +246,28 @@ export function preserveFocus(rerenderFn){
   scrollers.forEach(([c,top])=>{if(document.body.contains(c))c.scrollTop=top;});
 }
 
+// غلافُ الأيقونة واحدٌ في كل أيقونات المنصّة: ١٣٤ محرفًا كانت تتكرّر حرفيًّا
+// في عشرة تعريفات هنا وتسعةٍ في `VIEW_ICONS` أدناه — وقد كان الغلاف مُستخرَجًا
+// هناك وحده. فرُفِع فوق الاثنين: تعريفُ الأيقونة صار **مسارَها** لا غلافها.
+const _sv=p=>'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
+// ونمطٌ ثانٍ لأيقونات التعبئة (لا حدّ لها): لكلٍّ غلافُه، لا شرطٌ داخل الغلاف.
+const _svf=p=>'<svg class="icn" viewBox="0 0 24 24" fill="currentColor">'+p+'</svg>';
 export const I={
- scale:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 21h18M6 7l-3 6h6l-3-6zM18 7l-3 6h6l-3-6zM7 7h10"/></svg>',
- clipboard:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4a2 2 0 0 1 6 0M9 10h6M9 14h6M9 18h4"/></svg>',
- archive:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/></svg>',
- calendar:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18M7 15h3M14 15h3"/></svg>',
- upload:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5M7 10l5-5 5 5M4 19h16"/></svg>',
- dots:'<svg class="icn" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>',
- pencil:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg>',
- trash:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M10 11v6M14 11v6"/></svg>',
- link:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>',
- users:'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4.5-6"/></svg>'
+ scale:_sv('<path d="M12 3v18M3 21h18M6 7l-3 6h6l-3-6zM18 7l-3 6h6l-3-6zM7 7h10"/>'),
+ clipboard:_sv('<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4a2 2 0 0 1 6 0M9 10h6M9 14h6M9 18h4"/>'),
+ archive:_sv('<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/>'),
+ calendar:_sv('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18M7 15h3M14 15h3"/>'),
+ upload:_sv('<path d="M12 16V5M7 10l5-5 5 5M4 19h16"/>'),
+ dots:_svf('<circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/>'),
+ pencil:_sv('<path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/>'),
+ trash:_sv('<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M10 11v6M14 11v6"/>'),
+ link:_sv('<path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/>'),
+ users:_sv('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4.5-6"/>')
 };
 
 // ===== أيقونات التبويبات =====
 // ملاحظة تصميمية: «تعديل الخطة» (لوح مستطيل + قلم) و«طلبات الخدمة» (جرس دائري)
 // أُعطيا شكلين ظاهريين مختلفين تمامًا — لا لونين فقط — لأنهما أكثر تبويبين يقع فيهما اللبس.
-const _sv=p=>'<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
 export const VIEW_ICONS={
   dashboard:_sv('<rect x="3" y="3" width="7.5" height="8" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="5" rx="1.5"/><rect x="3" y="14" width="7.5" height="7" rx="1.5"/><rect x="13.5" y="11" width="7.5" height="10" rx="1.5"/>'),
   table:_sv('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14.5h18M9 9v11"/>'),

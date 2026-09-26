@@ -19,6 +19,7 @@
 // theme أولًا عمدًا: تطبيق الوسم على <html> يقع عند تحميل هذه الوحدة، فيسبق
 // بناء الصفحة كلها. تأخيره يعني ومضة بيضاء لمن يفتح المنصّة في الوضع الداكن.
 import * as theme from './theme.js';
+import * as dcss from './dcss.js';
 import * as engine from './engine.js';
 import * as format from './format.js';
 import * as config from './config.js';
@@ -53,7 +54,7 @@ import * as main from './app/main.js';
 import * as session from './app/session.js';
 import { STATE_KEYS, getState, setState, savePFilters } from './app/state.js';
 
-Object.assign(globalThis, theme, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate, exportContract, chrome, screens, actions, views, projectActions, taskPanel, lifecycle, emptyStateMod, staffAccess, workload, contractSign, contractsHub, portfolio, clientHome, main, session);
+Object.assign(globalThis, theme, dcss, engine, format, config, api, toastMod, notifications, undo, urlstate, skeletonMod, dialogs, contractTemplate, exportContract, chrome, screens, actions, views, projectActions, taskPanel, lifecycle, emptyStateMod, staffAccess, workload, contractSign, contractsHub, portfolio, clientHome, main, session);
 
 // state.js **لا تُمرَّر كفضاء أسماء** — حالتها تصل بواصفات لا بنسخ (أدناه). لكن
 // `savePFilters` دالةٌ لا حالة، ومكانها هناك لأن القراءة المقابلة لها هناك. فتُجسَّر
@@ -90,4 +91,10 @@ for (const key of STATE_KEYS) {
 // وموضعه الصحيح هنا: نقطة الدخول تُهيّئ كل وحدة أولًا ثم تنطلق. والمكسب الثاني
 // أنه **حلّ الدورة الأخيرة**: كانت session تنادي `startApp` وmain تنادي `boot`
 // — حافتان في اتجاهين. فبانتقال النداء بقيت حافةٌ واحدة، ولم تبقَ دورة.
+// ═══ ناقلُ الهندسة المحسوبة — قبل أول تصيير ═══
+// `watchDataCss` تُركَّب قبل `boot` لأن أولَ ما يصيّره الإقلاع قد يحمل
+// `data-css`؛ ومَن رُكِّب بعد التصيير لا يصله سجلُّ ما مضى (ولذلك تُطبِّق
+// الدالةُ مرةً ابتداءً على الشجرة القائمة، احتياطًا لا اعتمادًا).
+dcss.watchDataCss();
+
 session.boot();

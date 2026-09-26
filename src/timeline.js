@@ -50,7 +50,7 @@ function _tlHtml(ctx){
   // شريط الأدوات: فلتر المصادر + إضافة (في وضع المشروع فقط)
   const srcChips=Object.keys(DELIV_SRC).map(k=>{
     const on=_TL_SRCFILTER.has(k);
-    return `<button class="tfchip tl-srcf ${on?'':''}" data-tlsrc="${k}" aria-pressed="${on}" style="--tc:${DELIV_SRC[k].c}">${esc(DELIV_SRC[k].t)}</button>`;
+    return `<button class="tfchip tl-srcf ${on?'':''}" data-tlsrc="${k}" aria-pressed="${on}" data-css="--tc:${DELIV_SRC[k].c}">${esc(DELIV_SRC[k].t)}</button>`;
   }).join('');
   const addBtn=isProject?`<button class="hbtn btn-gold ms-auto" id="tlAdd">+ إضافة حدث</button>`:'';
   const toolbar=`<div class="tl-toolbar"><span class="tfacet-lbl">المصدر:</span>${srcChips}${addBtn}</div>`;
@@ -76,8 +76,8 @@ function _tlHtml(ctx){
 
   // رؤوس الأشهر + خط اليوم
   let months='';let d=new Date(minD.getFullYear(),minD.getMonth(),1);
-  while(d<=maxD){const nx=new Date(d.getFullYear(),d.getMonth()+1,1);const se=nx>maxD?maxD:new Date(nx-oneDay);const w=Math.round((se-(d<minD?minD:d))/oneDay)+1;months+=`<div class="tl-mhd" style="right:${off(d<minD?minD:d)*PXD}px;width:${w*PXD}px">${_TLMN[d.getMonth()]} ${d.getFullYear()}</div>`;d=nx;}
-  const todayLine=`<div class="tl-today" style="right:${off(today)*PXD}px"><span>اليوم</span></div>`;
+  while(d<=maxD){const nx=new Date(d.getFullYear(),d.getMonth()+1,1);const se=nx>maxD?maxD:new Date(nx-oneDay);const w=Math.round((se-(d<minD?minD:d))/oneDay)+1;months+=`<div class="tl-mhd" data-css="right:${off(d<minD?minD:d)*PXD}px;width:${w*PXD}px">${_TLMN[d.getMonth()]} ${d.getFullYear()}</div>`;d=nx;}
+  const todayLine=`<div class="tl-today" data-css="right:${off(today)*PXD}px"><span>اليوم</span></div>`;
 
   // تعبئة المسارين مع تجنّب التداخل (رصّ مستويات)
   const CARDW=158;
@@ -92,12 +92,12 @@ function _tlHtml(ctx){
       const late=_tlLate(r,today),ld=_tlLateDays(r,today);
       const pj=ctx.mode==='portfolio'?`<span class="tl-proj">${esc((ctx.projMap&&ctx.projMap[r.project_id])||'')}</span>`:'';
       const exp=r.expected_reply?`<span class="tl-exp ${late?'late':''}">${late?('متأخر +'+ld+'ي'):('متوقّع '+fmt(new Date(r.expected_reply+'T00:00:00')))}</span>`:'';
-      out+=`<div class="tl-ev" style="right:${x}px;--lvl:${lvl};--c:${src.c}">
+      out+=`<div class="tl-ev" data-css="right:${x}px;--lvl:${lvl};--c:${src.c}">
         <span class="tl-dot"></span>
         <span class="tl-stem"></span>
         <div class="tl-card ${late?'late':''}" data-ev="${r.id}" role="button" tabindex="0" aria-label="${esc(r.title)} — ${esc(src.t)}، ${esc(kind.t)}، ${DELIV_STATUS[r.status]||r.status}" title="${esc(r.title)} — ${esc(src.t)} · ${esc(kind.t)} · ${DELIV_STATUS[r.status]||r.status}">
           <div class="tl-card-top"><span class="tl-kind">${kind.i}</span><b>${esc(r.title)}</b></div>
-          <div class="tl-card-meta"><span class="tl-src" style="background:${src.c}">${esc(src.t)}</span><span class="tl-date">${fmt(new Date(r.event_date+'T00:00:00'))}</span></div>
+          <div class="tl-card-meta"><span class="tl-src" data-css="background:${src.c}">${esc(src.t)}</span><span class="tl-date">${fmt(new Date(r.event_date+'T00:00:00'))}</span></div>
           ${pj}${exp?('<div>'+exp+'</div>'):''}
         </div>
       </div>`;
@@ -108,11 +108,11 @@ function _tlHtml(ctx){
   const client=lay(shown.filter(r=>r.source==='client'));
   const topH=Math.max(1,internal.levels)*72+24, botH=Math.max(1,client.levels)*72+24;
 
-  const band=`<div class="tl-scroll"><div class="tl-band" style="width:${W}px;--toph:${topH}px;--both:${botH}px">
-    <div class="tl-head" style="width:${W}px">${months}</div>
-    <div class="tl-top" style="height:${topH}px">${internal.out}</div>
+  const band=`<div class="tl-scroll"><div class="tl-band" data-css="width:${W}px;--toph:${topH}px;--both:${botH}px">
+    <div class="tl-head" data-css="width:${W}px">${months}</div>
+    <div class="tl-top" data-css="height:${topH}px">${internal.out}</div>
     <div class="tl-axis"><span class="tl-axis-lbl up">▲ منّا (الفريق/الأقسام)</span><span class="tl-axis-lbl dn">▼ من الشريك</span>${todayLine}</div>
-    <div class="tl-bot" style="height:${botH}px">${client.out}</div>
+    <div class="tl-bot" data-css="height:${botH}px">${client.out}</div>
   </div></div>`;
 
   // ===== قائمة تفصيلية (المرجع الموثوق + الأفعال) =====
@@ -124,7 +124,7 @@ function _tlHtml(ctx){
     return `<tr data-ev="${r.id}">
       <td>${fmt(new Date(r.event_date+'T00:00:00'))}</td>
       ${pj}
-      <td><span class="tl-src" style="background:${src.c}">${esc(src.t)}</span></td>
+      <td><span class="tl-src" data-css="background:${src.c}">${esc(src.t)}</span></td>
       <td>${kind.i} ${esc(kind.t)}</td>
       <td><b>${esc(r.title)}</b>${r.description?`<div class="tl-desc">${esc(r.description)}</div>`:''}</td>
       <td><span class="ministat s-${r.status==='approved'?'done':(r.status==='awaiting'?(late?'blocked':'inprogress'):'notstarted')}">${DELIV_STATUS[r.status]||r.status}</span>${late?`<span class="tl-latebadge">+${ld}ي</span>`:''}</td>

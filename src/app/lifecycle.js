@@ -241,7 +241,7 @@ function renderTrkPanel(){
     ${live.map((x,i)=>{
       const raw=list.find(t=>t.key===x.key);
       const st=doneCountOf(x.key);
-      return `<div class="trk-card" data-tid="${raw?raw.id:''}" data-key="${esc(x.key)}" style="--pc:${x.color}">
+      return `<div class="trk-card" data-tid="${raw?raw.id:''}" data-key="${esc(x.key)}" data-css="--pc:${x.color}">
       <div class="trk-order">
         <button class="trk-ord" data-up="${raw?raw.id:''}" ${(!raw||i===0)?'disabled':''} aria-label="تحريك لأعلى">▲</button>
         <button class="trk-ord" data-down="${raw?raw.id:''}" ${(!raw||i===live.length-1)?'disabled':''} aria-label="تحريك لأسفل">▼</button>
@@ -256,7 +256,7 @@ function renderTrkPanel(){
         <div class="trk-meta">
           <span class="trk-n">${st.n} بند</span>
           <div class="trk-bar" role="progressbar" aria-valuenow="${st.pct}" aria-valuemin="0" aria-valuemax="100" title="${st.pct}% مكتمل">
-            <div class="trk-bar-fill" style="width:${st.pct}%"></div>
+            <div class="trk-bar-fill" data-css="width:${st.pct}%"></div>
           </div>
           <span class="trk-pct">${st.pct}%</span>
         </div>

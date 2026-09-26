@@ -28,7 +28,7 @@ export function dialog(opts){ // {title, message, html, fields:[{key,label,value
         ${opts.html||''}
         ${fieldsHtml}
         <div class="row-10 mt-18 jc-start">
-          <button class="hbtn" id="dlgOk" style="background:${opts.danger?'var(--crit)':'var(--gold)'};border-color:${opts.danger?'var(--crit)':'var(--gold)'};padding:9px 20px">${esc(opts.confirmText||'تأكيد')}</button>
+          <button class="hbtn" id="dlgOk" data-css="background:${opts.danger?'var(--crit)':'var(--gold)'};border-color:${opts.danger?'var(--crit)':'var(--gold)'};padding:9px 20px">${esc(opts.confirmText||'تأكيد')}</button>
           <button class="hbtn btn-plain bordered p-9-20" id="dlgCancel">إلغاء</button>
         </div>
       </div>`;

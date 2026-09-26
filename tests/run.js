@@ -261,19 +261,22 @@ const LONGEST_FN_CAP = 118;   // W3: 815 ← … ← 136 ← 134 ← 118. **ال
 // **لا متراجعًا**: يُسمح بالنقصان دائمًا، ويُمنع النموّ دائمًا.
 console.log(`${BOLD}▸ حارسا نظام التصميم...${OFF}`);
 const INLINE_STYLE_CAP = 0;     // W0=372 · W5=322 · W4=203 · W6=198 ← … ← 52 ← **صفر**. لم يبقَ ثابتٌ واحد.
+const INLINE_DYN_CAP   = 0;     // الديناميّ: 92 ← **صفر**. صار `data-css` يُضبَط بـ`setProperty` (src/dcss.js).
 const RAW_COLOR_CAP    = 12;    // W0=91 · W4=12 (الباقي: ١١ داخل @media print — الورق أبيض دائمًا — وخلفية رمز QR)
 
-// الأنماط الديناميكية (التي تحمل قيمة محسوبة: عرض شريط، لون مسار) استعمال مشروع
-// ولا تُحتسب — لا يمكن التعبير عنها بصنف ثابت أصلًا.
+// كان الديناميّ (عرضُ شريطٍ محسوب، لونُ مسارٍ من القاعدة) مستثنًى: لا يُعبَّر
+// عنه بصنفٍ ثابت أصلًا. وذاك صحيحٌ عن **الصنف** وحده — لا عن سمة `style`.
+// فالقيمة المحسوبة تُبَثّ في `data-css` وتُنقَل إلى `el.style` بـ`setProperty`،
+// وهو CSSOM خارج حكم `style-src`. فسقط سببُ الاستثناء وصار الديناميّ يُحتسب.
 const styleSources = [
   ...fs.readdirSync('src').filter(f => f.endsWith('.js') && f !== 'qrgen.js').map(f => `src/${f}`),
   ...fs.readdirSync('src/app').filter(f => f.endsWith('.js')).map(f => `src/app/${f}`),
   'src/index.html'
 ];
-let inlineStatic = 0;
+let inlineStatic = 0, inlineDynamic = 0;
 for (const f of styleSources) {
   const hits = fs.readFileSync(f, 'utf8').match(/style="[^"]*"/g) || [];
-  inlineStatic += hits.filter(h => !h.includes('${')).length;
+  for (const h of hits) { if (h.includes('${')) inlineDynamic++; else inlineStatic++; }
 }
 // الألوان داخل **تعريفات الرموز** هي التعريف نفسه — تُستثنى؛ والمقصود ما يلتفّ حولها.
 //
@@ -323,6 +326,7 @@ const ratchet = (label, got, cap) => {
   }
 };
 ratchet('أنماط سطرية ثابتة', inlineStatic, INLINE_STYLE_CAP);
+ratchet('أنماط سطرية ديناميكية', inlineDynamic, INLINE_DYN_CAP);
 ratchet('ألوان صريحة خارج :root', rawColors, RAW_COLOR_CAP);
 if (designFailed) process.exit(1);
 

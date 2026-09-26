@@ -52,9 +52,9 @@ function renderDOL(){
         return `<span class="dim-chip"><b>${DIM_AR[k]}</b> ${val} <i>${ENF_AR[dim.enforcement]||''}</i></span>`;
       }).join('');
       const children=(opsByGate[g.id]||[]).map(o=>opCard(o)).join('')||'<div class="dol-empty-ops">لا قرارات تشغيلية تحت هذه البوابة بعد.</div>';
-      return `<div class="gate-card" style="--gc:${DEC_TCLR[g.decision_type]}">
+      return `<div class="gate-card" data-css="--gc:${DEC_TCLR[g.decision_type]}">
         <div class="gate-hd">
-          <div><span class="dec-type" style="background:${DEC_TCLR[g.decision_type]}">${DEC_TYPE[g.decision_type]}</span>
+          <div><span class="dec-type" data-css="background:${DEC_TCLR[g.decision_type]}">${DEC_TYPE[g.decision_type]}</span>
             <b class="gate-title">${esc(g.title)}</b>
             <span class="crstate ${g.status==='approved'?'approved':g.status==='rejected'?'rejected':'pending'}">${DEC_STATUS[g.status]}</span></div>
           <div class="gate-acts">
@@ -80,7 +80,7 @@ function opCard(o){
   else if(dev==='warning')badge='<span class="dev-badge warning">تحذير</span>';
   else if(dev==='allow')badge='<span class="dev-badge ok">داخل الحدود</span>';
   return `<div class="op-card">
-    <span class="dec-type" style="background:${DEC_TCLR.operational};font-size:.66rem">تشغيلي</span>
+    <span class="dec-type" data-css="background:${DEC_TCLR.operational};font-size:.66rem">تشغيلي</span>
     <b>${esc(o.title)}</b>
     <span class="crstate ${o.status==='approved'?'approved':o.status==='executed'?'approved':'pending'} fs-66">${DEC_STATUS[o.status]}</span>
     ${badge}

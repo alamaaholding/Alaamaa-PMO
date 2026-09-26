@@ -34,7 +34,7 @@ const VENDORED = new Set(['qrgen.js']);
 // القائمة هي **مقياس التقدّم**: كل اسم هنا ملف تحوّل إلى وحدة حقيقية. تنمو مع كل
 // دفعة حتى تشمل الجميع، وعندها يُحذف استخراج الـglobals أدناه ويصير no-undef
 // دقيقًا لكل ملف على حدة بلا أي تنازل.
-const ESM_FILES = new Set(['engine.js', 'format.js', 'config.js', 'toast.js', 'api.js', 'notifications.js', 'undo.js', 'urlstate.js', 'skeleton.js', 'theme.js', 'dialogs.js',
+const ESM_FILES = new Set(['engine.js', 'format.js', 'config.js', 'toast.js', 'api.js', 'notifications.js', 'undo.js', 'urlstate.js', 'skeleton.js', 'theme.js', 'dcss.js', 'dialogs.js',
   'contracttemplate.js', 'state.js', 'bundle-entry.js', 'chrome.js', 'exportcontract.js', 'screens.js', 'actions.js', 'views.js', 'projectactions.js', 'taskpanel.js', 'lifecycle.js', 'emptystate.js',
   'staffaccess.js', 'workload.js', 'contractsign.js', 'contractshub.js', 'portfolio.js', 'clienthome.js', 'session.js', 'main.js']);
 const isESM = f => ESM_FILES.has(f);

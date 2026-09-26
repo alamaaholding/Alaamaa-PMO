@@ -95,7 +95,7 @@ async function openCapacityPanel(){
       <div class="chub-stat"><b>${totalCap}</b><span>طاقة متزامنة</span></div>
     </div>
     ${tree.map(d=>`
-      <div class="sa-section cap-dept" style="--dc:${esc(d.color||'#C8A06B')}">
+      <div class="sa-section cap-dept" data-css="--dc:${esc(d.color||'#C8A06B')}">
         <h4>${esc(d.name)} <span class="sa-hint">${(d.roles||[]).length} مسمّى</span></h4>
         ${(d.roles||[]).map(r=>`
           <div class="cap-role" data-role="${r.id}">
@@ -503,13 +503,13 @@ export function portfolioCardHTML(x,canManage){
   return `
       <div class="pcompany-hd" data-toggle="${x.cid}" role="button" tabindex="0">
         <div class="pcv-top">
-          <span class="pdot" style="background:${x.c.color}" title="لون تعريفي لهذا الشريك — يُستخدم لتمييزه في «الخط الزمني الشامل» وأي عرض مجمَّع آخر"></span>
+          <span class="pdot" data-css="background:${x.c.color}" title="لون تعريفي لهذا الشريك — يُستخدم لتمييزه في «الخط الزمني الشامل» وأي عرض مجمَّع آخر"></span>
           <h3>${esc(x.c.name)}</h3>
           ${actBtn}
         </div>
         <span class="pcompany-sub">${sub}</span>
         ${x.noProjects?'':renderStatusBadge(worstProjectStatus(x.list))}
-        ${x.noProjects?'':`<div class="pcompany-pct"><div class="pbar mini" role="progressbar" aria-valuenow="${x.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="نسبة الإنجاز"><div class="pbar-fill" style="width:${x.pct}%"></div></div><b>${x.pct}%</b></div>`}
+        ${x.noProjects?'':`<div class="pcompany-pct"><div class="pbar mini" role="progressbar" aria-valuenow="${x.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="نسبة الإنجاز"><div class="pbar-fill" data-css="width:${x.pct}%"></div></div><b>${x.pct}%</b></div>`}
         ${badges.length?`<div class="palerts">${badges.join('')}</div>`:''}
       </div>
     `;
@@ -521,8 +521,8 @@ export function portfolioEmptySectionHTML(empty,open){
   return `<button class="empty-sec-hd" data-emptytoggle="1" aria-expanded="${!!open}">
         <span class="es-chev">${open?'▴':'▾'}</span> شركاء بلا مشاريع <span class="es-n">${list.length}</span>
         <span class="es-hint">جاهزون لإضافة أول مشروع</span></button>
-      <div class="empty-sec-body" style="display:${open?'flex':'none'}">
-        ${list.map(x=>`<button class="ecard" data-newproj="${x.cid}" style="--cc:${x.c.color}">
+      <div class="empty-sec-body${open?'':' is-hidden'}">
+        ${list.map(x=>`<button class="ecard" data-newproj="${x.cid}" data-css="--cc:${x.c.color}">
           <span class="edot"></span><b>${esc(x.c.name)}</b><span class="eadd">+ أول مشروع</span></button>`).join('')}
       </div>`;
 }

@@ -876,7 +876,7 @@ function panelHeaderHTML(c,STAGE){
       <span class="crstate ${c.status==='signed'?'approved':(c.status==='void'?'rejected':'pending')}">${CH_STL[c.status]||c.status}</span>
       <div class="chub-hd-actions">
         ${STAGE.primary?`<button class="hbtn chub-primary" id="${STAGE.primary.id}"
-           style="--pc:${STAGE.primary.color}">${STAGE.primary.label}</button>`:''}
+           data-css="--pc:${STAGE.primary.color}">${STAGE.primary.label}</button>`:''}
         <div class="chub-more">
           <button class="reqbtn" id="chdMore" aria-haspopup="true" aria-expanded="false" aria-label="إجراءات أخرى" title="إجراءات أخرى">⋯</button>
           <div class="chub-more-menu" id="chdMoreMenu" hidden>
